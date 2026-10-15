@@ -9,7 +9,9 @@ const SESSION_COOKIE_NAME = "buildtrack_session";
 
 export function getJwtSecret(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
-  if (process.env.NODE_ENV === "production") {
+  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+
+  if (process.env.NODE_ENV === "production" && !isBuildPhase) {
     if (!secret || secret === "build_track_pro_fallback_session_secret_32chars" || secret.trim().length < 32) {
       throw new Error(
         "FATAL PRODUCTION CONFIGURATION ERROR: SESSION_SECRET is missing, insecure, or shorter than 32 characters. Production startup aborted to prevent token forgery."
@@ -18,8 +20,6 @@ export function getJwtSecret(): Uint8Array {
   }
   return new TextEncoder().encode(secret || "build_track_pro_fallback_session_secret_32chars");
 }
-
-const JWT_SECRET = getJwtSecret();
 
 export interface SessionPayload {
   userId: string;
@@ -48,12 +48,12 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET, { algorithms: ["HS256"] });
+    const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
     return {
       userId: payload.userId as string,
       organizationId: payload.organizationId as string,
