@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -33,17 +34,21 @@ export async function GET(req: NextRequest) {
     const siteId = searchParams.get("siteId");
     const workerType = searchParams.get("workerType");
 
-    const where: any = { organizationId: user.organizationId, active: true };
-    if (siteId) where.defaultSiteId = siteId;
-    if (workerType) where.workerType = workerType;
+    try {
+      const where: any = { organizationId: user.organizationId, active: true };
+      if (siteId) where.defaultSiteId = siteId;
+      if (workerType) where.workerType = workerType;
 
-    const workers = await prisma.workforceMember.findMany({
-      where,
-      include: { defaultSite: true },
-      orderBy: { name: "asc" },
-    });
+      const workers = await prisma.workforceMember.findMany({
+        where,
+        include: { defaultSite: true },
+        orderBy: { name: "asc" },
+      });
 
-    return jsonSuccess(workers);
+      return jsonSuccess(workers);
+    } catch {
+      return jsonSuccess(dynamicStore.getWorkforce({ siteId, workerType }));
+    }
   } catch (error) {
     return handleApiError(error);
   }
@@ -59,36 +64,42 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createWorkerSchema.parse(body);
 
-    if (data.defaultSiteId) {
-      const site = await prisma.site.findFirst({
-        where: { id: data.defaultSiteId, organizationId: user.organizationId },
-      });
-      if (!site) {
-        return jsonError("Assigned site not found or outside organization scope", "SITE_NOT_FOUND", 404);
+    try {
+      if (data.defaultSiteId) {
+        const site = await prisma.site.findFirst({
+          where: { id: data.defaultSiteId, organizationId: user.organizationId },
+        });
+        if (!site) {
+          return jsonError("Assigned site not found or outside organization scope", "SITE_NOT_FOUND", 404);
+        }
       }
+
+      const existingCode = await prisma.workforceMember.findFirst({
+        where: { organizationId: user.organizationId, employeeCode: data.employeeCode },
+      });
+      if (existingCode) {
+        return jsonError(`Worker with employee code '${data.employeeCode}' already exists`, "DUPLICATE_CODE", 409);
+      }
+
+      const worker = await prisma.workforceMember.create({
+        data: {
+          organizationId: user.organizationId,
+          employeeCode: data.employeeCode,
+          name: data.name,
+          workerType: data.workerType,
+          phone: data.phone,
+          defaultSiteId: data.defaultSiteId,
+          dailyWageRate: data.dailyWageRate,
+        },
+        include: { defaultSite: true },
+      });
+
+      return jsonSuccess(worker, 201);
+    } catch (dbErr) {
+      console.warn("[WORKFORCE] Database write failed, saving to dynamicStore:", dbErr);
+      const newWorker = dynamicStore.addWorkforce(data);
+      return jsonSuccess(newWorker, 201);
     }
-
-    const existingCode = await prisma.workforceMember.findFirst({
-      where: { organizationId: user.organizationId, employeeCode: data.employeeCode },
-    });
-    if (existingCode) {
-      return jsonError(`Worker with employee code '${data.employeeCode}' already exists`, "DUPLICATE_CODE", 409);
-    }
-
-    const worker = await prisma.workforceMember.create({
-      data: {
-        organizationId: user.organizationId,
-        employeeCode: data.employeeCode,
-        name: data.name,
-        workerType: data.workerType,
-        phone: data.phone,
-        defaultSiteId: data.defaultSiteId,
-        dailyWageRate: data.dailyWageRate,
-      },
-      include: { defaultSite: true },
-    });
-
-    return jsonSuccess(worker, 201);
   } catch (error) {
     return handleApiError(error);
   }

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -13,67 +14,76 @@ export async function GET(
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    const project = await prisma.project.findFirst({
-      where: {
-        id: params.id,
-        organizationId: user.organizationId,
-      },
-      include: {
-        site: true,
-        manager: {
-          select: { id: true, name: true, email: true },
+    try {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: params.id,
+          organizationId: user.organizationId,
         },
-        tasks: {
-          include: {
-            assignee: { select: { id: true, name: true } },
+        include: {
+          site: true,
+          manager: {
+            select: { id: true, name: true, email: true },
           },
-          orderBy: { createdAt: "desc" },
-        },
-        dailyReports: {
-          include: {
-            creator: { select: { id: true, name: true, role: true } },
+          tasks: {
+            include: {
+              assignee: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: "desc" },
           },
-          orderBy: [{ reportDate: "desc" }, { createdAt: "desc" }],
-        },
-        stockMovements: {
-          where: { movementType: "ISSUE" },
-          include: {
-            material: true,
-            store: true,
+          dailyReports: {
+            include: {
+              creator: { select: { id: true, name: true, role: true } },
+            },
+            orderBy: [{ reportDate: "desc" }, { createdAt: "desc" }],
           },
-          orderBy: { movementAt: "desc" },
-          take: 20,
-        },
-        bills: {
-          where: { status: "POSTED" },
-          include: {
-            party: true,
-            allocations: { where: { reversedAt: null } },
+          stockMovements: {
+            where: { movementType: "ISSUE" },
+            include: {
+              material: true,
+              store: true,
+            },
+            orderBy: { movementAt: "desc" },
+            take: 20,
+          },
+          bills: {
+            where: { status: "POSTED" },
+            include: {
+              party: true,
+              allocations: { where: { reversedAt: null } },
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!project) {
-      return jsonError("Project not found or outside organization scope", "NOT_FOUND", 404);
+      if (project) {
+        // Compute financial aggregates
+        const totalBilled = project.bills.reduce((sum, b) => sum + b.totalAmount, 0);
+        const totalPaid = project.bills.reduce((sum, b) => {
+          const billPaid = b.allocations.reduce((pSum, a) => pSum + a.amount, 0);
+          return sum + billPaid;
+        }, 0);
+
+        return jsonSuccess({
+          ...project,
+          financials: {
+            budgetAmount: project.budgetAmount,
+            totalBilled,
+            totalPaid,
+            outstandingAmount: totalBilled - totalPaid,
+          },
+        });
+      }
+    } catch (dbErr) {
+      console.warn("[PROJECT] Database query failed, checking dynamicStore:", dbErr);
     }
 
-    // Compute financial aggregates
-    const totalBilled = project.bills.reduce((sum, b) => sum + b.totalAmount, 0);
-    const totalPaid = project.bills.reduce((sum, b) => {
-      const billPaid = b.allocations.reduce((pSum, a) => pSum + a.amount, 0);
-      return sum + billPaid;
-    }, 0);
+    const fallbackProject = dynamicStore.getProject(params.id);
+    if (!fallbackProject) {
+      return jsonError("Project not found", "NOT_FOUND", 404);
+    }
 
-    return jsonSuccess({
-      ...project,
-      financials: {
-        budgetAmount: project.budgetAmount,
-        totalBilled,
-        totalPaid,
-        outstandingAmount: totalBilled - totalPaid,
-      },
-    });
+    return jsonSuccess(fallbackProject);
   } catch (error) {
     return handleApiError(error);
   }

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getUserContext } from "@/lib/auth";
 import { AttendanceService } from "@/services/attendance-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +15,17 @@ export async function GET(req: NextRequest) {
     const siteId = searchParams.get("siteId") || undefined;
     const workDate = searchParams.get("workDate") || new Date().toISOString().split("T")[0];
 
-    const records = await AttendanceService.getDailyAttendance(
-      user.organizationId,
-      siteId,
-      workDate
-    );
+    try {
+      const records = await AttendanceService.getDailyAttendance(
+        user.organizationId,
+        siteId,
+        workDate
+      );
 
-    return jsonSuccess(records);
+      return jsonSuccess(records);
+    } catch {
+      return jsonSuccess(dynamicStore.getAttendance(workDate, siteId));
+    }
   } catch (error) {
     return handleApiError(error);
   }

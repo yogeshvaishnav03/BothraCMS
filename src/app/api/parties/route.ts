@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +26,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const partyType = searchParams.get("type"); // VENDOR, CONTRACTOR, BOTH, ALL
 
-    const where: any = { organizationId: user.organizationId, active: true };
-    if (partyType && partyType !== "ALL") {
-      where.partyType = { in: [partyType, "BOTH"] };
-    }
-
     try {
+      const where: any = { organizationId: user.organizationId, active: true };
+      if (partyType && partyType !== "ALL") {
+        where.partyType = { in: [partyType, "BOTH"] };
+      }
+
       const parties = await prisma.party.findMany({
         where,
         include: {
@@ -66,33 +67,7 @@ export async function GET(req: NextRequest) {
 
       return jsonSuccess(enriched);
     } catch {
-      const fallbackParties = [
-        {
-          id: "demo-party-1",
-          name: "Tata Steel Ltd",
-          partyType: "VENDOR",
-          phone: "+91 98765 43210",
-          email: "sales@tatasteel.com",
-          address: "Jamshedpur, Jharkhand",
-          taxIdentifier: "GSTIN20AAAAT1234A1Z5",
-          totalBilled: 12000000,
-          totalPaid: 9500000,
-          outstandingBalance: 2500000,
-        },
-        {
-          id: "demo-party-2",
-          name: "UltraTech Cement Supplies",
-          partyType: "VENDOR",
-          phone: "+91 98111 22334",
-          email: "orders@ultratech.com",
-          address: "Mumbai, Maharashtra",
-          taxIdentifier: "GSTIN27AAACU5678B1Z2",
-          totalBilled: 8500000,
-          totalPaid: 6000000,
-          outstandingBalance: 2500000,
-        },
-      ];
-      return jsonSuccess(fallbackParties);
+      return jsonSuccess(dynamicStore.getParties(partyType));
     }
   } catch (error) {
     return handleApiError(error);
@@ -109,20 +84,26 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createPartySchema.parse(body);
 
-    const party = await prisma.party.create({
-      data: {
-        organizationId: user.organizationId,
-        partyType: data.partyType,
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        address: data.address,
-        taxIdentifier: data.taxIdentifier,
-        notes: data.notes,
-      },
-    });
+    try {
+      const party = await prisma.party.create({
+        data: {
+          organizationId: user.organizationId,
+          partyType: data.partyType,
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          address: data.address,
+          taxIdentifier: data.taxIdentifier,
+          notes: data.notes,
+        },
+      });
 
-    return jsonSuccess(party, 201);
+      return jsonSuccess(party, 201);
+    } catch (dbErr) {
+      console.warn("[PARTIES] Database write failed, saving to dynamicStore:", dbErr);
+      const newParty = dynamicStore.addParty(data);
+      return jsonSuccess(newParty, 201);
+    }
   } catch (error) {
     return handleApiError(error);
   }

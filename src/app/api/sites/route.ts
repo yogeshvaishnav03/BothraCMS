@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -42,25 +43,7 @@ export async function GET(req: NextRequest) {
 
       return jsonSuccess(sites);
     } catch {
-      const fallbackSites = [
-        {
-          id: "demo-site-1",
-          name: "Sector 62 Business District",
-          code: "S62",
-          address: "Sector 62, Noida, NCR",
-          stores: [{ id: "demo-store-1", name: "Central Material Yard" }],
-          _count: { projects: 2, workforceMembers: 28 },
-        },
-        {
-          id: "demo-site-2",
-          name: "Expressway Junction Corridor",
-          code: "EXP",
-          address: "Expressway Junction, Greater Noida",
-          stores: [{ id: "demo-store-2", name: "Expressway Site Store" }],
-          _count: { projects: 2, workforceMembers: 20 },
-        },
-      ];
-      return jsonSuccess(fallbackSites);
+      return jsonSuccess(dynamicStore.getSites());
     }
   } catch (error) {
     return handleApiError(error);
@@ -77,31 +60,37 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createSiteSchema.parse(body);
 
-    const existingCode = await prisma.site.findUnique({
-      where: {
-        organizationId_code: {
-          organizationId: user.organizationId,
-          code: data.code,
+    try {
+      const existingCode = await prisma.site.findUnique({
+        where: {
+          organizationId_code: {
+            organizationId: user.organizationId,
+            code: data.code,
+          },
         },
-      },
-    });
+      });
 
-    if (existingCode) {
-      return jsonError(`Site with code '${data.code}' already exists`, "DUPLICATE_CODE", 409);
+      if (existingCode) {
+        return jsonError(`Site with code '${data.code}' already exists`, "DUPLICATE_CODE", 409);
+      }
+
+      const site = await prisma.site.create({
+        data: {
+          organizationId: user.organizationId,
+          name: data.name,
+          code: data.code,
+          address: data.address,
+          latitude: data.latitude,
+          longitude: data.longitude,
+        },
+      });
+
+      return jsonSuccess(site, 201);
+    } catch (dbErr) {
+      console.warn("[SITES] Database write failed, saving to dynamicStore:", dbErr);
+      const newSite = dynamicStore.addSite(data);
+      return jsonSuccess(newSite, 201);
     }
-
-    const site = await prisma.site.create({
-      data: {
-        organizationId: user.organizationId,
-        name: data.name,
-        code: data.code,
-        address: data.address,
-        latitude: data.latitude,
-        longitude: data.longitude,
-      },
-    });
-
-    return jsonSuccess(site, 201);
   } catch (error) {
     return handleApiError(error);
   }

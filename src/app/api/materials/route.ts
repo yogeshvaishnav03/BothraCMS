@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +26,16 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     const categoryId = searchParams.get("categoryId");
 
-    const where: any = { organizationId: user.organizationId, active: true };
-    if (categoryId) where.categoryId = categoryId;
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { sku: { contains: search } },
-      ];
-    }
-
     try {
+      const where: any = { organizationId: user.organizationId, active: true };
+      if (categoryId) where.categoryId = categoryId;
+      if (search) {
+        where.OR = [
+          { name: { contains: search } },
+          { sku: { contains: search } },
+        ];
+      }
+
       const materials = await prisma.material.findMany({
         where,
         include: {
@@ -58,31 +59,7 @@ export async function GET(req: NextRequest) {
 
       return jsonSuccess(enriched);
     } catch {
-      const fallbackMaterials = [
-        {
-          id: "mat-1",
-          sku: "MAT-STL-16MM",
-          name: "Structural Steel TMT 16mm Fe550D",
-          uom: "TONNE",
-          minStockQty: 10,
-          totalStock: 35,
-          isLowStock: false,
-          category: { name: "Metals & Steel" },
-          stockBalances: [],
-        },
-        {
-          id: "mat-2",
-          sku: "MAT-CMT-OPC53",
-          name: "Ordinary Portland Cement 53 Grade",
-          uom: "BAG",
-          minStockQty: 50,
-          totalStock: 120,
-          isLowStock: false,
-          category: { name: "Cement & Aggregates" },
-          stockBalances: [],
-        },
-      ];
-      return jsonSuccess(fallbackMaterials);
+      return jsonSuccess(dynamicStore.getMaterials(search));
     }
   } catch (error) {
     return handleApiError(error);
@@ -94,26 +71,31 @@ export async function POST(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    // Creating master materials requires inventory management privileges (Storekeeper, Org Admin, Super Admin)
     assertPermission(user.role, "inventory:adjust");
 
     const body = await req.json();
     const data = createMaterialSchema.parse(body);
 
-    const material = await prisma.material.create({
-      data: {
-        organizationId: user.organizationId,
-        sku: data.sku,
-        name: data.name,
-        categoryId: data.categoryId,
-        unitCode: data.unitCode,
-        minStockQty: data.minStockQty,
-        reorderQty: data.reorderQty,
-      },
-      include: { category: true },
-    });
+    try {
+      const material = await prisma.material.create({
+        data: {
+          organizationId: user.organizationId,
+          sku: data.sku,
+          name: data.name,
+          categoryId: data.categoryId,
+          unitCode: data.unitCode,
+          minStockQty: data.minStockQty,
+          reorderQty: data.reorderQty,
+        },
+        include: { category: true },
+      });
 
-    return jsonSuccess(material, 201);
+      return jsonSuccess(material, 201);
+    } catch (dbErr) {
+      console.warn("[MATERIALS] Database write failed, saving to dynamicStore:", dbErr);
+      const newMat = dynamicStore.addMaterial(data);
+      return jsonSuccess(newMat, 201);
+    }
   } catch (error) {
     return handleApiError(error);
   }

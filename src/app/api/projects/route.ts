@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -46,30 +47,7 @@ export async function GET(req: NextRequest) {
 
       return jsonSuccess(projects);
     } catch {
-      // Fallback demo projects if database is unavailable
-      const fallbackProjects = [
-        {
-          id: "demo-prj-1",
-          code: "PRJ-SKY-01",
-          name: "Skyline Commercial Tower - Phase 1",
-          status: "IN_PROGRESS",
-          budgetAmount: 450000000,
-          site: { id: "demo-site-1", name: "Sector 62 Business District", code: "S62" },
-          manager: { id: "usr-pm-1", name: "Arjun Verma", email: "pm@buildtrack.pro" },
-          _count: { tasks: 12, dailyReports: 8, stockMovements: 24 },
-        },
-        {
-          id: "demo-prj-2",
-          code: "PRJ-METRO-02",
-          name: "Metro Line Extension - Package B",
-          status: "IN_PROGRESS",
-          budgetAmount: 850000000,
-          site: { id: "demo-site-2", name: "Expressway Junction Corridor", code: "EXP" },
-          manager: { id: "usr-pm-1", name: "Arjun Verma", email: "pm@buildtrack.pro" },
-          _count: { tasks: 19, dailyReports: 14, stockMovements: 45 },
-        },
-      ];
-      return jsonSuccess(fallbackProjects);
+      return jsonSuccess(dynamicStore.getProjects());
     }
   } catch (error) {
     return handleApiError(error);
@@ -86,57 +64,63 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createProjectSchema.parse(body);
 
-    // Verify site belongs to organization
-    const site = await prisma.site.findFirst({
-      where: { id: data.siteId, organizationId: user.organizationId },
-    });
-    if (!site) {
-      return jsonError("Site not found or outside organization scope", "SITE_NOT_FOUND", 404);
-    }
-
-    if (data.managerUserId) {
-      const manager = await prisma.user.findFirst({
-        where: { id: data.managerUserId, organizationId: user.organizationId },
+    try {
+      // Verify site belongs to organization
+      const site = await prisma.site.findFirst({
+        where: { id: data.siteId, organizationId: user.organizationId },
       });
-      if (!manager) {
-        return jsonError("Project manager not found or outside organization scope", "USER_NOT_FOUND", 404);
+      if (!site) {
+        return jsonError("Site not found or outside organization scope", "SITE_NOT_FOUND", 404);
       }
+
+      if (data.managerUserId) {
+        const manager = await prisma.user.findFirst({
+          where: { id: data.managerUserId, organizationId: user.organizationId },
+        });
+        if (!manager) {
+          return jsonError("Project manager not found or outside organization scope", "USER_NOT_FOUND", 404);
+        }
+      }
+
+      const existingCode = await prisma.project.findFirst({
+        where: { organizationId: user.organizationId, code: data.code },
+      });
+      if (existingCode) {
+        return jsonError(`Project with code '${data.code}' already exists`, "DUPLICATE_CODE", 409);
+      }
+
+      const project = await prisma.project.create({
+        data: {
+          organizationId: user.organizationId,
+          siteId: data.siteId,
+          code: data.code,
+          name: data.name,
+          managerUserId: data.managerUserId,
+          budgetAmount: data.budgetAmount,
+          startDate: data.startDate ? new Date(data.startDate) : null,
+          endDate: data.endDate ? new Date(data.endDate) : null,
+          notes: data.notes,
+        },
+        include: { site: true, manager: true },
+      });
+
+      await prisma.auditEvent.create({
+        data: {
+          organizationId: user.organizationId,
+          actorUserId: user.userId,
+          action: "PROJECT_CREATED",
+          entityType: "PROJECT",
+          entityId: project.id,
+          afterJson: JSON.stringify({ name: project.name, code: project.code }),
+        },
+      });
+
+      return jsonSuccess(project, 201);
+    } catch (dbErr) {
+      console.warn("[PROJECTS] Database write failed, saving to dynamicStore:", dbErr);
+      const newProj = dynamicStore.addProject(data);
+      return jsonSuccess(newProj, 201);
     }
-
-    const existingCode = await prisma.project.findFirst({
-      where: { organizationId: user.organizationId, code: data.code },
-    });
-    if (existingCode) {
-      return jsonError(`Project with code '${data.code}' already exists`, "DUPLICATE_CODE", 409);
-    }
-
-    const project = await prisma.project.create({
-      data: {
-        organizationId: user.organizationId,
-        siteId: data.siteId,
-        code: data.code,
-        name: data.name,
-        managerUserId: data.managerUserId,
-        budgetAmount: data.budgetAmount,
-        startDate: data.startDate ? new Date(data.startDate) : null,
-        endDate: data.endDate ? new Date(data.endDate) : null,
-        notes: data.notes,
-      },
-      include: { site: true, manager: true },
-    });
-
-    await prisma.auditEvent.create({
-      data: {
-        organizationId: user.organizationId,
-        actorUserId: user.userId,
-        action: "PROJECT_CREATED",
-        entityType: "PROJECT",
-        entityId: project.id,
-        afterJson: JSON.stringify({ name: project.name, code: project.code }),
-      },
-    });
-
-    return jsonSuccess(project, 201);
   } catch (error) {
     return handleApiError(error);
   }
