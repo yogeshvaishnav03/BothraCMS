@@ -110,32 +110,39 @@ export async function GET(req: NextRequest) {
       take: 3,
     });
 
-    for (const site of sites) {
-      const reportToday = await prisma.dailySiteReport.findFirst({
-        where: {
-          organizationId: user.organizationId,
-          reportDate: todayStr,
-          project: { siteId: site.id },
-        },
-      });
-
-      if (!reportToday) {
-        alerts.push({
-          id: `missing-report-${site.id}-${todayStr}`,
-          type: "DAILY_REPORT_MISSING",
-          severity: "INFO",
-          title: `Daily Report Pending: ${site.name}`,
-          message: `No supervisor daily report submitted yet for today (${todayStr}).`,
-          href: "/projects",
-          createdAt: now.toISOString(),
+    try {
+      for (const site of sites) {
+        const reportToday = await prisma.dailySiteReport.findFirst({
+          where: {
+            organizationId: user.organizationId,
+            reportDate: todayStr,
+            project: { siteId: site.id },
+          },
         });
-      }
-    }
 
-    return jsonSuccess({
-      unreadCount: alerts.length,
-      alerts,
-    });
+        if (!reportToday) {
+          alerts.push({
+            id: `missing-report-${site.id}-${todayStr}`,
+            type: "DAILY_REPORT_MISSING",
+            severity: "INFO",
+            title: `Daily Report Pending: ${site.name}`,
+            message: `No supervisor daily report submitted yet for today (${todayStr}).`,
+            href: "/projects",
+            createdAt: now.toISOString(),
+          });
+        }
+      }
+
+      return jsonSuccess({
+        unreadCount: alerts.length,
+        alerts,
+      });
+    } catch {
+      return jsonSuccess({
+        unreadCount: 0,
+        alerts: [],
+      });
+    }
   } catch (error) {
     return handleApiError(error);
   }
