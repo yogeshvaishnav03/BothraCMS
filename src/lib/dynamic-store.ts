@@ -779,18 +779,49 @@ export const dynamicStore = {
     return newMat;
   },
   getMaterialLedger(materialId: string) {
-    const mat = g.__DYNAMIC_STORE__.materials.find((m: any) => m.id === materialId);
+    const mat = g.__DYNAMIC_STORE__.materials.find((m: any) => m.id === materialId) || g.__DYNAMIC_STORE__.materials[0];
+    const currentBalance = mat ? (mat.totalStock || 35) : 35;
+    const unitCode = mat ? (mat.unitCode || mat.uom || "TONNE") : "TONNE";
     return {
-      material: mat,
-      movements: [
+      material: {
+        id: mat ? mat.id : materialId,
+        name: mat ? mat.name : "Structural Steel TMT 16mm",
+        sku: mat ? mat.sku : "MAT-STL-16MM",
+        unitCode,
+      },
+      currentBalance,
+      totalReceived: currentBalance + 15,
+      totalIssued: 15,
+      entries: [
         {
-          id: "mov-1",
-          movementType: "RECEIPT",
-          quantity: 25,
-          unitCost: 80000,
-          movementAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-          store: { name: "Central Material Yard" },
-          party: { name: "Tata Steel Ltd" },
+          id: `mov-${Date.now()}-1`,
+          date: new Date(Date.now() - 86400000 * 4).toISOString(),
+          type: "RECEIPT",
+          storeName: "Central Material Yard",
+          vendorName: "Tata Steel Ltd",
+          referenceDoc: "GRN-2026-0082",
+          quantityDelta: currentBalance + 15,
+          unitCode,
+          unitRate: 8000000,
+          runningBalance: currentBalance + 15,
+          projectName: "Skyline Commercial Tower - Phase 1",
+          taskTitle: "Inward Delivery",
+          createdByName: "Mohan Lal",
+        },
+        {
+          id: `mov-${Date.now()}-2`,
+          date: new Date(Date.now() - 86400000 * 2).toISOString(),
+          type: "ISSUE",
+          storeName: "Central Material Yard",
+          vendorName: "Apex Contractors",
+          referenceDoc: "ISS-2026-0031",
+          quantityDelta: -15,
+          unitCode,
+          unitRate: 8000000,
+          runningBalance: currentBalance,
+          projectName: "Skyline Commercial Tower - Phase 1",
+          taskTitle: "Reinforcement Steel Inspection",
+          createdByName: "Rajesh Kumar",
         },
       ],
     };
@@ -825,11 +856,29 @@ export const dynamicStore = {
     return newParty;
   },
   getPartyStatement(partyId: string) {
-    const party = g.__DYNAMIC_STORE__.parties.find((p: any) => p.id === partyId);
+    const party = g.__DYNAMIC_STORE__.parties.find((p: any) => p.id === partyId) || g.__DYNAMIC_STORE__.parties[0];
+    const bills = g.__DYNAMIC_STORE__.bills.filter((b: any) => b.partyId === party.id);
+    const payments = g.__DYNAMIC_STORE__.payments.filter((p: any) => p.partyId === party.id);
+    const totalBilled = bills.reduce((s: number, b: any) => s + (b.totalAmount || 0), 0);
+    const totalPaid = payments
+      .filter((p: any) => p.status === "POSTED")
+      .reduce((s: number, p: any) => s + (p.amount || 0), 0);
+    const outstandingBalance = Math.max(0, totalBilled - totalPaid);
+
     return {
       party,
-      bills: g.__DYNAMIC_STORE__.bills.filter((b: any) => b.partyId === partyId),
-      payments: g.__DYNAMIC_STORE__.payments.filter((p: any) => p.partyId === partyId),
+      totalBilled,
+      totalPaid,
+      outstandingBalance,
+      bills: bills.map((b: any) => ({
+        ...b,
+        paidAmount: b.paidAmount || 0,
+        outstandingAmount: b.outstandingAmount !== undefined ? b.outstandingAmount : (b.totalAmount - (b.paidAmount || 0)),
+      })),
+      payments: payments.map((p: any) => ({
+        ...p,
+        method: p.paymentMode || p.method || "BANK_TRANSFER",
+      })),
     };
   },
 
@@ -840,13 +889,13 @@ export const dynamicStore = {
     return bills;
   },
   createBill(data: any) {
-    const party = g.__DYNAMIC_STORE__.parties.find((p: any) => p.id === data.partyId) || initialParties[0];
-    const project = g.__DYNAMIC_STORE__.projects.find((pr: any) => pr.id === data.projectId) || initialProjects[0];
-    const total = data.lines.reduce((s: number, l: any) => s + (l.lineTotal || (l.quantity * l.unitRate)), 0);
+    const party = g.__DYNAMIC_STORE__.parties.find((p: any) => p.id === data.partyId) || g.__DYNAMIC_STORE__.parties[0];
+    const project = g.__DYNAMIC_STORE__.projects.find((pr: any) => pr.id === data.projectId) || g.__DYNAMIC_STORE__.projects[0];
+    const total = data.lines.reduce((s: number, l: any) => s + (l.lineTotal || ((l.quantity || 1) * (l.unitRate || 0))), 0);
     const newBill = {
       id: `bill-${Date.now()}`,
-      partyId: data.partyId,
-      projectId: data.projectId,
+      partyId: party.id,
+      projectId: project ? project.id : null,
       billNumber: data.billNumber,
       billDate: data.billDate,
       dueDate: data.dueDate || null,
@@ -861,8 +910,10 @@ export const dynamicStore = {
       allocations: [],
     };
     g.__DYNAMIC_STORE__.bills.unshift(newBill);
-    party.totalBilled += total;
-    party.outstandingBalance += total;
+    if (party) {
+      party.totalBilled = (party.totalBilled || 0) + total;
+      party.outstandingBalance = (party.outstandingBalance || 0) + total;
+    }
     g.__DYNAMIC_STORE__.org._count.bills = g.__DYNAMIC_STORE__.bills.length;
     return newBill;
   },
@@ -872,23 +923,44 @@ export const dynamicStore = {
     return payments;
   },
   createPayment(data: any) {
-    const party = g.__DYNAMIC_STORE__.parties.find((p: any) => p.id === data.partyId) || initialParties[0];
+    const party = g.__DYNAMIC_STORE__.parties.find((p: any) => p.id === data.partyId) || g.__DYNAMIC_STORE__.parties[0];
+    const amountVal = Number(data.amount) || 0;
     const newPayment = {
       id: `pay-${Date.now()}`,
-      partyId: data.partyId,
+      partyId: party ? party.id : data.partyId,
       paymentNumber: `PAY-${Date.now().toString().slice(-4)}`,
       paymentDate: data.paymentDate || new Date().toISOString(),
-      amount: Number(data.amount) || 0,
-      paymentMode: data.paymentMode || "BANK_TRANSFER",
+      amount: amountVal,
+      paymentMode: data.method || data.paymentMode || "BANK_TRANSFER",
+      method: data.method || data.paymentMode || "BANK_TRANSFER",
       referenceNumber: data.referenceNumber || `REF-${Date.now().toString().slice(-6)}`,
       notes: data.notes || "",
       status: "POSTED",
       party,
-      allocations: [],
+      allocations: data.allocations || [],
     };
+
+    // If bill allocated, apply payment against bill
+    if (data.allocations && data.allocations.length > 0) {
+      for (const alloc of data.allocations) {
+        const targetBill = g.__DYNAMIC_STORE__.bills.find((b: any) => b.id === alloc.billId);
+        if (targetBill) {
+          targetBill.paidAmount = (targetBill.paidAmount || 0) + alloc.amount;
+          targetBill.outstandingAmount = Math.max(0, targetBill.totalAmount - targetBill.paidAmount);
+          targetBill.allocations.push({
+            id: `ba-${Date.now()}`,
+            amount: alloc.amount,
+            paymentId: newPayment.id,
+          });
+        }
+      }
+    }
+
     g.__DYNAMIC_STORE__.payments.unshift(newPayment);
-    party.totalPaid += Number(data.amount) || 0;
-    party.outstandingBalance = Math.max(0, party.outstandingBalance - (Number(data.amount) || 0));
+    if (party) {
+      party.totalPaid = (party.totalPaid || 0) + amountVal;
+      party.outstandingBalance = Math.max(0, (party.outstandingBalance || 0) - amountVal);
+    }
     return newPayment;
   },
   reversePayment(paymentId: string, reason: string) {

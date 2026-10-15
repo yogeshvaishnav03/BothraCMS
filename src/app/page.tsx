@@ -96,7 +96,7 @@ export default function DashboardPage() {
                 {kpi?.activeProjectsCount ?? 0}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                <span>Skyline Heights Sector 62</span>
+                <span>{projects[0]?.name || "All Active Sites"}</span>
               </div>
             </div>
 
