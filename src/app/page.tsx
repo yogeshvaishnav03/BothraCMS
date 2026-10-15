@@ -22,6 +22,7 @@ import {
   PackageMinus,
   UserCheck,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function DashboardPage() {
   const [kpi, setKpi] = useState<any>(null);
@@ -38,12 +39,25 @@ export default function DashboardPage() {
     Promise.all([
       fetch(kpiUrl).then((r) => r.json()),
       fetch(projUrl).then((r) => r.json()),
-      fetch("/api/tasks?status=TODO").then((r) => r.json()),
+      fetch("/api/tasks").then((r) => r.json()),
     ])
       .then(([kpiRes, projRes, taskRes]) => {
-        if (kpiRes.success) setKpi(kpiRes.data);
-        if (projRes.success) setProjects(projRes.data);
-        if (taskRes.success) setTasks(taskRes.data);
+        const mergedProj = clientCache.mergeProjects(projRes.data || []);
+        const mergedTasks = clientCache.mergeTasks(taskRes.data || []);
+        setProjects(mergedProj);
+        setTasks(mergedTasks.filter((t: any) => t.status === "TODO" || t.status === "IN_PROGRESS"));
+
+        if (kpiRes.success && kpiRes.data) {
+          const kpiData = { ...kpiRes.data };
+          if (mergedProj.length > 0) {
+            kpiData.activeProjects =
+              mergedProj.filter((p: any) => p.status === "ACTIVE").length || mergedProj.length;
+          }
+          if (mergedTasks.length > 0) {
+            kpiData.pendingTasks = mergedTasks.filter((t: any) => t.status !== "COMPLETED").length;
+          }
+          setKpi(kpiData);
+        }
       })
       .finally(() => setLoading(false));
   };

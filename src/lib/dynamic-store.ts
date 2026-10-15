@@ -698,6 +698,11 @@ export const dynamicStore = {
     g.__DYNAMIC_STORE__.org._count.projects = g.__DYNAMIC_STORE__.projects.length;
     return newProj;
   },
+  deleteProject(id: string) {
+    g.__DYNAMIC_STORE__.projects = g.__DYNAMIC_STORE__.projects.filter((p: any) => p.id !== id);
+    g.__DYNAMIC_STORE__.org._count.projects = g.__DYNAMIC_STORE__.projects.length;
+    return true;
+  },
 
   // --- TASKS ---
   getTasks(filter?: { projectId?: string | null; status?: string | null; priority?: string | null }) {
@@ -738,6 +743,10 @@ export const dynamicStore = {
     }
     return task;
   },
+  deleteTask(id: string) {
+    g.__DYNAMIC_STORE__.tasks = g.__DYNAMIC_STORE__.tasks.filter((t: any) => t.id !== id);
+    return true;
+  },
 
   // --- WORKFORCE ---
   getWorkforce(filter?: { siteId?: string | null; workerType?: string | null }) {
@@ -763,6 +772,11 @@ export const dynamicStore = {
     g.__DYNAMIC_STORE__.workforce.unshift(newWorker);
     g.__DYNAMIC_STORE__.org._count.workforceMembers = g.__DYNAMIC_STORE__.workforce.length;
     return newWorker;
+  },
+  deleteWorkforce(id: string) {
+    g.__DYNAMIC_STORE__.workforce = g.__DYNAMIC_STORE__.workforce.filter((w: any) => w.id !== id);
+    g.__DYNAMIC_STORE__.org._count.workforceMembers = g.__DYNAMIC_STORE__.workforce.length;
+    return true;
   },
 
   // --- ATTENDANCE ---
@@ -843,6 +857,11 @@ export const dynamicStore = {
     g.__DYNAMIC_STORE__.org._count.materials = g.__DYNAMIC_STORE__.materials.length;
     return newMat;
   },
+  deleteMaterial(id: string) {
+    g.__DYNAMIC_STORE__.materials = g.__DYNAMIC_STORE__.materials.filter((m: any) => m.id !== id);
+    g.__DYNAMIC_STORE__.org._count.materials = g.__DYNAMIC_STORE__.materials.length;
+    return true;
+  },
   getMaterialLedger(materialId: string) {
     const mat = g.__DYNAMIC_STORE__.materials.find((m: any) => m.id === materialId) || g.__DYNAMIC_STORE__.materials[0];
     const currentBalance = mat ? (mat.totalStock || 35) : 35;
@@ -919,6 +938,10 @@ export const dynamicStore = {
     };
     g.__DYNAMIC_STORE__.parties.unshift(newParty);
     return newParty;
+  },
+  deleteParty(id: string) {
+    g.__DYNAMIC_STORE__.parties = g.__DYNAMIC_STORE__.parties.filter((p: any) => p.id !== id);
+    return true;
   },
   getPartyStatement(partyId: string) {
     const party = g.__DYNAMIC_STORE__.parties.find((p: any) => p.id === partyId) || g.__DYNAMIC_STORE__.parties[0];

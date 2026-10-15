@@ -15,7 +15,9 @@ import {
   X,
   Phone,
   Mail,
+  Trash2,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function PartiesPage() {
   const [parties, setParties] = useState<any[]>([]);
@@ -40,7 +42,10 @@ export default function PartiesPage() {
     fetch(`/api/parties?type=${typeFilter}`)
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setParties(res.data);
+        if (res.success) {
+          const merged = clientCache.mergeParties(res.data || []);
+          setParties(typeFilter === "ALL" ? merged : merged.filter((p: any) => p.partyType === typeFilter));
+        }
       })
       .finally(() => setLoading(false));
   };
@@ -49,6 +54,18 @@ export default function PartiesPage() {
     loadParties();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeFilter]);
+
+  const handleDeleteParty = async (id: string, partyName: string) => {
+    if (!confirm(`Are you sure you want to delete party "${partyName}"?`)) return;
+    try {
+      await fetch(`/api/parties?id=${id}`, { method: "DELETE" });
+      clientCache.deleteParty(id);
+      setStatusMessage(`Party "${partyName}" deleted.`);
+      loadParties();
+    } catch {
+      setErrorMessage("Failed to delete party");
+    }
+  };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +90,9 @@ export default function PartiesPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to register party");
       } else {
+        if (data.data) {
+          clientCache.saveParty(data.data);
+        }
         setStatusMessage("Party registered successfully!");
         setShowModal(false);
         setName("");
@@ -239,13 +259,25 @@ export default function PartiesPage() {
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <Link
-                          href={`/parties/${p.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
-                        >
-                          <span>Statement</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/parties/${p.id}`}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
+                          >
+                            <span>Statement</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteParty(p.id, p.name);
+                            }}
+                            title="Delete Party"
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

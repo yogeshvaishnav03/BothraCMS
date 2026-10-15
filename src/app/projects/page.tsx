@@ -13,7 +13,9 @@ import {
   X,
   FileText,
   ClipboardList,
+  Trash2,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -59,18 +61,23 @@ export default function ProjectsPage() {
     ])
       .then(([projRes, sitesRes, repRes]) => {
         if (projRes.success) {
-          setProjects(projRes.data);
-          if (projRes.data.length > 0) {
-            setReportProjectId((prev) => prev || projRes.data[0].id);
+          const mergedProj = clientCache.mergeProjects(projRes.data || []);
+          setProjects(mergedProj);
+          if (mergedProj.length > 0) {
+            setReportProjectId((prev) => prev || mergedProj[0].id);
           }
         }
         if (sitesRes.success && sitesRes.data) {
-          setSites(sitesRes.data);
-          if (sitesRes.data.length > 0) {
-            setSelectedSiteId((prev) => prev || sitesRes.data[0].id);
+          const mergedSites = clientCache.mergeSites(sitesRes.data || []);
+          setSites(mergedSites);
+          if (mergedSites.length > 0) {
+            setSelectedSiteId((prev) => prev || mergedSites[0].id);
           }
         }
-        if (repRes.success) setDailyReports(repRes.data);
+        if (repRes.success) {
+          const mergedRep = clientCache.mergeDailyReports(repRes.data || []);
+          setDailyReports(mergedRep);
+        }
       })
       .finally(() => setLoading(false));
   };
@@ -78,6 +85,18 @@ export default function ProjectsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleDeleteProject = async (id: string, projectName: string) => {
+    if (!confirm(`Are you sure you want to delete project "${projectName}"?`)) return;
+    try {
+      await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      clientCache.deleteProject(id);
+      setStatusMessage(`Project "${projectName}" deleted successfully.`);
+      loadData();
+    } catch {
+      setErrorMessage("Failed to delete project");
+    }
+  };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +124,9 @@ export default function ProjectsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create project");
       } else {
+        if (data.data) {
+          clientCache.saveProject(data.data);
+        }
         setStatusMessage("Project created successfully!");
         setShowCreateModal(false);
         setName("");
@@ -142,6 +164,9 @@ export default function ProjectsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create site");
       } else {
+        if (data.data) {
+          clientCache.saveSite(data.data);
+        }
         setStatusMessage(`Site "${data.data.name}" created successfully with default main store!`);
         setShowCreateSiteModal(false);
         setSiteName("");
@@ -188,6 +213,9 @@ export default function ProjectsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to submit daily report");
       } else {
+        if (data.data) {
+          clientCache.saveDailyReport(data.data);
+        }
         setStatusMessage(`Daily site report for ${reportDate} submitted and recorded in audit log!`);
         setShowDailyReportModal(false);
         setReportProgress("");
@@ -348,12 +376,21 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <Link
-                    href={`/projects/${p.id}`}
-                    className="mt-3.5 block text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-xs"
-                  >
-                    View Project Details &rarr;
-                  </Link>
+                  <div className="mt-3.5 flex items-center gap-2">
+                    <Link
+                      href={`/projects/${p.id}`}
+                      className="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-xs"
+                    >
+                      View Project Details &rarr;
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteProject(p.id, p.name)}
+                      title="Delete Project"
+                      className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

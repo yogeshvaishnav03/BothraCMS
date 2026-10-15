@@ -16,6 +16,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function FinancePage() {
   const [bills, setBills] = useState<any[]>([]);
@@ -67,11 +68,11 @@ export default function FinancePage() {
       fetch("/api/materials").then((r) => r.json()),
     ])
       .then(([billsRes, paymentsRes, partiesRes, projRes, matRes]) => {
-        if (billsRes.success) setBills(billsRes.data);
-        if (paymentsRes.success) setPayments(paymentsRes.data);
-        if (partiesRes.success) setParties(partiesRes.data);
-        if (projRes.success) setProjects(projRes.data);
-        if (matRes.success) setMaterials(matRes.data);
+        if (billsRes.success) setBills(clientCache.mergeBills(billsRes.data || []));
+        if (paymentsRes.success) setPayments(clientCache.mergePayments(paymentsRes.data || []));
+        if (partiesRes.success) setParties(clientCache.mergeParties(partiesRes.data || []));
+        if (projRes.success) setProjects(clientCache.mergeProjects(projRes.data || []));
+        if (matRes.success) setMaterials(clientCache.mergeMaterials(matRes.data || []));
       })
       .finally(() => setLoading(false));
   };
@@ -119,6 +120,9 @@ export default function FinancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to record payment");
       } else {
+        if (data.data) {
+          clientCache.savePayment(data.data);
+        }
         setStatusMessage(
           `Payment of ₹${amount} posted successfully with idempotency key ${idempotencyKey}`
         );
@@ -247,6 +251,9 @@ export default function FinancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create bill");
       } else {
+        if (data.data) {
+          clientCache.saveBill(data.data);
+        }
         const totalAmountRupees = (parsedLines.reduce((s, l) => s + l.lineTotal, 0) / 100).toFixed(2);
         setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} posted successfully!`);
         setShowBillModal(false);

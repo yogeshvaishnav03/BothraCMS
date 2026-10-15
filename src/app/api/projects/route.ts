@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
       return jsonSuccess(projects);
     } catch {
-      return jsonSuccess(dynamicStore.getProjects());
+      return jsonSuccess(dynamicStore.getProjects(siteId, status));
     }
   } catch (error) {
     return handleApiError(error);

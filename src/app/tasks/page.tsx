@@ -15,7 +15,9 @@ import {
   User,
   ChevronRight,
   FolderKanban,
+  Trash2,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -52,11 +54,19 @@ export default function TasksPage() {
       fetch("/api/projects").then((r) => r.json()),
     ])
       .then(([tasksRes, projRes]) => {
-        if (tasksRes.success) setTasks(tasksRes.data);
+        if (tasksRes.success) {
+          const mergedTasks = clientCache.mergeTasks(tasksRes.data || []);
+          setTasks(
+            statusFilter === "ALL"
+              ? mergedTasks
+              : mergedTasks.filter((t: any) => t.status === statusFilter)
+          );
+        }
         if (projRes.success) {
-          setProjects(projRes.data);
-          if (projRes.data.length > 0 && !projectId) {
-            setProjectId(projRes.data[0].id);
+          const mergedProj = clientCache.mergeProjects(projRes.data || []);
+          setProjects(mergedProj);
+          if (mergedProj.length > 0 && !projectId) {
+            setProjectId(mergedProj[0].id);
           }
         }
       })
@@ -67,6 +77,18 @@ export default function TasksPage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
+
+  const handleDeleteTask = async (id: string, taskTitle: string) => {
+    if (!confirm(`Are you sure you want to delete task "${taskTitle}"?`)) return;
+    try {
+      await fetch(`/api/tasks?id=${id}`, { method: "DELETE" });
+      clientCache.deleteTask(id);
+      setStatusMessage(`Task "${taskTitle}" deleted.`);
+      loadData();
+    } catch {
+      setErrorMessage("Failed to delete task");
+    }
+  };
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,6 +112,9 @@ export default function TasksPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create task");
       } else {
+        if (data.data) {
+          clientCache.saveTask(data.data);
+        }
         setStatusMessage("Task created and assigned successfully!");
         setShowCreateModal(false);
         setTitle("");
@@ -124,6 +149,7 @@ export default function TasksPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to update task status");
       } else {
+        clientCache.updateTaskStatus(selectedTask.id, newStatus, statusNote);
         setStatusMessage(`Task "${selectedTask.title}" updated to ${newStatus}.`);
         setShowStatusModal(false);
         setSelectedTask(null);
@@ -294,6 +320,13 @@ export default function TasksPage() {
                     className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-sm"
                   >
                     Update Status
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTask(t.id, t.title)}
+                    title="Delete Task"
+                    className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

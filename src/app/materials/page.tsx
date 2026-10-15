@@ -15,13 +15,23 @@ import {
   ArrowRightLeft,
   X,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Create Material Modal state
+  const [showCreateMaterialModal, setShowCreateMaterialModal] = useState(false);
+  const [newMatName, setNewMatName] = useState("");
+  const [newMatSku, setNewMatSku] = useState("");
+  const [newMatUnit, setNewMatUnit] = useState("BAG");
+  const [newMatMinStock, setNewMatMinStock] = useState("");
+  const [newMatReorder, setNewMatReorder] = useState("");
 
   // Modal states
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -58,7 +68,10 @@ export default function MaterialsPage() {
     fetch("/api/materials")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setMaterials(res.data);
+        if (res.success) {
+          const merged = clientCache.mergeMaterials(res.data);
+          setMaterials(merged);
+        }
       })
       .finally(() => setLoading(false));
   };
@@ -82,19 +95,69 @@ export default function MaterialsPage() {
     fetch("/api/parties?type=VENDOR")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setParties(res.data);
+        if (res.success) setParties(clientCache.mergeParties(res.data || []));
       });
     fetch("/api/projects")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setProjects(res.data);
+        if (res.success) setProjects(clientCache.mergeProjects(res.data || []));
       });
     fetch("/api/tasks")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setTasks(res.data);
+        if (res.success) setTasks(clientCache.mergeTasks(res.data || []));
       });
   }, []);
+
+  const handleCreateMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch("/api/materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sku: newMatSku.trim().toUpperCase(),
+          name: newMatName.trim(),
+          unitCode: newMatUnit,
+          minStockQty: newMatMinStock ? parseFloat(newMatMinStock) : 0,
+          reorderQty: newMatReorder ? parseFloat(newMatReorder) : 0,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to create material");
+      } else {
+        clientCache.saveMaterial(data.data);
+        setStatusMessage(`Material "${data.data.name}" added to master inventory!`);
+        setShowCreateMaterialModal(false);
+        setNewMatName("");
+        setNewMatSku("");
+        setNewMatMinStock("");
+        setNewMatReorder("");
+        loadMaterials();
+      }
+    } catch {
+      setErrorMessage("Network error during material creation");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteMaterial = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this material from inventory?")) return;
+    clientCache.deleteMaterial(id);
+    setMaterials((prev) => prev.filter((m) => m.id !== id));
+    try {
+      await fetch(`/api/materials?id=${id}`, { method: "DELETE" });
+      setStatusMessage("Material removed successfully.");
+    } catch {
+      // client cache updated
+    }
+  };
 
   const handleReceiveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,6 +190,7 @@ export default function MaterialsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to receive goods");
       } else {
+        clientCache.adjustMaterialStock(selectedMaterialId, parseFloat(quantity));
         setStatusMessage("Goods received and authoritative ledger updated successfully!");
         setShowReceiveModal(false);
         setQuantity("");
@@ -168,6 +232,7 @@ export default function MaterialsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to issue material");
       } else {
+        clientCache.adjustMaterialStock(selectedMaterialId, -parseFloat(quantity));
         setStatusMessage("Material issued and project consumption logged successfully!");
         setShowIssueModal(false);
         setQuantity("");
@@ -251,6 +316,13 @@ export default function MaterialsPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreateMaterialModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4 text-amber-400" />
+              <span>+ Add Material</span>
+            </button>
             <button
               onClick={() => {
                 if (materials.length > 0) setSelectedMaterialId(materials[0].id);
@@ -382,13 +454,25 @@ export default function MaterialsPage() {
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <Link
-                          href={`/materials/${m.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
-                        >
-                          <span>Open Ledger</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+                        <div className="flex items-center justify-end gap-3">
+                          <Link
+                            href={`/materials/${m.id}`}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
+                          >
+                            <span>Open Ledger</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteMaterial(m.id);
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition"
+                            title="Delete Material"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -820,6 +904,124 @@ export default function MaterialsPage() {
                     className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
                   >
                     {actionLoading ? "Transferring..." : "Confirm Stock Transfer"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Create Material */}
+        {showCreateMaterialModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <Boxes className="w-5 h-5 text-amber-500" />
+                  <span>Add Master Material</span>
+                </div>
+                <button
+                  onClick={() => setShowCreateMaterialModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateMaterial} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Material Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. UltraTech Super Cement 53"
+                    value={newMatName}
+                    onChange={(e) => setNewMatName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      SKU / Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. MAT-CEM-53"
+                      value={newMatSku}
+                      onChange={(e) => setNewMatSku(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono uppercase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Unit of Measure *
+                    </label>
+                    <select
+                      value={newMatUnit}
+                      onChange={(e) => setNewMatUnit(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    >
+                      <option value="BAG">BAG (Bags)</option>
+                      <option value="KG">KG (Kilograms)</option>
+                      <option value="TONNE">TONNE (Metric Tonnes)</option>
+                      <option value="LITRE">LITRE (Litres)</option>
+                      <option value="METER">METER (Meters)</option>
+                      <option value="PIECE">PIECE (Pieces)</option>
+                      <option value="BOX">BOX (Boxes)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Min Stock Threshold
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="e.g. 50"
+                      value={newMatMinStock}
+                      onChange={(e) => setNewMatMinStock(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Reorder Quantity
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="e.g. 200"
+                      value={newMatReorder}
+                      onChange={(e) => setNewMatReorder(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateMaterialModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
+                  >
+                    {actionLoading ? "Saving..." : "Add to Inventory"}
                   </button>
                 </div>
               </form>

@@ -88,3 +88,24 @@ export async function GET(
     return handleApiError(error);
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserContext(req);
+    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    try {
+      await prisma.project.delete({
+        where: { id: params.id },
+      });
+    } catch {
+      dynamicStore.deleteProject(params.id);
+    }
+    return jsonSuccess({ deleted: true, id: params.id });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

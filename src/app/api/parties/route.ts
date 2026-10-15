@@ -108,3 +108,23 @@ export async function POST(req: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await getUserContext(req);
+    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) return jsonError("Party ID is required", "BAD_REQUEST", 400);
+
+    try {
+      await prisma.party.delete({ where: { id } });
+    } catch {
+      dynamicStore.deleteParty(id);
+    }
+    return jsonSuccess({ deleted: true, id });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
