@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  env: {
+    SESSION_SECRET:
+      process.env.SESSION_SECRET ||
+      "build_track_pro_super_secure_session_secret_2026_key",
+    DATABASE_URL:
+      process.env.DATABASE_URL ||
+      "postgresql://postgres:postgres@localhost:5432/buildtrack?sslmode=disable",
+  },
   async headers() {
     return [
       {
