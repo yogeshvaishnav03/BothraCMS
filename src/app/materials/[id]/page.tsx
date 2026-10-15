@@ -18,6 +18,8 @@ import {
   User,
 } from "lucide-react";
 
+import { clientCache } from "@/lib/client-cache";
+
 export default function MaterialDetailPage() {
   const params = useParams();
   const materialId = params.id as string;
@@ -30,7 +32,32 @@ export default function MaterialDetailPage() {
     fetch(`/api/materials/${materialId}/ledger`)
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setLedgerData(res.data);
+        if (res.success && res.data) {
+          setLedgerData(res.data);
+        } else {
+          const cached = clientCache.getMaterials().find((m: any) => m.id === materialId);
+          if (cached) {
+            setLedgerData({
+              material: cached,
+              currentBalance: cached.totalStock || 0,
+              totalReceived: cached.totalStock || 0,
+              totalIssued: 0,
+              entries: [],
+            });
+          }
+        }
+      })
+      .catch(() => {
+        const cached = clientCache.getMaterials().find((m: any) => m.id === materialId);
+        if (cached) {
+          setLedgerData({
+            material: cached,
+            currentBalance: cached.totalStock || 0,
+            totalReceived: cached.totalStock || 0,
+            totalIssued: 0,
+            entries: [],
+          });
+        }
       })
       .finally(() => setLoading(false));
   }, [materialId]);

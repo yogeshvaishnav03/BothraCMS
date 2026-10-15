@@ -227,4 +227,117 @@ export const clientCache = {
     const updated = [report, ...local.filter((r) => r.id !== report.id)];
     setStorage(KEYS.REPORTS, updated);
   },
+
+  // --- ACCESSORS ---
+  getProjects(): any[] {
+    return this.mergeProjects([]);
+  },
+  getTasks(): any[] {
+    return this.mergeTasks([]);
+  },
+  getMaterials(): any[] {
+    return this.mergeMaterials([]);
+  },
+  getParties(): any[] {
+    return this.mergeParties([]);
+  },
+  getWorkforce(): any[] {
+    return this.mergeWorkforce([]);
+  },
+  getAttendance(): any[] {
+    return this.mergeAttendance([]);
+  },
+  getBills(): any[] {
+    return this.mergeBills([]);
+  },
+  getPayments(): any[] {
+    return this.mergePayments([]);
+  },
+  getDailyReports(): any[] {
+    return this.mergeDailyReports([]);
+  },
+  getSites(): any[] {
+    return this.mergeSites([]);
+  },
+
+  // --- DYNAMIC LIVE KPI CALCULATOR ---
+  calculateKpis(serverKpis?: any, siteId?: string) {
+    const projs = this.getProjects().filter((p: any) => !siteId || p.siteId === siteId);
+    const tasks = this.getTasks().filter(
+      (t: any) => !siteId || t.project?.siteId === siteId || projs.some((p: any) => p.id === t.projectId)
+    );
+    const atts = this.getAttendance().filter((a: any) => !siteId || a.siteId === siteId);
+    const mats = this.getMaterials();
+    const payments = this.getPayments();
+    const bills = this.getBills();
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const now = Date.now();
+
+    // 1. Active Projects Count
+    const activeProjectsCount = projs.filter(
+      (p: any) => p.status === "ACTIVE" || p.status === "IN_PROGRESS" || p.status === "PLANNING"
+    ).length;
+
+    // 2. Tasks Due Today
+    const tasksDueTodayCount = tasks.filter((t: any) => {
+      if (t.status === "COMPLETED") return false;
+      if (!t.dueAt) return false;
+      return t.dueAt.startsWith(todayStr);
+    }).length;
+
+    // 3. Tasks Overdue
+    const tasksOverdueCount = tasks.filter((t: any) => {
+      if (t.status === "COMPLETED") return false;
+      if (!t.dueAt) return false;
+      return new Date(t.dueAt).getTime() < now;
+    }).length;
+
+    // 4. Workers Present Today
+    const workersPresentTodayCount = atts.filter((a: any) => {
+      const isToday =
+        a.workDate === todayStr ||
+        (a.checkInAt && a.checkInAt.startsWith(todayStr)) ||
+        (a.createdAt && a.createdAt.startsWith(todayStr));
+      return (
+        isToday &&
+        ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status || "PRESENT")
+      );
+    }).length;
+
+    // 5. Low Stock Items Count
+    const lowStockItemsCount = mats.filter((m: any) => {
+      const stock = m.totalStock !== undefined ? m.totalStock : (m.stockBalances?.reduce((sum: number, b: any) => sum + (b.quantityOnHand || 0), 0) || 0);
+      return m.isLowStock || (m.minStockQty > 0 && stock <= m.minStockQty);
+    }).length;
+
+    // 6. Payments Made Today
+    const paymentsMadeTodayAmount = payments
+      .filter((p: any) => {
+        const isToday = (p.paymentDate || "").startsWith(todayStr) || (p.createdAt || "").startsWith(todayStr);
+        return (p.status === "POSTED" || !p.status) && isToday;
+      })
+      .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+
+    // 7. Total Outstanding Payables
+    const totalOutstandingPayablesAmount = bills
+      .filter((b: any) => b.status === "POSTED" || !b.status)
+      .reduce((sum: number, b: any) => {
+        const remaining =
+          b.outstandingAmount !== undefined
+            ? b.outstandingAmount
+            : b.totalAmount - (b.paidAmount || 0);
+        return sum + (remaining > 0 ? remaining : 0);
+      }, 0);
+
+    return {
+      activeProjectsCount: activeProjectsCount || serverKpis?.activeProjectsCount || 0,
+      tasksDueTodayCount: tasksDueTodayCount !== undefined ? tasksDueTodayCount : (serverKpis?.tasksDueTodayCount || 0),
+      tasksOverdueCount: tasksOverdueCount !== undefined ? tasksOverdueCount : (serverKpis?.tasksOverdueCount || 0),
+      workersPresentTodayCount: workersPresentTodayCount || serverKpis?.workersPresentTodayCount || 0,
+      lowStockItemsCount: lowStockItemsCount !== undefined ? lowStockItemsCount : (serverKpis?.lowStockItemsCount || 0),
+      paymentsMadeTodayAmount: paymentsMadeTodayAmount || serverKpis?.paymentsMadeTodayAmount || 0,
+      totalOutstandingPayablesAmount: totalOutstandingPayablesAmount || serverKpis?.totalOutstandingPayablesAmount || 0,
+    };
+  },
 };

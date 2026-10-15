@@ -13,6 +13,7 @@ import {
   Filter,
   RotateCcw,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState<"STOCK" | "PAYABLES" | "ATTENDANCE">("STOCK");
@@ -31,9 +32,9 @@ export default function ReportsPage() {
       fetch("/api/attendance").then((r) => r.json()),
     ])
       .then(([matRes, partyRes, attRes]) => {
-        if (matRes.success) setMaterials(matRes.data);
-        if (partyRes.success) setParties(partyRes.data);
-        if (attRes.success) setAttendance(attRes.data);
+        setMaterials(clientCache.mergeMaterials(matRes.data || []));
+        setParties(clientCache.mergeParties(partyRes.data || []));
+        setAttendance(clientCache.mergeAttendance(attRes.data || []));
       })
       .finally(() => setLoading(false));
   }, []);

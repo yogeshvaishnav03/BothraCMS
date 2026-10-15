@@ -28,6 +28,8 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
+import { clientCache } from "@/lib/client-cache";
+
 interface ShellProps {
   children: React.ReactNode;
 }
@@ -70,16 +72,20 @@ export default function Shell({ children }: ShellProps) {
     fetch("/api/sites")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setSites(res.data);
+        const sitesList = clientCache.mergeSites(res.data || []);
+        if (sitesList.length > 0) {
+          setSites(sitesList);
           const saved = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") : null;
-          const matched = res.data.find((s: any) => s.id === saved);
-          const initialId = matched ? matched.id : res.data[0].id;
+          const matched = sitesList.find((s: any) => s.id === saved);
+          const initialId = matched ? matched.id : sitesList[0].id;
           setActiveSiteId(initialId);
           document.cookie = `buildtrack_active_site=${initialId}; path=/; max-age=31536000; SameSite=Lax`;
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        const sitesList = clientCache.getSites();
+        if (sitesList.length > 0) setSites(sitesList);
+      });
 
     fetch("/api/notifications")
       .then((r) => r.json())

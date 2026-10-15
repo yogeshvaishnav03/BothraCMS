@@ -19,7 +19,11 @@ import {
   AlertTriangle,
   User,
   PlusCircle,
+  Plus,
+  X,
+  CheckCircle2,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function ProjectDetailsPage() {
   const params = useParams();
@@ -29,18 +33,116 @@ export default function ProjectDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"DSR" | "TASKS" | "MATERIALS">("DSR");
 
-  useEffect(() => {
+  // Dynamic Modals
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskPriority, setTaskPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
+  const [taskDueDate, setTaskDueDate] = useState("");
+
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportProgress, setReportProgress] = useState("");
+  const [reportBlockers, setReportBlockers] = useState("");
+
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const loadProject = () => {
     if (!projectId) return;
     setLoading(true);
     fetch(`/api/projects/${projectId}`)
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) {
-          setProject(res.data);
+        let p = res.success ? res.data : null;
+        if (!p) {
+          p = clientCache.getProjects().find((proj: any) => proj.id === projectId);
+        }
+        if (p) {
+          // Merge dynamic tasks & reports for this project
+          const allTasks = clientCache.getTasks().filter((t: any) => t.projectId === projectId);
+          const allReports = clientCache.getDailyReports().filter((r: any) => r.projectId === projectId);
+          p = {
+            ...p,
+            tasks: allTasks.length > 0 ? allTasks : (p.tasks || []),
+            dailyReports: allReports.length > 0 ? allReports : (p.dailyReports || []),
+          };
+          setProject(p);
+        }
+      })
+      .catch(() => {
+        const cached = clientCache.getProjects().find((proj: any) => proj.id === projectId);
+        if (cached) {
+          const allTasks = clientCache.getTasks().filter((t: any) => t.projectId === projectId);
+          const allReports = clientCache.getDailyReports().filter((r: any) => r.projectId === projectId);
+          setProject({
+            ...cached,
+            tasks: allTasks.length > 0 ? allTasks : (cached.tasks || []),
+            dailyReports: allReports.length > 0 ? allReports : (cached.dailyReports || []),
+          });
         }
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadProject();
   }, [projectId]);
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!taskTitle.trim() || !project) return;
+    const newTask = {
+      id: `task-${Date.now()}`,
+      projectId: project.id,
+      title: taskTitle.trim(),
+      priority: taskPriority,
+      status: "TODO",
+      dueAt: taskDueDate ? new Date(taskDueDate).toISOString() : new Date().toISOString(),
+      project: { id: project.id, name: project.name, code: project.code },
+    };
+    clientCache.saveTask(newTask);
+    setStatusMessage(`Task "${newTask.title}" added to project!`);
+    setShowTaskModal(false);
+    setTaskTitle("");
+    setTaskDueDate("");
+    loadProject();
+    try {
+      await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTask),
+      });
+    } catch {
+      // clientCache handles persistence
+    }
+  };
+
+  const handleCreateReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportProgress.trim() || !project) return;
+    const newReport = {
+      id: `dr-${Date.now()}`,
+      projectId: project.id,
+      reportDate: new Date().toISOString().split("T")[0],
+      progress: reportProgress.trim(),
+      blockers: reportBlockers.trim() || undefined,
+      creator: { id: "usr-pm-1", name: "Site Supervisor", role: "SUPERVISOR" },
+      createdAt: new Date().toISOString(),
+    };
+    clientCache.saveDailyReport(newReport);
+    setStatusMessage("Daily site report recorded!");
+    setShowReportModal(false);
+    setReportProgress("");
+    setReportBlockers("");
+    loadProject();
+    try {
+      await fetch("/api/daily-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newReport),
+      });
+    } catch {
+      // clientCache handles persistence
+    }
+  };
 
   if (loading) {
     return (
@@ -126,7 +228,37 @@ export default function ProjectDetailsPage() {
               </div>
             </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
+            >
+              <ClipboardList className="w-4 h-4 text-amber-400" />
+              <span>+ Daily Report</span>
+            </button>
+            <button
+              onClick={() => setShowTaskModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Add Task</span>
+            </button>
+          </div>
         </div>
+
+        {/* Status Alert */}
+        {statusMessage && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{statusMessage}</span>
+            </div>
+            <button onClick={() => setStatusMessage(null)} className="p-0.5 text-emerald-600 hover:text-emerald-800">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Financial & Operational KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -369,6 +501,153 @@ export default function ProjectDetailsPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Modal: Add Task */}
+        {showTaskModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <CheckSquare className="w-5 h-5 text-amber-500" />
+                  <span>Add Task for {project.code}</span>
+                </div>
+                <button
+                  onClick={() => setShowTaskModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateTask} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Task Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={taskTitle}
+                    onChange={(e) => setTaskTitle(e.target.value)}
+                    placeholder="e.g. RCC Column Casting Level 3"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={taskPriority}
+                      onChange={(e) => setTaskPriority(e.target.value as any)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="CRITICAL">Critical</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={taskDueDate}
+                      onChange={(e) => setTaskDueDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTaskModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm"
+                  >
+                    Add Task
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Daily Report */}
+        {showReportModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-amber-500" />
+                  <span>Submit Daily Site Report</span>
+                </div>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateReport} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Work Progress Summary *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={reportProgress}
+                    onChange={(e) => setReportProgress(e.target.value)}
+                    placeholder="Describe progress achieved on site today..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Blockers / Material Constraints
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={reportBlockers}
+                    onChange={(e) => setReportBlockers(e.target.value)}
+                    placeholder="Any site issues, material delays, or plant downtime..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReportModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-sm"
+                  >
+                    Record Report
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>

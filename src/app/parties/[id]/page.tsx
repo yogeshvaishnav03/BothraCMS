@@ -18,6 +18,7 @@ import {
   Clock,
   Printer,
 } from "lucide-react";
+import { clientCache } from "@/lib/client-cache";
 
 export default function PartyStatementPage() {
   const params = useParams();
@@ -31,7 +32,32 @@ export default function PartyStatementPage() {
     fetch(`/api/parties/${partyId}/statement`)
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setStatementData(res.data);
+        if (res.success && res.data) {
+          setStatementData(res.data);
+        } else {
+          const cached = clientCache.getParties().find((p: any) => p.id === partyId);
+          if (cached) {
+            setStatementData({
+              party: cached,
+              totalBilled: cached.totalBilled || 0,
+              totalPaid: cached.totalPaid || 0,
+              outstandingBalance: cached.outstandingBalance || 0,
+              transactions: [],
+            });
+          }
+        }
+      })
+      .catch(() => {
+        const cached = clientCache.getParties().find((p: any) => p.id === partyId);
+        if (cached) {
+          setStatementData({
+            party: cached,
+            totalBilled: cached.totalBilled || 0,
+            totalPaid: cached.totalPaid || 0,
+            outstandingBalance: cached.outstandingBalance || 0,
+            transactions: [],
+          });
+        }
       })
       .finally(() => setLoading(false));
   }, [partyId]);
