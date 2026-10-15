@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { roundPaise } from "@/lib/financial-math";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 export class DashboardService {
   static async getKpiMetrics(organizationId: string, siteId?: string) {
@@ -112,16 +113,8 @@ export class DashboardService {
         totalOutstandingPayablesAmount,
       };
     } catch (err) {
-      console.warn("[DASHBOARD] Database unavailable, providing fallback KPI metrics:", err);
-      return {
-        activeProjectsCount: 4,
-        tasksDueTodayCount: 7,
-        tasksOverdueCount: 2,
-        workersPresentTodayCount: 48,
-        lowStockItemsCount: 3,
-        paymentsMadeTodayAmount: 12500000,
-        totalOutstandingPayablesAmount: 84500000,
-      };
+      console.warn("[DASHBOARD] Database unavailable, computing dynamic metrics from dynamicStore:", err);
+      return dynamicStore.getKpiMetrics(siteId);
     }
   }
 }

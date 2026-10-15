@@ -513,7 +513,15 @@ if (!g.__DYNAMIC_STORE__) {
 export const dynamicStore = {
   // --- ORGANIZATION ---
   getOrg(): DynamicOrg {
-    return g.__DYNAMIC_STORE__.org;
+    const org = g.__DYNAMIC_STORE__.org;
+    org._count = {
+      sites: g.__DYNAMIC_STORE__.sites.length,
+      projects: g.__DYNAMIC_STORE__.projects.length,
+      workforceMembers: g.__DYNAMIC_STORE__.workforce.length,
+      materials: g.__DYNAMIC_STORE__.materials.length,
+      bills: g.__DYNAMIC_STORE__.bills.length,
+    };
+    return org;
   },
   updateOrg(update: Partial<DynamicOrg> & { settings?: any }): DynamicOrg {
     const current = g.__DYNAMIC_STORE__.org;
@@ -527,6 +535,63 @@ export const dynamicStore = {
     };
     g.__DYNAMIC_STORE__.org = merged;
     return merged;
+  },
+
+  // --- KPI METRICS ---
+  getKpiMetrics(siteId?: string) {
+    const projs = siteId
+      ? g.__DYNAMIC_STORE__.projects.filter((p: any) => p.siteId === siteId)
+      : g.__DYNAMIC_STORE__.projects;
+    const activeProjectsCount = projs.filter((p: any) => p.status === "PLANNING" || p.status === "IN_PROGRESS").length;
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const now = Date.now();
+
+    const tasks = siteId
+      ? g.__DYNAMIC_STORE__.tasks.filter((t: any) => t.project?.siteId === siteId || projs.some((p: any) => p.id === t.projectId))
+      : g.__DYNAMIC_STORE__.tasks;
+
+    const tasksDueTodayCount = tasks.filter((t: any) => {
+      if (t.status === "COMPLETED") return false;
+      if (!t.dueAt) return false;
+      return t.dueAt.startsWith(todayStr);
+    }).length;
+
+    const tasksOverdueCount = tasks.filter((t: any) => {
+      if (t.status === "COMPLETED") return false;
+      if (!t.dueAt) return false;
+      return new Date(t.dueAt).getTime() < now;
+    }).length;
+
+    const atts = siteId
+      ? g.__DYNAMIC_STORE__.attendance.filter((a: any) => a.siteId === siteId)
+      : g.__DYNAMIC_STORE__.attendance;
+    const workersPresentTodayCount = atts.filter((a: any) => 
+      a.workDate === todayStr && ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)
+    ).length;
+
+    const materials = g.__DYNAMIC_STORE__.materials;
+    const lowStockItemsCount = materials.filter((m: any) => m.isLowStock || (m.minStockQty > 0 && m.totalStock <= m.minStockQty)).length;
+
+    const payments = g.__DYNAMIC_STORE__.payments;
+    const paymentsMadeTodayAmount = payments
+      .filter((p: any) => p.status === "POSTED" && (p.paymentDate || "").startsWith(todayStr))
+      .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+
+    const bills = g.__DYNAMIC_STORE__.bills;
+    const totalOutstandingPayablesAmount = bills
+      .filter((b: any) => b.status === "POSTED")
+      .reduce((sum: number, b: any) => sum + (b.outstandingAmount !== undefined ? b.outstandingAmount : (b.totalAmount - (b.paidAmount || 0))), 0);
+
+    return {
+      activeProjectsCount,
+      tasksDueTodayCount,
+      tasksOverdueCount,
+      workersPresentTodayCount,
+      lowStockItemsCount,
+      paymentsMadeTodayAmount,
+      totalOutstandingPayablesAmount,
+    };
   },
 
   // --- SITES ---

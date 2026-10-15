@@ -45,7 +45,7 @@ export default function LoginPage() {
             <HardHat className="w-8 h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Build Track <span className="text-amber-400">PRO</span>
+            Bothra <span className="text-amber-400">CMS</span>
           </h1>
           <p className="text-sm text-slate-400 mt-1">
             Construction Operations & Site Management Platform

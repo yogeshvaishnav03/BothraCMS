@@ -28,11 +28,16 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeSiteId, setActiveSiteId] = useState<string>("");
 
-  useEffect(() => {
+  const loadDashboard = (siteId?: string) => {
+    setLoading(true);
+    const kpiUrl = siteId ? `/api/dashboard/kpi?siteId=${siteId}` : "/api/dashboard/kpi";
+    const projUrl = siteId ? `/api/projects?siteId=${siteId}` : "/api/projects";
+
     Promise.all([
-      fetch("/api/dashboard/kpi").then((r) => r.json()),
-      fetch("/api/projects").then((r) => r.json()),
+      fetch(kpiUrl).then((r) => r.json()),
+      fetch(projUrl).then((r) => r.json()),
       fetch("/api/tasks?status=TODO").then((r) => r.json()),
     ])
       .then(([kpiRes, projRes, taskRes]) => {
@@ -41,6 +46,21 @@ export default function DashboardPage() {
         if (taskRes.success) setTasks(taskRes.data);
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    const savedSite = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") || "" : "";
+    setActiveSiteId(savedSite);
+    loadDashboard(savedSite);
+
+    const onSiteChanged = (e: any) => {
+      const newSiteId = e.detail?.siteId || "";
+      setActiveSiteId(newSiteId);
+      loadDashboard(newSiteId);
+    };
+
+    window.addEventListener("siteChanged", onSiteChanged);
+    return () => window.removeEventListener("siteChanged", onSiteChanged);
   }, []);
 
   return (

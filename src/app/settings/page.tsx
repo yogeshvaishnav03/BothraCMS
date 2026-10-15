@@ -115,6 +115,9 @@ export default function SettingsPage() {
 
       const json = await res.json();
       if (json.success) {
+        if (typeof window !== "undefined" && name) {
+          localStorage.setItem("bothra_org_name", name);
+        }
         setSuccessMsg("Organization settings updated and saved successfully.");
         fetchOrg();
       } else {

@@ -57,7 +57,11 @@ export default function Shell({ children }: ShellProps) {
       })
       .then((data) => {
         if (data && data.success) {
-          setUser(data.data.user);
+          const savedOrg = typeof window !== "undefined" ? localStorage.getItem("bothra_org_name") : null;
+          setUser({
+            ...data.data.user,
+            organizationName: savedOrg || data.data.user.organizationName,
+          });
         }
       })
       .catch(() => router.push("/login"))
@@ -140,10 +144,10 @@ export default function Shell({ children }: ShellProps) {
             </div>
             <div>
               <div className="font-bold text-white tracking-tight flex items-center gap-1.5">
-                Build Track <span className="text-amber-400 font-black">PRO</span>
+                Bothra <span className="text-amber-400 font-black">CMS</span>
               </div>
               <div className="text-xs text-slate-400 font-medium truncate max-w-[120px]">
-                {user?.organizationName || "Construction ERP"}
+                {user?.organizationName || "Bothra Infrastructure"}
               </div>
             </div>
           </div>
@@ -235,7 +239,7 @@ export default function Shell({ children }: ShellProps) {
             B
           </div>
           <span className="font-bold text-white text-base">
-            Build Track <span className="text-amber-400">PRO</span>
+            Bothra <span className="text-amber-400">CMS</span>
           </span>
         </div>
 

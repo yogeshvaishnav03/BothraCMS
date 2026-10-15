@@ -5,6 +5,7 @@ import { verifyPassword, hashPassword, createSessionToken, SESSION_COOKIE_NAME }
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { Role } from "@/lib/permissions";
 import { checkRateLimit, resetRateLimit } from "@/lib/rate-limiter";
+import { dynamicStore } from "@/lib/dynamic-store";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
           role: demo.role,
         });
 
+        const orgName = dynamicStore.getOrg()?.name || "Bothra Infrastructure & Builders";
         const res = jsonSuccess({
           user: {
             id: demo.id,
@@ -115,7 +117,7 @@ export async function POST(req: NextRequest) {
             email: email.toLowerCase().trim(),
             role: demo.role,
             organizationId: "demo-org-1",
-            organizationName: "Apex Infrastructure & Builders",
+            organizationName: orgName,
           },
         });
 
