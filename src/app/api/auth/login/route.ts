@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { verifyPassword, createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { verifyPassword, hashPassword, createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { Role } from "@/lib/permissions";
 import { checkRateLimit, resetRateLimit } from "@/lib/rate-limiter";
@@ -43,10 +43,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: { email },
       include: { organization: true },
     });
+
+    // Auto-bootstrap default organization and admin if database is brand new with zero accounts
+    if (!user) {
+      const totalUsers = await prisma.user.count().catch(() => -1);
+      if (totalUsers === 0 && email.toLowerCase().trim() === "admin@buildtrack.pro") {
+        const org = await prisma.organization.create({
+          data: {
+            id: "demo-org-1",
+            name: "Apex Infrastructure & Builders",
+            currency: "INR",
+            timezone: "Asia/Kolkata",
+            status: "ACTIVE",
+          },
+        });
+        const passwordHash = await hashPassword("Password123!");
+        user = await prisma.user.create({
+          data: {
+            id: "usr-admin-1",
+            organizationId: org.id,
+            name: "Vikram Malhotra",
+            email: "admin@buildtrack.pro",
+            passwordHash,
+            role: "ORG_ADMIN",
+            status: "ACTIVE",
+          },
+          include: { organization: true },
+        });
+      }
+    }
 
     if (!user || user.status !== "ACTIVE" || user.organization.status !== "ACTIVE") {
       return jsonError("Invalid credentials or account suspended", "INVALID_CREDENTIALS", 401);
