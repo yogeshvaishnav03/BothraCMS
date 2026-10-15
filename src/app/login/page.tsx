@@ -6,8 +6,8 @@ import { HardHat, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2 } from "luci
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@buildtrack.pro");
-  const [password, setPassword] = useState("Password123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,12 +34,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const setDemoUser = (userEmail: string) => {
-    setEmail(userEmail);
-    setPassword("Password123!");
-    setError(null);
   };
 
   return (
@@ -123,67 +117,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Accounts */}
-          <div className="mt-6 pt-5 border-t border-slate-800">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between">
-              <span>Quick Demo Accounts</span>
-              <span className="text-[10px] text-amber-400/80 lowercase">password: Password123!</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setDemoUser("admin@buildtrack.pro")}
-                className={`p-2 rounded-lg text-left border transition-all ${
-                  email === "admin@buildtrack.pro"
-                    ? "bg-amber-500/10 border-amber-500/50 text-amber-300"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                <div className="font-semibold text-slate-200">Admin</div>
-                <div className="text-[10px] truncate text-slate-500">admin@buildtrack.pro</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDemoUser("supervisor@buildtrack.pro")}
-                className={`p-2 rounded-lg text-left border transition-all ${
-                  email === "supervisor@buildtrack.pro"
-                    ? "bg-amber-500/10 border-amber-500/50 text-amber-300"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                <div className="font-semibold text-slate-200">Supervisor</div>
-                <div className="text-[10px] truncate text-slate-500">supervisor@buildtrack.pro</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDemoUser("finance@buildtrack.pro")}
-                className={`p-2 rounded-lg text-left border transition-all ${
-                  email === "finance@buildtrack.pro"
-                    ? "bg-amber-500/10 border-amber-500/50 text-amber-300"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                <div className="font-semibold text-slate-200">Finance</div>
-                <div className="text-[10px] truncate text-slate-500">finance@buildtrack.pro</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDemoUser("store@buildtrack.pro")}
-                className={`p-2 rounded-lg text-left border transition-all ${
-                  email === "store@buildtrack.pro"
-                    ? "bg-amber-500/10 border-amber-500/50 text-amber-300"
-                    : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                <div className="font-semibold text-slate-200">Storekeeper</div>
-                <div className="text-[10px] truncate text-slate-500">store@buildtrack.pro</div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Security badge footer */}
