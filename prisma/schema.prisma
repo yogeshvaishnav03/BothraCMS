@@ -1,0 +1,467 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Organization {
+  id           String   @id @default(uuid())
+  name         String
+  currency     String   @default("INR")
+  timezone     String   @default("Asia/Kolkata")
+  settingsJson String?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users             User[]
+  sites             Site[]
+  projects          Project[]
+  materials         Material[]
+  materialCategories MaterialCategory[]
+  parties           Party[]
+  workforceMembers  WorkforceMember[]
+  auditEvents       AuditEvent[]
+  tasks             Task[]
+  bills             Bill[]
+  payments          Payment[]
+  stores            Store[]
+  stockMovements    StockMovement[]
+  attendanceSessions AttendanceSession[]
+  dailyReports      DailySiteReport[]
+}
+
+model User {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  email          String
+  passwordHash   String
+  role           String    @default("SITE_SUPERVISOR") // SUPER_ADMIN, ORG_ADMIN, PROJECT_MANAGER, SITE_SUPERVISOR, ACCOUNTANT, STOREKEEPER, HR_VIEWER, AUDITOR
+  status         String    @default("ACTIVE") // ACTIVE, INACTIVE
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  managedProjects Project[]   @relation("ProjectManager")
+  assignedTasks  Task[]       @relation("TaskAssignee")
+  createdTasks   Task[]       @relation("TaskCreator")
+  taskHistories  TaskStatusHistory[]
+  createdReports DailySiteReport[]
+  createdMovements StockMovement[]
+  createdBills   Bill[]
+  createdPayments Payment[]
+  createdAttendance AttendanceSession[] @relation("AttendanceCreator")
+  correctedAttendance AttendanceSession[] @relation("AttendanceCorrector")
+  auditEvents    AuditEvent[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+model Site {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  code           String
+  address        String
+  latitude       Float?
+  longitude      Float?
+  status         String   @default("ACTIVE") // ACTIVE, ARCHIVED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projects       Project[]
+  stores         Store[]
+  workforceMembers WorkforceMember[]
+  attendanceSessions AttendanceSession[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+}
+
+model Project {
+  id             String    @id @default(uuid())
+  organizationId String
+  siteId         String
+  code           String
+  name           String
+  managerUserId  String?
+  status         String    @default("IN_PROGRESS") // PLANNING, IN_PROGRESS, ON_HOLD, COMPLETED
+  startDate      DateTime?
+  endDate        DateTime?
+  budgetAmount   Float     @default(0) // currency amount (e.g. INR rupees)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  manager        User?        @relation("ProjectManager", fields: [managerUserId], references: [id])
+  tasks          Task[]
+  dailyReports   DailySiteReport[]
+  stockMovements StockMovement[]
+  bills          Bill[]
+  payments       Payment[]
+  attendanceSessions AttendanceSession[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, siteId])
+}
+
+model Task {
+  id             String    @id @default(uuid())
+  organizationId String
+  projectId      String
+  title          String
+  description    String?
+  priority       String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status         String    @default("TODO") // TODO, IN_PROGRESS, BLOCKED, COMPLETED
+  assigneeUserId String?
+  dueAt          DateTime?
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee       User?        @relation("TaskAssignee", fields: [assigneeUserId], references: [id])
+  creator        User         @relation("TaskCreator", fields: [createdBy], references: [id])
+  statusHistory  TaskStatusHistory[]
+  stockMovements StockMovement[]
+
+  @@index([organizationId, projectId])
+  @@index([status])
+}
+
+model TaskStatusHistory {
+  id         String   @id @default(uuid())
+  taskId     String
+  oldStatus  String
+  newStatus  String
+  changedBy  String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [changedBy], references: [id])
+
+  @@index([taskId])
+}
+
+model DailySiteReport {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  reportDate     String   // YYYY-MM-DD
+  progress       String
+  blockers       String?
+  safetyNotes    String?
+  createdBy      String
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator        User         @relation(fields: [createdBy], references: [id])
+
+  @@index([organizationId, projectId, reportDate])
+}
+
+model MaterialCategory {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  materials      Material[]
+
+  @@unique([organizationId, name])
+}
+
+model Material {
+  id             String   @id @default(uuid())
+  organizationId String
+  categoryId     String?
+  sku            String
+  name           String
+  unitCode       String   // BAG, KG, TONNE, LITRE, METER, PIECE, BOX
+  minStockQty    Float    @default(0)
+  reorderQty     Float    @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category       MaterialCategory? @relation(fields: [categoryId], references: [id])
+  stockBalances  StockBalance[]
+  stockMovements StockMovement[]
+  billLines      BillLine[]
+
+  @@unique([organizationId, sku])
+  @@index([organizationId])
+}
+
+model Store {
+  id             String   @id @default(uuid())
+  organizationId String
+  siteId         String
+  name           String
+  status         String   @default("ACTIVE") // ACTIVE, ARCHIVED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  stockBalances  StockBalance[]
+  stockMovements StockMovement[]
+
+  @@index([organizationId, siteId])
+}
+
+model StockBalance {
+  id             String   @id @default(uuid())
+  materialId     String
+  storeId        String
+  quantityOnHand Float    @default(0)
+  updatedAt      DateTime @updatedAt
+
+  material       Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([materialId, storeId])
+  @@index([storeId])
+}
+
+model StockMovement {
+  id             String    @id @default(uuid())
+  organizationId String
+  materialId     String
+  storeId        String
+  movementType   String    // RECEIPT, ISSUE, TRANSFER_IN, TRANSFER_OUT, ADJUSTMENT, OPENING
+  quantityDelta  Float     // positive for in, negative for out
+  unitCode       String
+  unitRate       Float?    // rate per unit (paise/currency)
+  movementAt     DateTime  @default(now())
+  vendorPartyId  String?
+  projectId      String?
+  taskId         String?
+  referenceDoc   String?   // Challan #, PO #, Transfer Voucher #
+  reversalOfId   String?
+  notes          String?
+  createdBy      String
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  material       Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  store          Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  vendor         Party?       @relation(fields: [vendorPartyId], references: [id])
+  project        Project?     @relation(fields: [projectId], references: [id])
+  task           Task?        @relation(fields: [taskId], references: [id])
+  creator        User         @relation(fields: [createdBy], references: [id])
+
+  @@index([organizationId, materialId, storeId])
+  @@index([movementAt])
+}
+
+model Party {
+  id            String   @id @default(uuid())
+  organizationId String
+  partyType     String   // VENDOR, CONTRACTOR, BOTH
+  name          String
+  phone         String?
+  email         String?
+  address       String?
+  taxIdentifier String?  // GSTIN / PAN
+  active        Boolean  @default(true)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stockMovements StockMovement[]
+  bills         Bill[]
+  payments      Payment[]
+
+  @@index([organizationId, partyType])
+}
+
+model Bill {
+  id             String    @id @default(uuid())
+  organizationId String
+  partyId        String
+  projectId      String?
+  billNumber     String
+  billDate       DateTime
+  dueDate        DateTime?
+  totalAmount    Float     // minor units / currency
+  status         String    @default("POSTED") // DRAFT, POSTED, VOIDED
+  notes          String?
+  createdBy      String
+  postedAt       DateTime? @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  party          Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  project        Project?     @relation(fields: [projectId], references: [id])
+  creator        User         @relation(fields: [createdBy], references: [id])
+  lines          BillLine[]
+  allocations    PaymentAllocation[]
+
+  @@unique([organizationId, partyId, billNumber])
+  @@index([organizationId, partyId])
+  @@index([status])
+}
+
+model BillLine {
+  id          String   @id @default(uuid())
+  billId      String
+  description String
+  materialId  String?
+  quantity    Float?
+  unitRate    Float?   // currency
+  lineTotal   Float    // currency
+
+  bill        Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+  material    Material? @relation(fields: [materialId], references: [id])
+
+  @@index([billId])
+}
+
+model Payment {
+  id              String    @id @default(uuid())
+  organizationId  String
+  partyId         String
+  projectId       String?
+  paymentDate     DateTime
+  amount          Float     // minor units / currency
+  currency        String    @default("INR")
+  method          String    // BANK_TRANSFER, UPI, CASH, CHEQUE, NEFT_RTGS
+  referenceNumber String
+  status          String    @default("POSTED") // DRAFT, POSTED, REVERSED
+  idempotencyKey  String
+  reversedAt      DateTime?
+  reversalReason  String?
+  notes           String?
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  party           Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  project         Project?     @relation(fields: [projectId], references: [id])
+  creator         User         @relation(fields: [createdBy], references: [id])
+  allocations     PaymentAllocation[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, partyId])
+  @@index([paymentDate])
+}
+
+model PaymentAllocation {
+  id         String    @id @default(uuid())
+  paymentId  String
+  billId     String
+  amount     Float     // minor units / currency
+  reversedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  payment    Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  bill       Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([billId])
+}
+
+model WorkforceMember {
+  id             String   @id @default(uuid())
+  organizationId String
+  employeeCode   String
+  name           String
+  workerType     String   // MASON, CARPENTER, ELECTRICIAN, PLUMBER, HELPER, FOREMAN, SITE_ENGINEER
+  phone          String?
+  defaultSiteId  String?
+  dailyWageRate  Float?   // currency
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  defaultSite    Site?        @relation(fields: [defaultSiteId], references: [id])
+  attendanceSessions AttendanceSession[]
+
+  @@unique([organizationId, employeeCode])
+  @@index([organizationId])
+}
+
+model AttendanceSession {
+  id                String    @id @default(uuid())
+  organizationId    String
+  workforceMemberId String
+  siteId            String
+  projectId         String?
+  workDate          String    // YYYY-MM-DD
+  checkInAt         DateTime
+  checkInLat        Float?
+  checkInLng        Float?
+  checkInAccuracyM  Float?
+  checkOutAt        DateTime?
+  checkOutLat       Float?
+  checkOutLng       Float?
+  checkOutAccuracyM Float?
+  status            String    @default("PRESENT") // PRESENT, HALF_DAY, OVERTIME, CORRECTED, ABSENT
+  notes             String?
+  correctedBy       String?
+  correctionReason  String?
+  createdBy         String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workforceMember   WorkforceMember @relation(fields: [workforceMemberId], references: [id], onDelete: Cascade)
+  site              Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  project           Project?        @relation(fields: [projectId], references: [id])
+  creator           User            @relation("AttendanceCreator", fields: [createdBy], references: [id])
+  corrector         User?           @relation("AttendanceCorrector", fields: [correctedBy], references: [id])
+
+  @@unique([organizationId, workforceMemberId, siteId, workDate])
+  @@index([organizationId, siteId, workDate])
+}
+
+model AuditEvent {
+  id             String   @id @default(uuid())
+  organizationId String
+  actorUserId    String
+  action         String   // PAYMENT_POSTED, PAYMENT_REVERSED, STOCK_ADJUSTMENT, ATTENDANCE_CORRECTED, ROLE_CHANGED, etc.
+  entityType     String
+  entityId       String
+  beforeJson     String?
+  afterJson      String?
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor          User         @relation(fields: [actorUserId], references: [id])
+
+  @@index([organizationId, entityType, entityId])
+  @@index([createdAt])
+}
+
+model IdempotencyRecord {
+  id               String   @id @default(uuid())
+  organizationId   String
+  key              String
+  operation        String
+  responseCode     Int
+  responseBodyJson String
+  createdAt        DateTime @default(now())
+
+  @@unique([organizationId, key])
+  @@index([organizationId, key])
+}

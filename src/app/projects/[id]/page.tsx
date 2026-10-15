@@ -1,0 +1,377 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import Shell from "@/components/layout/Shell";
+import { formatCurrency, formatDate } from "@/lib/formatters";
+import {
+  FolderKanban,
+  ArrowLeft,
+  Calendar,
+  Building2,
+  HardHat,
+  DollarSign,
+  CheckSquare,
+  ClipboardList,
+  Boxes,
+  Clock,
+  AlertTriangle,
+  User,
+  PlusCircle,
+} from "lucide-react";
+
+export default function ProjectDetailsPage() {
+  const params = useParams();
+  const projectId = params.id as string;
+
+  const [project, setProject] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"DSR" | "TASKS" | "MATERIALS">("DSR");
+
+  useEffect(() => {
+    if (!projectId) return;
+    setLoading(true);
+    fetch(`/api/projects/${projectId}`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success) {
+          setProject(res.data);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
+  if (loading) {
+    return (
+      <Shell>
+        <div className="space-y-4">
+          <div className="h-8 w-64 bg-slate-200 rounded animate-pulse" />
+          <div className="grid grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-24 bg-slate-200 rounded-xl animate-pulse" />
+            ))}
+          </div>
+          <div className="h-64 bg-slate-200 rounded-xl animate-pulse" />
+        </div>
+      </Shell>
+    );
+  }
+
+  if (!project) {
+    return (
+      <Shell>
+        <div className="text-center py-12 bg-white rounded-2xl border border-slate-200">
+          <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-2" />
+          <h2 className="text-base font-bold text-slate-800">Project Not Found</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            This project does not exist or is outside your organization scope.
+          </p>
+          <Link
+            href="/projects"
+            className="inline-flex items-center gap-1.5 text-xs text-amber-600 font-bold hover:underline mt-4"
+          >
+            &larr; Back to Projects Directory
+          </Link>
+        </div>
+      </Shell>
+    );
+  }
+
+  const budget = project.financials?.budgetAmount || 0;
+  const billed = project.financials?.totalBilled || 0;
+  const budgetUtilization = budget > 0 ? Math.min(100, Math.round((billed / (budget * 100)) * 100)) : 0;
+
+  return (
+    <Shell>
+      <div className="space-y-6">
+        {/* Header with Breadcrumb */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/projects"
+              className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 shadow-sm"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                  {project.code}
+                </span>
+                <span
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                    project.status === "ACTIVE"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {project.status}
+                </span>
+              </div>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1 flex items-center gap-2">
+                {project.name}
+              </h1>
+              <div className="text-xs text-slate-500 flex items-center gap-3 mt-0.5">
+                <span className="flex items-center gap-1">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                  {project.site?.name}
+                </span>
+                {project.manager && (
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-slate-400" />
+                    Manager: {project.manager.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Financial & Operational KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Project Budget
+            </span>
+            <div className="text-xl font-black text-slate-900 mt-1">
+              ₹{(budget).toLocaleString("en-IN")}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">Approved financial allocation</div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Total Billed
+            </span>
+            <div className="text-xl font-black text-amber-600 mt-1">
+              {formatCurrency(billed)}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">
+              {project.bills?.length || 0} posted vendor/sub bills
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Daily Reports Filed
+            </span>
+            <div className="text-xl font-black text-slate-900 mt-1">
+              {project.dailyReports?.length || 0}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">Supervisor progress logs</div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Active Tasks
+            </span>
+            <div className="text-xl font-black text-slate-900 mt-1">
+              {project.tasks?.length || 0}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">Milestones & work orders</div>
+          </div>
+        </div>
+
+        {/* Budget Progress Indicator */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+            <span>Budget Utilization: {budgetUtilization}% committed</span>
+            <span>{formatCurrency(billed)} of ₹{budget.toLocaleString("en-IN")}</span>
+          </div>
+          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                budgetUtilization > 90
+                  ? "bg-rose-500"
+                  : budgetUtilization > 70
+                  ? "bg-amber-500"
+                  : "bg-emerald-500"
+              }`}
+              style={{ width: `${budgetUtilization}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-2 border-b border-slate-200">
+          <button
+            onClick={() => setActiveTab("DSR")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition ${
+              activeTab === "DSR"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" />
+            Daily Site Reports ({project.dailyReports?.length || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab("TASKS")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition ${
+              activeTab === "TASKS"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <CheckSquare className="w-4 h-4" />
+            Tasks & Work Orders ({project.tasks?.length || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab("MATERIALS")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition ${
+              activeTab === "MATERIALS"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <Boxes className="w-4 h-4" />
+            Material Consumption ({project.stockMovements?.length || 0})
+          </button>
+        </div>
+
+        {/* Tab 1: Daily Site Reports (DSR History) */}
+        {activeTab === "DSR" && (
+          <div className="space-y-4">
+            {project.dailyReports?.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+                <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <div className="text-sm font-bold text-slate-700">No daily reports recorded yet</div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Site supervisors submit daily progress and blocker notes from the Projects tab.
+                </p>
+              </div>
+            ) : (
+              project.dailyReports.map((report: any) => (
+                <div key={report.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black bg-slate-900 text-slate-100 px-2.5 py-1 rounded">
+                        {report.reportDate}
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">
+                        Filed by <span className="font-semibold text-slate-800">{report.creator?.name}</span> ({report.creator?.role})
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      {new Date(report.createdAt).toLocaleTimeString("en-IN", { timeStyle: "short" })}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <span className="font-bold text-slate-700 uppercase tracking-wider block text-[10px] text-slate-400">
+                        Work Progress Summary
+                      </span>
+                      <p className="text-slate-800 leading-relaxed font-medium mt-0.5">{report.progress}</p>
+                    </div>
+
+                    {report.blockers && (
+                      <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-amber-900">
+                        <span className="font-bold block text-[10px] uppercase text-amber-800">
+                          Site Blockers / Impediments
+                        </span>
+                        <p className="mt-0.5">{report.blockers}</p>
+                      </div>
+                    )}
+
+                    {report.safetyNotes && (
+                      <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 text-emerald-900">
+                        <span className="font-bold block text-[10px] uppercase text-emerald-800">
+                          Safety & Compliance Observations
+                        </span>
+                        <p className="mt-0.5">{report.safetyNotes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Tab 2: Tasks */}
+        {activeTab === "TASKS" && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {project.tasks?.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-xs">
+                No active tasks assigned to this project yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {project.tasks.map((task: any) => (
+                  <div key={task.id} className="p-4 flex items-center justify-between hover:bg-slate-50/60">
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">{task.title}</div>
+                      {task.description && (
+                        <div className="text-[11px] text-slate-500 mt-0.5">{task.description}</div>
+                      )}
+                      <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400">
+                        <span>Assignee: {task.assignee?.name || "Unassigned"}</span>
+                        {task.dueAt && <span>Due: {formatDate(task.dueAt)}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          task.priority === "CRITICAL"
+                            ? "bg-rose-100 text-rose-800"
+                            : task.priority === "HIGH"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {task.priority}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                        {task.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: Material Issues */}
+        {activeTab === "MATERIALS" && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {project.stockMovements?.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-xs">
+                No stock issues recorded for this project yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 uppercase font-semibold">
+                    <tr>
+                      <th className="py-2.5 px-4">Date</th>
+                      <th className="py-2.5 px-4">Material</th>
+                      <th className="py-2.5 px-4">Quantity Issued</th>
+                      <th className="py-2.5 px-4">Store</th>
+                      <th className="py-2.5 px-4">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {project.stockMovements.map((m: any) => (
+                      <tr key={m.id} className="hover:bg-slate-50/60">
+                        <td className="py-3 px-4 text-slate-600">{formatDate(m.movementAt)}</td>
+                        <td className="py-3 px-4 font-bold text-slate-900">{m.material?.name}</td>
+                        <td className="py-3 px-4 font-bold text-amber-700">
+                          {Math.abs(m.quantityDelta)} {m.unitCode}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">{m.store?.name}</td>
+                        <td className="py-3 px-4 text-slate-500">{m.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Shell>
+  );
+}
