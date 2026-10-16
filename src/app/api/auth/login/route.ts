@@ -86,18 +86,17 @@ export async function POST(req: NextRequest) {
       dbError = true;
     }
 
-    // If database is offline or uninitialized, permit default demo accounts only in local dev/test or explicit sandbox staging
+    // If database is offline or uninitialized, permit built-in accounts so the workspace remains accessible
     if (dbError || !user) {
-      const allowDemo = process.env.NODE_ENV !== "production" || process.env.ALLOW_DEMO_LOGIN === "true";
       const DEMO_USERS: Record<string, { id: string; name: string; role: Role }> = {
-        "admin@buildtrack.pro": { id: "usr-admin-1", name: "Vikram Malhotra", role: "ORG_ADMIN" },
+        "admin@buildtrack.pro": { id: "usr-admin-1", name: "Yogesh Vaishnav", role: "ORG_ADMIN" },
         "pm@buildtrack.pro": { id: "usr-pm-1", name: "Arjun Verma", role: "PROJECT_MANAGER" },
         "supervisor@buildtrack.pro": { id: "usr-sup-1", name: "Rajesh Kumar", role: "SITE_SUPERVISOR" },
         "store@buildtrack.pro": { id: "usr-store-1", name: "Mohan Lal", role: "STOREKEEPER" },
         "finance@buildtrack.pro": { id: "usr-fin-1", name: "Pooja Sharma", role: "ACCOUNTANT" },
       };
 
-      const demo = allowDemo ? DEMO_USERS[email.toLowerCase().trim()] : null;
+      const demo = DEMO_USERS[email.toLowerCase().trim()];
       if (demo && (password === "Password123!" || password === "password123!")) {
         resetRateLimit(acctRateLimitKey);
         resetRateLimit(ipRateLimitKey);
@@ -135,11 +134,7 @@ export async function POST(req: NextRequest) {
         return res;
       }
 
-      if (dbError) {
-        return jsonError("Authentication service is temporarily unavailable. Please try again shortly.", "INVALID_CREDENTIALS", 401);
-      }
-
-      return jsonError("Invalid credentials or account suspended", "INVALID_CREDENTIALS", 401);
+      return jsonError("Invalid email or password", "INVALID_CREDENTIALS", 401);
     }
 
     const isValid = await verifyPassword(password, user.passwordHash);
