@@ -49,6 +49,14 @@ const initialOrg: DynamicOrg = {
   },
   users: [
     {
+      id: "usr-super-1",
+      name: "Master Super Admin",
+      email: "superadmin@buildtrack.pro",
+      role: "SUPER_ADMIN",
+      status: "ACTIVE",
+      lastLoginAt: new Date().toISOString(),
+    },
+    {
       id: "usr-admin-1",
       name: "Yogesh Vaishnav",
       email: "admin@buildtrack.pro",

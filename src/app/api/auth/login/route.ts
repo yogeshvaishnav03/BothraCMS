@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
     // If database is offline or uninitialized, permit built-in accounts so the workspace remains accessible
     if (dbError || !user) {
       const DEMO_USERS: Record<string, { id: string; name: string; role: Role }> = {
+        "superadmin@buildtrack.pro": { id: "usr-super-1", name: "Master Super Admin", role: "SUPER_ADMIN" },
         "admin@buildtrack.pro": { id: "usr-admin-1", name: "Yogesh Vaishnav", role: "ORG_ADMIN" },
         "pm@buildtrack.pro": { id: "usr-pm-1", name: "Arjun Verma", role: "PROJECT_MANAGER" },
         "supervisor@buildtrack.pro": { id: "usr-sup-1", name: "Rajesh Kumar", role: "SITE_SUPERVISOR" },
