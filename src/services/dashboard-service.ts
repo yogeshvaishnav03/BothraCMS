@@ -62,7 +62,7 @@ export class DashboardService {
     let lowStockItemsCount = 0;
     for (const mat of materials) {
       const totalStock = mat.stockBalances.reduce(
-        (sum, b) => sum + b.quantityOnHand,
+        (sum: number, b: any) => sum + (b.quantityOnHand ?? 0),
         0
       );
       if (mat.minStockQty > 0 && totalStock <= mat.minStockQty) {
@@ -79,7 +79,7 @@ export class DashboardService {
       },
     });
     const paymentsMadeTodayAmount = roundPaise(
-      paymentsToday.reduce((sum, p) => sum + p.amount, 0)
+      paymentsToday.reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0)
     );
 
     // 7. Total Outstanding Payables
@@ -94,7 +94,7 @@ export class DashboardService {
 
     let totalOutstandingPayablesAmount = 0;
     for (const b of postedBills) {
-      const paid = roundPaise(b.allocations.reduce((sum, a) => sum + a.amount, 0));
+      const paid = roundPaise(b.allocations.reduce((sum: number, a: any) => sum + (a.amount ?? 0), 0));
       const remaining = roundPaise(b.totalAmount - paid);
       if (remaining > 0) {
         totalOutstandingPayablesAmount = roundPaise(totalOutstandingPayablesAmount + remaining);
