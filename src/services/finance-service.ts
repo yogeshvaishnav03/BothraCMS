@@ -105,9 +105,9 @@ export class FinanceService {
       throw new Error(`Bill #${input.billNumber} already exists for this vendor`);
     }
 
-    const calculatedTotal = roundPaise(input.lines.reduce((sum, line) => sum + line.lineTotal, 0));
+    const calculatedTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       const bill = await tx.bill.create({
         data: {
           organizationId: input.organizationId,
@@ -200,7 +200,7 @@ export class FinanceService {
     // Validate allocations if provided
     let totalAllocated = 0;
     if (input.allocations && input.allocations.length > 0) {
-      totalAllocated = roundPaise(input.allocations.reduce((sum, a) => sum + a.amount, 0));
+      totalAllocated = roundPaise(input.allocations.reduce((sum: number, a: any) => sum + (a.amount || 0), 0));
       if (totalAllocated > input.amount) {
         throw new Error(
           `Total allocated (${totalAllocated} paise) cannot exceed payment amount (${input.amount} paise)`
@@ -208,7 +208,7 @@ export class FinanceService {
       }
     }
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       // Check each bill's current outstanding balance
       if (input.allocations && input.allocations.length > 0) {
         for (const alloc of input.allocations) {
@@ -223,8 +223,8 @@ export class FinanceService {
 
           const currentPaidOnBill = roundPaise(
             bill.allocations
-              .filter((a) => !a.reversedAt)
-              .reduce((s, a) => s + a.amount, 0)
+              .filter((a: any) => !a.reversedAt)
+              .reduce((s: number, a: any) => s + (a.amount || 0), 0)
           );
           const currentOutstanding = roundPaise(bill.totalAmount - currentPaidOnBill);
 
@@ -311,7 +311,7 @@ export class FinanceService {
       throw new Error("Payment has already been reversed");
     }
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       const now = new Date();
 
       // 1. Mark allocations reversed
@@ -385,8 +385,8 @@ export class FinanceService {
     let totalBilled = 0;
     let totalPaid = 0;
 
-    const billsWithBalances = bills.map((b) => {
-      const paidOnBill = roundPaise(b.allocations.reduce((sum, a) => sum + a.amount, 0));
+    const billsWithBalances = bills.map((b: any) => {
+      const paidOnBill = roundPaise(b.allocations.reduce((sum: number, a: any) => sum + (a.amount || 0), 0));
       const outstandingOnBill = roundPaise(b.totalAmount - paidOnBill);
       totalBilled = roundPaise(totalBilled + b.totalAmount);
       return {

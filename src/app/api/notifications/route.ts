@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     });
 
     for (const bill of overdueBills) {
-      const paid = bill.allocations.reduce((sum, a) => sum + a.amount, 0);
+      const paid = bill.allocations.reduce((sum: number, a: any) => sum + (a.amount || 0), 0);
       const outstanding = bill.totalAmount - paid;
       if (outstanding > 0) {
         alerts.push({

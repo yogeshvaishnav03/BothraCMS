@@ -1,19 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { clientCache, clearLegacyBusinessLocalStorage } from "../lib/client-cache";
 import { NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME, createSessionToken, hashPassword } from "../lib/auth";
+import { SESSION_COOKIE_NAME, createSessionToken } from "../lib/auth";
 import { prisma } from "../lib/db";
 
 // API route handlers
-import { GET as getProjectsHandler, POST as createProjectHandler } from "../app/api/projects/route";
+import { GET as getProjectsHandler } from "../app/api/projects/route";
 import { DELETE as deleteProjectHandler } from "../app/api/projects/[id]/route";
-import { GET as getTasksHandler, DELETE as deleteTaskHandler } from "../app/api/tasks/route";
-import { GET as getMaterialsHandler, DELETE as deleteMaterialHandler } from "../app/api/materials/route";
-import { GET as getPartiesHandler, DELETE as deletePartyHandler } from "../app/api/parties/route";
-import { GET as getWorkforceHandler, DELETE as deleteWorkforceHandler } from "../app/api/workforce/route";
+import { DELETE as deleteTaskHandler } from "../app/api/tasks/route";
+import { DELETE as deleteMaterialHandler } from "../app/api/materials/route";
 import { GET as getSitesHandler } from "../app/api/sites/route";
-import { GET as getStoresHandler } from "../app/api/stores/route";
-import { GET as getAttendanceHandler } from "../app/api/attendance/route";
 import { POST as loginHandler } from "../app/api/auth/login/route";
 
 function makeJsonRequest(
@@ -30,11 +26,11 @@ function makeJsonRequest(
   if (token) {
     headers["Cookie"] = `${SESSION_COOKIE_NAME}=${token}`;
   }
-  return new NextRequest(new URL(url, "http://localhost:3000"), {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const init: any = { method, headers };
+  if (body) {
+    init.body = JSON.stringify(body);
+  }
+  return new NextRequest(new URL(url, "http://localhost:3000"), init);
 }
 
 describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrity Test Suite", () => {

@@ -47,8 +47,8 @@ export async function GET(req: NextRequest) {
       orderBy: { billDate: "desc" },
     });
 
-    const enriched = bills.map((b) => {
-      const paidAmount = b.allocations.reduce((sum, a) => sum + a.amount, 0);
+    const enriched = bills.map((b: any) => {
+      const paidAmount = b.allocations.reduce((sum: number, a: any) => sum + (a.amount || 0), 0);
       const outstandingAmount = b.totalAmount - paidAmount;
       return {
         ...b,

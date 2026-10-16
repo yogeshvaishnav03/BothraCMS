@@ -45,8 +45,8 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    const enriched = materials.map((m) => {
-      const totalStock = m.stockBalances.reduce((sum, b) => sum + b.quantityOnHand, 0);
+    const enriched = materials.map((m: any) => {
+      const totalStock = m.stockBalances.reduce((sum: number, b: any) => sum + (b.quantityOnHand || 0), 0);
       const isLowStock = m.minStockQty > 0 && totalStock <= m.minStockQty;
       return {
         ...m,

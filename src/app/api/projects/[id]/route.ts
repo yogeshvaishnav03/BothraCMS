@@ -60,9 +60,9 @@ export async function GET(
     }
 
     // Compute financial aggregates
-    const totalBilled = project.bills.reduce((sum, b) => sum + b.totalAmount, 0);
-    const totalPaid = project.bills.reduce((sum, b) => {
-      const billPaid = b.allocations.reduce((pSum, a) => pSum + a.amount, 0);
+    const totalBilled = project.bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
+    const totalPaid = project.bills.reduce((sum: number, b: any) => {
+      const billPaid = b.allocations.reduce((pSum: number, a: any) => pSum + (a.amount || 0), 0);
       return sum + billPaid;
     }, 0);
 

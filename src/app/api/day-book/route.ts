@@ -121,8 +121,8 @@ export async function GET(req: NextRequest) {
     });
 
     // Summary metrics
-    const totalPaymentsAmount = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
-    const totalBillsAmount = bills.reduce((acc, b) => acc + (b.totalAmount || 0), 0);
+    const totalPaymentsAmount = payments.reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
+    const totalBillsAmount = bills.reduce((acc: number, b: any) => acc + (b.totalAmount || 0), 0);
     const workersPresentCount = attendance.filter((a) =>
       ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)
     ).length;

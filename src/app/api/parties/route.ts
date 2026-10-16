@@ -44,9 +44,9 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    const enriched = parties.map((p) => {
-      const totalBilled = p.bills.reduce((sum, b) => sum + b.totalAmount, 0);
-      const totalPaid = p.payments.reduce((sum, pay) => sum + pay.amount, 0);
+    const enriched = parties.map((p: any) => {
+      const totalBilled = p.bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
+      const totalPaid = p.payments.reduce((sum: number, pay: any) => sum + (pay.amount || 0), 0);
       const outstandingBalance = totalBilled - totalPaid;
 
       return {

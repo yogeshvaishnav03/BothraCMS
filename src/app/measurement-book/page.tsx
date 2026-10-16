@@ -158,7 +158,7 @@ export default function MeasurementBookPage() {
   // Aggregate KPIs
   const kpis = useMemo(() => {
     const totalCount = entries.length;
-    const totalPaise = entries.reduce((sum, e) => sum + (e.totalAmount || 0), 0);
+    const totalPaise = entries.reduce((sum: number, e: any) => sum + (e.totalAmount || 0), 0);
     const submittedCount = entries.filter((e) => e.status === "SUBMITTED").length;
     const verifiedCount = entries.filter((e) => e.status === "VERIFIED").length;
     const approvedCount = entries.filter((e) => e.status === "APPROVED" || e.status === "BILLED").length;

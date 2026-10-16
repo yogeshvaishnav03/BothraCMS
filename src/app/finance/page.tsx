@@ -250,7 +250,7 @@ export default function FinancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create bill");
       } else {
-        const totalAmountRupees = (parsedLines.reduce((s, l) => s + l.lineTotal, 0) / 100).toFixed(2);
+        const totalAmountRupees = (parsedLines.reduce((s: number, l: any) => s + (l.lineTotal || 0), 0) / 100).toFixed(2);
         setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} posted successfully!`);
         setShowBillModal(false);
         setBillNumber("");
@@ -266,10 +266,10 @@ export default function FinancePage() {
     }
   };
 
-  const totalBilledAll = bills.reduce((sum, b) => sum + b.totalAmount, 0);
+  const totalBilledAll = bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
   const totalPaidAll = payments
-    .filter((p) => p.status === "POSTED")
-    .reduce((sum, p) => sum + p.amount, 0);
+    .filter((p: any) => p.status === "POSTED")
+    .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   const totalOutstandingAll = totalBilledAll - totalPaidAll;
 
   const partyBills = bills.filter(
@@ -934,7 +934,7 @@ export default function FinancePage() {
                     <span className="font-black font-mono text-sm text-slate-900">
                       ₹
                       {billLines
-                        .reduce((sum, l) => sum + (parseFloat(l.lineTotal) || 0), 0)
+                        .reduce((sum: number, l: any) => sum + (parseFloat(l.lineTotal) || 0), 0)
                         .toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>

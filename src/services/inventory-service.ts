@@ -72,7 +72,7 @@ export class InventoryService {
       throw new Error("NotFound: Store not found or outside organization scope");
     }
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       const createdMovements = [];
 
       for (const item of input.items) {
@@ -180,7 +180,7 @@ export class InventoryService {
       throw new Error("NotFound: Material not found");
     }
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       // 1. Check current balance
       const balance = await tx.stockBalance.findUnique({
         where: {
@@ -282,7 +282,7 @@ export class InventoryService {
       throw new Error("NotFound: Material not found");
     }
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       // 1. Verify source stock
       const sourceBalance = await tx.stockBalance.findUnique({
         where: {
@@ -417,7 +417,7 @@ export class InventoryService {
       throw new Error("NotFound: Material not found");
     }
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       const balance = await tx.stockBalance.findUnique({
         where: {
           materialId_storeId: {
@@ -525,7 +525,7 @@ export class InventoryService {
     let totalReceived = 0;
     let totalIssued = 0;
 
-    const ledgerEntries = movements.map((m) => {
+    const ledgerEntries = movements.map((m: any) => {
       runningBalance += m.quantityDelta;
       if (m.quantityDelta > 0) totalReceived += m.quantityDelta;
       if (m.quantityDelta < 0) totalIssued += Math.abs(m.quantityDelta);
