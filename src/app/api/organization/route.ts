@@ -108,7 +108,7 @@ export async function PATCH(req: NextRequest) {
       ? { ...currentSettings, ...data.settings }
       : currentSettings;
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
       const saved = await tx.organization.update({
         where: { id: user.organizationId },
         data: {

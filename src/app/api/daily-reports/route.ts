@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       return jsonError("Project not found or outside organization scope", "PROJECT_NOT_FOUND", 404);
     }
 
-    const report = await prisma.$transaction(async (tx) => {
+    const report = await prisma.$transaction(async (tx: any) => {
       const created = await tx.dailySiteReport.create({
         data: {
           organizationId: user.organizationId,

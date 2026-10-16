@@ -87,7 +87,7 @@ export async function PATCH(req: NextRequest) {
       return jsonError("Organization not found", "NOT_FOUND", 404);
     }
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
       const org = await tx.organization.update({
         where: { id: data.organizationId },
         data: { status: data.status },
