@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
       const attendance = await prisma.attendanceSession.findMany({
         where: attendanceWhere,
         include: {
-          workforceMember: { select: { id: true, employeeCode: true, name: true, trade: true } },
+          workforceMember: { select: { id: true, employeeCode: true, name: true, workerType: true } },
           site: { select: { id: true, name: true, code: true } },
         },
         orderBy: { checkInAt: "desc" },

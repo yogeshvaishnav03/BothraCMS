@@ -238,7 +238,7 @@ export default function DayBookPage() {
       ...dayData.attendance.map((a) => [
         a.workforceMember?.employeeCode || "",
         `"${a.workforceMember?.name || ""}"`,
-        a.workforceMember?.trade || "",
+        a.workforceMember?.workerType || a.workforceMember?.trade || "",
         a.status,
         `"${a.site?.name || ""}"`,
       ]),
@@ -662,7 +662,7 @@ export default function DayBookPage() {
                               {a.workforceMember?.employeeCode || "—"}
                             </td>
                             <td className="p-3 font-bold text-slate-900">{a.workforceMember?.name || "N/A"}</td>
-                            <td className="p-3 text-slate-600">{a.workforceMember?.trade || "General Worker"}</td>
+                            <td className="p-3 text-slate-600">{a.workforceMember?.workerType || a.workforceMember?.trade || "General Worker"}</td>
                             <td className="p-3 text-slate-600">{a.site?.name || "Skyline Heights"}</td>
                             <td className="p-3">
                               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
