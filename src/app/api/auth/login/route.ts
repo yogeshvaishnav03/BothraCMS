@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { verifyPassword, hashPassword, createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { verifyPassword, createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { Role } from "@/lib/permissions";
 import { checkRateLimit, resetRateLimit } from "@/lib/rate-limiter";
@@ -53,95 +53,6 @@ export async function POST(req: NextRequest) {
         include: { organization: true },
       });
 
-      // Auto-bootstrap persistent default accounts if database has zero users or bootstrap account is missing
-      if (!user) {
-        const bootstrapAccounts = [
-          {
-            id: "usr-super-1",
-            name: "Master Super Admin",
-            email: "superadmin@buildtrack.pro",
-            role: "SUPER_ADMIN",
-          },
-          {
-            id: "usr-admin-1",
-            name: "Yogesh Vaishnav",
-            email: "admin@buildtrack.pro",
-            role: "ORG_ADMIN",
-          },
-          {
-            id: "usr-pm-1",
-            name: "Arjun Verma",
-            email: "pm@buildtrack.pro",
-            role: "PROJECT_MANAGER",
-          },
-          {
-            id: "usr-sup-1",
-            name: "Rajesh Kumar",
-            email: "supervisor@buildtrack.pro",
-            role: "SITE_SUPERVISOR",
-          },
-          {
-            id: "usr-store-1",
-            name: "Mohan Lal",
-            email: "store@buildtrack.pro",
-            role: "STOREKEEPER",
-          },
-          {
-            id: "usr-fin-1",
-            name: "Pooja Sharma",
-            email: "finance@buildtrack.pro",
-            role: "ACCOUNTANT",
-          },
-        ];
-
-        const isBootstrapTarget = bootstrapAccounts.some(
-          (acc) => acc.email.toLowerCase() === normalizedEmail
-        );
-        const totalUsers = await prisma.user.count().catch(() => -1);
-
-        if (totalUsers === 0 || isBootstrapTarget) {
-          const defaultOrg = await prisma.organization.upsert({
-            where: { id: "demo-org-1" },
-            update: {},
-            create: {
-              id: "demo-org-1",
-              name: "Bothra Infrastructure & Builders",
-              currency: "INR",
-              timezone: "Asia/Kolkata",
-              status: "ACTIVE",
-            },
-          });
-
-          const defaultPasswordHash = await hashPassword("Password123!");
-
-          for (const acc of bootstrapAccounts) {
-            await prisma.user.upsert({
-              where: {
-                organizationId_email: {
-                  organizationId: defaultOrg.id,
-                  email: acc.email,
-                },
-              },
-              update: {},
-              create: {
-                id: acc.id,
-                organizationId: defaultOrg.id,
-                name: acc.name,
-                email: acc.email,
-                passwordHash: defaultPasswordHash,
-                role: acc.role,
-                status: "ACTIVE",
-              },
-            });
-          }
-
-          // Re-query user after bootstrap
-          user = await prisma.user.findFirst({
-            where: { email: normalizedEmail },
-            include: { organization: true },
-          });
-        }
-      }
     } catch (dbErr: any) {
       console.error("[AUTH] Authoritative database connection error during login:", dbErr);
       const isLocalhostOnCloud =

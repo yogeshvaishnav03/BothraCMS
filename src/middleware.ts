@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { getJwtSecret } from "@/lib/jwt-secret";
 
 const SESSION_COOKIE_NAME = "buildtrack_session";
-
-function getJwtSecret(): Uint8Array {
-  const secret =
-    process.env.SESSION_SECRET ||
-    "build_track_pro_super_secure_session_secret_2026_key";
-  return new TextEncoder().encode(secret);
-}
 
 // Routes that do not require authentication
 const PUBLIC_PATHS = [

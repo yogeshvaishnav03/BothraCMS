@@ -5,22 +5,10 @@ import { NextRequest } from "next/server";
 import { prisma } from "./db";
 import { Role } from "./permissions";
 
+import { getJwtSecret } from "./jwt-secret";
+export { getJwtSecret };
+
 const SESSION_COOKIE_NAME = "buildtrack_session";
-
-export function getJwtSecret(): Uint8Array {
-  const secret = process.env.SESSION_SECRET;
-  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
-  const isVercel = Boolean(process.env.VERCEL || process.env.NEXT_PUBLIC_VERCEL_ENV);
-
-  if (process.env.NODE_ENV === "production" && !isBuildPhase && !isVercel) {
-    if (!secret || secret === "build_track_pro_fallback_session_secret_32chars" || secret.trim().length < 32) {
-      throw new Error(
-        "FATAL PRODUCTION CONFIGURATION ERROR: SESSION_SECRET is missing, insecure, or shorter than 32 characters. Production startup aborted to prevent token forgery."
-      );
-    }
-  }
-  return new TextEncoder().encode(secret || "build_track_pro_fallback_session_secret_32chars");
-}
 
 export interface SessionPayload {
   userId: string;
@@ -47,6 +35,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 export async function createSessionToken(payload: SessionPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
+    .setSubject(payload.userId)
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(getJwtSecret());
@@ -55,6 +44,9 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
+    if (!payload.userId || !payload.organizationId || !payload.role) {
+      return null;
+    }
     return {
       userId: payload.userId as string,
       organizationId: payload.organizationId as string,
@@ -96,7 +88,13 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
       include: { organization: true },
     });
 
-    if (user && user.status === "ACTIVE" && user.organization && user.organization.status === "ACTIVE") {
+    if (
+      user &&
+      user.status === "ACTIVE" &&
+      user.organization &&
+      user.organization.status === "ACTIVE" &&
+      user.organizationId === session.organizationId
+    ) {
       return {
         userId: user.id,
         organizationId: user.organizationId,

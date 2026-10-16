@@ -66,13 +66,19 @@ export function handleApiError(error: unknown) {
       error.message.includes("SELECT ") ||
       error.message.includes("INSERT ") ||
       error.message.includes("UPDATE ") ||
-      error.message.includes("DELETE FROM");
+      error.message.includes("DELETE FROM") ||
+      error.message.toLowerCase().includes("database unavailable") ||
+      error.message.toLowerCase().includes("database connection") ||
+      error.message.toLowerCase().includes("connection to database timed out");
 
-    const clientMessage = isProduction && isInternalLeak
-      ? "An internal database error occurred. Please contact your system administrator."
-      : error.message;
+    if (isInternalLeak) {
+      const clientMessage = isProduction
+        ? "An internal database error occurred. Please contact your system administrator."
+        : error.message;
+      return jsonError(clientMessage, "INTERNAL_ERROR", 500);
+    }
 
-    return jsonError(clientMessage, "INTERNAL_ERROR", 500);
+    return jsonError(error.message, "BAD_REQUEST", 400);
   }
 
   return jsonError("An unexpected server error occurred", "SERVER_ERROR", 500);

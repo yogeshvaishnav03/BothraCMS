@@ -420,13 +420,16 @@ describe("Build Track Pro — Phase 6 Security Audit & Vulnerability Remediation
       expect(json.database).toBe("connected");
     });
 
-    it("should sanitize internal database error messages in production mode", () => {
+    it("should sanitize internal database error messages in production mode", async () => {
       const origEnv = process.env.NODE_ENV;
       try {
         (process.env as any).NODE_ENV = "production";
         const error = new Error("PrismaClientKnownRequestError: SELECT * FROM `users` WHERE failed SQLite error");
         const res = handleApiError(error);
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(500);
+        const data = await res.json();
+        expect(data.error.message).not.toContain("SELECT");
+        expect(data.error.message).toContain("internal database error");
       } finally {
         (process.env as any).NODE_ENV = origEnv;
       }
