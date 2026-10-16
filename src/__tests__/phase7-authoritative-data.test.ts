@@ -39,9 +39,9 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
 
     beforeEach(() => {
       mockStorage = {};
-      // Mock global window and localStorage
-      (global as any).window = {};
-      (global as any).localStorage = {
+      // Mock window and localStorage on globalThis
+      (globalThis as any).window = {};
+      (globalThis as any).localStorage = {
         getItem: vi.fn((key: string) => mockStorage[key] || null),
         setItem: vi.fn((key: string, val: string) => {
           mockStorage[key] = val;
@@ -56,8 +56,8 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
     });
 
     afterEach(() => {
-      delete (global as any).window;
-      delete (global as any).localStorage;
+      delete (globalThis as any).window;
+      delete (globalThis as any).localStorage;
     });
 
     it("should never merge local storage business records with server projects", () => {
