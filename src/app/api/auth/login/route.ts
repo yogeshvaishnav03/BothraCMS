@@ -144,11 +144,15 @@ export async function POST(req: NextRequest) {
       }
     } catch (dbErr: any) {
       console.error("[AUTH] Authoritative database connection error during login:", dbErr);
-      return jsonError(
-        "Database service unavailable. Please check persistent database connectivity.",
-        "DATABASE_ERROR",
-        503
-      );
+      const isLocalhostOnCloud =
+        Boolean(process.env.VERCEL || process.env.NEXT_PUBLIC_VERCEL_ENV) &&
+        (process.env.DATABASE_URL || "").includes("localhost");
+
+      const message = isLocalhostOnCloud
+        ? "Database configuration error: DATABASE_URL on Vercel is set to 'localhost:5432'. Cloud hosting requires a cloud PostgreSQL database (e.g. Neon, Supabase, or Vercel Postgres) instead of localhost."
+        : "Database service unavailable. Please check persistent database connectivity.";
+
+      return jsonError(message, "DATABASE_ERROR", 503);
     }
 
     if (!user || user.status !== "ACTIVE" || !user.organization || user.organization.status !== "ACTIVE") {
