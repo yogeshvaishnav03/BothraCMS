@@ -2,6 +2,26 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+// Load .env file into process.env if present
+const envPath = path.resolve(__dirname, "..", ".env");
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, "utf-8");
+  for (const line of envContent.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+      const idx = trimmed.indexOf("=");
+      const key = trimmed.slice(0, idx).trim();
+      let val = trimmed.slice(idx + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      if (!process.env[key]) {
+        process.env[key] = val;
+      }
+    }
+  }
+}
+
 const dbUrl =
   process.env.DATABASE_URL ||
   process.env.POSTGRES_PRISMA_URL ||
@@ -25,7 +45,7 @@ if (fs.existsSync(schemaPath)) {
   let schema = fs.readFileSync(schemaPath, "utf-8");
   const isPostgres = dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://");
   const currentProvider = schema.includes('provider = "postgresql"') ? "postgresql" : "sqlite";
-  const targetProvider = isPostgres || !dbUrl ? "postgresql" : "sqlite";
+  const targetProvider = isPostgres ? "postgresql" : "sqlite";
 
   if (currentProvider !== targetProvider) {
     console.log(`⚡ Configuring Prisma datasource provider for ${targetProvider}...`);
