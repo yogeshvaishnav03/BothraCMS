@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   BookOpen,
+  CalendarDays,
 } from "lucide-react";
 
 import { clientCache } from "@/lib/client-cache";
@@ -115,6 +116,7 @@ export default function Shell({ children }: ShellProps) {
 
   const navItems = [
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
+    { label: "Day Book", href: "/day-book", icon: CalendarDays },
     { label: "Projects", href: "/projects", icon: FolderKanban },
     { label: "Tasks & Work", href: "/tasks", icon: CheckSquare },
     { label: "Materials & Stock", href: "/materials", icon: Boxes },

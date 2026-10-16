@@ -14,6 +14,7 @@ import {
   HardHat,
   Search,
   RefreshCw,
+  CalendarDays,
 } from "lucide-react";
 
 interface Tenant {
@@ -186,12 +187,20 @@ export default function SuperAdminDashboardPage() {
               Multi-tenant isolation management, global telemetry, and organization state governance.
             </p>
           </div>
-          <button
-            onClick={loadTenants}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition shadow-sm self-start sm:self-auto"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh Telemetry
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Link
+              href="/day-book"
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-sm"
+            >
+              <CalendarDays className="w-4 h-4" /> Open Day Book
+            </Link>
+            <button
+              onClick={loadTenants}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition shadow-sm"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh Telemetry
+            </button>
+          </div>
         </div>
 
         {successMsg && (
