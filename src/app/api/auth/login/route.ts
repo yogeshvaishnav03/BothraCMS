@@ -86,8 +86,9 @@ export async function POST(req: NextRequest) {
       dbError = true;
     }
 
-    // If database is offline or uninitialized, permit default demo accounts
+    // If database is offline or uninitialized, permit default demo accounts only in local dev/test or explicit sandbox staging
     if (dbError || !user) {
+      const allowDemo = process.env.NODE_ENV !== "production" || process.env.ALLOW_DEMO_LOGIN === "true";
       const DEMO_USERS: Record<string, { id: string; name: string; role: Role }> = {
         "admin@buildtrack.pro": { id: "usr-admin-1", name: "Vikram Malhotra", role: "ORG_ADMIN" },
         "pm@buildtrack.pro": { id: "usr-pm-1", name: "Arjun Verma", role: "PROJECT_MANAGER" },
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
         "finance@buildtrack.pro": { id: "usr-fin-1", name: "Pooja Sharma", role: "ACCOUNTANT" },
       };
 
-      const demo = DEMO_USERS[email.toLowerCase().trim()];
+      const demo = allowDemo ? DEMO_USERS[email.toLowerCase().trim()] : null;
       if (demo && (password === "Password123!" || password === "password123!")) {
         resetRateLimit(acctRateLimitKey);
         resetRateLimit(ipRateLimitKey);
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (dbError) {
-        return jsonError("Database connecting. For instant demo access, sign in with: admin@buildtrack.pro / Password123!", "INVALID_CREDENTIALS", 401);
+        return jsonError("Authentication service is temporarily unavailable. Please try again shortly.", "INVALID_CREDENTIALS", 401);
       }
 
       return jsonError("Invalid credentials or account suspended", "INVALID_CREDENTIALS", 401);

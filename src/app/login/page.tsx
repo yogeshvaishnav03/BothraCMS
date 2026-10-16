@@ -25,7 +25,11 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setError(data.error?.message || "Invalid credentials");
+        let msg = data.error?.message || "Invalid credentials";
+        if (msg.includes("admin@buildtrack.pro") || msg.includes("Password123") || msg.includes("instant demo access") || msg.includes("Database connecting")) {
+          msg = "Authentication service is temporarily unavailable. Please try again shortly.";
+        }
+        setError(msg);
       } else {
         router.push("/");
       }
