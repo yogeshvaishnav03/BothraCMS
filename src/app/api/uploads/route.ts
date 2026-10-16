@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { getUserContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { getStorageProvider } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -105,8 +106,9 @@ export async function POST(req: NextRequest) {
     // Sanitize user provided filename to prevent header injection and path traversal
     const sanitizedOriginalName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
 
-    // Save to private directory
-    await fs.promises.writeFile(filePath, fileBuffer);
+    // Save to storage provider (S3 / R2 / Local)
+    const storage = getStorageProvider();
+    await storage.put(diskFileName, fileBuffer, file.type);
 
     // Record audit event & metadata
     const audit = await prisma.auditEvent.create({

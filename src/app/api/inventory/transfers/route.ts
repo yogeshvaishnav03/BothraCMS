@@ -23,29 +23,19 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = transferSchema.parse(body);
 
-    try {
-      const result = await InventoryService.transferGoods({
-        organizationId: user.organizationId,
-        sourceStoreId: data.sourceStoreId,
-        targetStoreId: data.targetStoreId,
-        materialId: data.materialId,
-        quantity: data.quantity,
-        referenceDoc: data.referenceDoc,
-        notes: data.notes,
-        userId: user.userId,
-        role: user.role,
-      });
+    const result = await InventoryService.transferGoods({
+      organizationId: user.organizationId,
+      sourceStoreId: data.sourceStoreId,
+      targetStoreId: data.targetStoreId,
+      materialId: data.materialId,
+      quantity: data.quantity,
+      referenceDoc: data.referenceDoc,
+      notes: data.notes,
+      userId: user.userId,
+      role: user.role,
+    });
 
-      return jsonSuccess(result);
-    } catch (dbErr) {
-      console.warn("[TRANSFERS] Database write failed, returning mock success:", dbErr);
-      return jsonSuccess({
-        id: `trf-${Date.now()}`,
-        status: "SUCCESS",
-        quantity: data.quantity,
-        transferredAt: new Date().toISOString(),
-      });
-    }
+    return jsonSuccess(result);
   } catch (error) {
     return handleApiError(error);
   }

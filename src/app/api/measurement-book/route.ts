@@ -62,8 +62,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createEntrySchema.parse(body);
 
-    try {
-      if (data.action === "CREATE") {
+    if (data.action === "CREATE") {
         if (!data.projectId || !data.partyId || !data.itemDescription || !data.unit || !data.agreedRate) {
           return jsonError("Missing required measurement fields", "INVALID_INPUT", 400);
         }
@@ -121,16 +120,6 @@ export async function POST(req: NextRequest) {
       }
 
       return jsonError("Unsupported action", "BAD_REQUEST", 400);
-    } catch (dbErr) {
-      console.warn("[MB] Database operation failed, returning fallback success:", dbErr);
-      return jsonSuccess({
-        id: `mb-${Date.now()}`,
-        status: data.status || "APPROVED",
-        itemDescription: data.itemDescription || "Civil item measurement",
-        calculatedQuantity: 100,
-        totalAmount: 5000000,
-      }, 201);
-    }
   } catch (error) {
     return handleApiError(error);
   }

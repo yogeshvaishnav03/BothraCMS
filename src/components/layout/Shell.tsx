@@ -26,6 +26,7 @@ import {
   Settings,
   AlertTriangle,
   ShieldAlert,
+  BookOpen,
 } from "lucide-react";
 
 import { clientCache } from "@/lib/client-cache";
@@ -117,6 +118,7 @@ export default function Shell({ children }: ShellProps) {
     { label: "Projects", href: "/projects", icon: FolderKanban },
     { label: "Tasks & Work", href: "/tasks", icon: CheckSquare },
     { label: "Materials & Stock", href: "/materials", icon: Boxes },
+    { label: "Measurement Book", href: "/measurement-book", icon: BookOpen },
     { label: "Vendors & Contractors", href: "/parties", icon: Building2 },
     { label: "Finance & Bills", href: "/finance", icon: DollarSign },
     { label: "Workforce & Attendance", href: "/attendance", icon: HardHat },

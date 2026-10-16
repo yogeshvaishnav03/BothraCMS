@@ -25,24 +25,18 @@ export async function POST(
     const body = await req.json();
     const data = correctSchema.parse(body);
 
-    try {
-      const updated = await AttendanceService.correctAttendance({
-        organizationId: user.organizationId,
-        sessionId: params.id,
-        status: data.status,
-        checkInAt: data.checkInAt ? new Date(data.checkInAt) : undefined,
-        checkOutAt: data.checkOutAt ? new Date(data.checkOutAt) : undefined,
-        reason: data.reason,
-        userId: user.userId,
-        role: user.role,
-      });
+    const updated = await AttendanceService.correctAttendance({
+      organizationId: user.organizationId,
+      sessionId: params.id,
+      status: data.status,
+      checkInAt: data.checkInAt ? new Date(data.checkInAt) : undefined,
+      checkOutAt: data.checkOutAt ? new Date(data.checkOutAt) : undefined,
+      reason: data.reason,
+      userId: user.userId,
+      role: user.role,
+    });
 
-      return jsonSuccess(updated);
-    } catch (dbErr) {
-      console.warn("[ATTENDANCE_CORRECT] Database failed, saving to dynamicStore:", dbErr);
-      const updated = dynamicStore.correctAttendance(params.id, data);
-      return jsonSuccess(updated);
-    }
+    return jsonSuccess(updated);
   } catch (error) {
     return handleApiError(error);
   }

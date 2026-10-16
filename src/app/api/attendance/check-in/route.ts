@@ -28,32 +28,21 @@ export async function POST(req: NextRequest) {
 
     const workDate = data.workDate || new Date().toISOString().split("T")[0];
 
-    try {
-      const session = await AttendanceService.checkIn({
-        organizationId: user.organizationId,
-        workforceMemberId: data.workforceMemberId,
-        siteId: data.siteId,
-        projectId: data.projectId,
-        workDate,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        accuracyM: data.accuracyM,
-        notes: data.notes,
-        userId: user.userId,
-        role: user.role,
-      });
+    const session = await AttendanceService.checkIn({
+      organizationId: user.organizationId,
+      workforceMemberId: data.workforceMemberId,
+      siteId: data.siteId,
+      projectId: data.projectId,
+      workDate,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      accuracyM: data.accuracyM,
+      notes: data.notes,
+      userId: user.userId,
+      role: user.role,
+    });
 
-      return jsonSuccess(session, 201);
-    } catch (dbErr) {
-      console.warn("[ATTENDANCE_CHECKIN] Database failed, saving to dynamicStore:", dbErr);
-      const session = dynamicStore.checkIn({
-        workforceMemberId: data.workforceMemberId,
-        siteId: data.siteId,
-        workDate,
-        notes: data.notes,
-      });
-      return jsonSuccess(session, 201);
-    }
+    return jsonSuccess(session, 201);
   } catch (error) {
     return handleApiError(error);
   }

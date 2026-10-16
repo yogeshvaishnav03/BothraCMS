@@ -76,26 +76,20 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createBillSchema.parse(body);
 
-    try {
-      const bill = await FinanceService.createBill({
-        organizationId: user.organizationId,
-        partyId: data.partyId,
-        projectId: data.projectId,
-        billNumber: data.billNumber,
-        billDate: new Date(data.billDate),
-        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-        notes: data.notes,
-        lines: data.lines,
-        userId: user.userId,
-        role: user.role,
-      });
+    const bill = await FinanceService.createBill({
+      organizationId: user.organizationId,
+      partyId: data.partyId,
+      projectId: data.projectId,
+      billNumber: data.billNumber,
+      billDate: new Date(data.billDate),
+      dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+      notes: data.notes,
+      lines: data.lines,
+      userId: user.userId,
+      role: user.role,
+    });
 
-      return jsonSuccess(bill, 201);
-    } catch (dbErr) {
-      console.warn("[BILLS] Database write failed, saving to dynamicStore:", dbErr);
-      const newBill = dynamicStore.createBill(data);
-      return jsonSuccess(newBill, 201);
-    }
+    return jsonSuccess(bill, 201);
   } catch (error) {
     return handleApiError(error);
   }

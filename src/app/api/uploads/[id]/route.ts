@@ -4,6 +4,7 @@ import path from "path";
 import { getUserContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonError, handleApiError } from "@/lib/api-response";
+import { getStorageProvider } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -47,18 +48,17 @@ export async function GET(
       return jsonError("File reference missing", "NOT_FOUND", 404);
     }
 
-    // Prevent directory traversal
+    // Prevent directory traversal and fetch via storage provider
     const safeDiskName = path.basename(diskFileName);
-    const filePath = path.join(UPLOAD_BASE_DIR, safeDiskName);
+    const storage = getStorageProvider();
+    const fileBuffer = await storage.get(safeDiskName);
 
-    if (!fs.existsSync(filePath)) {
-      return jsonError("File not found on storage disk", "FILE_NOT_FOUND", 404);
+    if (!fileBuffer) {
+      return jsonError("File not found on storage backend", "FILE_NOT_FOUND", 404);
     }
-
-    const fileBuffer = await fs.promises.readFile(filePath);
     const mimeType = meta.mimeType || "application/octet-stream";
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       status: 200,
       headers: {
         "Content-Type": mimeType,

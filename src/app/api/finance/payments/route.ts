@@ -64,35 +64,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createPaymentSchema.parse(body);
 
-    try {
-      const result = await FinanceService.recordPayment({
-        organizationId: user.organizationId,
-        partyId: data.partyId,
-        projectId: data.projectId,
-        paymentDate: new Date(data.paymentDate),
-        amount: data.amount,
-        method: data.method,
-        referenceNumber: data.referenceNumber,
-        idempotencyKey: data.idempotencyKey,
-        notes: data.notes,
-        allocations: data.allocations,
-        userId: user.userId,
-        role: user.role,
-      });
+    const result = await FinanceService.recordPayment({
+      organizationId: user.organizationId,
+      partyId: data.partyId,
+      projectId: data.projectId,
+      paymentDate: new Date(data.paymentDate),
+      amount: data.amount,
+      method: data.method,
+      referenceNumber: data.referenceNumber,
+      idempotencyKey: data.idempotencyKey,
+      notes: data.notes,
+      allocations: data.allocations,
+      userId: user.userId,
+      role: user.role,
+    });
 
-      return jsonSuccess(result, result.idempotentReplay ? 200 : 201);
-    } catch (dbErr) {
-      console.warn("[PAYMENTS] Database write failed, saving to dynamicStore:", dbErr);
-      const newPayment = dynamicStore.createPayment({
-        partyId: data.partyId,
-        paymentDate: data.paymentDate,
-        amount: data.amount,
-        paymentMode: data.method,
-        referenceNumber: data.referenceNumber,
-        notes: data.notes,
-      });
-      return jsonSuccess(newPayment, 201);
-    }
+    return jsonSuccess(result, result.idempotentReplay ? 200 : 201);
   } catch (error) {
     return handleApiError(error);
   }
