@@ -127,6 +127,16 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
         role: "ORG_ADMIN",
       });
 
+      const userSpy = vi.spyOn(prisma.user, "findUnique").mockResolvedValueOnce({
+        id: "test-user-1",
+        organizationId: "test-org-1",
+        email: "test@example.com",
+        name: "Test User",
+        role: "ORG_ADMIN",
+        status: "ACTIVE",
+        organization: { id: "test-org-1", status: "ACTIVE", name: "Test Org", currency: "INR", timezone: "Asia/Kolkata" },
+      } as any);
+
       // Spy on prisma.site.findMany and simulate database connection failure
       const findManySpy = vi.spyOn(prisma.site, "findMany").mockRejectedValueOnce(
         new Error("Connection to database timed out")
@@ -142,6 +152,7 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
       expect(data.data).toBeUndefined(); // Must NOT return fallback fake sites
 
       findManySpy.mockRestore();
+      userSpy.mockRestore();
     });
 
     it("should return error on database failure for projects and NEVER return dynamicStore fallback", async () => {
@@ -152,6 +163,16 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
         name: "Test User 2",
         role: "ORG_ADMIN",
       });
+
+      const userSpy = vi.spyOn(prisma.user, "findUnique").mockResolvedValueOnce({
+        id: "test-user-2",
+        organizationId: "test-org-2",
+        email: "test2@example.com",
+        name: "Test User 2",
+        role: "ORG_ADMIN",
+        status: "ACTIVE",
+        organization: { id: "test-org-2", status: "ACTIVE", name: "Test Org", currency: "INR", timezone: "Asia/Kolkata" },
+      } as any);
 
       const findManySpy = vi.spyOn(prisma.project, "findMany").mockRejectedValueOnce(
         new Error("Postgres database unavailable")
@@ -166,10 +187,11 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
       expect(data.error).toBeDefined();
 
       findManySpy.mockRestore();
+      userSpy.mockRestore();
     });
 
     it("should return 503 Service Unavailable on login when database is unreachable", async () => {
-      const findUniqueSpy = vi.spyOn(prisma.user, "findUnique").mockRejectedValueOnce(
+      const findFirstSpy = vi.spyOn(prisma.user, "findFirst").mockRejectedValueOnce(
         new Error("Database connection lost")
       );
 
@@ -183,9 +205,10 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
 
       expect(res.status).toBe(503);
       expect(data.success).toBe(false);
-      expect(data.error).toContain("Database service unavailable");
+      const errorMessage = data.error?.message || data.error || "";
+      expect(errorMessage).toContain("Database service unavailable");
 
-      findUniqueSpy.mockRestore();
+      findFirstSpy.mockRestore();
     });
   });
 
@@ -198,6 +221,16 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
         name: "Tenant B Admin",
         role: "ORG_ADMIN",
       });
+
+      const userSpy = vi.spyOn(prisma.user, "findUnique").mockResolvedValueOnce({
+        id: "user-tenant-b",
+        organizationId: "tenant-b-id",
+        email: "user@tenant-b.com",
+        name: "Tenant B Admin",
+        role: "ORG_ADMIN",
+        status: "ACTIVE",
+        organization: { id: "tenant-b-id", status: "ACTIVE", name: "Tenant B Org", currency: "INR", timezone: "Asia/Kolkata" },
+      } as any);
 
       // Tenant A project exists in DB, but has organizationId = "tenant-a-id"
       const findFirstSpy = vi.spyOn(prisma.project, "findFirst").mockResolvedValueOnce(null);
@@ -216,9 +249,11 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
 
       expect(res.status).toBe(404);
       expect(data.success).toBe(false);
-      expect(data.error).toContain("Project not found");
+      const errorMessage = data.error?.message || data.error || "";
+      expect(errorMessage).toContain("Project not found");
 
       findFirstSpy.mockRestore();
+      userSpy.mockRestore();
     });
 
     it("should prevent Tenant B from deleting Tenant A material", async () => {
@@ -229,6 +264,16 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
         name: "Tenant B Admin",
         role: "ORG_ADMIN",
       });
+
+      const userSpy = vi.spyOn(prisma.user, "findUnique").mockResolvedValueOnce({
+        id: "user-tenant-b",
+        organizationId: "tenant-b-id",
+        email: "user@tenant-b.com",
+        name: "Tenant B Admin",
+        role: "ORG_ADMIN",
+        status: "ACTIVE",
+        organization: { id: "tenant-b-id", status: "ACTIVE", name: "Tenant B Org", currency: "INR", timezone: "Asia/Kolkata" },
+      } as any);
 
       const findFirstSpy = vi.spyOn(prisma.material, "findFirst").mockResolvedValueOnce(null);
 
@@ -246,6 +291,7 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
       expect(data.success).toBe(false);
 
       findFirstSpy.mockRestore();
+      userSpy.mockRestore();
     });
 
     it("should prevent Tenant B from deleting Tenant A task", async () => {
@@ -256,6 +302,16 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
         name: "Tenant B Admin",
         role: "ORG_ADMIN",
       });
+
+      const userSpy = vi.spyOn(prisma.user, "findUnique").mockResolvedValueOnce({
+        id: "user-tenant-b",
+        organizationId: "tenant-b-id",
+        email: "user@tenant-b.com",
+        name: "Tenant B Admin",
+        role: "ORG_ADMIN",
+        status: "ACTIVE",
+        organization: { id: "tenant-b-id", status: "ACTIVE", name: "Tenant B Org", currency: "INR", timezone: "Asia/Kolkata" },
+      } as any);
 
       const findFirstSpy = vi.spyOn(prisma.task, "findFirst").mockResolvedValueOnce(null);
 
@@ -273,6 +329,7 @@ describe("Build Track Pro — Phase 7 Authoritative Data & Multi-Tenant Integrit
       expect(data.success).toBe(false);
 
       findFirstSpy.mockRestore();
+      userSpy.mockRestore();
     });
   });
 });

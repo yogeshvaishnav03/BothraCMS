@@ -72,7 +72,7 @@ export function handleApiError(error: unknown) {
       ? "An internal database error occurred. Please contact your system administrator."
       : error.message;
 
-    return jsonError(clientMessage, "INTERNAL_ERROR", 400);
+    return jsonError(clientMessage, "INTERNAL_ERROR", 500);
   }
 
   return jsonError("An unexpected server error occurred", "SERVER_ERROR", 500);
