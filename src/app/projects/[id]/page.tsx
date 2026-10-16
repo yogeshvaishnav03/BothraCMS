@@ -67,6 +67,7 @@ export default function ProjectDetailsPage() {
 
   useEffect(() => {
     loadProject();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const handleCreateTask = async (e: React.FormEvent) => {

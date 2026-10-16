@@ -112,6 +112,7 @@ export default function DayBookPage() {
     });
 
     loadDayBook(selectedDate, selectedSiteId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDateChange = (newDate: string) => {

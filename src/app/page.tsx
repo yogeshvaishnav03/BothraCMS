@@ -109,6 +109,7 @@ export default function DashboardPage() {
 
     window.addEventListener("siteChanged", onSiteChanged);
     return () => window.removeEventListener("siteChanged", onSiteChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleQuickTaskSubmit = async (e: React.FormEvent) => {

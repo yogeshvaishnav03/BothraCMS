@@ -122,6 +122,7 @@ export default function MeasurementBookPage() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Calculated Quantity & Total for Form
