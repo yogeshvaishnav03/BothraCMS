@@ -396,7 +396,7 @@ export class FinanceService {
       };
     });
 
-    payments.forEach((p) => {
+    payments.forEach((p: any) => {
       if (p.status === "POSTED") {
         totalPaid = roundPaise(totalPaid + p.amount);
       }
