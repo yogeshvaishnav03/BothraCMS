@@ -18,7 +18,6 @@ import {
   UserPlus,
   Trash2,
 } from "lucide-react";
-import { clientCache } from "@/lib/client-cache";
 
 export default function AttendancePage() {
   const [workers, setWorkers] = useState<any[]>([]);
@@ -63,21 +62,22 @@ export default function AttendancePage() {
     ])
       .then(([workerRes, attRes, sitesRes]) => {
         if (workerRes.success) {
-          const mergedWorkers = clientCache.mergeWorkforce(workerRes.data || []);
-          setWorkers(mergedWorkers);
+          setWorkers(workerRes.data || []);
         }
         if (attRes.success) {
-          const mergedAtt = clientCache.mergeAttendance(attRes.data || []);
-          setSessions(mergedAtt);
+          setSessions(attRes.data || []);
         }
         if (sitesRes.success && sitesRes.data) {
-          const mergedSites = clientCache.mergeSites(sitesRes.data || []);
-          setSites(mergedSites);
-          if (mergedSites.length > 0) {
-            setCheckInSiteId((prev) => prev || mergedSites[0].id);
-            setDefaultSiteId((prev) => prev || mergedSites[0].id);
+          const rawSites = sitesRes.data || [];
+          setSites(rawSites);
+          if (rawSites.length > 0) {
+            setCheckInSiteId((prev) => prev || rawSites[0].id);
+            setDefaultSiteId((prev) => prev || rawSites[0].id);
           }
         }
+      })
+      .catch((err) => {
+        console.error("Authoritative attendance load failed:", err);
       })
       .finally(() => setLoading(false));
   };
@@ -89,13 +89,19 @@ export default function AttendancePage() {
 
   const handleDeleteWorker = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete worker "${name}"?`)) return;
+    setErrorMessage(null);
+    setStatusMessage(null);
     try {
-      await fetch(`/api/workforce?id=${id}`, { method: "DELETE" });
-      clientCache.deleteWorker(id);
+      const res = await fetch(`/api/workforce?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to delete worker");
+        return;
+      }
       setStatusMessage(`Worker "${name}" deleted.`);
       loadData();
-    } catch {
-      setErrorMessage("Failed to delete worker");
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to delete worker"}`);
     }
   };
 
@@ -132,9 +138,6 @@ export default function AttendancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to register worker");
       } else {
-        if (data.data) {
-          clientCache.saveWorker(data.data);
-        }
         setStatusMessage(
           `Worker ${data.data.name} (${data.data.employeeCode}) registered successfully!`
         );
@@ -175,7 +178,12 @@ export default function AttendancePage() {
       }
     }
 
-    const siteToUse = checkInSiteId || (sites.length > 0 ? sites[0].id : "site-skyline-1");
+    const siteToUse = checkInSiteId || (sites.length > 0 ? sites[0].id : "");
+    if (!siteToUse) {
+      setErrorMessage("Please select a site for check-in.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/attendance/check-in", {
@@ -196,9 +204,6 @@ export default function AttendancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to check in worker");
       } else {
-        if (data.data) {
-          clientCache.saveAttendance(data.data);
-        }
         setStatusMessage("Worker checked in successfully!");
         setShowCheckInModal(false);
         setNotes("");
@@ -227,9 +232,6 @@ export default function AttendancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to check out worker");
       } else {
-        if (data.data) {
-          clientCache.saveAttendance(data.data);
-        }
         setStatusMessage("Worker checked out successfully!");
         loadData();
       }

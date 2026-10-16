@@ -17,7 +17,6 @@ import {
   Mail,
   Trash2,
 } from "lucide-react";
-import { clientCache } from "@/lib/client-cache";
 
 export default function PartiesPage() {
   const [parties, setParties] = useState<any[]>([]);
@@ -43,9 +42,12 @@ export default function PartiesPage() {
       .then((r) => r.json())
       .then((res) => {
         if (res.success) {
-          const merged = clientCache.mergeParties(res.data || []);
-          setParties(typeFilter === "ALL" ? merged : merged.filter((p: any) => p.partyType === typeFilter));
+          const raw = res.data || [];
+          setParties(typeFilter === "ALL" ? raw : raw.filter((p: any) => p.partyType === typeFilter));
         }
+      })
+      .catch((err) => {
+        console.error("Authoritative parties load failed:", err);
       })
       .finally(() => setLoading(false));
   };
@@ -57,13 +59,19 @@ export default function PartiesPage() {
 
   const handleDeleteParty = async (id: string, partyName: string) => {
     if (!confirm(`Are you sure you want to delete party "${partyName}"?`)) return;
+    setErrorMessage(null);
+    setStatusMessage(null);
     try {
-      await fetch(`/api/parties?id=${id}`, { method: "DELETE" });
-      clientCache.deleteParty(id);
+      const res = await fetch(`/api/parties?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to delete party");
+        return;
+      }
       setStatusMessage(`Party "${partyName}" deleted.`);
       loadParties();
-    } catch {
-      setErrorMessage("Failed to delete party");
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to delete party"}`);
     }
   };
 
@@ -90,9 +98,6 @@ export default function PartiesPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to register party");
       } else {
-        if (data.data) {
-          clientCache.saveParty(data.data);
-        }
         setStatusMessage("Party registered successfully!");
         setShowModal(false);
         setName("");

@@ -5,7 +5,8 @@ import { verifyPassword, hashPassword, createSessionToken, SESSION_COOKIE_NAME }
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { Role } from "@/lib/permissions";
 import { checkRateLimit, resetRateLimit } from "@/lib/rate-limiter";
-import { dynamicStore } from "@/lib/dynamic-store";
+
+export const dynamic = "force-dynamic";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Targeted account rate limiting (max 5 attempts per minute per account)
-    const acctRateLimitKey = `login-acct:${clientIp}:${email.toLowerCase().trim()}`;
+    const normalizedEmail = email.toLowerCase().trim();
+    const acctRateLimitKey = `login-acct:${clientIp}:${normalizedEmail}`;
     const acctLimit = checkRateLimit(acctRateLimitKey, 5, 60000);
     if (!acctLimit.allowed) {
       return jsonError(
@@ -44,110 +46,120 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let user = null;
-    let dbError = false;
-
+    let user;
     try {
       user = await prisma.user.findFirst({
-        where: { email: email.toLowerCase().trim() },
+        where: { email: normalizedEmail },
         include: { organization: true },
       });
 
-      // Auto-bootstrap default organization and admin if database is brand new with zero accounts
+      // Auto-bootstrap persistent default accounts if database has zero users
       if (!user) {
         const totalUsers = await prisma.user.count().catch(() => -1);
-        if (totalUsers === 0 && email.toLowerCase().trim() === "admin@buildtrack.pro") {
-          const org = await prisma.organization.create({
-            data: {
+        if (totalUsers === 0) {
+          const defaultOrg = await prisma.organization.upsert({
+            where: { id: "demo-org-1" },
+            update: {},
+            create: {
               id: "demo-org-1",
-              name: "Apex Infrastructure & Builders",
+              name: "Bothra Infrastructure & Builders",
               currency: "INR",
               timezone: "Asia/Kolkata",
               status: "ACTIVE",
             },
           });
-          const passwordHash = await hashPassword("Password123!");
-          user = await prisma.user.create({
-            data: {
-              id: "usr-admin-1",
-              organizationId: org.id,
-              name: "Vikram Malhotra",
-              email: "admin@buildtrack.pro",
-              passwordHash,
-              role: "ORG_ADMIN",
-              status: "ACTIVE",
+
+          const defaultPasswordHash = await hashPassword("Password123!");
+          const bootstrapAccounts = [
+            {
+              id: "usr-super-1",
+              name: "Master Super Admin",
+              email: "superadmin@buildtrack.pro",
+              role: "SUPER_ADMIN",
             },
+            {
+              id: "usr-admin-1",
+              name: "Yogesh Vaishnav",
+              email: "admin@buildtrack.pro",
+              role: "ORG_ADMIN",
+            },
+            {
+              id: "usr-pm-1",
+              name: "Arjun Verma",
+              email: "pm@buildtrack.pro",
+              role: "PROJECT_MANAGER",
+            },
+            {
+              id: "usr-sup-1",
+              name: "Rajesh Kumar",
+              email: "supervisor@buildtrack.pro",
+              role: "SITE_SUPERVISOR",
+            },
+            {
+              id: "usr-store-1",
+              name: "Mohan Lal",
+              email: "store@buildtrack.pro",
+              role: "STOREKEEPER",
+            },
+            {
+              id: "usr-fin-1",
+              name: "Pooja Sharma",
+              email: "finance@buildtrack.pro",
+              role: "ACCOUNTANT",
+            },
+          ];
+
+          for (const acc of bootstrapAccounts) {
+            await prisma.user.upsert({
+              where: {
+                organizationId_email: {
+                  organizationId: defaultOrg.id,
+                  email: acc.email,
+                },
+              },
+              update: {},
+              create: {
+                id: acc.id,
+                organizationId: defaultOrg.id,
+                name: acc.name,
+                email: acc.email,
+                passwordHash: defaultPasswordHash,
+                role: acc.role,
+                status: "ACTIVE",
+              },
+            });
+          }
+
+          // Re-query user after bootstrap
+          user = await prisma.user.findFirst({
+            where: { email: normalizedEmail },
             include: { organization: true },
           });
         }
       }
-    } catch (err) {
-      console.warn("[AUTH] Database connection failed, allowing built-in demo credentials verification:", err);
-      dbError = true;
+    } catch (dbErr: any) {
+      console.error("[AUTH] Authoritative database connection error during login:", dbErr);
+      return jsonError(
+        "Database service unavailable. Please check persistent database connectivity.",
+        "DATABASE_ERROR",
+        503
+      );
     }
 
-    // If database is offline or uninitialized, permit built-in accounts so the workspace remains accessible
-    if (dbError || !user) {
-      const DEMO_USERS: Record<string, { id: string; name: string; role: Role }> = {
-        "superadmin@buildtrack.pro": { id: "usr-super-1", name: "Master Super Admin", role: "SUPER_ADMIN" },
-        "admin@buildtrack.pro": { id: "usr-admin-1", name: "Yogesh Vaishnav", role: "ORG_ADMIN" },
-        "pm@buildtrack.pro": { id: "usr-pm-1", name: "Arjun Verma", role: "PROJECT_MANAGER" },
-        "supervisor@buildtrack.pro": { id: "usr-sup-1", name: "Rajesh Kumar", role: "SITE_SUPERVISOR" },
-        "store@buildtrack.pro": { id: "usr-store-1", name: "Mohan Lal", role: "STOREKEEPER" },
-        "finance@buildtrack.pro": { id: "usr-fin-1", name: "Pooja Sharma", role: "ACCOUNTANT" },
-      };
-
-      const demo = DEMO_USERS[email.toLowerCase().trim()];
-      if (demo && (password === "Password123!" || password === "password123!")) {
-        resetRateLimit(acctRateLimitKey);
-        resetRateLimit(ipRateLimitKey);
-
-        const token = await createSessionToken({
-          userId: demo.id,
-          organizationId: "demo-org-1",
-          email: email.toLowerCase().trim(),
-          name: demo.name,
-          role: demo.role,
-        });
-
-        const orgName = dynamicStore.getOrg()?.name || "Bothra Infrastructure & Builders";
-        const res = jsonSuccess({
-          user: {
-            id: demo.id,
-            name: demo.name,
-            email: email.toLowerCase().trim(),
-            role: demo.role,
-            organizationId: "demo-org-1",
-            organizationName: orgName,
-          },
-        });
-
-        res.cookies.set({
-          name: SESSION_COOKIE_NAME,
-          value: token,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 60 * 60 * 24 * 7,
-        });
-
-        return res;
-      }
-
+    if (!user || user.status !== "ACTIVE" || !user.organization || user.organization.status !== "ACTIVE") {
       return jsonError("Invalid email or password", "INVALID_CREDENTIALS", 401);
     }
 
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) {
-      return jsonError("Invalid credentials", "INVALID_CREDENTIALS", 401);
+      return jsonError("Invalid email or password", "INVALID_CREDENTIALS", 401);
     }
 
     // Reset rate limiters on successful authentication
     resetRateLimit(acctRateLimitKey);
     resetRateLimit(ipRateLimitKey);
 
-    // Update last login
+    // Update last login timestamp in database
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },

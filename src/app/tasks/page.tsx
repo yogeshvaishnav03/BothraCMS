@@ -17,7 +17,6 @@ import {
   FolderKanban,
   Trash2,
 } from "lucide-react";
-import { clientCache } from "@/lib/client-cache";
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -55,20 +54,23 @@ export default function TasksPage() {
     ])
       .then(([tasksRes, projRes]) => {
         if (tasksRes.success) {
-          const mergedTasks = clientCache.mergeTasks(tasksRes.data || []);
+          const rawTasks = tasksRes.data || [];
           setTasks(
             statusFilter === "ALL"
-              ? mergedTasks
-              : mergedTasks.filter((t: any) => t.status === statusFilter)
+              ? rawTasks
+              : rawTasks.filter((t: any) => t.status === statusFilter)
           );
         }
         if (projRes.success) {
-          const mergedProj = clientCache.mergeProjects(projRes.data || []);
-          setProjects(mergedProj);
-          if (mergedProj.length > 0 && !projectId) {
-            setProjectId(mergedProj[0].id);
+          const rawProj = projRes.data || [];
+          setProjects(rawProj);
+          if (rawProj.length > 0 && !projectId) {
+            setProjectId(rawProj[0].id);
           }
         }
+      })
+      .catch((err) => {
+        console.error("Authoritative tasks load failed:", err);
       })
       .finally(() => setLoading(false));
   };
@@ -80,13 +82,19 @@ export default function TasksPage() {
 
   const handleDeleteTask = async (id: string, taskTitle: string) => {
     if (!confirm(`Are you sure you want to delete task "${taskTitle}"?`)) return;
+    setErrorMessage(null);
+    setStatusMessage(null);
     try {
-      await fetch(`/api/tasks?id=${id}`, { method: "DELETE" });
-      clientCache.deleteTask(id);
+      const res = await fetch(`/api/tasks?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to delete task");
+        return;
+      }
       setStatusMessage(`Task "${taskTitle}" deleted.`);
       loadData();
-    } catch {
-      setErrorMessage("Failed to delete task");
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to delete task"}`);
     }
   };
 
@@ -112,9 +120,6 @@ export default function TasksPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create task");
       } else {
-        if (data.data) {
-          clientCache.saveTask(data.data);
-        }
         setStatusMessage("Task created and assigned successfully!");
         setShowCreateModal(false);
         setTitle("");
@@ -149,7 +154,6 @@ export default function TasksPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to update task status");
       } else {
-        clientCache.updateTaskStatus(selectedTask.id, newStatus, statusNote);
         setStatusMessage(`Task "${selectedTask.title}" updated to ${newStatus}.`);
         setShowStatusModal(false);
         setSelectedTask(null);

@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -21,30 +20,26 @@ export async function GET(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    try {
-      const sites = await prisma.site.findMany({
-        where: {
-          organizationId: user.organizationId,
-          status: "ACTIVE",
+    const sites = await prisma.site.findMany({
+      where: {
+        organizationId: user.organizationId,
+        status: "ACTIVE",
+      },
+      include: {
+        stores: {
+          where: { status: "ACTIVE" },
         },
-        include: {
-          stores: {
-            where: { status: "ACTIVE" },
-          },
-          _count: {
-            select: {
-              projects: true,
-              workforceMembers: true,
-            },
+        _count: {
+          select: {
+            projects: true,
+            workforceMembers: true,
           },
         },
-        orderBy: { name: "asc" },
-      });
+      },
+      orderBy: { name: "asc" },
+    });
 
-      return jsonSuccess(sites);
-    } catch {
-      return jsonSuccess(dynamicStore.getSites());
-    }
+    return jsonSuccess(sites);
   } catch (error) {
     return handleApiError(error);
   }
@@ -60,37 +55,31 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createSiteSchema.parse(body);
 
-    try {
-      const existingCode = await prisma.site.findUnique({
-        where: {
-          organizationId_code: {
-            organizationId: user.organizationId,
-            code: data.code,
-          },
-        },
-      });
-
-      if (existingCode) {
-        return jsonError(`Site with code '${data.code}' already exists`, "DUPLICATE_CODE", 409);
-      }
-
-      const site = await prisma.site.create({
-        data: {
+    const existingCode = await prisma.site.findUnique({
+      where: {
+        organizationId_code: {
           organizationId: user.organizationId,
-          name: data.name,
           code: data.code,
-          address: data.address,
-          latitude: data.latitude,
-          longitude: data.longitude,
         },
-      });
+      },
+    });
 
-      return jsonSuccess(site, 201);
-    } catch (dbErr) {
-      console.warn("[SITES] Database write failed, saving to dynamicStore:", dbErr);
-      const newSite = dynamicStore.addSite(data);
-      return jsonSuccess(newSite, 201);
+    if (existingCode) {
+      return jsonError(`Site with code '${data.code}' already exists`, "DUPLICATE_CODE", 409);
     }
+
+    const site = await prisma.site.create({
+      data: {
+        organizationId: user.organizationId,
+        name: data.name,
+        code: data.code,
+        address: data.address,
+        latitude: data.latitude,
+        longitude: data.longitude,
+      },
+    });
+
+    return jsonSuccess(site, 201);
   } catch (error) {
     return handleApiError(error);
   }

@@ -25,7 +25,6 @@ import {
   Layers,
   Filter,
 } from "lucide-react";
-import { clientCache } from "@/lib/client-cache";
 
 interface DayBookData {
   date: string;
@@ -100,16 +99,16 @@ export default function DayBookPage() {
       fetch("/api/parties").then((r) => r.json()),
       fetch("/api/projects").then((r) => r.json()),
     ]).then(([siteRes, partyRes, projRes]) => {
-      const mergedSites = clientCache.mergeSites(siteRes.data || []);
-      setSites(mergedSites);
+      const rawSites = siteRes.data || [];
+      setSites(rawSites);
 
-      const mergedParties = clientCache.mergeParties(partyRes.data || []);
-      setParties(mergedParties);
-      if (mergedParties.length > 0) setPaymentPartyId(mergedParties[0].id);
+      const rawParties = partyRes.data || [];
+      setParties(rawParties);
+      if (rawParties.length > 0) setPaymentPartyId(rawParties[0].id);
 
-      const mergedProjs = clientCache.mergeProjects(projRes.data || []);
-      setProjects(mergedProjs);
-      if (mergedProjs.length > 0) setDsrProjectId(mergedProjs[0].id);
+      const rawProjs = projRes.data || [];
+      setProjects(rawProjs);
+      if (rawProjs.length > 0) setDsrProjectId(rawProjs[0].id);
     });
 
     loadDayBook(selectedDate, selectedSiteId);

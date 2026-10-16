@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { FinanceService } from "@/services/finance-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -33,24 +32,20 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const partyId = searchParams.get("partyId");
 
-    try {
-      const where: any = { organizationId: user.organizationId };
-      if (partyId) where.partyId = partyId;
+    const where: any = { organizationId: user.organizationId };
+    if (partyId) where.partyId = partyId;
 
-      const payments = await prisma.payment.findMany({
-        where,
-        include: {
-          party: true,
-          project: true,
-          allocations: { include: { bill: true } },
-        },
-        orderBy: { paymentDate: "desc" },
-      });
+    const payments = await prisma.payment.findMany({
+      where,
+      include: {
+        party: true,
+        project: true,
+        allocations: { include: { bill: true } },
+      },
+      orderBy: { paymentDate: "desc" },
+    });
 
-      return jsonSuccess(payments);
-    } catch {
-      return jsonSuccess(dynamicStore.getPayments(partyId));
-    }
+    return jsonSuccess(payments);
   } catch (error) {
     return handleApiError(error);
   }

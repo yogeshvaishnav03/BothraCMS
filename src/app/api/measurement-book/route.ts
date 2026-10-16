@@ -38,17 +38,13 @@ export async function GET(req: NextRequest) {
     const partyId = searchParams.get("partyId") || undefined;
     const status = searchParams.get("status") || undefined;
 
-    try {
-      const entries = await MeasurementBookService.listEntries(user.organizationId, {
-        projectId,
-        partyId,
-        status,
-      });
+    const entries = await MeasurementBookService.listEntries(user.organizationId, {
+      projectId,
+      partyId,
+      status,
+    });
 
-      return jsonSuccess(entries);
-    } catch {
-      return jsonSuccess([]);
-    }
+    return jsonSuccess(entries);
   } catch (error) {
     return handleApiError(error);
   }
@@ -63,63 +59,63 @@ export async function POST(req: NextRequest) {
     const data = createEntrySchema.parse(body);
 
     if (data.action === "CREATE") {
-        if (!data.projectId || !data.partyId || !data.itemDescription || !data.unit || !data.agreedRate) {
-          return jsonError("Missing required measurement fields", "INVALID_INPUT", 400);
-        }
-
-        const entry = await MeasurementBookService.createEntry({
-          organizationId: user.organizationId,
-          projectId: data.projectId,
-          partyId: data.partyId,
-          itemDescription: data.itemDescription,
-          unit: data.unit,
-          count: data.count,
-          length: data.length,
-          breadth: data.breadth,
-          depth: data.depth,
-          agreedRate: data.agreedRate,
-          notes: data.notes,
-          userId: user.userId,
-          role: user.role,
-        });
-
-        return jsonSuccess(entry, 201);
+      if (!data.projectId || !data.partyId || !data.itemDescription || !data.unit || !data.agreedRate) {
+        return jsonError("Missing required measurement fields", "INVALID_INPUT", 400);
       }
 
-      if (data.action === "UPDATE_STATUS") {
-        if (!data.entryId || !data.status) {
-          return jsonError("entryId and status are required", "INVALID_INPUT", 400);
-        }
+      const entry = await MeasurementBookService.createEntry({
+        organizationId: user.organizationId,
+        projectId: data.projectId,
+        partyId: data.partyId,
+        itemDescription: data.itemDescription,
+        unit: data.unit,
+        count: data.count,
+        length: data.length,
+        breadth: data.breadth,
+        depth: data.depth,
+        agreedRate: data.agreedRate,
+        notes: data.notes,
+        userId: user.userId,
+        role: user.role,
+      });
 
-        const updated = await MeasurementBookService.updateStatus({
-          organizationId: user.organizationId,
-          entryId: data.entryId,
-          status: data.status,
-          notes: data.notes,
-          userId: user.userId,
-          role: user.role,
-        });
+      return jsonSuccess(entry, 201);
+    }
 
-        return jsonSuccess(updated);
+    if (data.action === "UPDATE_STATUS") {
+      if (!data.entryId || !data.status) {
+        return jsonError("entryId and status are required", "INVALID_INPUT", 400);
       }
 
-      if (data.action === "CONVERT_TO_BILL") {
-        if (!data.entryId || !data.billNumber) {
-          return jsonError("entryId and billNumber are required", "INVALID_INPUT", 400);
-        }
+      const updated = await MeasurementBookService.updateStatus({
+        organizationId: user.organizationId,
+        entryId: data.entryId,
+        status: data.status,
+        notes: data.notes,
+        userId: user.userId,
+        role: user.role,
+      });
 
-        const result = await MeasurementBookService.convertToBill({
-          organizationId: user.organizationId,
-          entryId: data.entryId,
-          billNumber: data.billNumber,
-          userId: user.userId,
-          role: user.role,
-        });
+      return jsonSuccess(updated);
+    }
 
-        return jsonSuccess(result, 201);
+    if (data.action === "CONVERT_TO_BILL") {
+      if (!data.entryId || !data.billNumber) {
+        return jsonError("entryId and billNumber are required", "INVALID_INPUT", 400);
       }
 
-      return jsonError("Unsupported action", "BAD_REQUEST", 400);
+      const result = await MeasurementBookService.convertToBill({
+        organizationId: user.organizationId,
+        entryId: data.entryId,
+        billNumber: data.billNumber,
+        userId: user.userId,
+        role: user.role,
+      });
+
+      return jsonSuccess(result, 201);
+    }
+
+    return jsonError("Unsupported action", "BAD_REQUEST", 400);
   } catch (error) {
     return handleApiError(error);
   }

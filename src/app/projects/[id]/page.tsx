@@ -23,7 +23,6 @@ import {
   X,
   CheckCircle2,
 } from "lucide-react";
-import { clientCache } from "@/lib/client-cache";
 
 export default function ProjectDetailsPage() {
   const params = useParams();
@@ -43,7 +42,8 @@ export default function ProjectDetailsPage() {
   const [reportProgress, setReportProgress] = useState("");
   const [reportBlockers, setReportBlockers] = useState("");
 
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const loadProject = () => {
     if (!projectId) return;
@@ -51,33 +51,15 @@ export default function ProjectDetailsPage() {
     fetch(`/api/projects/${projectId}`)
       .then((r) => r.json())
       .then((res) => {
-        let p = res.success ? res.data : null;
-        if (!p) {
-          p = clientCache.getProjects().find((proj: any) => proj.id === projectId);
-        }
-        if (p) {
-          // Merge dynamic tasks & reports for this project
-          const allTasks = clientCache.getTasks().filter((t: any) => t.projectId === projectId);
-          const allReports = clientCache.getDailyReports().filter((r: any) => r.projectId === projectId);
-          p = {
-            ...p,
-            tasks: allTasks.length > 0 ? allTasks : (p.tasks || []),
-            dailyReports: allReports.length > 0 ? allReports : (p.dailyReports || []),
-          };
-          setProject(p);
+        if (res.success && res.data) {
+          setProject(res.data);
+        } else {
+          setProject(null);
         }
       })
-      .catch(() => {
-        const cached = clientCache.getProjects().find((proj: any) => proj.id === projectId);
-        if (cached) {
-          const allTasks = clientCache.getTasks().filter((t: any) => t.projectId === projectId);
-          const allReports = clientCache.getDailyReports().filter((r: any) => r.projectId === projectId);
-          setProject({
-            ...cached,
-            tasks: allTasks.length > 0 ? allTasks : (cached.tasks || []),
-            dailyReports: allReports.length > 0 ? allReports : (cached.dailyReports || []),
-          });
-        }
+      .catch((err) => {
+        console.error("Authoritative project load failed:", err);
+        setProject(null);
       })
       .finally(() => setLoading(false));
   };
@@ -88,59 +70,75 @@ export default function ProjectDetailsPage() {
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!taskTitle.trim() || !project) return;
-    const newTask = {
-      id: `task-${Date.now()}`,
-      projectId: project.id,
-      title: taskTitle.trim(),
-      priority: taskPriority,
-      status: "TODO",
-      dueAt: taskDueDate ? new Date(taskDueDate).toISOString() : new Date().toISOString(),
-      project: { id: project.id, name: project.name, code: project.code },
-    };
-    clientCache.saveTask(newTask);
-    setStatusMessage(`Task "${newTask.title}" added to project!`);
-    setShowTaskModal(false);
-    setTaskTitle("");
-    setTaskDueDate("");
-    loadProject();
+    if (!taskTitle.trim() || !project || submitting) return;
+    setSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
     try {
-      await fetch("/api/tasks", {
+      const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify({
+          projectId: project.id,
+          title: taskTitle.trim(),
+          priority: taskPriority,
+          dueAt: taskDueDate ? new Date(taskDueDate).toISOString() : new Date().toISOString(),
+        }),
       });
-    } catch {
-      // clientCache handles persistence
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to create task");
+        return;
+      }
+
+      setStatusMessage(`Task "${data.data.title}" added to project!`);
+      setShowTaskModal(false);
+      setTaskTitle("");
+      setTaskDueDate("");
+      loadProject();
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to create task"}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reportProgress.trim() || !project) return;
-    const newReport = {
-      id: `dr-${Date.now()}`,
-      projectId: project.id,
-      reportDate: new Date().toISOString().split("T")[0],
-      progress: reportProgress.trim(),
-      blockers: reportBlockers.trim() || undefined,
-      creator: { id: "usr-pm-1", name: "Site Supervisor", role: "SUPERVISOR" },
-      createdAt: new Date().toISOString(),
-    };
-    clientCache.saveDailyReport(newReport);
-    setStatusMessage("Daily site report recorded!");
-    setShowReportModal(false);
-    setReportProgress("");
-    setReportBlockers("");
-    loadProject();
+    if (!reportProgress.trim() || !project || submitting) return;
+    setSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
     try {
-      await fetch("/api/daily-reports", {
+      const res = await fetch("/api/daily-reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newReport),
+        body: JSON.stringify({
+          projectId: project.id,
+          reportDate: new Date().toISOString().split("T")[0],
+          progress: reportProgress.trim(),
+          blockers: reportBlockers.trim() || undefined,
+        }),
       });
-    } catch {
-      // clientCache handles persistence
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to record daily report");
+        return;
+      }
+
+      setStatusMessage("Daily site report recorded successfully!");
+      setShowReportModal(false);
+      setReportProgress("");
+      setReportBlockers("");
+      loadProject();
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to record daily report"}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 

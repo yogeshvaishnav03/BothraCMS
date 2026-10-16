@@ -4,11 +4,8 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { prisma } from "./db";
 import { Role } from "./permissions";
-import { dynamicStore } from "./dynamic-store";
 
 const SESSION_COOKIE_NAME = "buildtrack_session";
-
-const FALLBACK_SECRET = "bothra_cms_super_secure_production_secret_key_2026_9876543210_token_security";
 
 export function getJwtSecret(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
@@ -99,7 +96,7 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
       include: { organization: true },
     });
 
-    if (user && user.status === "ACTIVE" && user.organization.status === "ACTIVE") {
+    if (user && user.status === "ACTIVE" && user.organization && user.organization.status === "ACTIVE") {
       return {
         userId: user.id,
         organizationId: user.organizationId,
@@ -111,22 +108,12 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
         timezone: user.organization.timezone,
       };
     }
-  } catch (err) {
-    console.warn("[AUTH] Database check bypassed for active verified session:", err);
-  }
 
-  // Fallback to verified session token payload for uninterrupted session access
-  const org = dynamicStore.getOrg();
-  return {
-    userId: session.userId,
-    organizationId: session.organizationId,
-    email: session.email,
-    name: session.name,
-    role: session.role as Role,
-    organizationName: org?.name || "Bothra Infrastructure & Builders",
-    currency: org?.currency || "INR",
-    timezone: org?.timezone || "Asia/Kolkata",
-  };
+    return null;
+  } catch (err) {
+    console.error("[AUTH] Database check failed for session:", err);
+    return null;
+  }
 }
 
 export { SESSION_COOKIE_NAME };

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { getUserContext } from "@/lib/auth";
 import { AttendanceService } from "@/services/attendance-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 

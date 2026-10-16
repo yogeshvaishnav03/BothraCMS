@@ -29,6 +29,12 @@ async function main() {
   // 2. Create Users
   const users = [
     {
+      id: "usr-super-1",
+      name: "Master Super Admin",
+      email: "superadmin@buildtrack.pro",
+      role: "SUPER_ADMIN",
+    },
+    {
       id: "usr-admin-1",
       name: "Vikram Malhotra",
       email: "admin@buildtrack.pro",

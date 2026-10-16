@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -34,21 +33,17 @@ export async function GET(req: NextRequest) {
     if (priority) where.priority = priority;
     if (assigneeUserId) where.assigneeUserId = assigneeUserId;
 
-    try {
-      const tasks = await prisma.task.findMany({
-        where,
-        include: {
-          project: { include: { site: true } },
-          assignee: { select: { id: true, name: true, email: true } },
-          creator: { select: { id: true, name: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      });
+    const tasks = await prisma.task.findMany({
+      where,
+      include: {
+        project: { include: { site: true } },
+        assignee: { select: { id: true, name: true, email: true } },
+        creator: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-      return jsonSuccess(tasks);
-    } catch {
-      return jsonSuccess(dynamicStore.getTasks());
-    }
+    return jsonSuccess(tasks);
   } catch (error) {
     return handleApiError(error);
   }
@@ -64,57 +59,51 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createTaskSchema.parse(body);
 
-    try {
-      const project = await prisma.project.findFirst({
-        where: { id: data.projectId, organizationId: user.organizationId },
-      });
-      if (!project) {
-        return jsonError("Project not found or outside organization scope", "PROJECT_NOT_FOUND", 404);
-      }
-
-      if (data.assigneeUserId) {
-        const assignee = await prisma.user.findFirst({
-          where: { id: data.assigneeUserId, organizationId: user.organizationId },
-        });
-        if (!assignee) {
-          return jsonError("Assignee user not found or outside organization scope", "USER_NOT_FOUND", 404);
-        }
-      }
-
-      const task = await prisma.task.create({
-        data: {
-          organizationId: user.organizationId,
-          projectId: data.projectId,
-          title: data.title,
-          description: data.description,
-          priority: data.priority,
-          assigneeUserId: data.assigneeUserId,
-          dueAt: data.dueAt ? new Date(data.dueAt) : null,
-          createdBy: user.userId,
-        },
-        include: {
-          project: true,
-          assignee: true,
-        },
-      });
-
-      // Initial status history
-      await prisma.taskStatusHistory.create({
-        data: {
-          taskId: task.id,
-          oldStatus: "NONE",
-          newStatus: "TODO",
-          changedBy: user.userId,
-          note: "Task created",
-        },
-      });
-
-      return jsonSuccess(task, 201);
-    } catch (dbErr) {
-      console.warn("[TASKS] Database write failed, saving to dynamicStore:", dbErr);
-      const newTask = dynamicStore.addTask(data);
-      return jsonSuccess(newTask, 201);
+    const project = await prisma.project.findFirst({
+      where: { id: data.projectId, organizationId: user.organizationId },
+    });
+    if (!project) {
+      return jsonError("Project not found or outside organization scope", "PROJECT_NOT_FOUND", 404);
     }
+
+    if (data.assigneeUserId) {
+      const assignee = await prisma.user.findFirst({
+        where: { id: data.assigneeUserId, organizationId: user.organizationId },
+      });
+      if (!assignee) {
+        return jsonError("Assignee user not found or outside organization scope", "USER_NOT_FOUND", 404);
+      }
+    }
+
+    const task = await prisma.task.create({
+      data: {
+        organizationId: user.organizationId,
+        projectId: data.projectId,
+        title: data.title,
+        description: data.description,
+        priority: data.priority,
+        assigneeUserId: data.assigneeUserId,
+        dueAt: data.dueAt ? new Date(data.dueAt) : null,
+        createdBy: user.userId,
+      },
+      include: {
+        project: true,
+        assignee: true,
+      },
+    });
+
+    // Initial status history
+    await prisma.taskStatusHistory.create({
+      data: {
+        taskId: task.id,
+        oldStatus: "NONE",
+        newStatus: "TODO",
+        changedBy: user.userId,
+        note: "Task created",
+      },
+    });
+
+    return jsonSuccess(task, 201);
   } catch (error) {
     return handleApiError(error);
   }
@@ -125,15 +114,29 @@ export async function DELETE(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
+    assertPermission(user.role, "tasks:write");
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) return jsonError("Task ID is required", "BAD_REQUEST", 400);
 
-    try {
-      await prisma.task.delete({ where: { id } });
-    } catch {
-      dynamicStore.deleteTask(id);
+    const task = await prisma.task.findFirst({
+      where: { id, organizationId: user.organizationId },
+    });
+
+    if (!task) {
+      return jsonError("Task not found", "NOT_FOUND", 404);
     }
+
+    // Clean up status histories first if needed, or rely on cascade
+    await prisma.taskStatusHistory.deleteMany({
+      where: { taskId: task.id },
+    });
+
+    await prisma.task.delete({
+      where: { id: task.id },
+    });
+
     return jsonSuccess({ deleted: true, id });
   } catch (error) {
     return handleApiError(error);

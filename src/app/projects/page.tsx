@@ -15,7 +15,6 @@ import {
   ClipboardList,
   Trash2,
 } from "lucide-react";
-import { clientCache } from "@/lib/client-cache";
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -61,23 +60,26 @@ export default function ProjectsPage() {
     ])
       .then(([projRes, sitesRes, repRes]) => {
         if (projRes.success) {
-          const mergedProj = clientCache.mergeProjects(projRes.data || []);
-          setProjects(mergedProj);
-          if (mergedProj.length > 0) {
-            setReportProjectId((prev) => prev || mergedProj[0].id);
+          const rawProj = projRes.data || [];
+          setProjects(rawProj);
+          if (rawProj.length > 0) {
+            setReportProjectId((prev) => prev || rawProj[0].id);
           }
         }
         if (sitesRes.success && sitesRes.data) {
-          const mergedSites = clientCache.mergeSites(sitesRes.data || []);
-          setSites(mergedSites);
-          if (mergedSites.length > 0) {
-            setSelectedSiteId((prev) => prev || mergedSites[0].id);
+          const rawSites = sitesRes.data || [];
+          setSites(rawSites);
+          if (rawSites.length > 0) {
+            setSelectedSiteId((prev) => prev || rawSites[0].id);
           }
         }
         if (repRes.success) {
-          const mergedRep = clientCache.mergeDailyReports(repRes.data || []);
-          setDailyReports(mergedRep);
+          const rawRep = repRes.data || [];
+          setDailyReports(rawRep);
         }
+      })
+      .catch((err) => {
+        console.error("Authoritative projects load failed:", err);
       })
       .finally(() => setLoading(false));
   };
@@ -88,13 +90,19 @@ export default function ProjectsPage() {
 
   const handleDeleteProject = async (id: string, projectName: string) => {
     if (!confirm(`Are you sure you want to delete project "${projectName}"?`)) return;
+    setErrorMessage(null);
+    setStatusMessage(null);
     try {
-      await fetch(`/api/projects/${id}`, { method: "DELETE" });
-      clientCache.deleteProject(id);
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to delete project");
+        return;
+      }
       setStatusMessage(`Project "${projectName}" deleted successfully.`);
       loadData();
-    } catch {
-      setErrorMessage("Failed to delete project");
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to delete project"}`);
     }
   };
 
@@ -103,7 +111,12 @@ export default function ProjectsPage() {
     setSubmitting(true);
     setErrorMessage(null);
 
-    const siteToUse = selectedSiteId || (sites.length > 0 ? sites[0].id : "site-skyline-1");
+    const siteToUse = selectedSiteId || (sites.length > 0 ? sites[0].id : "");
+    if (!siteToUse) {
+      setErrorMessage("Please select a site before creating a project.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/projects", {
@@ -124,9 +137,6 @@ export default function ProjectsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create project");
       } else {
-        if (data.data) {
-          clientCache.saveProject(data.data);
-        }
         setStatusMessage("Project created successfully!");
         setShowCreateModal(false);
         setName("");
@@ -164,9 +174,6 @@ export default function ProjectsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create site");
       } else {
-        if (data.data) {
-          clientCache.saveSite(data.data);
-        }
         setStatusMessage(`Site "${data.data.name}" created successfully with default main store!`);
         setShowCreateSiteModal(false);
         setSiteName("");
@@ -213,9 +220,6 @@ export default function ProjectsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to submit daily report");
       } else {
-        if (data.data) {
-          clientCache.saveDailyReport(data.data);
-        }
         setStatusMessage(`Daily site report for ${reportDate} submitted and recorded in audit log!`);
         setShowDailyReportModal(false);
         setReportProgress("");

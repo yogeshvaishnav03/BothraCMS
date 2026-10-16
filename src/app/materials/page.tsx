@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   Trash2,
 } from "lucide-react";
-import { clientCache } from "@/lib/client-cache";
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<any[]>([]);
@@ -69,9 +68,11 @@ export default function MaterialsPage() {
       .then((r) => r.json())
       .then((res) => {
         if (res.success) {
-          const merged = clientCache.mergeMaterials(res.data);
-          setMaterials(merged);
+          setMaterials(res.data || []);
         }
+      })
+      .catch((err) => {
+        console.error("Authoritative materials load failed:", err);
       })
       .finally(() => setLoading(false));
   };
@@ -95,17 +96,17 @@ export default function MaterialsPage() {
     fetch("/api/parties?type=VENDOR")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setParties(clientCache.mergeParties(res.data || []));
+        if (res.success) setParties(res.data || []);
       });
     fetch("/api/projects")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setProjects(clientCache.mergeProjects(res.data || []));
+        if (res.success) setProjects(res.data || []);
       });
     fetch("/api/tasks")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) setTasks(clientCache.mergeTasks(res.data || []));
+        if (res.success) setTasks(res.data || []);
       });
   }, []);
 
@@ -131,7 +132,6 @@ export default function MaterialsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create material");
       } else {
-        clientCache.saveMaterial(data.data);
         setStatusMessage(`Material "${data.data.name}" added to master inventory!`);
         setShowCreateMaterialModal(false);
         setNewMatName("");
@@ -149,13 +149,19 @@ export default function MaterialsPage() {
 
   const handleDeleteMaterial = async (id: string) => {
     if (!confirm("Are you sure you want to remove this material from inventory?")) return;
-    clientCache.deleteMaterial(id);
-    setMaterials((prev) => prev.filter((m) => m.id !== id));
+    setErrorMessage(null);
+    setStatusMessage(null);
     try {
-      await fetch(`/api/materials?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/materials?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to remove material");
+        return;
+      }
       setStatusMessage("Material removed successfully.");
-    } catch {
-      // client cache updated
+      loadMaterials();
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to delete material"}`);
     }
   };
 
@@ -165,7 +171,12 @@ export default function MaterialsPage() {
     setErrorMessage(null);
     setStatusMessage(null);
 
-    const storeToUse = selectedStoreId || (stores.length > 0 ? stores[0].id : "store-skyline-main");
+    const storeToUse = selectedStoreId || (stores.length > 0 ? stores[0].id : "");
+    if (!storeToUse) {
+      setErrorMessage("Please select a store to receive goods.");
+      setActionLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/inventory/receipts", {
@@ -190,7 +201,6 @@ export default function MaterialsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to receive goods");
       } else {
-        clientCache.adjustMaterialStock(selectedMaterialId, parseFloat(quantity));
         setStatusMessage("Goods received and authoritative ledger updated successfully!");
         setShowReceiveModal(false);
         setQuantity("");
@@ -212,7 +222,12 @@ export default function MaterialsPage() {
     setErrorMessage(null);
     setStatusMessage(null);
 
-    const storeToUse = selectedStoreId || (stores.length > 0 ? stores[0].id : "store-skyline-main");
+    const storeToUse = selectedStoreId || (stores.length > 0 ? stores[0].id : "");
+    if (!storeToUse) {
+      setErrorMessage("Please select a store to issue goods from.");
+      setActionLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/inventory/issues", {
@@ -232,7 +247,6 @@ export default function MaterialsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to issue material");
       } else {
-        clientCache.adjustMaterialStock(selectedMaterialId, -parseFloat(quantity));
         setStatusMessage("Material issued and project consumption logged successfully!");
         setShowIssueModal(false);
         setQuantity("");

@@ -1,11 +1,9 @@
 import { prisma } from "@/lib/db";
 import { roundPaise } from "@/lib/financial-math";
-import { dynamicStore } from "@/lib/dynamic-store";
 
 export class DashboardService {
   static async getKpiMetrics(organizationId: string, siteId?: string) {
-    try {
-      const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = new Date().toISOString().split("T")[0];
     const startOfToday = new Date(`${todayStr}T00:00:00.000Z`);
     const endOfToday = new Date(`${todayStr}T23:59:59.999Z`);
     const now = new Date();
@@ -13,7 +11,7 @@ export class DashboardService {
     // 1. Active Projects Count
     const activeProjectsWhere: any = {
       organizationId,
-      status: { in: ["PLANNING", "IN_PROGRESS"] },
+      status: { in: ["PLANNING", "IN_PROGRESS", "ACTIVE"] },
     };
     if (siteId) activeProjectsWhere.siteId = siteId;
     const activeProjectsCount = await prisma.project.count({
@@ -103,18 +101,14 @@ export class DashboardService {
       }
     }
 
-      return {
-        activeProjectsCount,
-        tasksDueTodayCount,
-        tasksOverdueCount,
-        workersPresentTodayCount,
-        lowStockItemsCount,
-        paymentsMadeTodayAmount,
-        totalOutstandingPayablesAmount,
-      };
-    } catch (err) {
-      console.warn("[DASHBOARD] Database unavailable, computing dynamic metrics from dynamicStore:", err);
-      return dynamicStore.getKpiMetrics(siteId);
-    }
+    return {
+      activeProjectsCount,
+      tasksDueTodayCount,
+      tasksOverdueCount,
+      workersPresentTodayCount,
+      lowStockItemsCount,
+      paymentsMadeTodayAmount,
+      totalOutstandingPayablesAmount,
+    };
   }
 }

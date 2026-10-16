@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { getUserContext } from "@/lib/auth";
 import { InventoryService } from "@/services/inventory-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { dynamicStore } from "@/lib/dynamic-store";
 
 export const dynamic = "force-dynamic";
 
@@ -17,17 +16,13 @@ export async function GET(
     const { searchParams } = new URL(req.url);
     const storeId = searchParams.get("storeId") || undefined;
 
-    try {
-      const ledger = await InventoryService.getMaterialLedger(
-        user.organizationId,
-        params.id,
-        storeId
-      );
+    const ledger = await InventoryService.getMaterialLedger(
+      user.organizationId,
+      params.id,
+      storeId
+    );
 
-      return jsonSuccess(ledger);
-    } catch {
-      return jsonSuccess(dynamicStore.getMaterialLedger(params.id));
-    }
+    return jsonSuccess(ledger);
   } catch (error) {
     return handleApiError(error);
   }

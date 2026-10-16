@@ -30,8 +30,6 @@ import {
   CalendarDays,
 } from "lucide-react";
 
-import { clientCache } from "@/lib/client-cache";
-
 interface ShellProps {
   children: React.ReactNode;
 }
@@ -61,11 +59,7 @@ export default function Shell({ children }: ShellProps) {
       })
       .then((data) => {
         if (data && data.success) {
-          const savedOrg = typeof window !== "undefined" ? localStorage.getItem("bothra_org_name") : null;
-          setUser({
-            ...data.data.user,
-            organizationName: savedOrg || data.data.user.organizationName,
-          });
+          setUser(data.data.user);
         }
       })
       .catch(() => router.push("/login"))
@@ -74,7 +68,7 @@ export default function Shell({ children }: ShellProps) {
     fetch("/api/sites")
       .then((r) => r.json())
       .then((res) => {
-        const sitesList = clientCache.mergeSites(res.data || []);
+        const sitesList = res.data || [];
         if (sitesList.length > 0) {
           setSites(sitesList);
           const saved = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") : null;
@@ -84,9 +78,8 @@ export default function Shell({ children }: ShellProps) {
           document.cookie = `buildtrack_active_site=${initialId}; path=/; max-age=31536000; SameSite=Lax`;
         }
       })
-      .catch(() => {
-        const sitesList = clientCache.getSites();
-        if (sitesList.length > 0) setSites(sitesList);
+      .catch((err) => {
+        console.error("Authoritative sites load failed:", err);
       });
 
     fetch("/api/notifications")

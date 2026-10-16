@@ -44,6 +44,9 @@ export default function DashboardPage() {
 
   // Feedback notifications
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [submittingTask, setSubmittingTask] = useState(false);
+  const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
 
   const refreshKpis = (serverKpi?: any, siteId?: string) => {
     const computed = clientCache.calculateKpis(serverKpi, siteId);
@@ -60,25 +63,24 @@ export default function DashboardPage() {
       fetch(kpiUrl).then((r) => r.json()),
       fetch(projUrl).then((r) => r.json()),
       fetch("/api/tasks").then((r) => r.json()),
-      fetch(`/api/attendance?workDate=${todayStr}`).then((r) => r.json()),
+      fetch(`/api/attendance?workDate=${todayStr}${siteId ? `&siteId=${siteId}` : ""}`).then((r) => r.json()),
       fetch("/api/materials").then((r) => r.json()),
-      fetch("/api/workforce").then((r) => r.json()),
+      fetch(`/api/workforce${siteId ? `?siteId=${siteId}` : ""}`).then((r) => r.json()),
     ])
       .then(([kpiRes, projRes, taskRes, attRes, matRes, wfRes]) => {
-        const mergedProj = clientCache.mergeProjects(projRes.data || []);
-        const mergedTasks = clientCache.mergeTasks(taskRes.data || []);
-        if (attRes.success && attRes.data) clientCache.mergeAttendance(attRes.data);
-        if (matRes.success && matRes.data) clientCache.mergeMaterials(matRes.data);
-        if (wfRes.success && wfRes.data) {
-          const mergedWf = clientCache.mergeWorkforce(wfRes.data);
-          setWorkers(mergedWf);
-          if (mergedWf.length > 0) setSelectedWorkerId(mergedWf[0].id);
+        const rawProjs = projRes.data || [];
+        const rawTasks = taskRes.data || [];
+        const rawWorkers = wfRes.data || [];
+
+        setWorkers(rawWorkers);
+        if (rawWorkers.length > 0 && !selectedWorkerId) {
+          setSelectedWorkerId(rawWorkers[0].id);
         }
 
-        const filteredProjs = siteId ? mergedProj.filter((p: any) => p.siteId === siteId) : mergedProj;
+        const filteredProjs = siteId ? rawProjs.filter((p: any) => p.siteId === siteId) : rawProjs;
         const filteredTasks = siteId
-          ? mergedTasks.filter((t: any) => t.project?.siteId === siteId || filteredProjs.some((p: any) => p.id === t.projectId))
-          : mergedTasks;
+          ? rawTasks.filter((t: any) => t.project?.siteId === siteId || filteredProjs.some((p: any) => p.id === t.projectId))
+          : rawTasks;
 
         setProjects(filteredProjs);
         if (filteredProjs.length > 0 && !quickProjectId) {
@@ -87,6 +89,9 @@ export default function DashboardPage() {
 
         setTasks(filteredTasks.filter((t: any) => t.status === "TODO" || t.status === "IN_PROGRESS"));
         refreshKpis(kpiRes.data, siteId);
+      })
+      .catch((err) => {
+        console.error("Dashboard authoritative load failed:", err);
       })
       .finally(() => setLoading(false));
   };
@@ -108,88 +113,111 @@ export default function DashboardPage() {
 
   const handleQuickTaskSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quickTitle.trim()) return;
+    if (!quickTitle.trim() || submittingTask) return;
 
-    const targetProjId = quickProjectId || (projects.length > 0 ? projects[0].id : "demo-prj-1");
-    const targetProj = projects.find((p) => p.id === targetProjId);
+    const targetProjId = quickProjectId || (projects.length > 0 ? projects[0].id : "");
+    if (!targetProjId) {
+      setErrorMessage("Please select a project before creating a task.");
+      return;
+    }
 
-    const newTask = {
-      id: `task-${Date.now()}`,
-      projectId: targetProjId,
-      title: quickTitle.trim(),
-      priority: quickPriority,
-      status: "TODO",
-      dueAt: quickDueAt ? new Date(quickDueAt).toISOString() : new Date().toISOString(),
-      project: targetProj ? { id: targetProj.id, name: targetProj.name, code: targetProj.code } : undefined,
-    };
-
-    clientCache.saveTask(newTask);
-    setTasks((prev) => [newTask, ...prev]);
-    refreshKpis(kpi, activeSiteId);
-
-    setStatusMessage(`Task "${newTask.title}" added to site board!`);
-    setShowQuickTaskModal(false);
-    setQuickTitle("");
-    setQuickDueAt("");
+    setSubmittingTask(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
 
     try {
-      await fetch("/api/tasks", {
+      const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify({
+          projectId: targetProjId,
+          title: quickTitle.trim(),
+          priority: quickPriority,
+          dueAt: quickDueAt ? new Date(quickDueAt).toISOString() : new Date().toISOString(),
+        }),
       });
-    } catch {
-      // offline / clientCache handles persistence
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to create task on server");
+        return;
+      }
+
+      setStatusMessage(`Task "${data.data.title}" confirmed and saved to database!`);
+      setShowQuickTaskModal(false);
+      setQuickTitle("");
+      setQuickDueAt("");
+      loadDashboard(activeSiteId);
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to create task"}`);
+    } finally {
+      setSubmittingTask(false);
     }
   };
 
   const handleQuickCompleteTask = async (taskId: string, title: string) => {
-    clientCache.updateTaskStatus(taskId, "COMPLETED");
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    refreshKpis(kpi, activeSiteId);
-    setStatusMessage(`Task "${title}" marked completed!`);
+    setErrorMessage(null);
+    setStatusMessage(null);
 
     try {
-      await fetch(`/api/tasks/${taskId}/status`, {
+      const res = await fetch(`/api/tasks/${taskId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "COMPLETED" }),
       });
-    } catch {
-      // offline / clientCache handles persistence
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to complete task on server");
+        return;
+      }
+
+      setStatusMessage(`Task "${title}" marked completed in database!`);
+      loadDashboard(activeSiteId);
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to complete task"}`);
     }
   };
 
   const handleQuickCheckInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedWorkerId) return;
+    if (!selectedWorkerId || submittingCheckIn) return;
 
-    const worker = workers.find((w) => w.id === selectedWorkerId);
-    const siteToUse = checkInSiteId || activeSiteId || (projects.length > 0 ? projects[0].siteId : "demo-site-1");
+    const siteToUse = checkInSiteId || activeSiteId || (projects.length > 0 ? projects[0].siteId : "");
+    if (!siteToUse) {
+      setErrorMessage("Please select a site for crew check-in.");
+      return;
+    }
 
-    const session = {
-      id: `att-${Date.now()}`,
-      workforceMemberId: selectedWorkerId,
-      siteId: siteToUse,
-      workDate: new Date().toISOString().split("T")[0],
-      checkInAt: new Date().toISOString(),
-      status: "PRESENT",
-      workforceMember: worker,
-    };
-
-    clientCache.saveAttendance(session);
-    refreshKpis(kpi, activeSiteId);
-    setStatusMessage(`Worker "${worker?.name || 'Trade Crew'}" checked in successfully for today's shift!`);
-    setShowCheckInModal(false);
+    setSubmittingCheckIn(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
 
     try {
-      await fetch("/api/attendance/check-in", {
+      const res = await fetch("/api/attendance/check-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(session),
+        body: JSON.stringify({
+          workforceMemberId: selectedWorkerId,
+          siteId: siteToUse,
+          workDate: new Date().toISOString().split("T")[0],
+        }),
       });
-    } catch {
-      // offline / clientCache handles persistence
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to record check-in on server");
+        return;
+      }
+
+      const worker = workers.find((w) => w.id === selectedWorkerId);
+      setStatusMessage(`Worker "${worker?.name || 'Trade Crew'}" checked in successfully!`);
+      setShowCheckInModal(false);
+      loadDashboard(activeSiteId);
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to record check-in"}`);
+    } finally {
+      setSubmittingCheckIn(false);
     }
   };
 
@@ -235,6 +263,22 @@ export default function DashboardPage() {
             <button
               onClick={() => setStatusMessage(null)}
               className="text-emerald-700 hover:text-emerald-900 p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Error notification banner */}
+        {errorMessage && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center justify-between gap-2 shadow-xs animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-rose-700 hover:text-rose-900 p-0.5"
             >
               <X className="w-3.5 h-3.5" />
             </button>
