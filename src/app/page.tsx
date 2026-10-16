@@ -73,8 +73,8 @@ export default function DashboardPage() {
         const rawWorkers = wfRes.data || [];
 
         setWorkers(rawWorkers);
-        if (rawWorkers.length > 0 && !selectedWorkerId) {
-          setSelectedWorkerId(rawWorkers[0].id);
+        if (rawWorkers.length > 0) {
+          setSelectedWorkerId((prev) => (rawWorkers.some((w: any) => w.id === prev) ? prev : rawWorkers[0].id));
         }
 
         const filteredProjs = siteId ? rawProjs.filter((p: any) => p.siteId === siteId) : rawProjs;
@@ -95,6 +95,12 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    if (workers.length > 0) {
+      setSelectedWorkerId((prev) => (workers.some((w) => w.id === prev) ? prev : workers[0].id));
+    }
+  }, [workers]);
 
   useEffect(() => {
     const savedSite = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") || "" : "";
@@ -724,11 +730,17 @@ export default function DashboardPage() {
                     required
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {workers.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.employeeCode} - {w.workerType})
+                    {workers.length === 0 ? (
+                      <option value="" disabled>
+                        No active workers found — Register via Attendance page
                       </option>
-                    ))}
+                    ) : (
+                      workers.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} ({w.employeeCode} - {w.workerType})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 

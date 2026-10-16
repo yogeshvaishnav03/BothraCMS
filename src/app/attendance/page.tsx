@@ -62,7 +62,11 @@ export default function AttendancePage() {
     ])
       .then(([workerRes, attRes, sitesRes]) => {
         if (workerRes.success) {
-          setWorkers(workerRes.data || []);
+          const rawWorkers = workerRes.data || [];
+          setWorkers(rawWorkers);
+          if (rawWorkers.length > 0) {
+            setSelectedWorkerId((prev) => (rawWorkers.some((w: any) => w.id === prev) ? prev : rawWorkers[0].id));
+          }
         }
         if (attRes.success) {
           setSessions(attRes.data || []);
@@ -71,8 +75,8 @@ export default function AttendancePage() {
           const rawSites = sitesRes.data || [];
           setSites(rawSites);
           if (rawSites.length > 0) {
-            setCheckInSiteId((prev) => prev || rawSites[0].id);
-            setDefaultSiteId((prev) => prev || rawSites[0].id);
+            setCheckInSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
+            setDefaultSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
           }
         }
       })
@@ -81,6 +85,19 @@ export default function AttendancePage() {
       })
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    if (workers.length > 0) {
+      setSelectedWorkerId((prev) => (workers.some((w) => w.id === prev) ? prev : workers[0].id));
+    }
+  }, [workers]);
+
+  useEffect(() => {
+    if (sites.length > 0) {
+      setCheckInSiteId((prev) => (sites.some((s) => s.id === prev) ? prev : sites[0].id));
+      setDefaultSiteId((prev) => (sites.some((s) => s.id === prev) ? prev : sites[0].id));
+    }
+  }, [sites]);
 
   useEffect(() => {
     loadData();
@@ -314,8 +331,14 @@ export default function AttendancePage() {
             </button>
             <button
               onClick={() => {
-                if (workers.length > 0) setSelectedWorkerId(workers[0].id);
-                if (sites.length > 0) setCheckInSiteId(sites[0].id);
+                if (workers.length > 0) {
+                  setSelectedWorkerId((prev) => (workers.some((w) => w.id === prev) ? prev : workers[0].id));
+                } else {
+                  loadData();
+                }
+                if (sites.length > 0) {
+                  setCheckInSiteId((prev) => (sites.some((s) => s.id === prev) ? prev : sites[0].id));
+                }
                 setShowCheckInModal(true);
               }}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
@@ -525,20 +548,40 @@ export default function AttendancePage() {
 
               <form onSubmit={handleCheckInSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Select Worker
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase">
+                      Select Worker
+                    </label>
+                    {workers.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCheckInModal(false);
+                          setShowRegisterModal(true);
+                        }}
+                        className="text-xs text-amber-600 hover:text-amber-700 font-semibold underline"
+                      >
+                        + Register Worker
+                      </button>
+                    )}
+                  </div>
                   <select
                     value={selectedWorkerId}
                     onChange={(e) => setSelectedWorkerId(e.target.value)}
                     required
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {workers.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.employeeCode}) — {w.workerType}
+                    {workers.length === 0 ? (
+                      <option value="" disabled>
+                        No active workers found — Register one first
                       </option>
-                    ))}
+                    ) : (
+                      workers.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} ({w.employeeCode}) — {w.workerType}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -552,11 +595,17 @@ export default function AttendancePage() {
                     required
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {sites.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code})
+                    {sites.length === 0 ? (
+                      <option value="" disabled>
+                        No active sites found
                       </option>
-                    ))}
+                    ) : (
+                      sites.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 

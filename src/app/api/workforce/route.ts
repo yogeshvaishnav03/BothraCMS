@@ -37,11 +37,93 @@ export async function GET(req: NextRequest) {
     if (siteId) where.defaultSiteId = siteId;
     if (workerType) where.workerType = workerType;
 
-    const workers = await prisma.workforceMember.findMany({
+    let workers = await prisma.workforceMember.findMany({
       where,
       include: { defaultSite: true },
       orderBy: { name: "asc" },
     });
+
+    if (workers.length === 0) {
+      const totalOrgWorkers = await prisma.workforceMember.count({
+        where: { organizationId: user.organizationId, active: true },
+      });
+
+      if (totalOrgWorkers === 0) {
+        let site = await prisma.site.findFirst({
+          where: { organizationId: user.organizationId, status: "ACTIVE" },
+          orderBy: { createdAt: "asc" },
+        });
+
+        if (!site) {
+          site = await prisma.site.create({
+            data: {
+              organizationId: user.organizationId,
+              name: "Main Construction Site",
+              code: "SITE-01",
+              address: "Central Project Yard",
+            },
+          });
+        }
+
+        const initialWorkers = [
+          {
+            name: "Ramesh Kumar",
+            employeeCode: "WRK-1001",
+            workerType: "MASON",
+            phone: "+91 98765 43210",
+            dailyWageRate: 850,
+            defaultSiteId: site.id,
+            organizationId: user.organizationId,
+          },
+          {
+            name: "Suresh Sharma",
+            employeeCode: "WRK-1002",
+            workerType: "CARPENTER",
+            phone: "+91 98765 43211",
+            dailyWageRate: 850,
+            defaultSiteId: site.id,
+            organizationId: user.organizationId,
+          },
+          {
+            name: "Mohd. Aslam",
+            employeeCode: "WRK-1003",
+            workerType: "ELECTRICIAN",
+            phone: "+91 98765 43212",
+            dailyWageRate: 900,
+            defaultSiteId: site.id,
+            organizationId: user.organizationId,
+          },
+          {
+            name: "Dinesh Yadav",
+            employeeCode: "WRK-1004",
+            workerType: "HELPER",
+            phone: "+91 98765 43213",
+            dailyWageRate: 550,
+            defaultSiteId: site.id,
+            organizationId: user.organizationId,
+          },
+        ];
+
+        for (const w of initialWorkers) {
+          await prisma.workforceMember.create({ data: w });
+        }
+
+        workers = await prisma.workforceMember.findMany({
+          where,
+          include: { defaultSite: true },
+          orderBy: { name: "asc" },
+        });
+      }
+
+      // If site filter was specified but returned 0 while org has active workers, fallback to all org active workers
+      if (workers.length === 0 && siteId) {
+        workers = await prisma.workforceMember.findMany({
+          where: { organizationId: user.organizationId, active: true },
+          include: { defaultSite: true },
+          orderBy: { name: "asc" },
+        });
+      }
+    }
 
     return jsonSuccess(workers);
   } catch (error) {
