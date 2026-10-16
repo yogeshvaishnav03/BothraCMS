@@ -6,7 +6,18 @@ const dbUrl =
   process.env.DATABASE_URL ||
   process.env.POSTGRES_PRISMA_URL ||
   process.env.POSTGRES_URL ||
+  process.env.POSTGRES_URL_NON_POOLING ||
   "";
+
+const directUrl =
+  process.env.DIRECT_URL ||
+  process.env.POSTGRES_URL_NON_POOLING ||
+  process.env.POSTGRES_URL ||
+  dbUrl;
+
+if (dbUrl && !process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = dbUrl;
+}
 
 const schemaPath = path.resolve(__dirname, "..", "prisma", "schema.prisma");
 
@@ -14,7 +25,7 @@ if (fs.existsSync(schemaPath)) {
   let schema = fs.readFileSync(schemaPath, "utf-8");
   const isPostgres = dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://");
   const currentProvider = schema.includes('provider = "postgresql"') ? "postgresql" : "sqlite";
-  const targetProvider = isPostgres ? "postgresql" : "sqlite";
+  const targetProvider = isPostgres || !dbUrl ? "postgresql" : "sqlite";
 
   if (currentProvider !== targetProvider) {
     console.log(`⚡ Configuring Prisma datasource provider for ${targetProvider}...`);
@@ -23,11 +34,24 @@ if (fs.existsSync(schemaPath)) {
       `datasource db {\n  provider = "${targetProvider}"\n  url      = env("DATABASE_URL")\n}`
     );
     fs.writeFileSync(schemaPath, schema, "utf-8");
-    try {
-      execSync("npx prisma generate", { stdio: "inherit" });
-    } catch (genErr) {
-      console.warn("⚠️ prisma generate warning:", genErr.message);
-    }
+  }
+
+  // Always generate Prisma client with explicit DATABASE_URL env
+  try {
+    console.log(`⚡ Generating Prisma Client for ${targetProvider}...`);
+    execSync("npx prisma generate", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL:
+          dbUrl ||
+          (targetProvider === "postgresql"
+            ? "postgresql://postgres:postgres@localhost:5432/postgres"
+            : "file:./prisma/dev.db"),
+      },
+    });
+  } catch (genErr) {
+    console.warn("⚠️ prisma generate warning:", genErr.message);
   }
 }
 
@@ -39,11 +63,17 @@ if (
 ) {
   try {
     console.log("⚡ Syncing database schema to remote PostgreSQL...");
-    execSync("npx prisma db push --skip-generate", { stdio: "inherit" });
+    execSync("npx prisma db push --skip-generate", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: directUrl,
+      },
+    });
     console.log("✅ Database schema synchronized successfully.");
   } catch (err) {
     console.warn("⚠️ prisma db push encountered an issue, proceeding with build:", err.message);
   }
 } else {
-  console.log("ℹ️ Local SQLite or default database configured, skipping remote db push.");
+  console.log("ℹ️ Local or default database configured, skipping remote db push.");
 }

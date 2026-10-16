@@ -53,10 +53,53 @@ export async function POST(req: NextRequest) {
         include: { organization: true },
       });
 
-      // Auto-bootstrap persistent default accounts if database has zero users
+      // Auto-bootstrap persistent default accounts if database has zero users or bootstrap account is missing
       if (!user) {
+        const bootstrapAccounts = [
+          {
+            id: "usr-super-1",
+            name: "Master Super Admin",
+            email: "superadmin@buildtrack.pro",
+            role: "SUPER_ADMIN",
+          },
+          {
+            id: "usr-admin-1",
+            name: "Yogesh Vaishnav",
+            email: "admin@buildtrack.pro",
+            role: "ORG_ADMIN",
+          },
+          {
+            id: "usr-pm-1",
+            name: "Arjun Verma",
+            email: "pm@buildtrack.pro",
+            role: "PROJECT_MANAGER",
+          },
+          {
+            id: "usr-sup-1",
+            name: "Rajesh Kumar",
+            email: "supervisor@buildtrack.pro",
+            role: "SITE_SUPERVISOR",
+          },
+          {
+            id: "usr-store-1",
+            name: "Mohan Lal",
+            email: "store@buildtrack.pro",
+            role: "STOREKEEPER",
+          },
+          {
+            id: "usr-fin-1",
+            name: "Pooja Sharma",
+            email: "finance@buildtrack.pro",
+            role: "ACCOUNTANT",
+          },
+        ];
+
+        const isBootstrapTarget = bootstrapAccounts.some(
+          (acc) => acc.email.toLowerCase() === normalizedEmail
+        );
         const totalUsers = await prisma.user.count().catch(() => -1);
-        if (totalUsers === 0) {
+
+        if (totalUsers === 0 || isBootstrapTarget) {
           const defaultOrg = await prisma.organization.upsert({
             where: { id: "demo-org-1" },
             update: {},
@@ -70,44 +113,6 @@ export async function POST(req: NextRequest) {
           });
 
           const defaultPasswordHash = await hashPassword("Password123!");
-          const bootstrapAccounts = [
-            {
-              id: "usr-super-1",
-              name: "Master Super Admin",
-              email: "superadmin@buildtrack.pro",
-              role: "SUPER_ADMIN",
-            },
-            {
-              id: "usr-admin-1",
-              name: "Yogesh Vaishnav",
-              email: "admin@buildtrack.pro",
-              role: "ORG_ADMIN",
-            },
-            {
-              id: "usr-pm-1",
-              name: "Arjun Verma",
-              email: "pm@buildtrack.pro",
-              role: "PROJECT_MANAGER",
-            },
-            {
-              id: "usr-sup-1",
-              name: "Rajesh Kumar",
-              email: "supervisor@buildtrack.pro",
-              role: "SITE_SUPERVISOR",
-            },
-            {
-              id: "usr-store-1",
-              name: "Mohan Lal",
-              email: "store@buildtrack.pro",
-              role: "STOREKEEPER",
-            },
-            {
-              id: "usr-fin-1",
-              name: "Pooja Sharma",
-              email: "finance@buildtrack.pro",
-              role: "ACCOUNTANT",
-            },
-          ];
 
           for (const acc of bootstrapAccounts) {
             await prisma.user.upsert({

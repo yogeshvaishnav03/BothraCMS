@@ -17,6 +17,13 @@ if (!process.env.DATABASE_URL && dbUrl) {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
+    datasources: dbUrl
+      ? {
+          db: {
+            url: dbUrl,
+          },
+        }
+      : undefined,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
