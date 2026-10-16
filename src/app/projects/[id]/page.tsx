@@ -43,6 +43,7 @@ export default function ProjectDetailsPage() {
   const [reportBlockers, setReportBlockers] = useState("");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const loadProject = () => {
