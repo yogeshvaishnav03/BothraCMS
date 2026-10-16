@@ -20,6 +20,14 @@ export async function GET() {
       process.env.POSTGRES_URL ||
       process.env.POSTGRES_URL_NON_POOLING ||
       "";
+    let configuredHost = "unknown";
+    try {
+      if (dbUrl) {
+        const u = new URL(dbUrl);
+        configuredHost = u.host;
+      }
+    } catch {}
+
     return NextResponse.json(
       {
         status: "error",
@@ -27,7 +35,13 @@ export async function GET() {
         diagnostic: error?.message || String(error),
         code: error?.code,
         dbConfigured: Boolean(dbUrl),
-        dbType: dbUrl ? dbUrl.split(":")[0] : "none",
+        configuredHost,
+        envSources: {
+          DATABASE_URL: Boolean(process.env.DATABASE_URL),
+          POSTGRES_PRISMA_URL: Boolean(process.env.POSTGRES_PRISMA_URL),
+          POSTGRES_URL: Boolean(process.env.POSTGRES_URL),
+          POSTGRES_URL_NON_POOLING: Boolean(process.env.POSTGRES_URL_NON_POOLING),
+        },
       },
       { status: 500 }
     );
