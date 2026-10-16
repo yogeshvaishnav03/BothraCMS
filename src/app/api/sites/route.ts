@@ -79,6 +79,24 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Auto-create default site stores so inventory is immediately usable for this site
+    await prisma.store.create({
+      data: {
+        organizationId: user.organizationId,
+        siteId: site.id,
+        name: `${site.name} — Main Yard`,
+        status: "ACTIVE",
+      },
+    });
+    await prisma.store.create({
+      data: {
+        organizationId: user.organizationId,
+        siteId: site.id,
+        name: `${site.name} — Secondary Store`,
+        status: "ACTIVE",
+      },
+    });
+
     return jsonSuccess(site, 201);
   } catch (error) {
     return handleApiError(error);

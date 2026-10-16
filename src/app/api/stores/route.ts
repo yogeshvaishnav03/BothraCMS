@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       where.siteId = siteId;
     }
 
-    const stores = await prisma.store.findMany({
+    let stores = await prisma.store.findMany({
       where,
       include: {
         site: {
@@ -47,6 +47,67 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { name: "asc" },
     });
+
+    if (stores.length === 0) {
+      // Find active sites in the organization
+      let sites = await prisma.site.findMany({
+        where: { organizationId: user.organizationId, status: "ACTIVE" },
+        orderBy: { createdAt: "asc" },
+      });
+
+      if (sites.length === 0) {
+        const defaultSite = await prisma.site.create({
+          data: {
+            organizationId: user.organizationId,
+            name: "Main Construction Site",
+            code: "SITE-01",
+            address: "Central Project Yard",
+          },
+        });
+        sites = [defaultSite];
+      }
+
+      // Provision Main Yard and Secondary Store for sites
+      for (const s of sites) {
+        await prisma.store.create({
+          data: {
+            organizationId: user.organizationId,
+            siteId: s.id,
+            name: `${s.name} — Main Yard`,
+            status: "ACTIVE",
+          },
+        });
+        await prisma.store.create({
+          data: {
+            organizationId: user.organizationId,
+            siteId: s.id,
+            name: `${s.name} — Secondary Store`,
+            status: "ACTIVE",
+          },
+        });
+      }
+
+      // Re-fetch stores with populated records
+      stores = await prisma.store.findMany({
+        where,
+        include: {
+          site: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+          _count: {
+            select: {
+              stockBalances: true,
+              stockMovements: true,
+            },
+          },
+        },
+        orderBy: { name: "asc" },
+      });
+    }
 
     return jsonSuccess(stores);
   } catch (error) {

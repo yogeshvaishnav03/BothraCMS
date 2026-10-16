@@ -77,22 +77,31 @@ export default function MaterialsPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    loadMaterials();
+  const loadStores = () => {
     fetch("/api/stores")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success && res.data) {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
           setStores(res.data);
-          if (res.data.length > 0) {
-            setSelectedStoreId(res.data[0].id);
-            setTransferSourceStoreId(res.data[0].id);
-            if (res.data.length > 1) {
-              setTransferTargetStoreId(res.data[1].id);
-            }
+          setSelectedStoreId((prev) => (prev && res.data.some((s: any) => s.id === prev) ? prev : res.data[0].id));
+          setTransferSourceStoreId((prev) => (prev && res.data.some((s: any) => s.id === prev) ? prev : res.data[0].id));
+          if (res.data.length > 1) {
+            setTransferTargetStoreId((prev) =>
+              prev && res.data.some((s: any) => s.id === prev && s.id !== res.data[0].id) ? prev : res.data[1].id
+            );
+          } else {
+            setTransferTargetStoreId(res.data[0].id);
           }
         }
+      })
+      .catch((err) => {
+        console.error("Authoritative stores load failed:", err);
       });
+  };
+
+  useEffect(() => {
+    loadMaterials();
+    loadStores();
     fetch("/api/parties?type=VENDOR")
       .then((r) => r.json())
       .then((res) => {
@@ -109,6 +118,20 @@ export default function MaterialsPage() {
         if (res.success) setTasks(res.data || []);
       });
   }, []);
+
+  useEffect(() => {
+    if (stores.length > 0) {
+      if (!selectedStoreId || !stores.some((s) => s.id === selectedStoreId)) {
+        setSelectedStoreId(stores[0].id);
+      }
+      if (!transferSourceStoreId || !stores.some((s) => s.id === transferSourceStoreId)) {
+        setTransferSourceStoreId(stores[0].id);
+      }
+      if (!transferTargetStoreId || !stores.some((s) => s.id === transferTargetStoreId)) {
+        setTransferTargetStoreId(stores.length > 1 ? stores[1].id : stores[0].id);
+      }
+    }
+  }, [stores]);
 
   const handleCreateMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -339,6 +362,7 @@ export default function MaterialsPage() {
             </button>
             <button
               onClick={() => {
+                loadStores();
                 if (materials.length > 0) setSelectedMaterialId(materials[0].id);
                 setShowReceiveModal(true);
               }}
@@ -349,6 +373,7 @@ export default function MaterialsPage() {
             </button>
             <button
               onClick={() => {
+                loadStores();
                 if (materials.length > 0) setSelectedMaterialId(materials[0].id);
                 setShowIssueModal(true);
               }}
@@ -359,6 +384,7 @@ export default function MaterialsPage() {
             </button>
             <button
               onClick={() => {
+                loadStores();
                 if (materials.length > 0) setTransferMaterialId(materials[0].id);
                 if (stores.length > 0) setTransferSourceStoreId(stores[0].id);
                 if (stores.length > 1) setTransferTargetStoreId(stores[1].id);
@@ -533,20 +559,29 @@ export default function MaterialsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Receiving Store / Yard
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase">
+                      Receiving Store / Yard
+                    </label>
+                    {stores.length === 0 && (
+                      <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading stores...</span>
+                    )}
+                  </div>
                   <select
                     value={selectedStoreId}
                     onChange={(e) => setSelectedStoreId(e.target.value)}
                     required
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {stores.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.site?.name || "General Yard"})
-                      </option>
-                    ))}
+                    {stores.length === 0 ? (
+                      <option value="">Loading stores...</option>
+                    ) : (
+                      stores.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.site?.name || "General Yard"})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -684,20 +719,29 @@ export default function MaterialsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Issuing Store / Yard
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase">
+                      Issuing Store / Yard
+                    </label>
+                    {stores.length === 0 && (
+                      <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading stores...</span>
+                    )}
+                  </div>
                   <select
                     value={selectedStoreId}
                     onChange={(e) => setSelectedStoreId(e.target.value)}
                     required
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {stores.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.site?.name || "General Yard"})
-                      </option>
-                    ))}
+                    {stores.length === 0 ? (
+                      <option value="">Loading stores...</option>
+                    ) : (
+                      stores.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.site?.name || "General Yard"})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -808,37 +852,55 @@ export default function MaterialsPage() {
               <form onSubmit={handleTransferSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Source Store (From)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 uppercase">
+                        Source Store (From)
+                      </label>
+                      {stores.length === 0 && (
+                        <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading...</span>
+                      )}
+                    </div>
                     <select
                       value={transferSourceStoreId}
                       onChange={(e) => setTransferSourceStoreId(e.target.value)}
                       required
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                     >
-                      {stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
+                      {stores.length === 0 ? (
+                        <option value="">Loading stores...</option>
+                      ) : (
+                        stores.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.site?.name || "General Yard"})
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Target Store (To)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 uppercase">
+                        Target Store (To)
+                      </label>
+                      {stores.length === 0 && (
+                        <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading...</span>
+                      )}
+                    </div>
                     <select
                       value={transferTargetStoreId}
                       onChange={(e) => setTransferTargetStoreId(e.target.value)}
                       required
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                     >
-                      {stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
+                      {stores.length === 0 ? (
+                        <option value="">Loading stores...</option>
+                      ) : (
+                        stores.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.site?.name || "General Yard"})
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>
