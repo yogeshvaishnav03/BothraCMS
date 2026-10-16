@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       const orgId = user.organizationId;
 
       // 1. Payments made on this date
-      const payments = await prisma.payment.findMany({
+      const rawPayments = await prisma.payment.findMany({
         where: {
           organizationId: orgId,
           paymentDate: {
@@ -33,12 +33,17 @@ export async function GET(req: NextRequest) {
           status: "POSTED",
         },
         include: {
-          party: { select: { id: true, name: true, type: true } },
-          bill: { select: { id: true, billNumber: true, totalAmount: true } },
+          party: { select: { id: true, name: true, partyType: true } },
+          allocations: { include: { bill: { select: { id: true, billNumber: true, totalAmount: true } } } },
           creator: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "desc" },
       });
+
+      const payments = rawPayments.map((p) => ({
+        ...p,
+        paymentMethod: p.method,
+      }));
 
       // 2. Bills recorded on this date
       const bills = await prisma.bill.findMany({
@@ -50,7 +55,7 @@ export async function GET(req: NextRequest) {
           },
         },
         include: {
-          party: { select: { id: true, name: true, type: true } },
+          party: { select: { id: true, name: true, partyType: true } },
           project: { select: { id: true, code: true, name: true, siteId: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -153,7 +158,10 @@ export async function GET(req: NextRequest) {
       const filteredPayments = allPayments.filter((p: any) => {
         const pDate = p.paymentDate ? p.paymentDate.split("T")[0] : "";
         return pDate === date || pDate.startsWith(date);
-      });
+      }).map((p: any) => ({
+        ...p,
+        paymentMethod: p.method || p.paymentMethod || "CASH",
+      }));
 
       const filteredBills = allBills.filter((b: any) => {
         const bDate = b.billDate ? b.billDate.split("T")[0] : "";

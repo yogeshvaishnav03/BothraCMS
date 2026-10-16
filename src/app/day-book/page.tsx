@@ -145,7 +145,8 @@ export default function DayBookPage() {
         body: JSON.stringify({
           partyId: paymentPartyId,
           amount: Math.round(Number(paymentAmount) * 100), // convert rupees to paise
-          paymentMethod,
+          method: paymentMethod,
+          idempotencyKey: `DB-PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`,
           paymentDate: new Date(selectedDate).toISOString(),
           referenceNumber: paymentRef || `DB-EXP-${Date.now().toString().slice(-6)}`,
           notes: paymentNotes || "Day Book Direct Expense / Cash Outflow",
