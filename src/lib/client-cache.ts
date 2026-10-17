@@ -175,7 +175,7 @@ export const clientCache = {
 
   // --- AUTHORITATIVE KPI RESOLVER ---
   calculateKpis(serverKpis?: any, _siteId?: string) {
-    return {
+    const base: any = {
       activeProjectsCount: serverKpis?.activeProjectsCount ?? 0,
       tasksDueTodayCount: serverKpis?.tasksDueTodayCount ?? 0,
       tasksOverdueCount: serverKpis?.tasksOverdueCount ?? 0,
@@ -183,13 +183,26 @@ export const clientCache = {
       lowStockItemsCount: serverKpis?.lowStockItemsCount ?? 0,
       paymentsMadeTodayAmount: serverKpis?.paymentsMadeTodayAmount ?? 0,
       totalOutstandingPayablesAmount: serverKpis?.totalOutstandingPayablesAmount ?? 0,
-      activeProjects: serverKpis?.activeProjects ?? [],
-      tasksDueToday: serverKpis?.tasksDueToday ?? [],
-      tasksOverdue: serverKpis?.tasksOverdue ?? [],
-      workersPresentToday: serverKpis?.workersPresentToday ?? [],
-      lowStockItems: serverKpis?.lowStockItems ?? [],
-      paymentsMadeToday: serverKpis?.paymentsMadeToday ?? [],
-      outstandingPayables: serverKpis?.outstandingPayables ?? [],
     };
+
+    if (
+      serverKpis?.activeProjects !== undefined ||
+      serverKpis?.tasksDueToday !== undefined ||
+      serverKpis?.tasksOverdue !== undefined ||
+      serverKpis?.workersPresentToday !== undefined ||
+      serverKpis?.lowStockItems !== undefined ||
+      serverKpis?.paymentsMadeToday !== undefined ||
+      serverKpis?.outstandingPayables !== undefined
+    ) {
+      base.activeProjects = serverKpis?.activeProjects ?? [];
+      base.tasksDueToday = serverKpis?.tasksDueToday ?? [];
+      base.tasksOverdue = serverKpis?.tasksOverdue ?? [];
+      base.workersPresentToday = serverKpis?.workersPresentToday ?? [];
+      base.lowStockItems = serverKpis?.lowStockItems ?? [];
+      base.paymentsMadeToday = serverKpis?.paymentsMadeToday ?? [];
+      base.outstandingPayables = serverKpis?.outstandingPayables ?? [];
+    }
+
+    return base;
   },
 };

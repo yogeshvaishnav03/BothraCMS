@@ -21,6 +21,9 @@ import {
   Plus,
   ExternalLink,
   ArrowRight,
+  Building2,
+  MapPin,
+  Globe,
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
@@ -32,6 +35,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [workers, setWorkers] = useState<any[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSiteId, setActiveSiteId] = useState<string>("");
 
@@ -71,12 +75,15 @@ export default function DashboardPage() {
       fetch(`/api/attendance?workDate=${todayStr}${siteId ? `&siteId=${siteId}` : ""}`).then((r) => r.json()),
       fetch("/api/materials").then((r) => r.json()),
       fetch(`/api/workforce${siteId ? `?siteId=${siteId}` : ""}`).then((r) => r.json()),
+      fetch("/api/sites").then((r) => r.json()),
     ])
-      .then(([kpiRes, projRes, taskRes, attRes, matRes, wfRes]) => {
+      .then(([kpiRes, projRes, taskRes, attRes, matRes, wfRes, sitesRes]) => {
         const rawProjs = projRes.data || [];
         const rawTasks = taskRes.data || [];
         const rawWorkers = wfRes.data || [];
+        const rawSites = sitesRes.data || [];
 
+        setSites(rawSites);
         setWorkers(rawWorkers);
         if (rawWorkers.length > 0) {
           setSelectedWorkerId((prev) => (rawWorkers.some((w: any) => w.id === prev) ? prev : rawWorkers[0].id));
@@ -195,7 +202,11 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!selectedWorkerId || submittingCheckIn) return;
 
-    const siteToUse = checkInSiteId || activeSiteId || (projects.length > 0 ? projects[0].siteId : "");
+    const siteToUse =
+      checkInSiteId ||
+      activeSiteId ||
+      (projects.length > 0 ? projects[0].siteId : "") ||
+      (sites.length > 0 ? sites[0].id : "");
     if (!siteToUse) {
       setErrorMessage("Please select a site for crew check-in.");
       return;
@@ -641,11 +652,25 @@ export default function DashboardPage() {
         {/* Welcome & Site Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Site Operations Dashboard
-            </h1>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                Site Operations Dashboard
+              </h1>
+              {!activeSiteId ? (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
+                  <span>🌐 All Active Sites Overview</span>
+                  {sites.length > 0 && <span className="opacity-75 font-mono">({sites.length})</span>}
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                  <span>📍 {sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"}</span>
+                </span>
+              )}
+            </div>
             <p className="text-sm text-slate-500 mt-0.5">
-              Real-time site progress, authoritative inventory, and financial balances
+              {!activeSiteId
+                ? `Showing real-time operations, inventory, and finances across all ${sites.length} active construction sites`
+                : `Showing site operations for ${sites.find((s) => s.id === activeSiteId)?.name || "selected location"}`}
             </p>
           </div>
 
@@ -666,6 +691,62 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
+
+        {/* Quick Site Switcher Bar */}
+        {sites.length > 0 && (
+          <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-xl overflow-x-auto max-w-full border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSiteId("");
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("buildtrack_active_site", "");
+                  document.cookie = "buildtrack_active_site=; path=/; max-age=31536000; SameSite=Lax";
+                  window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
+                }
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                !activeSiteId
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <span>🌐 All Active Sites</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                  !activeSiteId ? "bg-slate-950 text-amber-400" : "bg-slate-200 text-slate-700"
+                }`}
+              >
+                {sites.length}
+              </span>
+            </button>
+            {sites.map((s) => {
+              const isSelected = activeSiteId === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveSiteId(s.id);
+                    if (typeof window !== "undefined") {
+                      localStorage.setItem("buildtrack_active_site", s.id);
+                      document.cookie = `buildtrack_active_site=${s.id}; path=/; max-age=31536000; SameSite=Lax`;
+                      window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: s.id } }));
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                    isSelected
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  }`}
+                >
+                  <span>{s.name}</span>
+                  {s.code && <span className="text-[10px] opacity-75 font-mono">({s.code})</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Status notification banner */}
         {statusMessage && (
@@ -724,7 +805,11 @@ export default function DashboardPage() {
                 {kpi?.activeProjectsCount ?? 0}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                <span>{projects[0]?.name || "All Active Sites"}</span>
+                <span>
+                  {!activeSiteId
+                    ? `Across all ${sites.length} Active Sites`
+                    : (sites.find((s) => s.id === activeSiteId)?.name || projects[0]?.name || "Active Site")}
+                </span>
                 <span className="text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                   Details <ExternalLink className="w-3 h-3" />
                 </span>
@@ -946,6 +1031,167 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Every Active Site Dashboard Details */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span>Every Active Site Dashboard Details</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                    {sites.length} Active {sites.length === 1 ? "Location" : "Locations"}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Live operational breakdown and project status across every construction site
+                </p>
+              </div>
+            </div>
+            {!activeSiteId ? (
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 w-max flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>All Sites Unified</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSiteId("");
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("buildtrack_active_site", "");
+                    document.cookie = "buildtrack_active_site=; path=/; max-age=31536000; SameSite=Lax";
+                    window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
+                  }
+                }}
+                className="text-amber-600 hover:text-amber-700 font-bold text-xs hover:underline flex items-center gap-1"
+              >
+                <span>← Show All Sites Overview</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sites.map((site) => {
+              const siteProjs = projects.filter((p) => p.siteId === site.id);
+              const isSelected = activeSiteId === site.id;
+              const totalSiteBudget = siteProjs.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
+              const siteWorkers = workers.filter((w) => w.defaultSiteId === site.id);
+              const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
+
+              return (
+                <div
+                  key={site.id}
+                  className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                    isSelected
+                      ? "bg-amber-50/50 border-amber-400 ring-2 ring-amber-300/70 shadow-sm"
+                      : "bg-slate-50/60 hover:bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-sm">{site.name}</span>
+                          {site.code && (
+                            <span className="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
+                              {site.code}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 line-clamp-1">
+                          <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                          <span>{site.address || "Active Site"}</span>
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider shrink-0">
+                        {site.status}
+                      </span>
+                    </div>
+
+                    {/* Site Statistics Bar */}
+                    <div className="grid grid-cols-3 gap-2 py-2.5 my-2 border-y border-slate-200/60 text-center bg-white/70 rounded-lg">
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-medium">Projects</div>
+                        <div className="text-sm font-black text-slate-900">
+                          {siteProjs.length || site._count?.projects || 0}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-medium">On-Site Today</div>
+                        <div className="text-sm font-black text-emerald-600">
+                          {siteWorkersPresent.length}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-medium">Crew Total</div>
+                        <div className="text-sm font-black text-slate-700">
+                          {siteWorkers.length || site._count?.workforceMembers || 0}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Site Projects List */}
+                    <div className="space-y-1.5 my-2">
+                      <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
+                        <span>Active Projects:</span>
+                        {totalSiteBudget > 0 && (
+                          <span className="text-slate-500 font-mono text-[10px] font-semibold">
+                            Budget: {formatCurrency(totalSiteBudget)}
+                          </span>
+                        )}
+                      </div>
+                      {siteProjs.length === 0 ? (
+                        <div className="text-[11px] text-slate-400 italic p-2 bg-white/60 rounded border border-slate-100">
+                          No active projects logged for this site.
+                        </div>
+                      ) : (
+                        siteProjs.map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/projects/${p.id}`}
+                            className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border border-slate-200/80 hover:border-amber-400 transition-colors block"
+                          >
+                            <span className="font-semibold text-slate-800 truncate max-w-[170px]">{p.name}</span>
+                            <span className="font-black text-slate-900 tabular-nums text-[11px]">
+                              {formatCurrency(p.budgetAmount || 0)}
+                            </span>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Filter action button */}
+                  <div className="pt-3 border-t border-slate-200/60 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextId = isSelected ? "" : site.id;
+                        setActiveSiteId(nextId);
+                        if (typeof window !== "undefined") {
+                          localStorage.setItem("buildtrack_active_site", nextId);
+                          document.cookie = `buildtrack_active_site=${nextId}; path=/; max-age=31536000; SameSite=Lax`;
+                          window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: nextId } }));
+                        }
+                      }}
+                      className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        isSelected
+                          ? "bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-2xs"
+                          : "bg-slate-900 text-white hover:bg-slate-800 shadow-2xs"
+                      }`}
+                    >
+                      <span>{isSelected ? "✓ Filtering Active" : "Filter Dashboard to this Site →"}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Active Projects and Tasks Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Active Projects List */}
@@ -953,7 +1199,11 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <FolderKanban className="w-4 h-4 text-amber-500" />
-                <span>Active Site Projects</span>
+                <span>
+                  {!activeSiteId
+                    ? "All Active Sites & Projects"
+                    : `Active Projects (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
+                </span>
               </h2>
               <Link href="/projects" className="text-xs font-semibold text-amber-600 hover:underline">
                 View All
@@ -1002,7 +1252,11 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <CheckSquare className="w-4 h-4 text-blue-500" />
-                <span>Pending Site Tasks</span>
+                <span>
+                  {!activeSiteId
+                    ? "Pending Tasks Across All Sites"
+                    : `Pending Tasks (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
+                </span>
               </h2>
               <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
                 Open Kanban
@@ -1097,11 +1351,14 @@ export default function DashboardPage() {
                     onChange={(e) => setQuickProjectId(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.code} - {p.name}
-                      </option>
-                    ))}
+                    {projects.map((p) => {
+                      const siteName = p.site?.name || sites.find((s) => s.id === p.siteId)?.name;
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {p.code} - {p.name} {siteName ? `[${siteName}]` : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -1175,6 +1432,30 @@ export default function DashboardPage() {
               <form onSubmit={handleQuickCheckInSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Select Target Site *
+                  </label>
+                  <select
+                    value={checkInSiteId || activeSiteId || (sites.length > 0 ? sites[0].id : "")}
+                    onChange={(e) => setCheckInSiteId(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                  >
+                    {sites.length === 0 ? (
+                      <option value="" disabled>
+                        No active sites available
+                      </option>
+                    ) : (
+                      sites.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} {s.code ? `(${s.code})` : ""}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Select Worker to Check In *
                   </label>
                   <select
@@ -1198,7 +1479,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800">
-                  Worker will be marked PRESENT with current timestamp and checked in to the active site.
+                  Worker will be marked PRESENT with current timestamp and checked in to the selected site.
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">

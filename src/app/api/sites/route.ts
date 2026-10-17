@@ -29,10 +29,24 @@ export async function GET(req: NextRequest) {
         stores: {
           where: { status: "ACTIVE" },
         },
+        projects: {
+          where: { status: { in: ["PLANNING", "IN_PROGRESS", "ACTIVE"] } },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            status: true,
+            budgetAmount: true,
+            _count: {
+              select: { tasks: true, dailyReports: true },
+            },
+          },
+        },
         _count: {
           select: {
             projects: true,
             workforceMembers: true,
+            attendanceSessions: true,
           },
         },
       },

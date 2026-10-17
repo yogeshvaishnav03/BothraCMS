@@ -110,8 +110,8 @@ export default function Shell({ children }: ShellProps) {
         if (sitesList.length > 0) {
           setSites(sitesList);
           const saved = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") : null;
-          const matched = sitesList.find((s: any) => s.id === saved);
-          const initialId = matched ? matched.id : sitesList[0].id;
+          const matched = saved ? sitesList.find((s: any) => s.id === saved) : null;
+          const initialId = matched ? matched.id : "";
           setActiveSiteId(initialId);
           document.cookie = `buildtrack_active_site=${initialId}; path=/; max-age=31536000; SameSite=Lax`;
         }
@@ -227,7 +227,12 @@ export default function Shell({ children }: ShellProps) {
         <div className="p-4 border-b border-slate-800 bg-slate-950/40">
           <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-1.5 flex items-center justify-between">
             <span>{t("nav.activeSite", "Active Site")}</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                activeSiteId ? "bg-emerald-400" : "bg-amber-400 animate-pulse"
+              }`}
+              title={activeSiteId ? "Specific Site Selected" : "All Active Sites (Overview)"}
+            ></span>
           </div>
           {sites.length > 0 ? (
             <select
@@ -235,6 +240,9 @@ export default function Shell({ children }: ShellProps) {
               onChange={(e) => handleSiteChange(e.target.value)}
               className="w-full bg-slate-800/90 text-slate-100 text-xs font-semibold px-2.5 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400 transition-colors cursor-pointer"
             >
+              <option value="" className="bg-slate-900 text-amber-400 font-bold">
+                🌐 All Active Sites (Overview)
+              </option>
               {sites.map((s) => (
                 <option key={s.id} value={s.id} className="bg-slate-900 text-slate-100">
                   {s.name} ({s.code})
@@ -457,6 +465,9 @@ export default function Shell({ children }: ShellProps) {
                   onChange={(e) => handleSiteChange(e.target.value)}
                   className="w-full bg-slate-800 text-slate-100 text-xs font-semibold px-2.5 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400"
                 >
+                  <option value="" className="bg-slate-900 text-amber-400 font-bold">
+                    🌐 All Active Sites (Overview)
+                  </option>
                   {sites.map((s) => (
                     <option key={s.id} value={s.id} className="bg-slate-900 text-slate-100">
                       {s.name} ({s.code})
