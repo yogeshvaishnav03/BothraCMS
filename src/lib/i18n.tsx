@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-export type LanguageCode = "en" | "hi" | "gu" | "mr";
+export type LanguageCode = "en" | "hi";
 
 export interface LanguageInfo {
   code: LanguageCode;
@@ -18,35 +18,21 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
     code: "en",
     name: "English",
     nativeName: "English",
-    region: "Default / Pan-India",
+    region: "Default Interface",
     badge: "Default",
   },
   {
     code: "hi",
     name: "Hindi",
     nativeName: "हिन्दी",
-    region: "North & Central India",
-    badge: "Popular",
-  },
-  {
-    code: "gu",
-    name: "Gujarati",
-    nativeName: "ગુજરાતી",
-    region: "Gujarat & Western India",
-    badge: "Regional",
-  },
-  {
-    code: "mr",
-    name: "Marathi",
-    nativeName: "मराठी",
-    region: "Maharashtra & Goa",
-    badge: "Regional",
+    region: "हिन्दी इंटरफेस",
+    badge: "लोकप्रिय",
   },
 ];
 
 export const translations: Record<LanguageCode, Record<string, string>> = {
   en: {
-    // Navigation
+    // Navigation & Menus
     "nav.dashboard": "Dashboard",
     "nav.dayBook": "Day Book",
     "nav.projects": "Projects",
@@ -68,6 +54,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.loading": "Loading Build Track Pro...",
     "nav.language": "Language",
     "nav.switchLanguage": "Switch Language",
+    "nav.noAlerts": "No active operational alerts. All site systems normal!",
 
     // Common Actions
     "action.save": "Save Changes",
@@ -77,7 +64,8 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "action.delete": "Delete",
     "action.search": "Search...",
     "action.filter": "Filter",
-    "action.export": "Export",
+    "action.export": "Export CSV",
+    "action.print": "Print",
     "action.submit": "Submit",
     "action.addNew": "Add New",
     "action.back": "Back",
@@ -131,9 +119,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "kpi.totalReceivable": "Total Receivables",
     "kpi.totalPayable": "Total Payables",
     "kpi.netPosition": "Net Position",
-    "kpi.quickTask": "+ New Task",
+    "kpi.quickTask": "+ Quick Task",
     "kpi.quickCheckIn": "+ Worker Check-in",
-    "kpi.quickMaterialIn": "+ Material In",
+    "kpi.quickMaterialIn": "+ Receive Stock",
     "kpi.quickIssue": "+ Material Issue",
     "kpi.dailyProgress": "Daily Site Progress",
     "kpi.urgentAlerts": "Urgent Operational Alerts",
@@ -141,13 +129,13 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     // Day Book
     "daybook.title": "Daily Site Day Book",
     "daybook.subtitle": "Consolidated chronological register of financial transactions, material movements, labour attendance, and daily work.",
-    "daybook.addEntry": "+ Add Day Book Entry",
+    "daybook.addEntry": "+ Log Day Entry",
     "daybook.filterByDate": "Select Date",
     "daybook.financialTransactions": "Financial Transactions",
     "daybook.materialMovements": "Material Movements",
     "daybook.workforceAttendance": "Workforce & Attendance",
     "daybook.tasksProgress": "Tasks & Work Progress",
-    "daybook.allEntries": "All Chronological Records",
+    "daybook.allEntries": "All Activity",
     "daybook.noEntries": "No entries recorded for this date and site.",
     "daybook.openingBalance": "Opening Balance",
     "daybook.closingBalance": "Closing Balance",
@@ -208,28 +196,29 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "status.partial": "Partial",
   },
   hi: {
-    // Navigation
+    // Navigation & Menus
     "nav.dashboard": "डैशबोर्ड",
-    "nav.dayBook": "डे बुक (दैनिक बही)",
-    "nav.projects": "परियोजनाएं (प्रोजेक्ट्स)",
+    "nav.dayBook": "डे बुक",
+    "nav.projects": "प्रोजेक्ट्स",
     "nav.tasks": "कार्य और प्रगति",
     "nav.materials": "सामग्री और स्टॉक",
     "nav.measurementBook": "माप पुस्तिका (MB)",
     "nav.parties": "विक्रेता व ठेकेदार",
     "nav.finance": "वित्त और बिल",
-    "nav.attendance": "कर्मचारी व उपस्थिति",
+    "nav.attendance": "कार्यबल व हाजिरी",
     "nav.reports": "रिपोर्ट्स और विश्लेषण",
     "nav.audit": "ऑडिट लॉग्स",
     "nav.settings": "सेटिंग्स",
     "nav.superAdmin": "सुपर एडमिन",
     "nav.logout": "लॉग आउट",
-    "nav.home": "मुख्य पृष्ठ",
+    "nav.home": "होम",
     "nav.menu": "मेनू नेविगेशन",
     "nav.activeSite": "सक्रिय साइट",
     "nav.alerts": "साइट सूचनाएं",
     "nav.loading": "बिल्ड ट्रैक प्रो लोड हो रहा है...",
     "nav.language": "भाषा",
-    "nav.switchLanguage": "भाषा बदलें",
+    "nav.switchLanguage": "भाषा चुनें",
+    "nav.noAlerts": "कोई सक्रिय अलर्ट नहीं है। सभी साइट सिस्टम सामान्य हैं!",
 
     // Common Actions
     "action.save": "परिवर्तन सहेजें",
@@ -239,7 +228,8 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "action.delete": "हटाएं",
     "action.search": "खोजें...",
     "action.filter": "फ़िल्टर",
-    "action.export": "निर्यात (एक्सपोर्ट)",
+    "action.export": "CSV डाउनलोड करें",
+    "action.print": "प्रिंट करें",
     "action.submit": "जमा करें",
     "action.addNew": "+ नया जोड़ें",
     "action.back": "वापस जाएं",
@@ -288,7 +278,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "kpi.tasksToday": "आज के कार्य",
     "kpi.workersOnSite": "साइट पर उपस्थित श्रमिक",
     "kpi.unpaidBills": "बकाया बिल",
-    "kpi.criticalMaterials": "महत्वपूर्ण सामग्री कमी",
+    "kpi.criticalMaterials": "कम स्टॉक सामग्री",
     "kpi.financialSnapshot": "वित्तीय स्थिति",
     "kpi.totalReceivable": "कुल प्राप्य राशि",
     "kpi.totalPayable": "कुल देय राशि",
@@ -301,15 +291,15 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "kpi.urgentAlerts": "तत्काल सूचनाएं",
 
     // Day Book
-    "daybook.title": "दैनिक साइट डे बुक (Day Book)",
-    "daybook.subtitle": "वित्तीय लेन-देन, सामग्री आवाजाही, श्रमिक उपस्थिति और दैनिक प्रगति की समेकित तिथि-वार बही।",
+    "daybook.title": "दैनिक साइट डे बुक",
+    "daybook.subtitle": "वित्तीय लेन-देन, सामग्री आवाजाही, श्रमिक उपस्थिति और दैनिक कार्य की समेकित तिथि-वार बही।",
     "daybook.addEntry": "+ डे बुक प्रविष्टि जोड़ें",
     "daybook.filterByDate": "दिनांक चुनें",
     "daybook.financialTransactions": "वित्तीय लेन-देन",
     "daybook.materialMovements": "सामग्री आवागमन",
     "daybook.workforceAttendance": "कार्यबल उपस्थिति",
     "daybook.tasksProgress": "कार्य व प्रगति",
-    "daybook.allEntries": "सभी तिथि-वार रिकॉर्ड",
+    "daybook.allEntries": "सभी गतिविधियां",
     "daybook.noEntries": "इस दिनांक और साइट के लिए कोई प्रविष्टि नहीं मिली।",
     "daybook.openingBalance": "प्रारंभिक शेष (Opening)",
     "daybook.closingBalance": "अंतिम शेष (Closing)",
@@ -369,330 +359,6 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "status.unpaid": "बकाया",
     "status.partial": "आंशिक",
   },
-  gu: {
-    // Navigation
-    "nav.dashboard": "ડેશબોર્ડ",
-    "nav.dayBook": "ડે બુક (દૈનિક વહી)",
-    "nav.projects": "પ્રોજેક્ટ્સ",
-    "nav.tasks": "કામ અને પ્રગતિ",
-    "nav.materials": "મટીરીયલ અને સ્ટોક",
-    "nav.measurementBook": "માપ પુસ્તિકા (MB)",
-    "nav.parties": "વેપારીઓ અને કોન્ટ્રાક્ટરો",
-    "nav.finance": "હિસાબ અને બિલ",
-    "nav.attendance": "હાજરી અને સ્ટાફ",
-    "nav.reports": "રિપોર્ટ્સ અને વિશ્લેષણ",
-    "nav.audit": "ઓડિટ લોગ્સ",
-    "nav.settings": "સેટિંગ્સ",
-    "nav.superAdmin": "સુપર એડમિન",
-    "nav.logout": "લૉગ આઉટ",
-    "nav.home": "મુખ્ય પૃષ્ઠ",
-    "nav.menu": "મેનુ નેવિગેશન",
-    "nav.activeSite": "સક્રિય સાઇટ",
-    "nav.alerts": "સાઇટ સૂચનાઓ",
-    "nav.loading": "બિલ્ડ ટ્રેક પ્રો લોડ થઈ રહ્યું છે...",
-    "nav.language": "ભાષા",
-    "nav.switchLanguage": "ભાષા બદલો",
-
-    // Common Actions
-    "action.save": "ફેરફારો સાચવો",
-    "action.saving": "સાચવી રહ્યું છે...",
-    "action.cancel": "રદ કરો",
-    "action.edit": "સુધારો કરો",
-    "action.delete": "કાઢી નાખો",
-    "action.search": "શોધો...",
-    "action.filter": "ફિલ્ટર",
-    "action.export": "નિકાસ (એક્સપોર્ટ)",
-    "action.submit": "સબમિટ કરો",
-    "action.addNew": "+ નવું ઉમેરો",
-    "action.back": "પાછા જાઓ",
-    "action.view": "જુઓ",
-    "action.actions": "ક્રિયાઓ",
-    "action.confirm": "ખાતરી કરો",
-    "action.close": "બંધ કરો",
-    "action.dismiss": "કાઢી નાખો",
-    "action.refresh": "રિફ્રેશ કરો",
-    "action.download": "ડાઉનલોડ કરો",
-    "action.viewDetails": "વિગતો જુઓ",
-    "action.quickAction": "ઝડપી ક્રિયાઓ",
-    "action.createNew": "નવું બનાવો",
-    "action.apply": "લાગુ કરો",
-    "action.reset": "રીસેટ કરો",
-
-    // Common Labels
-    "label.date": "તારીખ",
-    "label.time": "સમય",
-    "label.status": "સ્થિતિ",
-    "label.amount": "રકમ",
-    "label.total": "કુલ",
-    "label.balance": "બાકી રકમ",
-    "label.site": "સાઇટ",
-    "label.project": "પ્રોજેક્ટ",
-    "label.category": "શ્રેણી",
-    "label.description": "વિગત",
-    "label.notes": "નોંધ",
-    "label.name": "નામ",
-    "label.email": "ઇમેઇલ",
-    "label.phone": "ફોન",
-    "label.role": "હોદ્દો / ભૂમિકા",
-    "label.quantity": "જથ્થો",
-    "label.unit": "એકમ (યુનિટ)",
-    "label.rate": "ભાવ / દર",
-    "label.party": "પાર્ટી / વેપારી",
-    "label.worker": "કારીગર / મજૂર",
-    "label.contractor": "કોન્ટ્રાક્ટર",
-    "label.allSites": "તમામ સાઇટ્સ",
-    "label.allProjects": "તમામ પ્રોજેક્ટ્સ",
-    "label.allStatuses": "તમામ સ્થિતિઓ",
-    "label.noData": "કોઈ રેકોર્ડ મળ્યો નથી.",
-
-    // Dashboard KPIs
-    "kpi.activeProjects": "સક્રિય પ્રોજેક્ટ્સ",
-    "kpi.tasksToday": "આજના કામ",
-    "kpi.workersOnSite": "સાઇટ પર હાજર મજૂરો",
-    "kpi.unpaidBills": "બાકી બિલો",
-    "kpi.criticalMaterials": "ઓછો સ્ટોક મટીરીયલ",
-    "kpi.financialSnapshot": "નાણાકીય સ્થિતિ",
-    "kpi.totalReceivable": "કુલ લેવાના નાણાં",
-    "kpi.totalPayable": "કુલ ચૂકવવાના નાણાં",
-    "kpi.netPosition": "ચોખ્ખી સ્થિતિ",
-    "kpi.quickTask": "+ નવું કામ",
-    "kpi.quickCheckIn": "+ હાજરી નોંધો",
-    "kpi.quickMaterialIn": "+ સામગ્રી આવક",
-    "kpi.quickIssue": "+ સામગ્રી જાવક",
-    "kpi.dailyProgress": "દૈનિક સાઇટ પ્રગતિ",
-    "kpi.urgentAlerts": "જરૂરી સૂચનાઓ",
-
-    // Day Book
-    "daybook.title": "દૈનિક સાઇટ ડે બુક (Day Book)",
-    "daybook.subtitle": "નાણાકીય વ્યવહારો, મટીરીયલ આવક-જાવક, હાજરી અને દૈનિક કાર્યની સમન્વયિત તારીખવાર વહી.",
-    "daybook.addEntry": "+ ડે બુક એન્ટ્રી ઉમેરો",
-    "daybook.filterByDate": "તારીખ પસંદ કરો",
-    "daybook.financialTransactions": "નાણાકીય વ્યવહારો",
-    "daybook.materialMovements": "મટીરીયલ આવક-જાવક",
-    "daybook.workforceAttendance": "મજૂર હાજરી",
-    "daybook.tasksProgress": "કામની પ્રગતિ",
-    "daybook.allEntries": "તમામ તારીખવાર રેકોર્ડ્સ",
-    "daybook.noEntries": "આ તારીખ અને સાઇટ માટે કોઈ એન્ટ્રી નથી.",
-    "daybook.openingBalance": "શરૂઆતની બાકી (Opening)",
-    "daybook.closingBalance": "આખર બાકી (Closing)",
-    "daybook.inflow": "રોકડ / બેંક આવક (+)",
-    "daybook.outflow": "રોકડ / બેંક જાવક (-)",
-
-    // Finance & Bills
-    "finance.title": "હિસાબ અને બિલ બહી",
-    "finance.subtitle": "વેપારી બિલો, કોન્ટ્રાક્ટર બિલિંગ, ચૂકવણી અને વાઉચર મેનેજમેન્ટ.",
-    "finance.bills": "બિલો અને ઇનવોઇસ",
-    "finance.payments": "ચૂકવણી અને ઉપાડ",
-    "finance.recordPayment": "+ પેમેન્ટ નોંધો",
-    "finance.createBill": "+ નવું બિલ બનાવો",
-
-    // Materials & Stock
-    "materials.title": "મટીરીયલ અને ઇન્વેન્ટરી",
-    "materials.subtitle": "સ્ટોક લેવલ, મટીરીયલ રિસીપ્ટ (GRN), સાઇટ ઇશ્યુ અને ટ્રાન્સફર ટ્રેક કરો.",
-    "materials.stockOnHand": "હાલનો ઉપલબ્ધ સ્ટોક",
-    "materials.receipts": "સામગ્રી આવક",
-    "materials.issues": "સામગ્રી જાવક",
-    "materials.transfers": "સ્ટોક ટ્રાન્સફર",
-    "materials.lowStockAlert": "ઓછા સ્ટોકની ચેતવણી",
-
-    // Attendance & Workforce
-    "attendance.title": "સ્ટાફ અને હાજરી",
-    "attendance.subtitle": "દૈનિક હાજરી, બાયોમેટ્રિક ચેક-ઇન, ઓવરટાઇમ અને મજૂર ગણતરી.",
-    "attendance.markAttendance": "+ હાજરી નોંધો",
-    "attendance.present": "હાજર",
-    "attendance.absent": "ગેરહાજર",
-    "attendance.halfDay": "અડધો દિવસ",
-    "attendance.overtime": "ઓવરટાઇમ",
-
-    // Measurement Book
-    "mb.title": "માપ પુસ્તિકા (Measurement Book)",
-    "mb.subtitle": "એન્જિનિયરિંગ માપણી, મંજૂરી અને કોન્ટ્રાક્ટર બિલિંગ રેકોર્ડ્સ.",
-    "mb.newEntry": "+ નવું માપ ઉમેરો",
-
-    // Settings
-    "settings.title": "સંસ્થા સેટિંગ્સ",
-    "settings.subtitle": "કંપની પ્રોફાઇલ, કરન્સી, ટેક્સ રજીસ્ટ્રેશન, ભાષા પસંદગી અને સભ્યોનું સંચાલન.",
-    "settings.languageTitle": "ડિસ્પ્લે ભાષા / ભાષા પસંદ કરો",
-    "settings.languageDesc": "તમામ સ્ક્રીન, નેવિગેશન અને રિપોર્ટ્સ માટે તમારી વ્યક્તિગત ભાષા પસંદ કરો.",
-    "settings.quickSwitcher": "ઝડપી ભાષા સ્વિચર",
-    "settings.quickSwitcherDesc": "1-ક્લિકમાં તરત ભાષા બદલો:",
-
-    // Statuses
-    "status.todo": "બાકી",
-    "status.inProgress": "ચાલુ છે",
-    "status.completed": "પૂર્ણ",
-    "status.blocked": "અટકાયેલ",
-    "status.active": "સક્રિય",
-    "status.inactive": "નિષ્ક્રિય",
-    "status.pending": "બાકી",
-    "status.approved": "મંજૂર",
-    "status.rejected": "નામંજૂર",
-    "status.paid": "ચૂકવેલ",
-    "status.unpaid": "બાકી",
-    "status.partial": "અંશતઃ ચૂકવેલ",
-  },
-  mr: {
-    // Navigation
-    "nav.dashboard": "डॅशबोर्ड",
-    "nav.dayBook": "डे बुक (दैनिक वही)",
-    "nav.projects": "प्रकल्प (प्रोजेक्ट्स)",
-    "nav.tasks": "कामे आणि प्रगती",
-    "nav.materials": "साहित्य आणि साठा",
-    "nav.measurementBook": "माप पुस्तिका (MB)",
-    "nav.parties": "विक्रेते आणि कंत्राटदार",
-    "nav.finance": "वित्त आणि बिले",
-    "nav.attendance": "कामगार आणि हजेरी",
-    "nav.reports": "अहवाल आणि विश्लेषण",
-    "nav.audit": "ऑडिट नोंदी",
-    "nav.settings": "सेटिंग्ज",
-    "nav.superAdmin": "सुपर अ‍ॅडमिन",
-    "nav.logout": "लॉग आउट",
-    "nav.home": "मुख्य पृष्ठ",
-    "nav.menu": "मेनू नेव्हिगेशन",
-    "nav.activeSite": "सक्रिय साइट",
-    "nav.alerts": "साइट सूचना",
-    "nav.loading": "बिल्ड ट्रॅक प्रो लोड होत आहे...",
-    "nav.language": "भाषा",
-    "nav.switchLanguage": "भाषा बदला",
-
-    // Common Actions
-    "action.save": "बदल जतन करा",
-    "action.saving": "जतन होत आहे...",
-    "action.cancel": "रद्द करा",
-    "action.edit": "संपादित करा",
-    "action.delete": "हटवा",
-    "action.search": "शोधा...",
-    "action.filter": "फिल्टर",
-    "action.export": "निर्यात (एक्स्पोर्ट)",
-    "action.submit": "सादर करा",
-    "action.addNew": "+ नवीन जोडा",
-    "action.back": "मागे जा",
-    "action.view": "पहा",
-    "action.actions": "क्रिया",
-    "action.confirm": "नक्की करा",
-    "action.close": "बंद करा",
-    "action.dismiss": "काढून टाका",
-    "action.refresh": "रिफ्रेश करा",
-    "action.download": "डाउनलोड करा",
-    "action.viewDetails": "तपशील पहा",
-    "action.quickAction": "त्वरित क्रिया",
-    "action.createNew": "नवीन तयार करा",
-    "action.apply": "लागू करा",
-    "action.reset": "रीसेट करा",
-
-    // Common Labels
-    "label.date": "दिनांक",
-    "label.time": "वेळ",
-    "label.status": "स्थिती",
-    "label.amount": "रक्कम",
-    "label.total": "एकूण",
-    "label.balance": "शिल्लक",
-    "label.site": "साइट",
-    "label.project": "प्रकल्प",
-    "label.category": "वर्ग",
-    "label.description": "वर्णन",
-    "label.notes": "नोंद",
-    "label.name": "नाव",
-    "label.email": "ईमेल",
-    "label.phone": "फोन",
-    "label.role": "भूमिका / पद",
-    "label.quantity": "प्रमाण",
-    "label.unit": "एकक (युनिट)",
-    "label.rate": "दर",
-    "label.party": "पार्टी / विक्रेता",
-    "label.worker": "कामगार / कारागीर",
-    "label.contractor": "कंत्राटदार",
-    "label.allSites": "सर्व साइट्स",
-    "label.allProjects": "सर्व प्रकल्प",
-    "label.allStatuses": "सर्व स्थिती",
-    "label.noData": "कोणताही रेकॉर्ड आढळला नाही.",
-
-    // Dashboard KPIs
-    "kpi.activeProjects": "सक्रिय प्रकल्प",
-    "kpi.tasksToday": "आजची कामे",
-    "kpi.workersOnSite": "साइटवरील कामगार",
-    "kpi.unpaidBills": "थकबाकी बिले",
-    "kpi.criticalMaterials": "कमी साठा साहित्य",
-    "kpi.financialSnapshot": "वित्तीय स्थिती",
-    "kpi.totalReceivable": "एकूण येणे रक्कम",
-    "kpi.totalPayable": "एकूण देणे रक्कम",
-    "kpi.netPosition": "निव्वळ स्थिती",
-    "kpi.quickTask": "+ नवीन काम",
-    "kpi.quickCheckIn": "+ कामगार हजेरी",
-    "kpi.quickMaterialIn": "+ साहित्य आवक",
-    "kpi.quickIssue": "+ साहित्य जावक",
-    "kpi.dailyProgress": "दैनिक साइट प्रगती",
-    "kpi.urgentAlerts": "तातडीच्या सूचना",
-
-    // Day Book
-    "daybook.title": "दैनिक साइट डे बुक (Day Book)",
-    "daybook.subtitle": "वित्तीय व्यवहार, साहित्य हालचाल, कामगार हजेरी आणि दैनंदिन कामाची एकत्रित नोंदवही.",
-    "daybook.addEntry": "+ डे बुक नोंद जोडा",
-    "daybook.filterByDate": "दिनांक निवडा",
-    "daybook.financialTransactions": "वित्तीय व्यवहार",
-    "daybook.materialMovements": "साहित्य आवक-जावक",
-    "daybook.workforceAttendance": "कामगार हजेरी",
-    "daybook.tasksProgress": "कामे आणि प्रगती",
-    "daybook.allEntries": "सर्व दिनांकवार नोंदी",
-    "daybook.noEntries": "या तारखेसाठी आणि साइटसाठी कोणतीही नोंद आढळली नाही.",
-    "daybook.openingBalance": "सुरुवातीची शिल्लक (Opening)",
-    "daybook.closingBalance": "अखेरची शिल्लक (Closing)",
-    "daybook.inflow": "रोख / बँक आवक (+)",
-    "daybook.outflow": "रोख / बँक जावक (-)",
-
-    // Finance & Bills
-    "finance.title": "वित्त आणि बिले नोंदवही",
-    "finance.subtitle": "पुरवठादार बिले, कंत्राटदार बिलिंग, देयके आणि व्हाउचर व्यवस्थापन.",
-    "finance.bills": "बिले आणि पावत्या",
-    "finance.payments": "देयके आणि विनिमय",
-    "finance.recordPayment": "+ देयक नोंदवा",
-    "finance.createBill": "+ नवीन बिल तयार करा",
-
-    // Materials & Stock
-    "materials.title": "साहित्य आणि साठा",
-    "materials.subtitle": "साठा पातळी, साहित्य पावती (GRN), साइट जावक आणि हस्तांतरण ट्रॅक करा.",
-    "materials.stockOnHand": "सध्या उपलब्ध साठा",
-    "materials.receipts": "साहित्य आवक",
-    "materials.issues": "साहित्य जावक",
-    "materials.transfers": "साठा हस्तांतरण",
-    "materials.lowStockAlert": "कमी साठा इशारा",
-
-    // Attendance & Workforce
-    "attendance.title": "कामगार आणि हजेरी",
-    "attendance.subtitle": "दैनिक हजेरी पत्रक, बायोमेट्रिक व पर्यवेक्षक हजेरी, जादा वेळ आणि कामगार गणना.",
-    "attendance.markAttendance": "+ हजेरी नोंदवा",
-    "attendance.present": "हजर",
-    "attendance.absent": "गैरहजर",
-    "attendance.halfDay": "अर्धा दिवस",
-    "attendance.overtime": "जादा वेळ",
-
-    // Measurement Book
-    "mb.title": "माप पुस्तिका (Measurement Book)",
-    "mb.subtitle": "अभियांत्रिकी कार्य मापे, मंजुरी आणि कंत्राटदार बिलिंग नोंदी.",
-    "mb.newEntry": "+ नवीन माप नोंदवा",
-
-    // Settings
-    "settings.title": "संस्था सेटिंग्ज",
-    "settings.subtitle": "कंपनी प्रोफाइल, चलन स्वरूप, कर नोंदणी, भाषा प्राधान्य आणि वापरकर्ते व्यवस्थापित करा.",
-    "settings.languageTitle": "प्लॅटफॉर्म प्रदर्शन भाषा / भाषा निवडा",
-    "settings.languageDesc": "सर्व स्क्रीन, नेव्हिगेशन आणि अहवालांसाठी तुमची वैयक्तिक भाषा निवडा.",
-    "settings.quickSwitcher": "त्वरित भाषा परिवर्तक",
-    "settings.quickSwitcherDesc": "1-क्लिकमध्ये ताबडतोब भाषा बदला:",
-
-    // Statuses
-    "status.todo": "लंबित",
-    "status.inProgress": "प्रगतीपथावर",
-    "status.completed": "पूर्ण",
-    "status.blocked": "अडथळा",
-    "status.active": "सक्रिय",
-    "status.inactive": "निष्क्रिय",
-    "status.pending": "प्रलंबित",
-    "status.approved": "मंजूर",
-    "status.rejected": "नाकारले",
-    "status.paid": "भरले",
-    "status.unpaid": "थकबाकी",
-    "status.partial": "अंशतः भरले",
-  },
 };
 
 interface LanguageContextType {
@@ -709,19 +375,30 @@ const LanguageContext = createContext<LanguageContextType>({
   languages: SUPPORTED_LANGUAGES,
 });
 
+function getSavedLanguage(): LanguageCode {
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("buildtrack_language");
+      if (stored === "hi") return "hi";
+      if (stored === "en") return "en";
+    } catch {}
+  }
+  return "en";
+}
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<LanguageCode>("en");
+  const [language, setLanguageState] = useState<LanguageCode>(getSavedLanguage);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("buildtrack_language") as LanguageCode | null;
-      if (stored && (stored === "en" || stored === "hi" || stored === "gu" || stored === "mr")) {
+      const stored = localStorage.getItem("buildtrack_language");
+      if (stored === "hi" || stored === "en") {
         setLanguageState(stored);
       }
 
       const handleLangEvent = (e: any) => {
-        const newLang = e.detail?.language as LanguageCode;
-        if (newLang && (newLang === "en" || newLang === "hi" || newLang === "gu" || newLang === "mr")) {
+        const newLang = e.detail?.language;
+        if (newLang === "hi" || newLang === "en") {
           setLanguageState(newLang);
         }
       };
@@ -734,9 +411,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const setLanguage = (lang: LanguageCode) => {
     setLanguageState(lang);
     if (typeof window !== "undefined") {
-      localStorage.setItem("buildtrack_language", lang);
-      document.cookie = `buildtrack_language=${lang}; path=/; max-age=31536000; SameSite=Lax`;
-      window.dispatchEvent(new CustomEvent("languageChanged", { detail: { language: lang } }));
+      try {
+        localStorage.setItem("buildtrack_language", lang);
+        document.cookie = `buildtrack_language=${lang}; path=/; max-age=31536000; SameSite=Lax`;
+        window.dispatchEvent(new CustomEvent("languageChanged", { detail: { language: lang } }));
+      } catch {}
     }
   };
 
@@ -745,7 +424,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (dict && dict[key]) {
       return dict[key];
     }
-    // Fallback to English dictionary if key missing in current language
     const enDict = translations["en"];
     if (enDict && enDict[key]) {
       return enDict[key];

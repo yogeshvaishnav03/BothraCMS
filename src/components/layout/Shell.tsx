@@ -112,21 +112,21 @@ export default function Shell({ children }: ShellProps) {
     router.push("/login");
   };
 
-  const navItems = [
-    { label: t("nav.dashboard", "Dashboard"), href: "/", icon: LayoutDashboard },
-    { label: t("nav.dayBook", "Day Book"), href: "/day-book", icon: CalendarDays },
-    { label: t("nav.projects", "Projects"), href: "/projects", icon: FolderKanban },
-    { label: t("nav.tasks", "Tasks & Work"), href: "/tasks", icon: CheckSquare },
-    { label: t("nav.materials", "Materials & Stock"), href: "/materials", icon: Boxes },
-    { label: t("nav.measurementBook", "Measurement Book"), href: "/measurement-book", icon: BookOpen },
-    { label: t("nav.parties", "Vendors & Contractors"), href: "/parties", icon: Building2 },
-    { label: t("nav.finance", "Finance & Bills"), href: "/finance", icon: DollarSign },
-    { label: t("nav.attendance", "Workforce & Attendance"), href: "/attendance", icon: HardHat },
-    { label: t("nav.reports", "Reports & Analytics"), href: "/reports", icon: FileText },
-    { label: t("nav.audit", "Audit Logs"), href: "/audit", icon: ShieldCheck },
-    { label: t("nav.settings", "Settings"), href: "/settings", icon: Settings },
+  const navItemsDef = [
+    { key: "nav.dashboard", defaultLabel: "Dashboard", href: "/", icon: LayoutDashboard },
+    { key: "nav.dayBook", defaultLabel: "Day Book", href: "/day-book", icon: CalendarDays },
+    { key: "nav.projects", defaultLabel: "Projects", href: "/projects", icon: FolderKanban },
+    { key: "nav.tasks", defaultLabel: "Tasks & Work", href: "/tasks", icon: CheckSquare },
+    { key: "nav.materials", defaultLabel: "Materials & Stock", href: "/materials", icon: Boxes },
+    { key: "nav.measurementBook", defaultLabel: "Measurement Book", href: "/measurement-book", icon: BookOpen },
+    { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
+    { key: "nav.finance", defaultLabel: "Finance & Bills", href: "/finance", icon: DollarSign },
+    { key: "nav.attendance", defaultLabel: "Workforce & Attendance", href: "/attendance", icon: HardHat },
+    { key: "nav.reports", defaultLabel: "Reports & Analytics", href: "/reports", icon: FileText },
+    { key: "nav.audit", defaultLabel: "Audit Logs", href: "/audit", icon: ShieldCheck },
+    { key: "nav.settings", defaultLabel: "Settings", href: "/settings", icon: Settings },
     ...(user?.role === "SUPER_ADMIN"
-      ? [{ label: t("nav.superAdmin", "Super Admin"), href: "/admin", icon: ShieldAlert }]
+      ? [{ key: "nav.superAdmin", defaultLabel: "Super Admin", href: "/admin", icon: ShieldAlert }]
       : []),
   ];
 
@@ -198,7 +198,7 @@ export default function Shell({ children }: ShellProps) {
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {navItemsDef.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
@@ -212,7 +212,7 @@ export default function Shell({ children }: ShellProps) {
                 }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? "text-slate-950" : "text-slate-400"}`} />
-                <span>{item.label}</span>
+                <span>{t(item.key, item.defaultLabel)}</span>
               </Link>
             );
           })}
@@ -230,16 +230,34 @@ export default function Shell({ children }: ShellProps) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => setLangDropdownOpen(true)}
-              title={`${t("nav.switchLanguage", "Switch Language")}: ${languages.find((l) => l.code === language)?.name || language.toUpperCase()}`}
-              className="px-2 py-1 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded transition-colors flex items-center gap-1 text-[11px] font-bold"
-            >
-              <Globe className="w-3.5 h-3.5 text-amber-500" />
-              <span>{language.toUpperCase()}</span>
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* 1-Click 2-Language Toggle: EN | हिन्दी */}
+            <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setLanguage("en")}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition ${
+                  language === "en"
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Switch to English"
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("hi")}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition ${
+                  language === "hi"
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="हिन्दी में बदलें"
+              >
+                हिन्दी
+              </button>
+            </div>
             <button
               onClick={handleLogout}
               title={t("nav.logout", "Logout")}
@@ -263,15 +281,33 @@ export default function Shell({ children }: ShellProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setLangDropdownOpen(true)}
-            title={`${t("nav.switchLanguage", "Switch Language")}: ${languages.find((l) => l.code === language)?.name || language.toUpperCase()}`}
-            className="p-1.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition flex items-center gap-1 text-[11px] font-bold"
-          >
-            <Globe className="w-4 h-4 text-amber-400" />
-            <span>{language.toUpperCase()}</span>
-          </button>
+          {/* 1-Click 2-Language Toggle: EN | हिन्दी */}
+          <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
+            <button
+              type="button"
+              onClick={() => setLanguage("en")}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                language === "en"
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "text-slate-400 hover:text-white"
+              }`}
+              title="Switch to English"
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              onClick={() => setLanguage("hi")}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                language === "hi"
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "text-slate-400 hover:text-white"
+              }`}
+              title="हिन्दी में बदलें"
+            >
+              हिन्दी
+            </button>
+          </div>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className="relative p-1.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition"
@@ -307,12 +343,41 @@ export default function Shell({ children }: ShellProps) {
               <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">
                 {t("nav.menu", "Menu Navigation")}
               </span>
-              <button
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* 1-Click 2-Language Toggle: EN | हिन्दी */}
+                <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setLanguage("en")}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                      language === "en"
+                        ? "bg-amber-500 text-slate-950 shadow-xs"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                    title="Switch to English"
+                  >
+                    EN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLanguage("hi")}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                      language === "hi"
+                        ? "bg-amber-500 text-slate-950 shadow-xs"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                    title="हिन्दी में बदलें"
+                  >
+                    हिन्दी
+                  </button>
+                </div>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             {sites.length > 0 && (
               <div className="py-2.5 px-1 border-b border-slate-800">
@@ -333,9 +398,9 @@ export default function Shell({ children }: ShellProps) {
               </div>
             )}
             <nav className="py-3 space-y-1">
-              {navItems.map((item) => {
+              {navItemsDef.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
                 return (
                   <Link
                     key={item.href}
@@ -348,7 +413,7 @@ export default function Shell({ children }: ShellProps) {
                     }`}
                   >
                     <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
+                    <span>{t(item.key, item.defaultLabel)}</span>
                   </Link>
                 );
               })}
@@ -384,7 +449,7 @@ export default function Shell({ children }: ShellProps) {
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 text-amber-400" />
-                <span className="text-sm font-bold">Operational Alerts</span>
+                <span className="text-sm font-bold">{t("nav.alerts", "Operational Alerts")}</span>
                 <span className="text-xs bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded-full">
                   {unreadCount}
                 </span>
@@ -399,7 +464,7 @@ export default function Shell({ children }: ShellProps) {
             <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 p-2">
               {notifications.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-xs">
-                  No active operational alerts. All site systems normal!
+                  {t("nav.noAlerts", "No active operational alerts. All site systems normal!")}
                 </div>
               ) : (
                 notifications.map((n) => (
