@@ -15,6 +15,8 @@ import {
   Search,
   RefreshCw,
   CalendarDays,
+  Sparkles,
+  Database,
 } from "lucide-react";
 
 interface Tenant {
@@ -43,6 +45,8 @@ export default function SuperAdminDashboardPage() {
   const [suspendedTenants, setSuspendedTenants] = useState(0);
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedSummary, setSeedSummary] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -120,6 +124,39 @@ export default function SuperAdminDashboardPage() {
     }
   }
 
+  async function handleSeedDemoData(targetOrgId?: string, targetOrgName?: string) {
+    const orgLabel = targetOrgName ? `organization "${targetOrgName}"` : "the platform demo environment";
+    const confirmed = confirm(
+      `Populate full realistic demo data for ${orgLabel} in 1 click?\n\nThis will seed Sites, Projects, Stores, Materials, Vendors, Attendance, Tasks, and Bills.`
+    );
+    if (!confirmed) return;
+
+    setSeeding(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+    setSeedSummary(null);
+
+    try {
+      const res = await fetch("/api/admin/seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: targetOrgId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccessMsg(data.data.message || "Demo data populated successfully!");
+        setSeedSummary(data.data.summary);
+        await loadTenants();
+      } else {
+        setErrorMsg(data.error?.message || "Failed to seed demo data");
+      }
+    } catch (err: any) {
+      setErrorMsg(`Network error: ${err.message || "Failed to seed demo data"}`);
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   if (loading) {
     return (
       <Shell>
@@ -187,7 +224,16 @@ export default function SuperAdminDashboardPage() {
               Multi-tenant isolation management, global telemetry, and organization state governance.
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => handleSeedDemoData()}
+              disabled={seeding || loading}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
+              title="Populate complete sample sites, projects, materials, workforce, bills and attendance in 1 click"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              {seeding ? "Populating Demo Data..." : "Add Demo Data (1-Click)"}
+            </button>
             <Link
               href="/day-book"
               className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-sm"
@@ -203,10 +249,68 @@ export default function SuperAdminDashboardPage() {
           </div>
         </div>
 
+        {/* One-Click Demo Data Showcase Banner */}
+        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white p-5 rounded-2xl border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
+              <Sparkles className="w-4 h-4" /> Instant Demo Environment
+            </div>
+            <h3 className="text-base font-bold text-white">
+              One-Click Comprehensive Demo Data Generator
+            </h3>
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              Instantly populate authoritative construction operations data: 2 active sites (Skyline Heights & Riverside Enclave), 2 projects, 4 material categories, stock receipts & balances, 4 vendor/contractor accounts with posted bills and payments, 5 workforce members with today&apos;s attendance register, and daily site reports.
+            </p>
+          </div>
+          <button
+            onClick={() => handleSeedDemoData()}
+            disabled={seeding || loading}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition disabled:opacity-50 shrink-0"
+          >
+            <Database className="w-4 h-4" />
+            {seeding ? "Generating Demo Records..." : "Load Demo Data (1-Click)"}
+          </button>
+        </div>
+
         {successMsg && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <span>{successMsg}</span>
+          </div>
+        )}
+
+        {seedSummary && (
+          <div className="p-4 rounded-2xl bg-emerald-900/10 border border-emerald-300 text-emerald-950 text-xs shadow-sm">
+            <div className="font-bold flex items-center gap-2 text-sm text-emerald-900 mb-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Demo Records Seeded for {seedSummary.organizationName}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Sites</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.sitesCreated} Sites</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Projects</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.projectsCreated} Projects</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Stores</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.storesCreated} Stores</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Materials</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.materialsCreated} Items</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Parties / Vendors</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.partiesCreated} Parties</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Workforce</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.workforceCreated} Workers</div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -322,21 +426,32 @@ export default function SuperAdminDashboardPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => toggleTenantStatus(t.id, t.status)}
-                          disabled={actionLoading === t.id}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${
-                            t.status === "ACTIVE"
-                              ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
-                              : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                          }`}
-                        >
-                          {actionLoading === t.id
-                            ? "Updating..."
-                            : t.status === "ACTIVE"
-                            ? "Suspend Tenant"
-                            : "Activate Tenant"}
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleSeedDemoData(t.id, t.name)}
+                            disabled={seeding || actionLoading === t.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition disabled:opacity-50"
+                            title={`Seed sample demo records for ${t.name}`}
+                          >
+                            <Database className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Seed Data</span>
+                          </button>
+                          <button
+                            onClick={() => toggleTenantStatus(t.id, t.status)}
+                            disabled={actionLoading === t.id}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${
+                              t.status === "ACTIVE"
+                                ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                            }`}
+                          >
+                            {actionLoading === t.id
+                              ? "Updating..."
+                              : t.status === "ACTIVE"
+                              ? "Suspend"
+                              : "Activate"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

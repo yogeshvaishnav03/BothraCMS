@@ -131,6 +131,7 @@ export default function MaterialsPage() {
         setTransferTargetStoreId(stores.length > 1 ? stores[1].id : stores[0].id);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stores]);
 
   const handleCreateMaterial = async (e: React.FormEvent) => {
