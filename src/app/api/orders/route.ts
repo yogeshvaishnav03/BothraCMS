@@ -3,6 +3,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import {
+  formatNotificationMessage,
+  buildWhatsAppUrl,
+  buildMailtoUrl,
+} from "@/lib/order-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -16,74 +21,10 @@ const placeOrderSchema = z.object({
   siteId: z.string().optional().nullable(),
   expectedDeliveryDate: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  approvalQuery: z.string().optional().nullable(),
+  autoApprove: z.boolean().optional(),
   notificationMethod: z.string().default("WHATSAPP_AND_EMAIL"),
 });
-
-function formatNotificationMessage(data: {
-  orderNumber: string;
-  organizationName: string;
-  vendorName: string;
-  materialName: string;
-  materialSku: string;
-  quantity: number;
-  unitCode: string;
-  unitRate?: number | null;
-  totalAmount?: number | null;
-  deliveryLocation?: string | null;
-  expectedDeliveryDate?: string | null;
-  notes?: string | null;
-  orderedByName: string;
-}) {
-  const parts = [
-    `🏗️ *PURCHASE ORDER: ${data.orderNumber}*`,
-    `*${data.organizationName}*`,
-    ``,
-    `Dear *${data.vendorName}*,`,
-    `A new material purchase order has been placed with you for site supply:`,
-    ``,
-    `📦 *Material:* ${data.materialName} (${data.materialSku})`,
-    `🔢 *Quantity:* ${data.quantity} ${data.unitCode}`,
-  ];
-
-  if (data.unitRate && data.unitRate > 0) {
-    const rateRupees = data.unitRate / 100;
-    parts.push(`💰 *Rate:* ₹${rateRupees.toFixed(2)} / ${data.unitCode}`);
-  }
-  if (data.totalAmount && data.totalAmount > 0) {
-    const totalRupees = data.totalAmount / 100;
-    parts.push(`💵 *Estimated Total:* ₹${totalRupees.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`);
-  }
-  if (data.deliveryLocation) {
-    parts.push(`📍 *Delivery Location:* ${data.deliveryLocation}`);
-  }
-  if (data.expectedDeliveryDate) {
-    parts.push(`📅 *Expected Delivery:* ${data.expectedDeliveryDate}`);
-  }
-  if (data.notes && data.notes.trim()) {
-    parts.push(`📝 *Instructions / Notes:* ${data.notes.trim()}`);
-  }
-
-  parts.push(``);
-  parts.push(`👤 *Ordered by:* ${data.orderedByName}`);
-  parts.push(`Please confirm order receipt, stock availability, and your dispatch timeline.`);
-  parts.push(`Thank you!`);
-
-  return parts.join("\n");
-}
-
-function buildWhatsAppUrl(phone: string | null | undefined, message: string): string | null {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, "");
-  if (!digits) return null;
-  // If standard 10-digit Indian mobile, prepend country code 91
-  const cleanPhone = digits.length === 10 ? `91${digits}` : digits;
-  return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
-}
-
-function buildMailtoUrl(email: string | null | undefined, subject: string, body: string): string | null {
-  if (!email || !email.includes("@")) return null;
-  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -95,30 +36,53 @@ export async function GET(req: NextRequest) {
     const vendorPartyId = searchParams.get("vendorPartyId");
     const status = searchParams.get("status");
     const siteId = searchParams.get("siteId");
+    const allTenants = searchParams.get("allTenants") === "true";
 
-    const where: any = { organizationId: user.organizationId };
+    const where: any = {};
+
+    // Allow global Super Admin to inspect orders across tenants if explicitly requested
+    if (!(user.role === "SUPER_ADMIN" && allTenants)) {
+      where.organizationId = user.organizationId;
+    }
+
     if (materialId) where.materialId = materialId;
     if (vendorPartyId) where.vendorPartyId = vendorPartyId;
-    if (status) where.status = status;
+    if (status) {
+      if (status.includes(",")) {
+        where.status = { in: status.split(",").map((s) => s.trim()) };
+      } else {
+        where.status = status;
+      }
+    }
     if (siteId) where.siteId = siteId;
 
     const orders = await prisma.purchaseOrder.findMany({
       where,
       include: {
+        organization: { select: { id: true, name: true } },
         material: { select: { id: true, name: true, sku: true, unitCode: true } },
         vendor: { select: { id: true, name: true, phone: true, email: true, address: true } },
         store: { select: { id: true, name: true } },
         site: { select: { id: true, name: true, code: true } },
-        creator: { select: { id: true, name: true, email: true } },
+        creator: { select: { id: true, name: true, email: true, role: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
 
     const enriched = orders.map((o) => {
-      const orgName = user.organizationName || "Bothra Infrastructure";
-      const deliveryLocation = o.store ? `${o.site?.name || "Site"} — ${o.store.name}` : o.site?.name || "Main Site Yard";
-      const expDateStr = o.expectedDeliveryDate ? new Date(o.expectedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null;
+      const orgName = o.organization?.name || user.organizationName || "Bothra Infrastructure";
+      const deliveryLocation = o.store
+        ? `${o.site?.name || "Site"} — ${o.store.name}`
+        : o.site?.name || "Main Site Yard";
+      const expDateStr = o.expectedDeliveryDate
+        ? new Date(o.expectedDeliveryDate).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : null;
+
       const message = formatNotificationMessage({
         orderNumber: o.orderNumber,
         organizationName: orgName,
@@ -132,14 +96,20 @@ export async function GET(req: NextRequest) {
         deliveryLocation,
         expectedDeliveryDate: expDateStr,
         notes: o.notes,
+        approvalQuery: o.approvalQuery,
         orderedByName: o.creator?.name || user.name || "Site Supervisor",
+        approvedByName: o.approvedBy,
       });
 
       return {
         ...o,
         notificationMessage: message,
         whatsappUrl: buildWhatsAppUrl(o.vendor.phone, message),
-        mailtoUrl: buildMailtoUrl(o.vendor.email, `Purchase Order: ${o.orderNumber} - ${o.material.name}`, message),
+        mailtoUrl: buildMailtoUrl(
+          o.vendor.email,
+          `Purchase Order: ${o.orderNumber} - ${o.material.name}`,
+          message
+        ),
       };
     });
 
@@ -170,6 +140,8 @@ export async function POST(req: NextRequest) {
       siteId,
       expectedDeliveryDate,
       notes,
+      approvalQuery,
+      autoApprove,
       notificationMethod,
     } = parsed.data;
 
@@ -228,6 +200,17 @@ export async function POST(req: NextRequest) {
     const totalAmountPaise = unitRatePaise ? Math.round(quantity * unitRatePaise) : null;
     const parsedExpDate = expectedDeliveryDate ? new Date(expectedDeliveryDate) : null;
 
+    // Workflow: Any order raised by users requires Super Admin confirmation and approval!
+    // If the creator IS Super Admin and explicitly requested autoApprove, approve immediately.
+    const isSuperAdmin = user.role === "SUPER_ADMIN";
+    const shouldApproveImmediately = isSuperAdmin && autoApprove === true;
+    const initialStatus = shouldApproveImmediately ? "APPROVED" : "PENDING_APPROVAL";
+
+    const orderQueryText =
+      approvalQuery?.trim() ||
+      notes?.trim() ||
+      `Order placed by ${user.name} (${user.role}) for ${quantity} ${unitCode} ${material.name} awaiting Super Admin approval`;
+
     // Create PurchaseOrder record
     const purchaseOrder = await prisma.purchaseOrder.create({
       data: {
@@ -241,12 +224,15 @@ export async function POST(req: NextRequest) {
         unitCode,
         unitRate: unitRatePaise,
         totalAmount: totalAmountPaise,
-        status: "PLACED",
+        status: initialStatus,
+        approvalQuery: orderQueryText,
+        approvedBy: shouldApproveImmediately ? `${user.name} (${user.role})` : null,
+        approvedAt: shouldApproveImmediately ? now : null,
         expectedDeliveryDate: parsedExpDate,
         notes: notes || null,
         notificationMethod: notificationMethod || "WHATSAPP_AND_EMAIL",
-        notificationSent: true,
-        notificationSentAt: now,
+        notificationSent: shouldApproveImmediately,
+        notificationSentAt: shouldApproveImmediately ? now : null,
         createdBy: user.userId,
       },
       include: {
@@ -254,15 +240,20 @@ export async function POST(req: NextRequest) {
         vendor: { select: { id: true, name: true, phone: true, email: true, address: true } },
         store: { select: { id: true, name: true } },
         site: { select: { id: true, name: true, code: true } },
+        creator: { select: { id: true, name: true, email: true, role: true } },
       },
     });
 
     // Record Audit Event
+    const auditAction = shouldApproveImmediately
+      ? "PURCHASE_ORDER_APPROVED"
+      : "PURCHASE_ORDER_QUERY_RAISED";
+
     await prisma.auditEvent.create({
       data: {
         organizationId: user.organizationId,
         actorUserId: user.userId,
-        action: "PURCHASE_ORDER_PLACED",
+        action: auditAction,
         entityType: "PURCHASE_ORDER",
         entityId: purchaseOrder.id,
         afterJson: JSON.stringify({
@@ -272,8 +263,12 @@ export async function POST(req: NextRequest) {
           unitCode,
           vendor: vendor.name,
           totalAmount: totalAmountPaise,
+          status: initialStatus,
+          approvalQuery: orderQueryText,
         }),
-        reason: `Placed material purchase order ${orderNumber} to vendor ${vendor.name}`,
+        reason: shouldApproveImmediately
+          ? `Directly placed and approved purchase order ${orderNumber} by Super Admin ${user.name}`
+          : `Raised purchase order query ${orderNumber} to Super Admin for approval and confirmation`,
       },
     });
 
@@ -294,7 +289,9 @@ export async function POST(req: NextRequest) {
       deliveryLocation: storeName,
       expectedDeliveryDate: expDateFormatted,
       notes,
+      approvalQuery: orderQueryText,
       orderedByName: user.name,
+      approvedByName: shouldApproveImmediately ? `${user.name} (${user.role})` : null,
     });
 
     const whatsappUrl = buildWhatsAppUrl(vendor.phone, notificationMessage);
@@ -306,8 +303,14 @@ export async function POST(req: NextRequest) {
 
     return jsonSuccess({
       order: purchaseOrder,
+      status: initialStatus,
+      isPendingApproval: initialStatus === "PENDING_APPROVAL",
+      message:
+        initialStatus === "PENDING_APPROVAL"
+          ? "Order query successfully raised to Super Admin for approval and confirmation. Vendor dispatch will be activated upon approval."
+          : "Purchase order approved and ready for vendor dispatch.",
       notification: {
-        sent: true,
+        sent: shouldApproveImmediately,
         vendorName: vendor.name,
         vendorPhone: vendor.phone,
         vendorEmail: vendor.email,

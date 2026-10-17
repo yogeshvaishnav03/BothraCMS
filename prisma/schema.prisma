@@ -484,12 +484,16 @@ model PurchaseOrder {
   unitCode             String
   unitRate             Float?
   totalAmount          Float?
-  status               String    @default("PLACED") // PLACED, CONFIRMED, DELIVERED, CANCELLED
+  status               String    @default("PENDING_APPROVAL") // PENDING_APPROVAL, APPROVED, REJECTED, PLACED, CONFIRMED, DELIVERED, CANCELLED
+  approvalQuery        String?   // Query or justification submitted to Super Admin for approval
+  approvedBy           String?   // User / Super Admin who confirmed or rejected
+  approvedAt           DateTime?
+  rejectionReason      String?   // Reason provided if rejected
   expectedDeliveryDate DateTime?
   notes                String?
   notificationMethod   String?   @default("WHATSAPP_AND_EMAIL")
-  notificationSent     Boolean   @default(true)
-  notificationSentAt   DateTime? @default(now())
+  notificationSent     Boolean   @default(false)
+  notificationSentAt   DateTime?
   createdBy            String
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt

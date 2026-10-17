@@ -7,7 +7,13 @@ export const dynamic = "force-dynamic";
 
 export interface OperationalAlert {
   id: string;
-  type: "LOW_STOCK" | "OVERDUE_BILL" | "ATTENDANCE_ANOMALY" | "DAILY_REPORT_MISSING" | "PURCHASE_ORDER";
+  type:
+    | "LOW_STOCK"
+    | "OVERDUE_BILL"
+    | "ATTENDANCE_ANOMALY"
+    | "DAILY_REPORT_MISSING"
+    | "PURCHASE_ORDER"
+    | "ORDER_APPROVAL_REQUEST";
   severity: "CRITICAL" | "WARNING" | "INFO";
   title: string;
   message: string;
@@ -24,7 +30,39 @@ export async function GET(req: NextRequest) {
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
 
-    // 1. Low Stock Alerts
+    // 1. Pending Order Approval Queries for Super Admin / Org Admin
+    if (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN") {
+      const pendingOrders = await prisma.purchaseOrder.findMany({
+        where: {
+          organizationId: user.organizationId,
+          status: "PENDING_APPROVAL",
+        },
+        include: {
+          material: { select: { id: true, name: true, unitCode: true } },
+          vendor: { select: { name: true } },
+          creator: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      });
+
+      for (const po of pendingOrders) {
+        const totalStr = po.totalAmount
+          ? ` (₹${(po.totalAmount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })})`
+          : "";
+        alerts.push({
+          id: `order-approval-${po.id}`,
+          type: "ORDER_APPROVAL_REQUEST",
+          severity: "WARNING",
+          title: `Super Admin Approval: ${po.orderNumber}`,
+          message: `${po.creator?.name || "Requester"} submitted order query for ${po.quantity} ${po.unitCode} ${po.material.name} from ${po.vendor.name}${totalStr}. Super Admin confirmation required.`,
+          href: "/admin",
+          createdAt: po.createdAt.toISOString(),
+        });
+      }
+    }
+
+    // 2. Low Stock Alerts
     const materials = await prisma.material.findMany({
       where: { organizationId: user.organizationId, active: true },
       include: {
@@ -48,7 +86,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Overdue Payables
+    // 3. Overdue Payables
     const overdueBills = await prisma.bill.findMany({
       where: {
         organizationId: user.organizationId,
@@ -78,7 +116,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Attendance Anomalies
+    // 4. Attendance Anomalies
     const danglingSessions = await prisma.attendanceSession.findMany({
       where: {
         organizationId: user.organizationId,
@@ -104,11 +142,11 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 4. Active Purchase Orders Placed to Vendors
+    // 5. Approved / Active Purchase Orders Placed to Vendors
     const activeOrders = await prisma.purchaseOrder.findMany({
       where: {
         organizationId: user.organizationId,
-        status: "PLACED",
+        status: { in: ["APPROVED", "PLACED"] },
       },
       include: {
         material: true,
@@ -124,7 +162,7 @@ export async function GET(req: NextRequest) {
         type: "PURCHASE_ORDER",
         severity: "INFO",
         title: `Material Order: ${po.orderNumber}`,
-        message: `Order for ${po.quantity} ${po.unitCode} of ${po.material.name} placed with ${po.vendor.name}. Vendor notification dispatched.`,
+        message: `Order for ${po.quantity} ${po.unitCode} of ${po.material.name} approved with ${po.vendor.name}. Vendor notification active.`,
         href: `/materials/${po.materialId}`,
         createdAt: po.createdAt.toISOString(),
       });

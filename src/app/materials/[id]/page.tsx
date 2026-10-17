@@ -25,6 +25,9 @@ import {
   Mail,
   ExternalLink,
   Phone,
+  Clock,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 export default function MaterialDetailPage() {
@@ -32,6 +35,8 @@ export default function MaterialDetailPage() {
   const materialId = params.id as string;
   const { t } = useLanguage();
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [ledgerData, setLedgerData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
@@ -68,6 +73,70 @@ export default function MaterialDetailPage() {
         console.error("Failed to load material purchase orders:", err);
       });
   }, [materialId]);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data) {
+          setCurrentUser(res.data.user);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleApproveOrder = async (order: any) => {
+    const confirmed = confirm(
+      `Approve Purchase Order ${order.orderNumber} for ${order.material?.name || "material"} (${order.quantity} ${order.unitCode})?\n\nThis will confirm the order and activate the vendor WhatsApp/Email notification.`
+    );
+    if (!confirmed) return;
+
+    setActionLoading(order.id);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: "Approved from material ledger" }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        loadOrders();
+      } else {
+        alert(json.error?.message || "Failed to approve order");
+      }
+    } catch {
+      alert("Network error approving order");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectOrder = async (order: any) => {
+    const reason = prompt(
+      `Please provide rejection reason for Purchase Order ${order.orderNumber}:`,
+      "Order query rejected by administrator"
+    );
+    if (!reason) return;
+
+    setActionLoading(order.id);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        loadOrders();
+      } else {
+        alert(json.error?.message || "Failed to reject order");
+      }
+    } catch {
+      alert("Network error rejecting order");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   useEffect(() => {
     loadLedger();
@@ -290,22 +359,76 @@ export default function MaterialDetailPage() {
                         {po.expectedDeliveryDate ? formatDate(po.expectedDeliveryDate) : "—"}
                       </td>
                       <td className="py-3 px-4">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                            po.status === "DELIVERED"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : po.status === "CONFIRMED"
-                              ? "bg-blue-100 text-blue-800"
-                              : po.status === "CANCELLED"
-                              ? "bg-rose-100 text-rose-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {po.status}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider inline-flex items-center gap-1 ${
+                              po.status === "PENDING_APPROVAL"
+                                ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                : po.status === "APPROVED"
+                                ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                                : po.status === "REJECTED"
+                                ? "bg-rose-100 text-rose-900 border border-rose-300"
+                                : po.status === "DELIVERED"
+                                ? "bg-purple-100 text-purple-900 border border-purple-300"
+                                : po.status === "CONFIRMED"
+                                ? "bg-blue-100 text-blue-900 border border-blue-300"
+                                : "bg-slate-100 text-slate-800 border border-slate-300"
+                            }`}
+                          >
+                            {po.status === "PENDING_APPROVAL" && <Clock className="w-3 h-3 text-amber-700" />}
+                            {po.status === "APPROVED" && <CheckCircle2 className="w-3 h-3 text-emerald-700" />}
+                            {po.status === "REJECTED" && <XCircle className="w-3 h-3 text-rose-700" />}
+                            <span>{po.status.replace("_", " ")}</span>
+                          </span>
+                          {po.status === "PENDING_APPROVAL" && (
+                            <span className="text-[10px] text-amber-700 font-medium">
+                              Awaiting Super Admin
+                            </span>
+                          )}
+                          {po.approvedBy && (
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              By: {po.approvedBy}
+                            </span>
+                          )}
+                          {po.rejectionReason && (
+                            <span className="text-[10px] text-rose-600 italic max-w-xs truncate" title={po.rejectionReason}>
+                              Reason: {po.rejectionReason}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
-                        {po.whatsappUrl ? (
+                        {po.status === "PENDING_APPROVAL" ? (
+                          currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN" ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleApproveOrder(po)}
+                                disabled={actionLoading === po.id}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-2xs disabled:opacity-50"
+                                title="Approve purchase order and activate vendor notification"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>{actionLoading === po.id ? "..." : "Approve"}</span>
+                              </button>
+                              <button
+                                onClick={() => handleRejectOrder(po)}
+                                disabled={actionLoading === po.id}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition disabled:opacity-50"
+                                title="Reject order query"
+                              >
+                                <XCircle className="w-3 h-3" />
+                                <span>Reject</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Pending Approval</span>
+                            </span>
+                          )
+                        ) : po.status === "REJECTED" ? (
+                          <span className="text-xs text-rose-500 font-semibold italic">Rejected</span>
+                        ) : po.whatsappUrl ? (
                           <a
                             href={po.whatsappUrl}
                             target="_blank"

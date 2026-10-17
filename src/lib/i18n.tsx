@@ -99,6 +99,15 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "order.deliveryStore": "Delivery Store / Yard",
     "order.notes": "Instructions / Site Notes",
     "order.successTitle": "Order Placed Successfully",
+    "order.pendingApproval": "Pending Super Admin Approval",
+    "order.approved": "Approved by Super Admin",
+    "order.rejected": "Rejected",
+    "order.approve": "Approve Order",
+    "order.reject": "Reject Order",
+    "order.approvalQuery": "Approval Query / Justification",
+    "order.queryRaised": "Order Query Raised to Super Admin",
+    "order.superAdminApprovalRequired": "Super Admin approval required before vendor dispatch",
+    "order.pendingQueries": "Pending Order Queries",
 
     // Common Labels
     "label.date": "Date",
@@ -281,6 +290,15 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "order.deliveryStore": "डिलीवरी स्टोर / यार्ड",
     "order.notes": "निर्देश / साइट नोट्स",
     "order.successTitle": "ऑर्डर सफलतापूर्वक दर्ज हुआ",
+    "order.pendingApproval": "सुपर एडमिन स्वीकृति लंबित",
+    "order.approved": "सुपर एडमिन द्वारा स्वीकृत",
+    "order.rejected": "अस्वीकृत",
+    "order.approve": "ऑर्डर स्वीकृत करें",
+    "order.reject": "ऑर्डर अस्वीकार करें",
+    "order.approvalQuery": "स्वीकृति हेतु विवरण / कारण",
+    "order.queryRaised": "सुपर एडमिन को ऑर्डर स्वीकृति प्रश्न भेजा गया",
+    "order.superAdminApprovalRequired": "वेंडर को भेजने से पहले सुपर एडमिन की स्वीकृति आवश्यक है",
+    "order.pendingQueries": "लंबित ऑर्डर स्वीकृति प्रश्न",
 
     // Common Labels
     "label.date": "दिनांक",

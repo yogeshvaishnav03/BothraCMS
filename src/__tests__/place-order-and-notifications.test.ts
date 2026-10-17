@@ -4,6 +4,8 @@ import { prisma } from "../lib/db";
 import { hashPassword, createSessionToken, SESSION_COOKIE_NAME } from "../lib/auth";
 import { GET as getOrdersHandler, POST as placeOrderHandler } from "../app/api/orders/route";
 import { PATCH as updateOrderHandler } from "../app/api/orders/[id]/route";
+import { POST as approveOrderHandler } from "../app/api/orders/[id]/approve/route";
+import { POST as rejectOrderHandler } from "../app/api/orders/[id]/reject/route";
 import { GET as notificationsHandler } from "../app/api/notifications/route";
 
 function makeJsonRequest(url: string, method: string, body?: any, token?: string) {
@@ -20,14 +22,15 @@ function makeJsonRequest(url: string, method: string, body?: any, token?: string
   });
 }
 
-describe("Place Order & Vendor Notification Tests", () => {
+describe("Place Order & Super Admin Approval Workflow Tests", () => {
   let testOrgId: string;
-  let testUserId: string;
-  let testUserToken: string;
+  let testSupervisorToken: string;
+  let testSuperAdminToken: string;
   let testVendorId: string;
   let testMaterialId: string;
   let testStoreId: string;
   let createdOrderId: string;
+  let rejectTestOrderId: string;
 
   beforeAll(async () => {
     const org = await prisma.organization.create({
@@ -41,24 +44,45 @@ describe("Place Order & Vendor Notification Tests", () => {
     testOrgId = org.id;
 
     const pwdHash = await hashPassword("TestPass123!");
-    const user = await prisma.user.create({
+
+    // Create Site Supervisor (requester)
+    const supervisor = await prisma.user.create({
       data: {
         organizationId: testOrgId,
-        name: "Yogesh Vaishnav",
-        email: `yogesh-${Date.now()}@bothracms.com`,
+        name: "Yogesh Vaishnav (Site Supervisor)",
+        email: `supervisor-${Date.now()}@bothracms.com`,
         passwordHash: pwdHash,
         role: "SITE_SUPERVISOR",
         status: "ACTIVE",
       },
     });
-    testUserId = user.id;
 
-    testUserToken = await createSessionToken({
-      userId: user.id,
+    testSupervisorToken = await createSessionToken({
+      userId: supervisor.id,
       organizationId: testOrgId,
-      email: user.email,
-      name: user.name,
+      email: supervisor.email,
+      name: supervisor.name,
       role: "SITE_SUPERVISOR",
+    });
+
+    // Create Super Admin (approver)
+    const superAdmin = await prisma.user.create({
+      data: {
+        organizationId: testOrgId,
+        name: "Chief Super Admin",
+        email: `superadmin-${Date.now()}@bothracms.com`,
+        passwordHash: pwdHash,
+        role: "SUPER_ADMIN",
+        status: "ACTIVE",
+      },
+    });
+
+    testSuperAdminToken = await createSessionToken({
+      userId: superAdmin.id,
+      organizationId: testOrgId,
+      email: superAdmin.email,
+      name: superAdmin.name,
+      role: "SUPER_ADMIN",
     });
 
     const site = await prisma.site.create({
@@ -128,13 +152,13 @@ describe("Place Order & Vendor Notification Tests", () => {
       "http://localhost:3000/api/orders",
       "POST",
       { quantity: 0 },
-      testUserToken
+      testSupervisorToken
     );
     const res = await placeOrderHandler(req);
     expect(res.status).toBe(400);
   });
 
-  it("should successfully place a purchase order and generate vendor WhatsApp notification", async () => {
+  it("should raise an order query to Super Admin with status PENDING_APPROVAL by default", async () => {
     const payload = {
       materialId: testMaterialId,
       vendorPartyId: testVendorId,
@@ -144,10 +168,11 @@ describe("Place Order & Vendor Notification Tests", () => {
       storeId: testStoreId,
       expectedDeliveryDate: "2026-10-25",
       notes: "Urgent delivery needed for Ground Floor brick masonry work.",
+      approvalQuery: "Critical brick shortage at Chaupasni site. Urgent Super Admin approval requested.",
       notificationMethod: "WHATSAPP_AND_EMAIL",
     };
 
-    const req = makeJsonRequest("http://localhost:3000/api/orders", "POST", payload, testUserToken);
+    const req = makeJsonRequest("http://localhost:3000/api/orders", "POST", payload, testSupervisorToken);
     const res = await placeOrderHandler(req);
     expect(res.status).toBe(200);
 
@@ -158,63 +183,127 @@ describe("Place Order & Vendor Notification Tests", () => {
     expect(json.data.order.quantity).toBe(4425);
     expect(json.data.order.unitRate).toBe(8500); // 8500 paise = ₹85.00
     expect(json.data.order.totalAmount).toBe(4425 * 8500); // 37,612,500 paise = ₹3,76,125.00
-    expect(json.data.order.status).toBe("PLACED");
+    expect(json.data.order.status).toBe("PENDING_APPROVAL");
+    expect(json.data.isPendingApproval).toBe(true);
+    expect(json.data.order.approvalQuery).toContain("Critical brick shortage");
+    expect(json.data.order.approvedBy).toBeNull();
+    expect(json.data.notification.sent).toBe(false);
 
     createdOrderId = json.data.order.id;
 
-    // Check vendor notification details
-    expect(json.data.notification).toBeDefined();
-    expect(json.data.notification.vendorName).toBe("Om Cement & Bricks Supply");
-    expect(json.data.notification.whatsappUrl).toContain("api.whatsapp.com/send?phone=919829012345");
-    expect(json.data.notification.message).toContain("PURCHASE ORDER");
-    expect(json.data.notification.message).toContain("Red Clay Bricks");
-    expect(json.data.notification.message).toContain("4425 PIECE");
-    expect(json.data.notification.message).toContain("₹85.00");
+    // Verify Audit Event logged for query raised
+    const auditEvent = await prisma.auditEvent.findFirst({
+      where: {
+        organizationId: testOrgId,
+        entityId: createdOrderId,
+        action: "PURCHASE_ORDER_QUERY_RAISED",
+      },
+    });
+    expect(auditEvent).toBeDefined();
   });
 
-  it("should return the created order on GET /api/orders?materialId=...", async () => {
-    const req = makeJsonRequest(
-      `http://localhost:3000/api/orders?materialId=${testMaterialId}`,
-      "GET",
-      undefined,
-      testUserToken
-    );
-    const res = await getOrdersHandler(req);
-    expect(res.status).toBe(200);
-
-    const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(Array.isArray(json.data)).toBe(true);
-    expect(json.data.length).toBeGreaterThanOrEqual(1);
-
-    const matched = json.data.find((o: any) => o.id === createdOrderId);
-    expect(matched).toBeDefined();
-    expect(matched.vendor.name).toBe("Om Cement & Bricks Supply");
-    expect(matched.whatsappUrl).toBeDefined();
-  });
-
-  it("should include active placed orders in operational alerts (/api/notifications)", async () => {
-    const req = makeJsonRequest("http://localhost:3000/api/notifications", "GET", undefined, testUserToken);
+  it("should surface an ORDER_APPROVAL_REQUEST alert to Super Admin in /api/notifications", async () => {
+    const req = makeJsonRequest("http://localhost:3000/api/notifications", "GET", undefined, testSuperAdminToken);
     const res = await notificationsHandler(req);
     expect(res.status).toBe(200);
 
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.data.alerts.some((a: any) => a.type === "PURCHASE_ORDER")).toBe(true);
+    const approvalAlert = json.data.alerts.find(
+      (a: any) => a.type === "ORDER_APPROVAL_REQUEST" && a.id.includes(createdOrderId)
+    );
+    expect(approvalAlert).toBeDefined();
+    expect(approvalAlert.title).toContain("Super Admin Approval");
+    expect(approvalAlert.message).toContain("Red Clay Bricks");
   });
 
-  it("should update order status via PATCH /api/orders/[id]", async () => {
+  it("should prevent non-admin from approving the order (403 Forbidden)", async () => {
     const req = makeJsonRequest(
-      `http://localhost:3000/api/orders/${createdOrderId}`,
-      "PATCH",
-      { status: "CONFIRMED" },
-      testUserToken
+      `http://localhost:3000/api/orders/${createdOrderId}/approve`,
+      "POST",
+      { notes: "Hacker trying to approve" },
+      testSupervisorToken
     );
-    const res = await updateOrderHandler(req, { params: { id: createdOrderId } });
+    const res = await approveOrderHandler(req, { params: { id: createdOrderId } });
+    expect(res.status).toBe(403);
+  });
+
+  it("should allow Super Admin to approve order and activate vendor notification", async () => {
+    const req = makeJsonRequest(
+      `http://localhost:3000/api/orders/${createdOrderId}/approve`,
+      "POST",
+      { notes: "Budget approved for ground floor masonry" },
+      testSuperAdminToken
+    );
+    const res = await approveOrderHandler(req, { params: { id: createdOrderId } });
     expect(res.status).toBe(200);
 
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.data.status).toBe("CONFIRMED");
+    expect(json.data.order.status).toBe("APPROVED");
+    expect(json.data.order.approvedBy).toContain("Chief Super Admin");
+    expect(json.data.order.approvedAt).toBeDefined();
+
+    // Vendor notification links should now be active
+    expect(json.data.notification).toBeDefined();
+    expect(json.data.notification.sent).toBe(true);
+    expect(json.data.notification.vendorName).toBe("Om Cement & Bricks Supply");
+    expect(json.data.notification.whatsappUrl).toContain("api.whatsapp.com/send?phone=919829012345");
+    expect(json.data.notification.message).toContain("approved");
+
+    // Verify Audit Event logged for order approved
+    const approvalAuditEvent = await prisma.auditEvent.findFirst({
+      where: {
+        organizationId: testOrgId,
+        entityId: createdOrderId,
+        action: "PURCHASE_ORDER_APPROVED",
+      },
+    });
+    expect(approvalAuditEvent).toBeDefined();
+  });
+
+  it("should allow Super Admin to reject an order query with a reason", async () => {
+    // First create a second order to reject
+    const placeReq = makeJsonRequest(
+      "http://localhost:3000/api/orders",
+      "POST",
+      {
+        materialId: testMaterialId,
+        vendorPartyId: testVendorId,
+        quantity: 1000,
+        unitCode: "PIECE",
+        unitRate: 100,
+        notes: "Excess order",
+      },
+      testSupervisorToken
+    );
+    const placeRes = await placeOrderHandler(placeReq);
+    const placeJson = await placeRes.json();
+    rejectTestOrderId = placeJson.data.order.id;
+
+    // Super admin rejects
+    const rejectReq = makeJsonRequest(
+      `http://localhost:3000/api/orders/${rejectTestOrderId}/reject`,
+      "POST",
+      { reason: "Rate too high, negotiate with vendor before ordering." },
+      testSuperAdminToken
+    );
+    const rejectRes = await rejectOrderHandler(rejectReq, { params: { id: rejectTestOrderId } });
+    expect(rejectRes.status).toBe(200);
+
+    const rejectJson = await rejectRes.json();
+    expect(rejectJson.success).toBe(true);
+    expect(rejectJson.data.order.status).toBe("REJECTED");
+    expect(rejectJson.data.order.rejectionReason).toContain("Rate too high");
+
+    // Verify Audit Event for rejection
+    const rejectAuditEvent = await prisma.auditEvent.findFirst({
+      where: {
+        organizationId: testOrgId,
+        entityId: rejectTestOrderId,
+        action: "PURCHASE_ORDER_REJECTED",
+      },
+    });
+    expect(rejectAuditEvent).toBeDefined();
   });
 });

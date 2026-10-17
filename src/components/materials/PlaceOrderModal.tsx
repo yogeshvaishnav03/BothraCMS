@@ -7,6 +7,8 @@ import {
   ShoppingCart,
   Send,
   CheckCircle2,
+  Clock,
+  ShieldAlert,
   MessageSquare,
   Mail,
   Copy,
@@ -47,6 +49,7 @@ export default function PlaceOrderModal({
 }: PlaceOrderModalProps) {
   const { t } = useLanguage();
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
@@ -58,12 +61,14 @@ export default function PlaceOrderModal({
   const [unitRate, setUnitRate] = useState<string>("");
   const [expectedDate, setExpectedDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const [approvalQuery, setApprovalQuery] = useState<string>("");
+  const [autoApprove, setAutoApprove] = useState<boolean>(false);
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Success state with vendor notification details
+  // Result state
   const [orderResult, setOrderResult] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -72,10 +77,21 @@ export default function PlaceOrderModal({
     if (!isOpen) {
       setOrderResult(null);
       setErrorMessage(null);
+      setApprovalQuery("");
+      setAutoApprove(false);
       return;
     }
 
     setLoading(true);
+
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data) {
+          setCurrentUser(res.data.user);
+        }
+      })
+      .catch(() => {});
 
     const pVendors = fetch("/api/parties?type=VENDOR")
       .then((r) => r.json())
@@ -99,7 +115,6 @@ export default function PlaceOrderModal({
 
         if (initialMaterial) {
           setSelectedMaterialId(initialMaterial.id);
-          // Suggest shortage or reorder qty
           const shortage =
             (initialMaterial.minStockQty || 0) - (initialMaterial.currentStock || 0);
           const suggested =
@@ -109,6 +124,7 @@ export default function PlaceOrderModal({
               ? initialMaterial.reorderQty
               : 1000;
           setQuantity(suggested.toString());
+          setApprovalQuery(`Critical site stock shortage for ${initialMaterial.name}. Minimum stock is ${initialMaterial.minStockQty || 0} ${initialMaterial.unitCode}, current stock is ${initialMaterial.currentStock || 0} ${initialMaterial.unitCode}. Requesting PO confirmation.`);
         } else if (mList.length > 0) {
           setSelectedMaterialId(mList[0].id);
         }
@@ -121,7 +137,6 @@ export default function PlaceOrderModal({
           setSelectedStoreId(sList[0].id);
         }
 
-        // Set default expected date = today + 2 days
         const targetDate = new Date();
         targetDate.setDate(targetDate.getDate() + 2);
         setExpectedDate(targetDate.toISOString().split("T")[0]);
@@ -175,6 +190,8 @@ export default function PlaceOrderModal({
         storeId: selectedStoreId || undefined,
         expectedDeliveryDate: expectedDate || undefined,
         notes: notes.trim() || undefined,
+        approvalQuery: approvalQuery.trim() || undefined,
+        autoApprove: currentUser?.role === "SUPER_ADMIN" ? autoApprove : undefined,
         notificationMethod: "WHATSAPP_AND_EMAIL",
       };
 
@@ -209,6 +226,8 @@ export default function PlaceOrderModal({
     }
   };
 
+  const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
@@ -228,11 +247,11 @@ export default function PlaceOrderModal({
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <span>{t("order.placeOrderToVendor", "Place Order to Vendor")}</span>
                 <span className="text-[10px] font-mono bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded uppercase">
-                  Live Dispatch
+                  Super Admin Approval Required
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
-                Register authoritative purchase order & send instant vendor notification
+                Raises order query to Super Admin for confirmation before vendor dispatch
               </p>
             </div>
           </div>
@@ -254,101 +273,169 @@ export default function PlaceOrderModal({
               </span>
             </div>
           ) : orderResult ? (
-            /* SUCCESS STATE WITH DIRECT VENDOR NOTIFICATION BUTTONS */
-            <div className="space-y-5 animate-in fade-in duration-200">
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
-                <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-sm font-bold text-emerald-950">
-                    {t("order.successTitle", "Purchase Order Placed Successfully!")}
-                  </div>
-                  <div className="text-xs text-emerald-800 mt-0.5">
-                    Order <span className="font-mono font-bold">{orderResult.order.orderNumber}</span> has been
-                    registered in the system and logged in the operational audit ledger.
+            /* RESULT STATES */
+            orderResult.isPendingApproval ? (
+              /* PENDING SUPER ADMIN APPROVAL SCREEN */
+              <div className="space-y-5 animate-in fade-in duration-200">
+                <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-3">
+                  <Clock className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-sm font-bold text-amber-950">
+                      {t("order.queryRaised", "Order Query Raised to Super Admin!")}
+                    </div>
+                    <div className="text-xs text-amber-900 mt-1 leading-relaxed">
+                      Purchase order <span className="font-mono font-bold">{orderResult.order.orderNumber}</span> has been created with status <strong className="font-bold underline">PENDING SUPER ADMIN APPROVAL</strong>.
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Vendor Notification Dispatch Center */}
-              <div className="bg-slate-900 text-slate-100 rounded-xl p-4 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <Send className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                      {t("order.vendorNotification", "Vendor Notification Dispatch")}
+                <div className="bg-slate-900 text-slate-100 rounded-xl p-4 border border-slate-800 space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-slate-800 text-amber-400">
+                    <ShieldAlert className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Approval & Dispatch Governance
                     </span>
                   </div>
-                  <span className="text-[11px] text-slate-400">
-                    Vendor: <strong className="text-white">{orderResult.notification.vendorName}</strong>
-                  </span>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {/* WhatsApp Direct Action Button */}
-                  {orderResult.notification.whatsappUrl ? (
-                    <a
-                      href={orderResult.notification.whatsappUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-900/30 transition transform active:scale-98"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      <span>{t("order.sendWhatsApp", "Send WhatsApp to Vendor")}</span>
-                      <ExternalLink className="w-3 h-3 opacity-70" />
-                    </a>
-                  ) : (
-                    <div className="p-3 bg-slate-800/80 rounded-xl text-xs text-slate-400 flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-slate-500" />
-                      <span>No vendor phone registered</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-400">Material:</span>
+                      <div className="font-bold text-white">{orderResult.order.material?.name || currentMaterial?.name}</div>
                     </div>
-                  )}
-
-                  {/* Email Direct Action Button */}
-                  {orderResult.notification.mailtoUrl ? (
-                    <a
-                      href={orderResult.notification.mailtoUrl}
-                      className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-900/30 transition"
-                    >
-                      <Mail className="w-4 h-4" />
-                      <span>{t("order.sendEmail", "Send Email to Vendor")}</span>
-                    </a>
-                  ) : (
-                    <div className="p-3 bg-slate-800/80 rounded-xl text-xs text-slate-400 flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-slate-500" />
-                      <span>No vendor email registered</span>
+                    <div>
+                      <span className="text-slate-400">Quantity:</span>
+                      <div className="font-bold text-white">{formatQuantity(orderResult.order.quantity, orderResult.order.unitCode)}</div>
                     </div>
-                  )}
-                </div>
-
-                {/* Pre-formatted Message Preview & Copy */}
-                <div className="mt-3">
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
-                    <span>Formatted Purchase Order Summary:</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyMessage}
-                      className="flex items-center gap-1 text-amber-400 hover:underline font-semibold"
-                    >
-                      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{copied ? "Copied!" : t("order.copyText", "Copy Text")}</span>
-                    </button>
+                    <div>
+                      <span className="text-slate-400">Supplier:</span>
+                      <div className="font-bold text-white">{orderResult.order.vendor?.name || currentVendor?.name}</div>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Estimated Total:</span>
+                      <div className="font-bold text-amber-400">
+                        {orderResult.order.totalAmount ? formatCurrency(orderResult.order.totalAmount) : "—"}
+                      </div>
+                    </div>
                   </div>
-                  <pre className="p-3 bg-slate-950 rounded-lg text-[11px] font-mono text-slate-300 max-h-44 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-800">
-                    {orderResult.notification.message}
-                  </pre>
+
+                  {orderResult.order.approvalQuery && (
+                    <div className="mt-2 pt-2 border-t border-slate-800 text-xs">
+                      <span className="text-slate-400 block text-[11px] mb-1">Approval Query / Justification:</span>
+                      <div className="p-2.5 bg-slate-950 rounded border border-slate-800 font-mono text-slate-300 text-xs">
+                        {orderResult.order.approvalQuery}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-300 leading-relaxed">
+                    ℹ️ A notification alert has been logged for Super Admin review in the Super Admin Console.
+                    Direct WhatsApp and Email vendor dispatch links will unlock immediately once approved.
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition"
+                  >
+                    {t("action.close", "Close")}
+                  </button>
                 </div>
               </div>
+            ) : (
+              /* APPROVED STATE WITH LIVE VENDOR DISPATCH */
+              <div className="space-y-5 animate-in fade-in duration-200">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-sm font-bold text-emerald-950">
+                      {t("order.successTitle", "Purchase Order Placed & Approved!")}
+                    </div>
+                    <div className="text-xs text-emerald-800 mt-0.5">
+                      Order <span className="font-mono font-bold">{orderResult.order.orderNumber}</span> is approved and registered in the system.
+                    </div>
+                  </div>
+                </div>
 
-              <div className="pt-2 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition"
-                >
-                  {t("action.close", "Close")}
-                </button>
+                {/* Vendor Notification Dispatch Center */}
+                <div className="bg-slate-900 text-slate-100 rounded-xl p-4 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Send className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                        {t("order.vendorNotification", "Vendor Notification Dispatch")}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400">
+                      Vendor: <strong className="text-white">{orderResult.notification.vendorName}</strong>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    {orderResult.notification.whatsappUrl ? (
+                      <a
+                        href={orderResult.notification.whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-900/30 transition transform active:scale-98"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>{t("order.sendWhatsApp", "Send WhatsApp to Vendor")}</span>
+                        <ExternalLink className="w-3 h-3 opacity-70" />
+                      </a>
+                    ) : (
+                      <div className="p-3 bg-slate-800/80 rounded-xl text-xs text-slate-400 flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-slate-500" />
+                        <span>No vendor phone registered</span>
+                      </div>
+                    )}
+
+                    {orderResult.notification.mailtoUrl ? (
+                      <a
+                        href={orderResult.notification.mailtoUrl}
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-900/30 transition"
+                      >
+                        <Mail className="w-4 h-4" />
+                        <span>{t("order.sendEmail", "Send Email to Vendor")}</span>
+                      </a>
+                    ) : (
+                      <div className="p-3 bg-slate-800/80 rounded-xl text-xs text-slate-400 flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-slate-500" />
+                        <span>No vendor email registered</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                      <span>Formatted Purchase Order Summary:</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyMessage}
+                        className="flex items-center gap-1 text-amber-400 hover:underline font-semibold"
+                      >
+                        {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copied ? "Copied!" : t("order.copyText", "Copy Text")}</span>
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-slate-950 rounded-lg text-[11px] font-mono text-slate-300 max-h-44 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-800">
+                      {orderResult.notification.message}
+                    </pre>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition"
+                  >
+                    {t("action.close", "Close")}
+                  </button>
+                </div>
               </div>
-            </div>
+            )
           ) : (
             /* ORDER FORM */
             <form onSubmit={handleSubmitOrder} className="space-y-4">
@@ -531,27 +618,69 @@ export default function PlaceOrderModal({
                 </div>
               </div>
 
+              {/* Approval Query / Justification for Super Admin */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                  <span>{t("order.approvalQuery", "Approval Query / Justification for Super Admin")}</span>
+                  <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">
+                    Required for Confirmation
+                  </span>
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Explain why this material order is required (site progress, urgency, shortage)..."
+                  value={approvalQuery}
+                  onChange={(e) => setApprovalQuery(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
               {/* Instructions / Notes */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   {t("order.notes", "Site Delivery Instructions / Notes")}
                 </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Unload at Tower 2 store. Call site supervisor 30 mins before arrival."
+                <input
+                  type="text"
+                  placeholder="e.g. Unload at Tower 2 store. Call site supervisor before arrival."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 />
               </div>
 
-              {/* Live Dispatch Preview Notice */}
+              {/* Super Admin Immediate Approval Toggle */}
+              {isSuperAdmin && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-amber-700" />
+                    <div>
+                      <span className="text-xs font-bold text-amber-950 block">Super Admin Action</span>
+                      <span className="text-[11px] text-amber-800">Directly approve and unlock vendor notification immediately?</span>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                    <input
+                      type="checkbox"
+                      checked={autoApprove}
+                      onChange={(e) => setAutoApprove(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-xs font-bold text-slate-800">Auto-Approve</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Order Query Workflow Notice */}
               <div className="p-3 bg-slate-900 text-slate-300 rounded-xl text-xs flex items-start gap-2.5">
                 <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div className="text-[11px] leading-relaxed">
-                  <span className="font-bold text-white">Automated Vendor Notification: </span>
-                  Submitting creates the authoritative Purchase Order voucher and generates 1-click WhatsApp and Email notifications to{" "}
-                  <strong>{currentVendor?.name || "the supplier"}</strong> with item, quantity, and site delivery details.
+                  <span className="font-bold text-white">Super Admin Approval Workflow: </span>
+                  {autoApprove ? (
+                    <span>This order will be immediately approved and WhatsApp/Email dispatch links will be generated for vendor dispatch.</span>
+                  ) : (
+                    <span>Submitting this order raises a query to <strong>Super Admin</strong>. The vendor WhatsApp and Email dispatch links will become active once confirmed and approved.</span>
+                  )}
                 </div>
               </div>
 
@@ -570,7 +699,13 @@ export default function PlaceOrderModal({
                   className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-amber-500/20 transition disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{submitting ? "Placing Order..." : t("order.placeOrder", "Confirm & Place Order")}</span>
+                  <span>
+                    {submitting
+                      ? "Submitting..."
+                      : autoApprove
+                      ? "Approve & Place Order"
+                      : "Raise Order Query to Super Admin"}
+                  </span>
                 </button>
               </div>
             </form>
