@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -52,7 +52,39 @@ export default function Shell({ children }: ShellProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [chatToast, setChatToast] = useState<{
+    id: string;
+    senderName: string;
+    content: string;
+  } | null>(null);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+
+  const prevChatCountRef = useRef(0);
+
+  // Fetch operational alerts and unread chat message counts
+  const fetchNotifications = useCallback(() => {
+    fetch("/api/notifications")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data) {
+          setNotifications(res.data.alerts || []);
+          setUnreadCount(res.data.unreadCount || 0);
+
+          const newChatCount = res.data.unreadChatCount || 0;
+          setUnreadChatCount(newChatCount);
+
+          // If count increased and user is not currently in /chat, show toast notification!
+          if (newChatCount > prevChatCountRef.current && res.data.latestChatMessage) {
+            if (pathname !== "/chat") {
+              setChatToast(res.data.latestChatMessage);
+            }
+          }
+          prevChatCountRef.current = newChatCount;
+        }
+      })
+      .catch(() => {});
+  }, [pathname]);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -88,16 +120,33 @@ export default function Shell({ children }: ShellProps) {
         console.error("Authoritative sites load failed:", err);
       });
 
-    fetch("/api/notifications")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setNotifications(res.data.alerts || []);
-          setUnreadCount(res.data.unreadCount || 0);
-        }
-      })
-      .catch(() => {});
-  }, [router]);
+    fetchNotifications();
+
+    // Background interval poll (every 5 seconds) to catch incoming messages in real-time
+    const interval = setInterval(fetchNotifications, 5000);
+    const handleRefresh = () => fetchNotifications();
+    window.addEventListener("refreshNotifications", handleRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("refreshNotifications", handleRefresh);
+    };
+  }, [router, fetchNotifications]);
+
+  // Auto-dismiss chat toast after 6 seconds
+  useEffect(() => {
+    if (chatToast) {
+      const timer = setTimeout(() => setChatToast(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [chatToast]);
+
+  // Clear toast if navigating to /chat
+  useEffect(() => {
+    if (pathname === "/chat") {
+      setChatToast(null);
+    }
+  }, [pathname]);
 
   const handleSiteChange = (siteId: string) => {
     setActiveSiteId(siteId);
@@ -203,18 +252,32 @@ export default function Shell({ children }: ShellProps) {
           {navItemsDef.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+            const isMessages = item.href === "/chat";
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   isActive
                     ? "bg-amber-500 text-slate-950 font-semibold shadow-sm"
                     : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? "text-slate-950" : "text-slate-400"}`} />
-                <span>{t(item.key, item.defaultLabel)}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-slate-950" : "text-slate-400"}`} />
+                  <span className="truncate">{t(item.key, item.defaultLabel)}</span>
+                </div>
+                {isMessages && unreadChatCount > 0 && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 flex items-center justify-center animate-pulse ${
+                      isActive
+                        ? "bg-slate-950 text-amber-400"
+                        : "bg-amber-500 text-slate-950"
+                    }`}
+                  >
+                    {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -330,9 +393,12 @@ export default function Shell({ children }: ShellProps) {
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-slate-300 hover:bg-slate-800 rounded-lg"
+            className="p-2 text-slate-300 hover:bg-slate-800 rounded-lg relative"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {!mobileMenuOpen && unreadChatCount > 0 && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+            )}
           </button>
         </div>
       </header>
@@ -403,19 +469,33 @@ export default function Shell({ children }: ShellProps) {
               {navItemsDef.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+                const isMessages = item.href === "/chat";
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium ${
+                    className={`flex items-center justify-between px-3 py-3 rounded-lg text-sm font-medium ${
                       isActive
                         ? "bg-amber-500 text-slate-950 font-semibold"
                         : "text-slate-200 hover:bg-slate-800"
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span>{t(item.key, item.defaultLabel)}</span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{t(item.key, item.defaultLabel)}</span>
+                    </div>
+                    {isMessages && unreadChatCount > 0 && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 flex items-center justify-center ${
+                          isActive
+                            ? "bg-slate-950 text-amber-400"
+                            : "bg-amber-500 text-slate-950"
+                        }`}
+                      >
+                        {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -479,14 +559,16 @@ export default function Shell({ children }: ShellProps) {
                     <div className="flex items-center justify-between">
                       <span
                         className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase ${
-                          n.severity === "CRITICAL"
+                          n.type === "CHAT_MESSAGE"
+                            ? "bg-purple-100 text-purple-800 border border-purple-200"
+                            : n.severity === "CRITICAL"
                             ? "bg-rose-100 text-rose-700 border border-rose-200"
                             : n.severity === "WARNING"
                             ? "bg-amber-100 text-amber-800 border border-amber-200"
                             : "bg-blue-100 text-blue-700 border border-blue-200"
                         }`}
                       >
-                        {n.type.replace("_", " ")}
+                        {n.type === "CHAT_MESSAGE" ? "MESSAGE" : n.type.replace("_", " ")}
                       </span>
                       <span className="text-[10px] text-amber-600 font-semibold group-hover:underline">
                         View &rarr;
@@ -623,6 +705,46 @@ export default function Shell({ children }: ShellProps) {
                 {t("nav.settings", "Settings")} &rarr;
               </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Real-Time Floating Chat Message Notification Toast */}
+      {chatToast && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-slate-900 border border-amber-500/50 text-white p-4 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0 shadow-sm">
+                <MessageSquare className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                  <span>{t("chat.newMessageFrom", "New message from")}</span>
+                  <span className="text-white truncate font-extrabold">{chatToast.senderName}</span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                  {chatToast.content}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setChatToast(null)}
+              className="p-1 text-slate-400 hover:text-white rounded"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <button
+              onClick={() => {
+                setChatToast(null);
+                router.push("/chat");
+              }}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition flex items-center gap-1 shadow-sm"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Open Chat</span>
+            </button>
           </div>
         </div>
       )}

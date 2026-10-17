@@ -14,7 +14,8 @@ export interface OperationalAlert {
     | "DAILY_REPORT_MISSING"
     | "PURCHASE_ORDER"
     | "ORDER_APPROVAL_REQUEST"
-    | "PAYMENT_APPROVAL_REQUEST";
+    | "PAYMENT_APPROVAL_REQUEST"
+    | "CHAT_MESSAGE";
   severity: "CRITICAL" | "WARNING" | "INFO";
   title: string;
   message: string;
@@ -198,8 +199,95 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 6. Unread Chat Messages for Current Receiver
+    let totalUnreadChatCount = 0;
+    let latestChatMessage: { id: string; senderName: string; content: string; createdAt: string } | null = null;
+
+    const userParticipantConvs = await prisma.conversationParticipant.findMany({
+      where: {
+        userId: user.userId,
+        conversation: {
+          organizationId: user.organizationId,
+        },
+      },
+      include: {
+        conversation: {
+          include: {
+            participants: {
+              include: {
+                user: { select: { id: true, name: true, role: true } },
+              },
+            },
+            messages: {
+              where: {
+                senderId: { not: user.userId },
+              },
+              orderBy: { createdAt: "desc" },
+              take: 5,
+              include: {
+                sender: { select: { id: true, name: true, role: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    for (const record of userParticipantConvs) {
+      const conv = record.conversation;
+      const lastRead = record.lastReadAt;
+      const unreadMsgs = conv.messages.filter(
+        (m) => !lastRead || m.createdAt > lastRead
+      );
+
+      if (unreadMsgs.length > 0) {
+        totalUnreadChatCount += unreadMsgs.length;
+        const latest = unreadMsgs[0];
+        const otherParticipant =
+          conv.type === "DIRECT"
+            ? conv.participants.find((p) => p.userId !== user.userId)?.user
+            : null;
+        const senderName = latest.sender?.name || otherParticipant?.name || "Team Member";
+        const convName = conv.type === "GROUP" ? conv.name || "Group Chat" : "";
+
+        const title =
+          conv.type === "GROUP"
+            ? `New message in "${convName}" from ${senderName}`
+            : `New message from ${senderName}`;
+
+        const snippet =
+          latest.content.length > 80
+            ? latest.content.slice(0, 80) + "..."
+            : latest.content;
+
+        if (!latestChatMessage || new Date(latest.createdAt) > new Date(latestChatMessage.createdAt)) {
+          latestChatMessage = {
+            id: latest.id,
+            senderName,
+            content: snippet,
+            createdAt: latest.createdAt.toISOString(),
+          };
+        }
+
+        alerts.unshift({
+          id: `chat-${conv.id}-${latest.id}`,
+          type: "CHAT_MESSAGE",
+          severity: "INFO",
+          title,
+          message:
+            unreadMsgs.length > 1
+              ? `[${unreadMsgs.length} new] "${snippet}"`
+              : `"${snippet}"`,
+          href: "/chat",
+          createdAt: latest.createdAt.toISOString(),
+        });
+      }
+    }
+
     return jsonSuccess({
       unreadCount: alerts.length,
+      unreadChatCount: totalUnreadChatCount,
+      latestChatMessage,
       alerts,
     });
   } catch (error) {

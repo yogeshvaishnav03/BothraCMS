@@ -10,6 +10,8 @@ import {
   GET as getMessagesHandler,
   POST as postMessageHandler,
 } from "../app/api/chat/conversations/[id]/messages/route";
+import { GET as getNotificationsHandler } from "../app/api/notifications/route";
+import { GET as getUnreadCountHandler } from "../app/api/chat/unread-count/route";
 
 function makeJsonRequest(url: string, method: string, body?: any, token?: string) {
   const headers: Record<string, string> = {
@@ -272,5 +274,76 @@ describe("Chat & Employee Messaging Lifecycle Tests", () => {
     );
     const getRes = await getMessagesHandler(getReq, { params: { id: directConversationId } });
     expect(getRes.status).toBe(403);
+  });
+
+  it("should trigger receiver operational notification and unread count on message sent", async () => {
+    // Super Admin posts a message in the group conversation (which includes Accountant)
+    const postReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${groupConversationId}/messages`,
+      "POST",
+      { content: "Urgent: Please confirm payment voucher for vendor cement delivery." },
+      superAdminToken
+    );
+    const postRes = await postMessageHandler(postReq, { params: { id: groupConversationId } });
+    expect(postRes.status).toBe(200);
+
+    // Accountant (receiver) checks notifications
+    const notifReq = makeJsonRequest(
+      "http://localhost:3000/api/notifications",
+      "GET",
+      undefined,
+      accountantToken
+    );
+    const notifRes = await getNotificationsHandler(notifReq);
+    expect(notifRes.status).toBe(200);
+
+    const notifJson = await notifRes.json();
+    expect(notifJson.success).toBe(true);
+    expect(notifJson.data.unreadChatCount).toBeGreaterThanOrEqual(1);
+
+    // Verify chat alert exists in alerts list
+    const chatAlert = notifJson.data.alerts.find((a: any) => a.type === "CHAT_MESSAGE");
+    expect(chatAlert).toBeDefined();
+    expect(chatAlert.title).toContain("Super Admin Boss");
+    expect(chatAlert.message).toContain("cement delivery");
+    expect(chatAlert.href).toBe("/chat");
+
+    // Accountant checks unread count endpoint (used by menu option)
+    const countReq = makeJsonRequest(
+      "http://localhost:3000/api/chat/unread-count",
+      "GET",
+      undefined,
+      accountantToken
+    );
+    const countRes = await getUnreadCountHandler(countReq);
+    expect(countRes.status).toBe(200);
+
+    const countJson = await countRes.json();
+    expect(countJson.success).toBe(true);
+    expect(countJson.data.unreadCount).toBeGreaterThanOrEqual(1);
+    expect(countJson.data.latestMessage).toBeDefined();
+    expect(countJson.data.latestMessage.senderName).toBe("Super Admin Boss");
+
+    // When Accountant opens the conversation to read messages
+    const readReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${groupConversationId}/messages`,
+      "GET",
+      undefined,
+      accountantToken
+    );
+    const readRes = await getMessagesHandler(readReq, { params: { id: groupConversationId } });
+    expect(readRes.status).toBe(200);
+
+    // Unread count should now be 0
+    const countAfterReq = makeJsonRequest(
+      "http://localhost:3000/api/chat/unread-count",
+      "GET",
+      undefined,
+      accountantToken
+    );
+    const countAfterRes = await getUnreadCountHandler(countAfterReq);
+    const countAfterJson = await countAfterRes.json();
+    expect(countAfterJson.success).toBe(true);
+    expect(countAfterJson.data.unreadCount).toBe(0);
   });
 });

@@ -144,6 +144,9 @@ export default function ChatPage() {
       if (json.success && json.data) {
         setMessages(json.data.messages || []);
         setActiveConversation(json.data.conversation || null);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("refreshNotifications"));
+        }
       }
     } catch (err) {
       console.error("Failed to load messages:", err);
