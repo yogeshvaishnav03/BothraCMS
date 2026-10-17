@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Shell from "@/components/layout/Shell";
+import { useLanguage, LanguageCode } from "@/lib/i18n";
 import {
   Building2,
   Users,
@@ -100,6 +101,7 @@ interface OrgData {
 }
 
 export default function SettingsPage() {
+  const { language, setLanguage, t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -109,7 +111,6 @@ export default function SettingsPage() {
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("INR");
   const [timezone, setTimezone] = useState("Asia/Kolkata");
-  const [language, setLanguage] = useState("en");
   const [taxId, setTaxId] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   const [phone, setPhone] = useState("");
@@ -118,12 +119,6 @@ export default function SettingsPage() {
   const [orgData, setOrgData] = useState<OrgData | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedLang = localStorage.getItem("buildtrack_language");
-      if (storedLang) {
-        setLanguage(storedLang);
-      }
-    }
     fetchOrg();
   }, []);
 
@@ -143,10 +138,9 @@ export default function SettingsPage() {
         setPhone(data.settings?.phone || "");
         setWorkDayHours(data.settings?.workDayHours || 8);
         if (data.settings?.language) {
-          setLanguage(data.settings.language);
-          if (typeof window !== "undefined") {
-            localStorage.setItem("buildtrack_language", data.settings.language);
-            document.cookie = `buildtrack_language=${data.settings.language}; path=/; max-age=31536000; SameSite=Lax`;
+          const stored = typeof window !== "undefined" ? localStorage.getItem("buildtrack_language") : null;
+          if (!stored) {
+            setLanguage(data.settings.language as LanguageCode);
           }
         }
       } else {
@@ -160,17 +154,10 @@ export default function SettingsPage() {
   }
 
   function handleLanguageChange(langCode: string) {
-    setLanguage(langCode);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("buildtrack_language", langCode);
-      document.cookie = `buildtrack_language=${langCode}; path=/; max-age=31536000; SameSite=Lax`;
-      window.dispatchEvent(
-        new CustomEvent("languageChanged", { detail: { language: langCode } })
-      );
-    }
+    setLanguage(langCode as LanguageCode);
     const target = SUPPORTED_LANGUAGES.find((l) => l.code === langCode);
     setLangChangeAlert(
-      `Display language changed to ${target?.name} (${target?.nativeName}). Remember to click "Save Settings" below to store it permanently for your organization.`
+      `Display language changed to ${target?.name} (${target?.nativeName}). Entire website is now updated in ${target?.name}!`
     );
     setTimeout(() => {
       setLangChangeAlert(null);
@@ -227,10 +214,10 @@ export default function SettingsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-amber-600" /> Organization Settings
+            <Building2 className="w-6 h-6 text-amber-600" /> {t("settings.title", "Organization Settings")}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Manage organization profile, currency formatting, tax registration, and active users.
+            {t("settings.subtitle", "Manage organization profile, currency formatting, tax registration, and active users.")}
           </p>
         </div>
 
@@ -482,7 +469,7 @@ export default function SettingsPage() {
                     className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-md shadow-amber-600/20 transition disabled:opacity-50"
                   >
                     <Save className="w-4 h-4" />
-                    {saving ? "Saving Changes..." : "Save Settings"}
+                    {saving ? t("action.saving", "Saving Changes...") : t("action.save", "Save Settings")}
                   </button>
                 </div>
               </form>

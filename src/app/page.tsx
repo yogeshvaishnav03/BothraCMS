@@ -21,8 +21,10 @@ import {
   Plus,
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
+import { useLanguage } from "@/lib/i18n";
 
 export default function DashboardPage() {
+  const { t } = useLanguage();
   const [kpi, setKpi] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -248,14 +250,14 @@ export default function DashboardPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>+ Quick Task</span>
+              <span>{t("kpi.quickTask", "+ Quick Task")}</span>
             </button>
             <Link
               href="/materials"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-sm transition-all"
             >
               <PackagePlus className="w-4 h-4 text-amber-400" />
-              <span>Receive Stock</span>
+              <span>{t("kpi.quickMaterialIn", "Receive Stock")}</span>
             </Link>
           </div>
         </div>
@@ -304,7 +306,7 @@ export default function DashboardPage() {
             {/* Active Projects */}
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider">Active Projects</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.activeProjects", "Active Projects")}</span>
                 <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
                   <FolderKanban className="w-4 h-4" />
                 </div>
@@ -320,7 +322,7 @@ export default function DashboardPage() {
             {/* Workers Present Today */}
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider">Workers on Site</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.workersOnSite", "Workers on Site")}</span>
                 <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
                   <HardHat className="w-4 h-4" />
                 </div>
@@ -336,7 +338,7 @@ export default function DashboardPage() {
             {/* Low Stock Alerts */}
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider">Low Stock Items</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.criticalMaterials", "Low Stock Items")}</span>
                 <div
                   className={`p-2 rounded-lg ${
                     (kpi?.lowStockItemsCount || 0) > 0

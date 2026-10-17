@@ -25,6 +25,7 @@ import {
   Layers,
   Filter,
 } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 interface DayBookData {
   date: string;
@@ -47,6 +48,7 @@ interface DayBookData {
 }
 
 export default function DayBookPage() {
+  const { t } = useLanguage();
   const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [sites, setSites] = useState<any[]>([]);
@@ -278,10 +280,10 @@ export default function DayBookPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  Day Book <span className="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full uppercase">दैनिक रोज़नामचा</span>
+                  {t("daybook.title", "Day Book")}
                 </h1>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Consolidated daily register of financial disbursements, material movements, workforce attendance & site logs
+                  {t("daybook.subtitle", "Consolidated daily register of financial disbursements, material movements, workforce attendance & site logs")}
                 </p>
               </div>
             </div>
@@ -294,7 +296,7 @@ export default function DayBookPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Log Day Entry</span>
+              <span>{t("daybook.addEntry", "+ Log Day Entry")}</span>
             </button>
 
             {/* Export CSV */}
@@ -304,7 +306,7 @@ export default function DayBookPage() {
               title="Download CSV Statement"
             >
               <Download className="w-4 h-4 text-slate-500" />
-              <span>Export CSV</span>
+              <span>{t("action.export", "Export CSV")}</span>
             </button>
 
             {/* Print */}
