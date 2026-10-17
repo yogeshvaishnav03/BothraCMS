@@ -183,6 +183,13 @@ export const clientCache = {
       lowStockItemsCount: serverKpis?.lowStockItemsCount ?? 0,
       paymentsMadeTodayAmount: serverKpis?.paymentsMadeTodayAmount ?? 0,
       totalOutstandingPayablesAmount: serverKpis?.totalOutstandingPayablesAmount ?? 0,
+      activeProjects: serverKpis?.activeProjects ?? [],
+      tasksDueToday: serverKpis?.tasksDueToday ?? [],
+      tasksOverdue: serverKpis?.tasksOverdue ?? [],
+      workersPresentToday: serverKpis?.workersPresentToday ?? [],
+      lowStockItems: serverKpis?.lowStockItems ?? [],
+      paymentsMadeToday: serverKpis?.paymentsMadeToday ?? [],
+      outstandingPayables: serverKpis?.outstandingPayables ?? [],
     };
   },
 };

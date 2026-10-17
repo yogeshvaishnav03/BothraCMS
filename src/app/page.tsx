@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   X,
   Plus,
+  ExternalLink,
+  ArrowRight,
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
@@ -26,6 +28,7 @@ import { useLanguage } from "@/lib/i18n";
 export default function DashboardPage() {
   const { t } = useLanguage();
   const [kpi, setKpi] = useState<any>(null);
+  const [activeKpiModal, setActiveKpiModal] = useState<string | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [workers, setWorkers] = useState<any[]>([]);
@@ -230,6 +233,408 @@ export default function DashboardPage() {
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveKpiModal(null);
+      }
+    };
+    if (activeKpiModal) {
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [activeKpiModal]);
+
+  const renderKpiModalContent = () => {
+    switch (activeKpiModal) {
+      case "activeProjects": {
+        const list = kpi?.activeProjects || [];
+        return {
+          icon: <FolderKanban className="w-5 h-5 text-blue-600" />,
+          title: t("kpi.activeProjects", "Active Projects"),
+          badge: `${kpi?.activeProjectsCount ?? 0} Active`,
+          badgeColor: "bg-blue-100 text-blue-800",
+          subtitle: "Projects currently active or in planning across your sites",
+          actionUrl: "/projects",
+          actionLabel: "View All Projects",
+          emptyTitle: "No active projects",
+          emptyDesc: "There are currently no active or planning projects recorded in the system.",
+          content: list.length > 0 ? (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {list.map((p: any) => (
+                <div
+                  key={p.id}
+                  className="p-3.5 bg-slate-50 hover:bg-blue-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">{p.name}</span>
+                      {p.code && (
+                        <span className="text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-mono font-medium">
+                          {p.code}
+                        </span>
+                      )}
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                          p.status === "ACTIVE" || p.status === "IN_PROGRESS"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {p.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
+                      {p.siteName && (
+                        <span>
+                          Site: <strong className="text-slate-700">{p.siteName}</strong>
+                        </span>
+                      )}
+                      {p.managerName && (
+                        <span>
+                          Manager: <strong className="text-slate-700">{p.managerName}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right shrink-0">
+                    <div className="text-[11px] text-slate-500 font-medium">Budget</div>
+                    <div className="text-sm font-black text-slate-900 tabular-nums">
+                      {formatCurrency(p.budgetAmount || 0)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null,
+        };
+      }
+      case "workersPresentToday": {
+        const list = kpi?.workersPresentToday || [];
+        return {
+          icon: <HardHat className="w-5 h-5 text-emerald-600" />,
+          title: t("kpi.workersOnSite", "Workers on Site"),
+          badge: `${kpi?.workersPresentTodayCount ?? 0} Present Today`,
+          badgeColor: "bg-emerald-100 text-emerald-800",
+          subtitle: "Crew members and workforce who have checked in today",
+          actionUrl: "/attendance",
+          actionLabel: "Go to Attendance",
+          emptyTitle: "No crew checked in today",
+          emptyDesc: "No attendance sessions logged for today yet. Use Quick Crew Check-In or the Attendance page.",
+          content: list.length > 0 ? (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {list.map((w: any) => (
+                <div
+                  key={w.id}
+                  className="p-3.5 bg-slate-50 hover:bg-emerald-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">{w.workerName}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                        {w.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
+                      <span>
+                        Trade: <strong className="text-slate-700">{w.trade}</strong>
+                      </span>
+                      {w.siteName && (
+                        <span>
+                          Site: <strong className="text-slate-700">{w.siteName}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right shrink-0">
+                    <div className="text-[11px] text-slate-500 font-medium">Check-In Time</div>
+                    <div className="text-sm font-bold text-emerald-700">
+                      {w.checkInAt
+                        ? new Date(w.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        : "Today"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null,
+        };
+      }
+      case "lowStockItems": {
+        const list = kpi?.lowStockItems || [];
+        return {
+          icon: <Boxes className="w-5 h-5 text-amber-600" />,
+          title: t("kpi.criticalMaterials", "Low Stock Items"),
+          badge: `${kpi?.lowStockItemsCount ?? 0} Alerts`,
+          badgeColor: "bg-amber-100 text-amber-800",
+          subtitle: "Materials currently at or below safety reorder thresholds",
+          actionUrl: "/materials",
+          actionLabel: "View Materials & Reorder",
+          emptyTitle: "All stocks healthy",
+          emptyDesc: "Every active material is currently stocked above its defined minimum reorder threshold.",
+          content: list.length > 0 ? (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {list.map((m: any) => (
+                <div
+                  key={m.id}
+                  className="p-3.5 bg-slate-50 hover:bg-amber-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">{m.name}</span>
+                      {m.code && (
+                        <span className="text-[11px] px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-mono font-medium">
+                          {m.code}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 uppercase tracking-wider">
+                        Reorder Needed
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5">
+                      Category: <strong className="text-slate-700">{m.category}</strong>
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right shrink-0">
+                    <div className="text-[11px] text-slate-500 font-medium">Stock / Min Threshold</div>
+                    <div className="text-sm font-black text-rose-600 tabular-nums">
+                      {m.quantityOnHand}{" "}
+                      <span className="text-xs text-slate-500 font-normal">
+                        / {m.minStockQty} {m.unitCode}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null,
+        };
+      }
+      case "tasksOverdue": {
+        const list = kpi?.tasksOverdue || [];
+        return {
+          icon: <AlertTriangle className="w-5 h-5 text-rose-600" />,
+          title: "Overdue Tasks",
+          badge: `${kpi?.tasksOverdueCount ?? 0} Overdue`,
+          badgeColor: "bg-rose-100 text-rose-800",
+          subtitle: "Uncompleted work items that have exceeded their target deadline",
+          actionUrl: "/tasks",
+          actionLabel: "Resolve Overdue Tasks",
+          emptyTitle: "No overdue tasks",
+          emptyDesc: "Outstanding tasks are proceeding on schedule with zero overdue items.",
+          content: list.length > 0 ? (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {list.map((t: any) => (
+                <div
+                  key={t.id}
+                  className="p-3.5 bg-slate-50 hover:bg-rose-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">{t.title}</span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                          t.priority === "CRITICAL"
+                            ? "bg-rose-100 text-rose-800"
+                            : t.priority === "HIGH"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {t.priority}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
+                      {t.projectName && (
+                        <span>
+                          Project: <strong className="text-slate-700">{t.projectName}</strong>
+                        </span>
+                      )}
+                      {t.assigneeName && (
+                        <span>
+                          Assignee: <strong className="text-slate-700">{t.assigneeName}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right shrink-0">
+                    <div className="text-[11px] text-slate-500 font-medium">Target Due Date</div>
+                    <div className="text-sm font-bold text-rose-600">
+                      {t.dueAt ? formatDate(t.dueAt) : "Overdue"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null,
+        };
+      }
+      case "tasksDueToday": {
+        const list = kpi?.tasksDueToday || [];
+        return {
+          icon: <CheckSquare className="w-5 h-5 text-indigo-600" />,
+          title: "Tasks Due Today",
+          badge: `${kpi?.tasksDueTodayCount ?? 0} Due Today`,
+          badgeColor: "bg-indigo-100 text-indigo-800",
+          subtitle: "Deliverables and milestones scheduled for completion today",
+          actionUrl: "/tasks",
+          actionLabel: "Manage Today's Tasks",
+          emptyTitle: "No tasks due today",
+          emptyDesc: "There are no tasks specifically scheduled to be completed by today.",
+          content: list.length > 0 ? (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {list.map((t: any) => (
+                <div
+                  key={t.id}
+                  className="p-3.5 bg-slate-50 hover:bg-indigo-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">{t.title}</span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                          t.priority === "CRITICAL"
+                            ? "bg-rose-100 text-rose-800"
+                            : t.priority === "HIGH"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-indigo-100 text-indigo-800"
+                        }`}
+                      >
+                        {t.priority}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
+                      {t.projectName && (
+                        <span>
+                          Project: <strong className="text-slate-700">{t.projectName}</strong>
+                        </span>
+                      )}
+                      {t.assigneeName && (
+                        <span>
+                          Assignee: <strong className="text-slate-700">{t.assigneeName}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right shrink-0">
+                    <div className="text-[11px] text-slate-500 font-medium">Due Schedule</div>
+                    <div className="text-sm font-bold text-indigo-700">
+                      {t.dueAt
+                        ? new Date(t.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        : "Today"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null,
+        };
+      }
+      case "paymentsMadeToday": {
+        const list = kpi?.paymentsMadeToday || [];
+        return {
+          icon: <DollarSign className="w-5 h-5 text-emerald-600" />,
+          title: "Paid Today",
+          badge: `${formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)} Paid`,
+          badgeColor: "bg-emerald-100 text-emerald-800",
+          subtitle: "Banking, cash, and online disbursements settled today",
+          actionUrl: "/finance",
+          actionLabel: "Go to Finance & Payments",
+          emptyTitle: "No payments recorded today",
+          emptyDesc: "No banking disbursements or payouts have been logged for today yet.",
+          content: list.length > 0 ? (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {list.map((p: any) => (
+                <div
+                  key={p.id}
+                  className="p-3.5 bg-slate-50 hover:bg-emerald-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">{p.recipientName}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                        {p.method}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
+                      {p.referenceNumber && (
+                        <span>
+                          Ref: <strong className="text-slate-700">{p.referenceNumber}</strong>
+                        </span>
+                      )}
+                      {p.payingAccount && (
+                        <span>
+                          Account: <strong className="text-slate-700">{p.payingAccount}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right shrink-0">
+                    <div className="text-[11px] text-slate-500 font-medium">Disbursed</div>
+                    <div className="text-sm font-black text-emerald-700 tabular-nums">
+                      {formatCurrency(p.amount || 0)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null,
+        };
+      }
+      case "outstandingPayables": {
+        const list = kpi?.outstandingPayables || [];
+        return {
+          icon: <TrendingDown className="w-5 h-5 text-amber-700" />,
+          title: "Total Outstanding Payables",
+          badge: `${formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)} Outstanding`,
+          badgeColor: "bg-amber-100 text-amber-800",
+          subtitle: "Unpaid vendor & contractor invoices and verified bills",
+          actionUrl: "/parties",
+          actionLabel: "View Vendor & Contractor Bills",
+          emptyTitle: "Zero outstanding payables",
+          emptyDesc: "All verified vendor and contractor invoices are completely settled.",
+          content: list.length > 0 ? (
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {list.map((b: any) => (
+                <div
+                  key={b.id}
+                  className="p-3.5 bg-slate-50 hover:bg-amber-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-slate-900 text-sm">{b.billNumber}</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-medium">
+                        {b.partyName}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
+                      <span>
+                        Total Bill: <strong className="text-slate-700">{formatCurrency(b.totalAmount || 0)}</strong>
+                      </span>
+                      {b.dueDate && (
+                        <span>
+                          Due: <strong className="text-slate-700">{formatDate(b.dueDate)}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right shrink-0">
+                    <div className="text-[11px] text-slate-500 font-medium">Remaining Balance</div>
+                    <div className="text-sm font-black text-amber-600 tabular-nums">
+                      {formatCurrency(b.remainingAmount || 0)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null,
+        };
+      }
+      default:
+        return null;
+    }
+  };
+
   return (
     <Shell>
       <div className="space-y-6">
@@ -304,46 +709,64 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Active Projects */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
+            <div
+              onClick={() => setActiveKpiModal("activeProjects")}
+              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
+              title="Click to view Active Projects details"
+            >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.activeProjects", "Active Projects")}</span>
-                <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                <div className="p-2 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                   <FolderKanban className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-2xl font-black text-slate-900">
                 {kpi?.activeProjectsCount ?? 0}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>{projects[0]?.name || "All Active Sites"}</span>
+                <span className="text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                  Details <ExternalLink className="w-3 h-3" />
+                </span>
               </div>
             </div>
 
             {/* Workers Present Today */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
+            <div
+              onClick={() => setActiveKpiModal("workersPresentToday")}
+              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
+              title="Click to view Crew Attendance details"
+            >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.workersOnSite", "Workers on Site")}</span>
-                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                   <HardHat className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-2xl font-black text-slate-900">
                 {kpi?.workersPresentTodayCount ?? 0}
               </div>
-              <div className="text-[11px] text-emerald-600 font-medium mt-1">
-                Checked in today
+              <div className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center justify-between">
+                <span>Checked in today</span>
+                <span className="text-emerald-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                  Details <ExternalLink className="w-3 h-3" />
+                </span>
               </div>
             </div>
 
             {/* Low Stock Alerts */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
+            <div
+              onClick={() => setActiveKpiModal("lowStockItems")}
+              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
+              title="Click to view Low Stock Inventory details"
+            >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.criticalMaterials", "Low Stock Items")}</span>
                 <div
-                  className={`p-2 rounded-lg ${
+                  className={`p-2 rounded-lg transition-colors ${
                     (kpi?.lowStockItemsCount || 0) > 0
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-slate-50 text-slate-500"
+                      ? "bg-amber-100 text-amber-700 group-hover:bg-amber-600 group-hover:text-white"
+                      : "bg-slate-50 text-slate-500 group-hover:bg-slate-200"
                   }`}
                 >
                   <Boxes className="w-4 h-4" />
@@ -356,20 +779,27 @@ export default function DashboardPage() {
               >
                 {kpi?.lowStockItemsCount ?? 0}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Items below reorder limit
+              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                <span>Items below reorder limit</span>
+                <span className="text-amber-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                  Details <ExternalLink className="w-3 h-3" />
+                </span>
               </div>
             </div>
 
             {/* Overdue Tasks */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
+            <div
+              onClick={() => setActiveKpiModal("tasksOverdue")}
+              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-rose-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
+              title="Click to view Overdue Tasks details"
+            >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Overdue Tasks</span>
                 <div
-                  className={`p-2 rounded-lg ${
+                  className={`p-2 rounded-lg transition-colors ${
                     (kpi?.tasksOverdueCount || 0) > 0
-                      ? "bg-rose-50 text-rose-600"
-                      : "bg-slate-50 text-slate-500"
+                      ? "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white"
+                      : "bg-slate-50 text-slate-500 group-hover:bg-slate-200"
                   }`}
                 >
                   <AlertTriangle className="w-4 h-4" />
@@ -382,48 +812,69 @@ export default function DashboardPage() {
               >
                 {kpi?.tasksOverdueCount ?? 0}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Needs supervisor action
+              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                <span>Needs supervisor action</span>
+                <span className="text-rose-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                  Details <ExternalLink className="w-3 h-3" />
+                </span>
               </div>
             </div>
 
             {/* Tasks Due Today */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
+            <div
+              onClick={() => setActiveKpiModal("tasksDueToday")}
+              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
+              title="Click to view Tasks Due Today details"
+            >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Tasks Due Today</span>
-                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                   <CheckSquare className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-2xl font-black text-slate-900">
                 {kpi?.tasksDueTodayCount ?? 0}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Scheduled completion today
+              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                <span>Scheduled completion today</span>
+                <span className="text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                  Details <ExternalLink className="w-3 h-3" />
+                </span>
               </div>
             </div>
 
             {/* Payments Today */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
+            <div
+              onClick={() => setActiveKpiModal("paymentsMadeToday")}
+              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
+              title="Click to view Payments Made Today details"
+            >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Paid Today</span>
-                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                   <DollarSign className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-xl font-black text-slate-900 tabular-nums">
                 {formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}
               </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Posted banking disbursements
+              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                <span>Posted banking disbursements</span>
+                <span className="text-emerald-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                  Details <ExternalLink className="w-3 h-3" />
+                </span>
               </div>
             </div>
 
             {/* Total Outstanding Payables */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-slate-300 transition-all col-span-2">
+            <div
+              onClick={() => setActiveKpiModal("outstandingPayables")}
+              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md transition-all col-span-2 cursor-pointer group select-none active:scale-[0.99]"
+              title="Click to view Outstanding Payables breakdown"
+            >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Total Outstanding Payables</span>
-                <div className="p-2 rounded-lg bg-amber-50 text-amber-700">
+                <div className="p-2 rounded-lg bg-amber-50 text-amber-700 group-hover:bg-amber-600 group-hover:text-white transition-colors">
                   <TrendingDown className="w-4 h-4" />
                 </div>
               </div>
@@ -432,9 +883,9 @@ export default function DashboardPage() {
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Verified across vendor & contractor bills</span>
-                <Link href="/parties" className="text-amber-600 font-semibold hover:underline">
-                  View Statements →
-                </Link>
+                <span className="text-amber-600 font-semibold group-hover:underline flex items-center gap-0.5">
+                  View Breakdown →
+                </span>
               </div>
             </div>
           </div>
@@ -769,6 +1220,86 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Modal: KPI Short Details */}
+        {activeKpiModal && (() => {
+          const modalData = renderKpiModalContent();
+          if (!modalData) return null;
+          return (
+            <div
+              className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+              onClick={() => setActiveKpiModal(null)}
+            >
+              <div
+                className="bg-white rounded-2xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200/60 shrink-0">
+                      {modalData.icon}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-slate-900 text-base sm:text-lg">
+                          {modalData.title}
+                        </h3>
+                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${modalData.badgeColor}`}>
+                          {modalData.badge}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {modalData.subtitle}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActiveKpiModal(null)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+                    aria-label="Close modal"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Modal Body / Items List */}
+                <div className="p-5 flex-1 overflow-y-auto">
+                  {modalData.content ? (
+                    modalData.content
+                  ) : (
+                    <div className="py-12 px-4 text-center flex flex-col items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                        <CheckCircle2 className="w-6 h-6 text-slate-400" />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-800">{modalData.emptyTitle}</p>
+                      <p className="text-xs text-slate-500 max-w-xs mt-1">{modalData.emptyDesc}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveKpiModal(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/80 rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                  <Link
+                    href={modalData.actionUrl}
+                    onClick={() => setActiveKpiModal(null)}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+                  >
+                    <span>{modalData.actionLabel}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </Shell>
   );
