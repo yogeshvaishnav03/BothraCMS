@@ -15,9 +15,14 @@ import {
   X,
   Search,
   Trash2,
+  Landmark,
+  XCircle,
+  Clock,
+  UserCheck,
 } from "lucide-react";
 
 export default function FinancePage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [bills, setBills] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
@@ -28,7 +33,13 @@ export default function FinancePage() {
 
   // Payment Modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [recipientType, setRecipientType] = useState<"VENDOR" | "CONTRACTOR" | "EMPLOYEE">("VENDOR");
+  const [recipientName, setRecipientName] = useState("");
   const [selectedPartyId, setSelectedPartyId] = useState("");
+  const [payingAccount, setPayingAccount] = useState("HDFC Bank Operating A/C (A/C: ...4421)");
+  const [customPayingAccount, setCustomPayingAccount] = useState("");
+  const [approvalQuery, setApprovalQuery] = useState("");
+  const [autoApprove, setAutoApprove] = useState(false);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("BANK_TRANSFER");
   const [referenceNumber, setReferenceNumber] = useState("");
@@ -60,13 +71,20 @@ export default function FinancePage() {
   const loadData = () => {
     setLoading(true);
     Promise.all([
+      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
       fetch("/api/finance/bills").then((r) => r.json()),
       fetch("/api/finance/payments").then((r) => r.json()),
       fetch("/api/parties").then((r) => r.json()),
       fetch("/api/projects").then((r) => r.json()),
       fetch("/api/materials").then((r) => r.json()),
     ])
-      .then(([billsRes, paymentsRes, partiesRes, projRes, matRes]) => {
+      .then(([meRes, billsRes, paymentsRes, partiesRes, projRes, matRes]) => {
+        if (meRes.success && meRes.data) {
+          setCurrentUser(meRes.data.user);
+          if (meRes.data.user.role === "SUPER_ADMIN") {
+            setAutoApprove(true);
+          }
+        }
         if (billsRes.success) setBills(billsRes.data || []);
         if (paymentsRes.success) setPayments(paymentsRes.data || []);
         if (partiesRes.success) setParties(partiesRes.data || []);
@@ -91,16 +109,52 @@ export default function FinancePage() {
 
     const paymentAmountPaise = Math.round(parseFloat(amount) * 100);
     const idempotencyKey = `pay-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const effectivePayingAccount =
+      payingAccount === "CUSTOM" ? customPayingAccount.trim() : payingAccount.trim();
+
+    if (!effectivePayingAccount) {
+      setErrorMessage("Please specify the paying account / bank source from which to pay");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!approvalQuery || approvalQuery.trim().length === 0) {
+      setErrorMessage("Please specify the reason / purpose of this payment query");
+      setSubmitting(false);
+      return;
+    }
+
+    let finalPartyId: string | undefined = undefined;
+    let finalRecipientName = recipientName.trim();
+
+    if (recipientType !== "EMPLOYEE" && selectedPartyId) {
+      finalPartyId = selectedPartyId;
+      const foundParty = parties.find((p) => p.id === selectedPartyId);
+      if (foundParty) {
+        finalRecipientName = foundParty.name;
+      }
+    }
+
+    if (!finalPartyId && !finalRecipientName) {
+      setErrorMessage("Please select a vendor/contractor or enter the recipient name");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const payload: any = {
-        partyId: selectedPartyId,
+        partyId: finalPartyId,
+        recipientType,
+        recipientName: finalRecipientName,
+        payingAccount: effectivePayingAccount,
+        approvalQuery: approvalQuery.trim(),
         paymentDate: new Date().toISOString(),
         amount: paymentAmountPaise,
         method,
         referenceNumber,
         idempotencyKey,
         notes: notes || undefined,
+        autoApprove: currentUser?.role === "SUPER_ADMIN" ? autoApprove : false,
       };
 
       if (selectedBillId) {
@@ -122,13 +176,20 @@ export default function FinancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to record payment");
       } else {
+        const isPending = data.data?.payment?.status === "PENDING_APPROVAL";
         setStatusMessage(
-          `Payment of ₹${amount} posted successfully with idempotency key ${idempotencyKey}`
+          isPending
+            ? `Payment approval query of ₹${amount} for ${finalRecipientName} submitted to Super Admin for confirmation from account "${effectivePayingAccount}".`
+            : `Payment of ₹${amount} posted successfully from account "${effectivePayingAccount}".`
         );
         setShowPaymentModal(false);
         setAmount("");
         setReferenceNumber("");
         setSelectedBillId("");
+        setSelectedPartyId("");
+        setRecipientName("");
+        setApprovalQuery("");
+        setCustomPayingAccount("");
         setNotes("");
         loadData();
       }
@@ -136,6 +197,59 @@ export default function FinancePage() {
       setErrorMessage("Network error during payment submission");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleApprovePayment = async (payment: any) => {
+    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+    const confirmed = confirm(
+      `Confirm & Authorize Payment of ₹${(payment.amount / 100).toFixed(2)} to ${payeeName}?\nPaid from: ${
+        payment.payingAccount || "Operating Account"
+      }`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/finance/payments/${payment.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: "Approved via Finance Register" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStatusMessage(data.data?.message || `Payment to ${payeeName} approved and posted.`);
+        loadData();
+      } else {
+        setErrorMessage(data.error?.message || "Failed to approve payment");
+      }
+    } catch {
+      setErrorMessage("Network error approving payment");
+    }
+  };
+
+  const handleRejectPayment = async (payment: any) => {
+    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+    const reason = prompt(
+      `Provide rejection reason for payment to ${payeeName}:`,
+      "Payment query not approved"
+    );
+    if (!reason) return;
+
+    try {
+      const res = await fetch(`/api/finance/payments/${payment.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStatusMessage(`Payment query to ${payeeName} rejected.`);
+        loadData();
+      } else {
+        setErrorMessage(data.error?.message || "Failed to reject payment");
+      }
+    } catch {
+      setErrorMessage("Network error rejecting payment");
     }
   };
 
@@ -397,36 +511,80 @@ export default function FinancePage() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Payee / Vendor</th>
-                    <th className="py-3 px-4">Method / Reference</th>
+                    <th className="py-3 px-4">Date & Ref</th>
+                    <th className="py-3 px-4">Payee & Type</th>
+                    <th className="py-3 px-4">Paying Account (Source)</th>
+                    <th className="py-3 px-4">Method</th>
+                    <th className="py-3 px-4">Reason / Query</th>
                     <th className="py-3 px-4">Allocated To</th>
                     <th className="py-3 px-4 text-right">Amount</th>
                     <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {payments.map((p) => {
                     const isReversed = p.status === "REVERSED";
+                    const isPending = p.status === "PENDING_APPROVAL";
+                    const isRejected = p.status === "REJECTED";
+                    const payee = p.recipientName || p.party?.name || "Recipient";
+                    const rType = p.recipientType || (p.party?.type) || "VENDOR";
+                    const canSuperAdminAct = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4 text-xs font-mono text-slate-600">
-                          {formatDate(p.paymentDate)}
+                          <div className="font-bold text-slate-800">{formatDate(p.paymentDate)}</div>
+                          <div className="text-[11px] text-slate-400">Ref: {p.referenceNumber}</div>
                         </td>
                         <td className="py-3 px-4">
-                          <Link
-                            href={`/parties/${p.partyId}`}
-                            className="font-bold text-slate-900 hover:text-amber-600 hover:underline"
-                          >
-                            {p.party?.name}
-                          </Link>
+                          <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                            {p.partyId ? (
+                              <Link
+                                href={`/parties/${p.partyId}`}
+                                className="hover:text-amber-600 hover:underline"
+                              >
+                                {payee}
+                              </Link>
+                            ) : (
+                              <span>{payee}</span>
+                            )}
+                            <span
+                              className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                rType === "EMPLOYEE"
+                                  ? "bg-amber-50 text-amber-800 border-amber-300"
+                                  : rType === "CONTRACTOR"
+                                  ? "bg-purple-50 text-purple-800 border-purple-300"
+                                  : "bg-blue-50 text-blue-800 border-blue-300"
+                              }`}
+                            >
+                              {rType}
+                            </span>
+                          </div>
+                          {p.creator?.name && (
+                            <div className="text-[10px] text-slate-400">By: {p.creator.name}</div>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-xs">
-                          <div className="font-semibold text-slate-800">{p.method}</div>
-                          <div className="text-[11px] font-mono text-slate-500">
-                            Ref: {p.referenceNumber}
+                          <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                            <Landmark className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{p.payingAccount || "Company Primary A/C"}</span>
                           </div>
+                        </td>
+                        <td className="py-3 px-4 text-xs">
+                          <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                            {p.method}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-xs max-w-xs">
+                          <div className="text-slate-700 truncate" title={p.approvalQuery || p.notes || ""}>
+                            {p.approvalQuery || p.notes || "—"}
+                          </div>
+                          {isRejected && p.rejectionReason && (
+                            <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
+                              Declined: {p.rejectionReason}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-xs text-slate-600">
                           {p.allocations && p.allocations.length > 0 ? (
@@ -440,23 +598,61 @@ export default function FinancePage() {
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-black tabular-nums">
-                          <span className={isReversed ? "line-through text-slate-400" : "text-emerald-600"}>
+                          <span
+                            className={
+                              isReversed || isRejected
+                                ? "line-through text-slate-400"
+                                : isPending
+                                ? "text-amber-700 font-bold"
+                                : "text-emerald-600"
+                            }
+                          >
                             {formatCurrency(p.amount)}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                              isReversed
-                                ? "bg-rose-100 text-rose-800"
-                                : "bg-emerald-100 text-emerald-800"
-                            }`}
-                          >
-                            {p.status}
-                          </span>
+                          {isPending ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Pending Super Admin</span>
+                            </span>
+                          ) : isRejected ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-rose-100 text-rose-800 border border-rose-200">
+                              Rejected
+                            </span>
+                          ) : isReversed ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-slate-100 text-slate-700">
+                              Reversed
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-800">
+                              Approved
+                            </span>
+                          )}
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          {!isReversed && (
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          {isPending && canSuperAdminAct ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleApprovePayment(p)}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs transition"
+                                title="Confirm & Approve disbursement"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>Approve</span>
+                              </button>
+                              <button
+                                onClick={() => handleRejectPayment(p)}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition"
+                                title="Reject disbursement query"
+                              >
+                                <XCircle className="w-3 h-3" />
+                                <span>Reject</span>
+                              </button>
+                            </div>
+                          ) : isPending ? (
+                            <span className="text-[11px] text-amber-700 font-medium italic">Awaiting Admin</span>
+                          ) : p.status === "POSTED" && !isReversed ? (
                             <button
                               onClick={() => {
                                 setPaymentToReverse(p);
@@ -467,7 +663,7 @@ export default function FinancePage() {
                               <RotateCcw className="w-3 h-3" />
                               <span>Reverse</span>
                             </button>
-                          )}
+                          ) : null}
                         </td>
                       </tr>
                     );
@@ -539,11 +735,11 @@ export default function FinancePage() {
         {/* Modal: Record Payment */}
         {showPaymentModal && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90vh]">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-emerald-600" />
-                  <span>Record Payment & Allocate</span>
+                  <span>Record Payment & Raise Approval Query</span>
                 </div>
                 <button
                   onClick={() => setShowPaymentModal(false)}
@@ -554,31 +750,119 @@ export default function FinancePage() {
               </div>
 
               <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                {/* 1. Recipient Type Selector */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Select Payee (Vendor / Contractor)
+                    Payee / Recipient Category
+                  </label>
+                  <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-lg">
+                    {(["VENDOR", "CONTRACTOR", "EMPLOYEE"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => {
+                          setRecipientType(t);
+                          setSelectedBillId("");
+                          setSelectedPartyId("");
+                          setRecipientName("");
+                        }}
+                        className={`py-1.5 text-xs font-bold rounded-md transition ${
+                          recipientType === t
+                            ? "bg-white text-slate-900 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {t === "VENDOR" ? "Vendor" : t === "CONTRACTOR" ? "Contractor" : "Employee"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Recipient Selector / Name */}
+                {recipientType === "EMPLOYEE" ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Employee Name & Designation *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Kumar (Site Supervisor)"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Select {recipientType === "VENDOR" ? "Vendor" : "Contractor"} *
+                    </label>
+                    <select
+                      value={selectedPartyId}
+                      onChange={(e) => {
+                        setSelectedPartyId(e.target.value);
+                        setSelectedBillId("");
+                        const p = parties.find((pt) => pt.id === e.target.value);
+                        if (p) setRecipientName(p.name);
+                      }}
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    >
+                      <option value="">-- Choose {recipientType} --</option>
+                      {parties
+                        .filter((p) => (recipientType === "CONTRACTOR" ? p.type === "CONTRACTOR" : p.type === "VENDOR"))
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} — Outstanding: {formatCurrency(p.outstandingBalance)}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* 3. Paying Account / Source Bank (Mandatory) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1.5">
+                    <Landmark className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Account From Which To Pay (Source Account) *</span>
                   </label>
                   <select
-                    value={selectedPartyId}
-                    onChange={(e) => {
-                      setSelectedPartyId(e.target.value);
-                      setSelectedBillId("");
-                    }}
+                    value={payingAccount}
+                    onChange={(e) => setPayingAccount(e.target.value)}
                     required
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {parties.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — Outstanding: {formatCurrency(p.outstandingBalance)}
-                      </option>
-                    ))}
+                    <option value="HDFC Bank Operating A/C (A/C: ...4421)">
+                      HDFC Bank Operating A/C (A/C: ...4421)
+                    </option>
+                    <option value="ICICI Bank Project Escrow A/C (A/C: ...9012)">
+                      ICICI Bank Project Escrow A/C (A/C: ...9012)
+                    </option>
+                    <option value="State Bank of India CMS Current A/C (A/C: ...1109)">
+                      State Bank of India CMS Current A/C (A/C: ...1109)
+                    </option>
+                    <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
+                    <option value="CUSTOM">Other / Custom Bank Account...</option>
                   </select>
+
+                  {payingAccount === "CUSTOM" && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter Bank Name, Branch & Account details"
+                      value={customPayingAccount}
+                      onChange={(e) => setCustomPayingAccount(e.target.value)}
+                      className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    />
+                  )}
                 </div>
 
+                {/* 4. Amount and Method */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Payment Amount (₹)
+                      Payment Amount (₹) *
                     </label>
                     <input
                       type="number"
@@ -588,12 +872,12 @@ export default function FinancePage() {
                       placeholder="e.g. 4000"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono font-bold"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Payment Method
+                      Payment Method *
                     </label>
                     <select
                       value={method}
@@ -608,21 +892,38 @@ export default function FinancePage() {
                   </div>
                 </div>
 
+                {/* 5. Reference Number */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Reference / UTR / Cheque Number
+                    Reference / UTR / Cheque Number *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. UTR-HDFC-991823"
+                    placeholder="e.g. UTR-HDFC-991823 / CHQ-10492"
                     value={referenceNumber}
                     onChange={(e) => setReferenceNumber(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
                   />
                 </div>
 
-                {partyBills.length > 0 && (
+                {/* 6. Reason / Approval Query (Mandatory) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Reason & Purpose for Payment (Approval Query) *
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="e.g. Advance payment for column rebar tying week 42, Steel shipment delivery settlement, Site food allowance reimbursement"
+                    value={approvalQuery}
+                    onChange={(e) => setApprovalQuery(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+
+                {/* 7. Bill Allocation if Vendor / Contractor */}
+                {recipientType !== "EMPLOYEE" && partyBills.length > 0 && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Allocate to Pending Bill (Optional)
@@ -632,7 +933,7 @@ export default function FinancePage() {
                       onChange={(e) => setSelectedBillId(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
                     >
-                      <option value="">Leave as unallocated payment</option>
+                      <option value="">Leave as unallocated payment / general advance</option>
                       {partyBills.map((b) => (
                         <option key={b.id} value={b.id}>
                           Bill #{b.billNumber} — Pending: {formatCurrency(b.outstandingAmount)}
@@ -642,18 +943,29 @@ export default function FinancePage() {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Notes
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Paid as per milestone 2 agreement"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
-                </div>
+                {/* 8. Super Admin Auto-Approve Checkbox or Normal User Alert */}
+                {currentUser?.role === "SUPER_ADMIN" ? (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={autoApprove}
+                        onChange={(e) => setAutoApprove(e.target.checked)}
+                        className="w-4 h-4 text-emerald-600 rounded"
+                      />
+                      <span className="text-xs font-bold text-amber-950">
+                        Direct Authorize / Instant Super Admin Approval (Immediate Post)
+                      </span>
+                    </label>
+                    <p className="text-[11px] text-amber-800 mt-1">
+                      Uncheck to submit as a pending query for review on the Super Admin console.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 leading-relaxed">
+                    ℹ️ <strong>Super Admin Confirmation Required:</strong> Submitting this form will raise an approval query to Super Admin with your specified reason and paying account. Disbursement will be posted once confirmed.
+                  </div>
+                )}
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                   <button
@@ -666,9 +978,16 @@ export default function FinancePage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
+                    className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    {submitting ? "Processing..." : "Post Payment"}
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>
+                      {submitting
+                        ? "Submitting Query..."
+                        : currentUser?.role === "SUPER_ADMIN" && autoApprove
+                        ? "Post & Confirm Payment"
+                        : "Submit Payment Approval Query"}
+                    </span>
                   </button>
                 </div>
               </form>

@@ -30,7 +30,11 @@ export interface PaymentAllocationInput {
 
 export interface RecordPaymentInput {
   organizationId: string;
-  partyId: string;
+  partyId?: string;
+  recipientType?: string; // VENDOR, CONTRACTOR, EMPLOYEE
+  recipientName?: string;
+  payingAccount?: string; // Source bank/cash account
+  approvalQuery?: string; // Reason or query submitted for Super Admin approval
   projectId?: string;
   paymentDate: Date;
   amount: number; // paise
@@ -42,6 +46,8 @@ export interface RecordPaymentInput {
   notes?: string;
   userId: string;
   role: Role;
+  autoApprove?: boolean;
+  status?: string;
 }
 
 export interface ReversePaymentInput {
@@ -153,13 +159,43 @@ export class FinanceService {
   }
 
   /**
-   * Record a payment with idempotency protection and atomic bill allocation
+   * Record a payment with idempotency protection, paying account, and approval query support
    */
   static async recordPayment(input: RecordPaymentInput) {
-    assertPermission(input.role, "finance:write");
+    const isQuerySubmission = input.autoApprove === false || Boolean(input.approvalQuery);
+    const isStaffQuery = isQuerySubmission && (input.role === "SITE_SUPERVISOR" || input.role === "PROJECT_MANAGER");
+    if (!isStaffQuery) {
+      assertPermission(input.role, "finance:write");
+    }
 
     if (input.amount <= 0) {
       throw new Error("Payment amount must be strictly greater than zero");
+    }
+
+    const payingAccount = (input.payingAccount || "Company Primary Operating A/C").trim();
+    if (!payingAccount) {
+      throw new Error("Paying account is mandatory for disbursement");
+    }
+
+    const approvalQuery = input.approvalQuery?.trim() || input.notes?.trim() || "Payment disbursement";
+
+    let recipientType = input.recipientType || "VENDOR";
+    let recipientName = input.recipientName?.trim();
+    let party: any = null;
+
+    if (input.partyId) {
+      party = await prisma.party.findFirst({
+        where: { id: input.partyId, organizationId: input.organizationId },
+      });
+      if (!party) {
+        throw new Error("NotFound: Vendor/Contractor not found");
+      }
+      recipientName = recipientName || party.name;
+      recipientType = input.recipientType || party.type || "VENDOR";
+    } else {
+      if (!recipientName) {
+        throw new Error("Recipient name or valid Party is required");
+      }
     }
 
     // Idempotency Check
@@ -181,13 +217,6 @@ export class FinanceService {
       };
     }
 
-    const party = await prisma.party.findFirst({
-      where: { id: input.partyId, organizationId: input.organizationId },
-    });
-    if (!party) {
-      throw new Error("NotFound: Vendor/Contractor not found");
-    }
-
     if (input.projectId) {
       const project = await prisma.project.findFirst({
         where: { id: input.projectId, organizationId: input.organizationId },
@@ -195,6 +224,35 @@ export class FinanceService {
       if (!project) {
         throw new Error("NotFound: Project not found or outside organization scope");
       }
+    }
+
+    // Determine status & approval:
+    let status = input.status;
+    let approvedBy: string | null = null;
+    let approvedAt: Date | null = null;
+
+    if (isStaffQuery) {
+      status = "PENDING_APPROVAL";
+    } else if (!status) {
+      if (input.autoApprove === true) {
+        status = "POSTED";
+        approvedBy = `${input.role} (Auto-Approved)`;
+        approvedAt = new Date();
+      } else if (input.autoApprove === false) {
+        status = "PENDING_APPROVAL";
+      } else if (input.approvalQuery) {
+        // Query submitted explicitly to Super Admin
+        status = "PENDING_APPROVAL";
+      } else if (input.role === "SUPER_ADMIN" || input.role === "ORG_ADMIN") {
+        status = "POSTED";
+        approvedBy = `${input.role} (Direct)`;
+        approvedAt = new Date();
+      } else {
+        status = "PENDING_APPROVAL";
+      }
+    } else if (status === "POSTED") {
+      approvedBy = `${input.role} (Direct)`;
+      approvedAt = new Date();
     }
 
     // Validate allocations if provided
@@ -214,7 +272,11 @@ export class FinanceService {
         for (const alloc of input.allocations) {
           const bill = await tx.bill.findUnique({
             where: { id: alloc.billId },
-            include: { allocations: true },
+            include: {
+              allocations: {
+                where: { reversedAt: null, payment: { status: "POSTED" } },
+              },
+            },
           });
 
           if (!bill || bill.organizationId !== input.organizationId) {
@@ -222,9 +284,7 @@ export class FinanceService {
           }
 
           const currentPaidOnBill = roundPaise(
-            bill.allocations
-              .filter((a: any) => !a.reversedAt)
-              .reduce((s: number, a: any) => s + (a.amount || 0), 0)
+            bill.allocations.reduce((s: number, a: any) => s + (a.amount || 0), 0)
           );
           const currentOutstanding = roundPaise(bill.totalAmount - currentPaidOnBill);
 
@@ -240,14 +300,20 @@ export class FinanceService {
       const payment = await tx.payment.create({
         data: {
           organizationId: input.organizationId,
-          partyId: input.partyId,
+          partyId: input.partyId ?? null,
+          recipientType,
+          recipientName,
+          payingAccount,
+          approvalQuery,
           projectId: input.projectId ?? null,
           paymentDate: input.paymentDate,
           amount: input.amount,
           currency: input.currency ?? "INR",
           method: input.method,
           referenceNumber: input.referenceNumber,
-          status: "POSTED",
+          status,
+          approvedBy,
+          approvedAt,
           idempotencyKey: input.idempotencyKey,
           notes: input.notes ?? null,
           createdBy: input.userId,
@@ -268,16 +334,23 @@ export class FinanceService {
         data: {
           organizationId: input.organizationId,
           actorUserId: input.userId,
-          action: "PAYMENT_POSTED",
+          action: status === "POSTED" ? "PAYMENT_POSTED" : "PAYMENT_APPROVAL_REQUESTED",
           entityType: "PAYMENT",
           entityId: payment.id,
           afterJson: JSON.stringify({
-            partyName: party.name,
+            partyName: recipientName,
+            recipientType,
+            payingAccount,
+            approvalQuery,
             amount: payment.amount,
             method: payment.method,
             referenceNumber: payment.referenceNumber,
+            status,
             allocationsCount: payment.allocations.length,
           }),
+          reason: status === "POSTED"
+            ? `Payment of ₹${(payment.amount / 100).toFixed(2)} posted directly to ${recipientName} from account ${payingAccount}`
+            : `Payment approval query of ₹${(payment.amount / 100).toFixed(2)} raised to Super Admin for ${recipientName} from account ${payingAccount}. Reason: ${approvalQuery}`,
         },
       });
 
@@ -285,6 +358,187 @@ export class FinanceService {
         payment,
         idempotentReplay: false,
       };
+    });
+  }
+
+  /**
+   * Super Admin confirms and approves a pending payment disbursement
+   */
+  static async approvePayment(input: {
+    organizationId?: string;
+    paymentId: string;
+    userId: string;
+    role: Role;
+    approverName: string;
+    notes?: string;
+  }) {
+    if (input.role !== "SUPER_ADMIN" && input.role !== "ORG_ADMIN") {
+      throw new Error("Super Admin or Organization Admin credentials required to approve payments");
+    }
+
+    const where: any = { id: input.paymentId };
+    if (input.role !== "SUPER_ADMIN" && input.organizationId) {
+      where.organizationId = input.organizationId;
+    }
+
+    const payment = await prisma.payment.findFirst({
+      where,
+      include: { allocations: { include: { bill: true } }, party: true },
+    });
+
+    if (!payment) {
+      throw new Error("NotFound: Payment not found");
+    }
+
+    if (payment.status === "POSTED") {
+      return payment; // Idempotent approval
+    }
+
+    if (payment.status !== "PENDING_APPROVAL") {
+      throw new Error(`Cannot approve payment in '${payment.status}' status`);
+    }
+
+    return await prisma.$transaction(async (tx: any) => {
+      // Validate allocations outstanding balances
+      if (payment.allocations && payment.allocations.length > 0) {
+        for (const alloc of payment.allocations) {
+          const bill = await tx.bill.findUnique({
+            where: { id: alloc.billId },
+            include: {
+              allocations: {
+                where: { reversedAt: null, payment: { status: "POSTED" } },
+              },
+            },
+          });
+          if (bill) {
+            const alreadyPaid = roundPaise(
+              bill.allocations.reduce((s: number, a: any) => s + (a.amount || 0), 0)
+            );
+            const outstanding = roundPaise(bill.totalAmount - alreadyPaid);
+            if (alloc.amount > outstanding) {
+              throw new Error(
+                `Allocation of ${alloc.amount} paise exceeds current outstanding balance of ${outstanding} paise on Bill #${bill.billNumber}`
+              );
+            }
+          }
+        }
+      }
+
+      const now = new Date();
+      const approverStr = `${input.approverName} (${input.role})`;
+
+      const updatedPayment = await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: "POSTED",
+          approvedBy: approverStr,
+          approvedAt: now,
+          notes: input.notes
+            ? `${payment.notes ? payment.notes + "\n" : ""}[Approved by ${approverStr}]: ${input.notes}`
+            : payment.notes,
+        },
+        include: { allocations: { include: { bill: true } }, party: true, creator: true },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          organizationId: payment.organizationId,
+          actorUserId: input.userId,
+          action: "PAYMENT_APPROVED",
+          entityType: "PAYMENT",
+          entityId: payment.id,
+          beforeJson: JSON.stringify({ status: "PENDING_APPROVAL" }),
+          afterJson: JSON.stringify({
+            status: "POSTED",
+            approvedBy: updatedPayment.approvedBy,
+            approvedAt: updatedPayment.approvedAt,
+            amount: updatedPayment.amount,
+            payingAccount: updatedPayment.payingAccount,
+            recipientName: updatedPayment.recipientName,
+          }),
+          reason: `Payment disbursement of ₹${(payment.amount / 100).toFixed(2)} to ${payment.recipientName || payment.party?.name || "payee"} confirmed and approved by ${approverStr} from account ${payment.payingAccount || "Primary Account"}`,
+        },
+      });
+
+      return updatedPayment;
+    });
+  }
+
+  /**
+   * Super Admin rejects a pending payment query
+   */
+  static async rejectPayment(input: {
+    organizationId?: string;
+    paymentId: string;
+    userId: string;
+    role: Role;
+    rejectorName: string;
+    reason: string;
+  }) {
+    if (input.role !== "SUPER_ADMIN" && input.role !== "ORG_ADMIN") {
+      throw new Error("Super Admin or Organization Admin credentials required to reject payments");
+    }
+
+    if (!input.reason || input.reason.trim().length < 3) {
+      throw new Error("A clear rejection reason is mandatory");
+    }
+
+    const where: any = { id: input.paymentId };
+    if (input.role !== "SUPER_ADMIN" && input.organizationId) {
+      where.organizationId = input.organizationId;
+    }
+
+    const payment = await prisma.payment.findFirst({
+      where,
+      include: { allocations: true, party: true },
+    });
+
+    if (!payment) {
+      throw new Error("NotFound: Payment not found");
+    }
+
+    if (payment.status !== "PENDING_APPROVAL") {
+      throw new Error(`Cannot reject payment in '${payment.status}' status`);
+    }
+
+    return await prisma.$transaction(async (tx: any) => {
+      // Remove any allocations so bill balances are untouched
+      await tx.paymentAllocation.deleteMany({
+        where: { paymentId: payment.id },
+      });
+
+      const now = new Date();
+      const rejectorStr = `${input.rejectorName} (${input.role})`;
+
+      const updatedPayment = await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: "REJECTED",
+          rejectionReason: input.reason.trim(),
+          approvedBy: rejectorStr,
+          approvedAt: now,
+        },
+        include: { party: true, creator: true },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          organizationId: payment.organizationId,
+          actorUserId: input.userId,
+          action: "PAYMENT_REJECTED",
+          entityType: "PAYMENT",
+          entityId: payment.id,
+          beforeJson: JSON.stringify({ status: "PENDING_APPROVAL" }),
+          afterJson: JSON.stringify({
+            status: "REJECTED",
+            rejectionReason: input.reason,
+            approvedBy: rejectorStr,
+          }),
+          reason: `Payment disbursement query of ₹${(payment.amount / 100).toFixed(2)} to ${payment.recipientName || payment.party?.name || "payee"} rejected by ${rejectorStr}: ${input.reason}`,
+        },
+      });
+
+      return updatedPayment;
     });
   }
 
@@ -364,7 +618,7 @@ export class FinanceService {
       where: { partyId, organizationId, status: "POSTED" },
       include: {
         allocations: {
-          where: { reversedAt: null },
+          where: { reversedAt: null, payment: { status: "POSTED" } },
         },
         lines: true,
       },

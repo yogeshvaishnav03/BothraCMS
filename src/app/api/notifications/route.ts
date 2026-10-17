@@ -13,7 +13,8 @@ export interface OperationalAlert {
     | "ATTENDANCE_ANOMALY"
     | "DAILY_REPORT_MISSING"
     | "PURCHASE_ORDER"
-    | "ORDER_APPROVAL_REQUEST";
+    | "ORDER_APPROVAL_REQUEST"
+    | "PAYMENT_APPROVAL_REQUEST";
   severity: "CRITICAL" | "WARNING" | "INFO";
   title: string;
   message: string;
@@ -58,6 +59,35 @@ export async function GET(req: NextRequest) {
           message: `${po.creator?.name || "Requester"} submitted order query for ${po.quantity} ${po.unitCode} ${po.material.name} from ${po.vendor.name}${totalStr}. Super Admin confirmation required.`,
           href: "/admin",
           createdAt: po.createdAt.toISOString(),
+        });
+      }
+
+      // 1b. Pending Payment Approval Queries for Super Admin / Org Admin
+      const pendingPayments = await prisma.payment.findMany({
+        where: {
+          organizationId: user.organizationId,
+          status: "PENDING_APPROVAL",
+        },
+        include: {
+          party: true,
+          creator: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      });
+
+      for (const pay of pendingPayments) {
+        const payee = pay.recipientName || pay.party?.name || "Payee";
+        const amountStr = `₹${(pay.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+        const accountStr = pay.payingAccount ? ` from ${pay.payingAccount}` : "";
+        alerts.push({
+          id: `payment-approval-${pay.id}`,
+          type: "PAYMENT_APPROVAL_REQUEST",
+          severity: "WARNING",
+          title: `Super Admin Approval: Payment to ${payee} (${amountStr})`,
+          message: `${pay.creator?.name || "Finance team"} submitted payment query of ${amountStr} to ${pay.recipientType || "Party"} "${payee}"${accountStr}. Reason: "${pay.approvalQuery || "Disbursement"}". Super Admin confirmation required.`,
+          href: "/admin",
+          createdAt: pay.createdAt.toISOString(),
         });
       }
     }

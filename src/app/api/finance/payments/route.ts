@@ -8,7 +8,12 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 const createPaymentSchema = z.object({
-  partyId: z.string().min(1),
+  partyId: z.string().optional(),
+  recipientType: z.enum(["VENDOR", "CONTRACTOR", "EMPLOYEE"]).optional().default("VENDOR"),
+  recipientName: z.string().optional(),
+  payingAccount: z.string().min(1, "Paying account is required"),
+  approvalQuery: z.string().optional(),
+  reason: z.string().optional(),
   projectId: z.string().min(1).optional(),
   paymentDate: z.string(),
   amount: z.number().positive(),
@@ -16,12 +21,15 @@ const createPaymentSchema = z.object({
   referenceNumber: z.string().min(1),
   idempotencyKey: z.string().min(1),
   notes: z.string().optional(),
-  allocations: z.array(
-    z.object({
-      billId: z.string().min(1),
-      amount: z.number().positive(),
-    })
-  ).optional(),
+  autoApprove: z.boolean().optional(),
+  allocations: z
+    .array(
+      z.object({
+        billId: z.string().min(1),
+        amount: z.number().positive(),
+      })
+    )
+    .optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -31,15 +39,24 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const partyId = searchParams.get("partyId");
+    const status = searchParams.get("status");
+    const allTenants = searchParams.get("allTenants") === "true";
 
-    const where: any = { organizationId: user.organizationId };
+    const where: any = {};
+    if (!allTenants || user.role !== "SUPER_ADMIN") {
+      where.organizationId = user.organizationId;
+    }
+
     if (partyId) where.partyId = partyId;
+    if (status) where.status = status;
 
     const payments = await prisma.payment.findMany({
       where,
       include: {
         party: true,
         project: true,
+        organization: { select: { id: true, name: true } },
+        creator: { select: { id: true, name: true, role: true, email: true } },
         allocations: { include: { bill: true } },
       },
       orderBy: { paymentDate: "desc" },
@@ -59,9 +76,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createPaymentSchema.parse(body);
 
+    const effectiveReason = data.approvalQuery || data.reason || data.notes || "Disbursement";
+    const canAutoApprove = user.role === "SUPER_ADMIN" && data.autoApprove === true;
+
     const result = await FinanceService.recordPayment({
       organizationId: user.organizationId,
       partyId: data.partyId,
+      recipientType: data.recipientType,
+      recipientName: data.recipientName,
+      payingAccount: data.payingAccount,
+      approvalQuery: effectiveReason,
       projectId: data.projectId,
       paymentDate: new Date(data.paymentDate),
       amount: data.amount,
@@ -72,6 +96,7 @@ export async function POST(req: NextRequest) {
       allocations: data.allocations,
       userId: user.userId,
       role: user.role,
+      autoApprove: canAutoApprove,
     });
 
     return jsonSuccess(result, result.idempotentReplay ? 200 : 201);

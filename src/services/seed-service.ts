@@ -562,6 +562,10 @@ export async function seedDemoData(
       id: `pay-ap-${orgId.slice(0, 4)}`,
       organizationId: orgId,
       partyId: partyAsianPaints.id,
+      recipientType: "VENDOR",
+      recipientName: partyAsianPaints.name,
+      payingAccount: "HDFC Bank Operating A/C (A/C: ...4421)",
+      approvalQuery: "Part payment against primer paint delivery",
       projectId: project1.id,
       paymentDate: new Date("2026-10-10T00:00:00Z"),
       amount: 1000000, // ₹10,000 part-payment
@@ -569,6 +573,8 @@ export async function seedDemoData(
       method: "BANK_TRANSFER",
       referenceNumber: "NEFT-HDFC-889102",
       status: "POSTED",
+      approvedBy: "Super Admin (Auto-Approved)",
+      approvedAt: new Date("2026-10-10T00:00:00Z"),
       idempotencyKey: `pay-ap-${orgId.slice(0, 4)}`,
       notes: "Part payment against invoice INV-AP-8801",
       createdBy: accountantId,
@@ -595,6 +601,10 @@ export async function seedDemoData(
       id: `pay-js-${orgId.slice(0, 4)}`,
       organizationId: orgId,
       partyId: partyJindalSteel.id,
+      recipientType: "VENDOR",
+      recipientName: partyJindalSteel.name,
+      payingAccount: "ICICI Bank Project Escrow A/C (A/C: ...9012)",
+      approvalQuery: "Advance/part settlement against structural steel consignment",
       projectId: project1.id,
       paymentDate: new Date("2026-10-12T00:00:00Z"),
       amount: 50000000, // ₹5,00,000 part-payment
@@ -602,6 +612,8 @@ export async function seedDemoData(
       method: "BANK_TRANSFER",
       referenceNumber: "RTGS-ICICI-49102",
       status: "POSTED",
+      approvedBy: "Super Admin (Auto-Approved)",
+      approvedAt: new Date("2026-10-12T00:00:00Z"),
       idempotencyKey: `pay-js-${orgId.slice(0, 4)}`,
       notes: "Advance/part settlement against invoice INV-JS-4420",
       createdBy: accountantId,
@@ -613,6 +625,36 @@ export async function seedDemoData(
           },
         ],
       },
+    },
+  });
+
+  // Seed Pending Payment Approval Query for Super Admin confirmation
+  await prisma.payment.upsert({
+    where: {
+      organizationId_idempotencyKey: {
+        organizationId: orgId,
+        idempotencyKey: `pay-query-${orgId.slice(0, 4)}`,
+      },
+    },
+    update: {},
+    create: {
+      id: `pay-query-${orgId.slice(0, 4)}`,
+      organizationId: orgId,
+      partyId: partyRameshContractor.id,
+      recipientType: "CONTRACTOR",
+      recipientName: partyRameshContractor.name,
+      payingAccount: "State Bank of India CMS Current A/C (A/C: ...1109)",
+      approvalQuery: "Subcontractor milestone completion payout for 5th floor brick masonry and plastering work",
+      projectId: project1.id,
+      paymentDate: new Date(),
+      amount: 7500000, // ₹75,000
+      currency: "INR",
+      method: "BANK_TRANSFER",
+      referenceNumber: "NEFT-SBI-PENDING-001",
+      status: "PENDING_APPROVAL",
+      idempotencyKey: `pay-query-${orgId.slice(0, 4)}`,
+      notes: "Submitted by site accountant for Super Admin authorization prior to bank release.",
+      createdBy: accountantId,
     },
   });
 

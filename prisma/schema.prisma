@@ -347,14 +347,21 @@ model BillLine {
 model Payment {
   id              String    @id @default(uuid())
   organizationId  String
-  partyId         String
+  partyId         String?
+  recipientType   String?   @default("VENDOR") // VENDOR, CONTRACTOR, EMPLOYEE
+  recipientName   String?
+  payingAccount   String?   // Account from which to pay (e.g., "HDFC Bank Operating A/C", "ICICI Bank", "Petty Cash")
+  approvalQuery   String?   // Reason or query submitted to Super Admin for approval
+  approvedBy      String?   // Super Admin who confirmed or rejected
+  approvedAt      DateTime?
+  rejectionReason String?   // Reason if rejected
   projectId       String?
   paymentDate     DateTime
   amount          Float     // minor units / currency
   currency        String    @default("INR")
   method          String    // BANK_TRANSFER, UPI, CASH, CHEQUE, NEFT_RTGS
   referenceNumber String
-  status          String    @default("POSTED") // DRAFT, POSTED, REVERSED
+  status          String    @default("PENDING_APPROVAL") // PENDING_APPROVAL, POSTED, REJECTED, REVERSED
   idempotencyKey  String
   reversedAt      DateTime?
   reversalReason  String?
@@ -364,7 +371,7 @@ model Payment {
   updatedAt       DateTime  @updatedAt
 
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  party           Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  party           Party?       @relation(fields: [partyId], references: [id], onDelete: Cascade)
   project         Project?     @relation(fields: [projectId], references: [id])
   creator         User         @relation(fields: [createdBy], references: [id])
   allocations     PaymentAllocation[]

@@ -87,7 +87,7 @@ export class DashboardService {
       where: { organizationId, status: "POSTED" },
       include: {
         allocations: {
-          where: { reversedAt: null },
+          where: { reversedAt: null, payment: { status: "POSTED" } },
         },
       },
     });

@@ -26,6 +26,9 @@ import {
   ExternalLink,
   X,
   Phone,
+  Landmark,
+  CreditCard,
+  Wallet,
 } from "lucide-react";
 
 interface Tenant {
@@ -65,6 +68,10 @@ export default function SuperAdminDashboardPage() {
   const [approvedNotification, setApprovedNotification] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Payment Approvals State
+  const [pendingPayments, setPendingPayments] = useState<any[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
@@ -74,6 +81,7 @@ export default function SuperAdminDashboardPage() {
           if (res.data.user.role === "SUPER_ADMIN") {
             loadTenants();
             loadPendingOrders();
+            loadPendingPayments();
           } else {
             setLoading(false);
           }
@@ -177,6 +185,85 @@ export default function SuperAdminDashboardPage() {
       }
     } catch {
       setErrorMsg("Network error rejecting order");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function loadPendingPayments() {
+    setPaymentsLoading(true);
+    try {
+      const res = await fetch("/api/finance/payments?status=PENDING_APPROVAL&allTenants=true");
+      const json = await res.json();
+      if (json.success) {
+        setPendingPayments(json.data || []);
+      }
+    } catch (e) {
+      console.error("Failed to load pending payment queries:", e);
+    } finally {
+      setPaymentsLoading(false);
+    }
+  }
+
+  async function handleApprovePayment(payment: any) {
+    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+    const amountStr = (payment.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+    const confirmed = confirm(
+      `Confirm & Authorize Payment Disbursement of ₹${amountStr}?\n\nRecipient: ${payeeName} (${payment.recipientType || "Party"})\nPaying Account: ${payment.payingAccount || "Company Account"}\nPurpose / Query: ${payment.approvalQuery || "Disbursement"}\n\nThis will post the payment, debit the source account, and settle bill balances.`
+    );
+    if (!confirmed) return;
+
+    setActionLoading(payment.id);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const res = await fetch(`/api/finance/payments/${payment.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: "Approved and confirmed via Super Admin Console" }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setSuccessMsg(json.data?.message || `Payment of ₹${amountStr} to ${payeeName} successfully approved!`);
+        await loadPendingPayments();
+      } else {
+        setErrorMsg(json.error?.message || "Failed to approve payment");
+      }
+    } catch {
+      setErrorMsg("Network error approving payment");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleRejectPayment(payment: any) {
+    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+    const reason = prompt(
+      `Please provide rejection reason for payment to ${payeeName}:`,
+      "Payment query not approved at this time"
+    );
+    if (!reason) return;
+
+    setActionLoading(payment.id);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const res = await fetch(`/api/finance/payments/${payment.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setSuccessMsg(`Payment query to ${payeeName} rejected.`);
+        await loadPendingPayments();
+      } else {
+        setErrorMsg(json.error?.message || "Failed to reject payment");
+      }
+    } catch {
+      setErrorMsg("Network error rejecting payment");
     } finally {
       setActionLoading(null);
     }
@@ -631,6 +718,158 @@ export default function SuperAdminDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* 2. PAYMENT APPROVAL QUERIES & CONFIRMATIONS PANEL */}
+        <div className="bg-white rounded-2xl border-2 border-emerald-500/80 shadow-md overflow-hidden animate-in fade-in">
+          <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-white border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-xs">
+                <Landmark className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <span>Payment Approval Queries & Confirmations</span>
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-600 text-white font-black">
+                    {pendingPayments.length} Pending Super Admin Approval
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Authoritative authorization for disbursements to Vendors, Contractors, and Employees. Review paying account, reason, and payee details before authorizing payout.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={loadPendingPayments}
+              disabled={paymentsLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-900 rounded-lg text-xs font-bold transition shadow-2xs self-start sm:self-auto"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${paymentsLoading ? "animate-spin" : ""}`} />
+              <span>Refresh Payment Queries</span>
+            </button>
+          </div>
+
+          {paymentsLoading ? (
+            <div className="py-10 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
+              <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <span>Loading pending payment queries...</span>
+            </div>
+          ) : pendingPayments.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2.5">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div className="text-sm font-bold text-slate-900">All Payment Queries Cleared!</div>
+              <div className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                There are no vendor, contractor, or employee disbursements currently awaiting Super Admin authorization. When anyone records a payment, it will appear here for review and confirmation.
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
+                  <tr>
+                    <th className="py-3 px-4">Ref & Date</th>
+                    <th className="py-3 px-4">Recipient / Payee</th>
+                    <th className="py-3 px-4 text-right">Amount</th>
+                    <th className="py-3 px-4">Paying Account (Source)</th>
+                    <th className="py-3 px-4">Payment Method</th>
+                    <th className="py-3 px-4">Purpose / Reason Query</th>
+                    <th className="py-3 px-4">Requester</th>
+                    <th className="py-3 px-4 text-right">Decision</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pendingPayments.map((p) => {
+                    const payee = p.recipientName || p.party?.name || "Recipient";
+                    const rType = p.recipientType || (p.party?.type) || "VENDOR";
+                    return (
+                      <tr key={p.id} className="hover:bg-emerald-50/40 transition">
+                        <td className="py-3.5 px-4">
+                          <div className="font-mono font-bold text-slate-900">{p.referenceNumber}</div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            {new Date(p.paymentDate || p.createdAt).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>{payee}</span>
+                            <span
+                              className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                rType === "EMPLOYEE"
+                                  ? "bg-amber-50 text-amber-800 border-amber-300"
+                                  : rType === "CONTRACTOR"
+                                  ? "bg-purple-50 text-purple-800 border-purple-300"
+                                  : "bg-blue-50 text-blue-800 border-blue-300"
+                              }`}
+                            >
+                              {rType}
+                            </span>
+                          </div>
+                          {p.party && (
+                            <div className="text-[10px] text-slate-500">Party ID: {p.party.id.slice(0, 8)}...</div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-black text-emerald-700 text-sm tabular-nums">
+                          ₹{(p.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <Landmark className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>{p.payingAccount || "Company Primary Operating A/C"}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                            {p.method}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 max-w-xs">
+                          <div className="p-2 bg-emerald-50/70 rounded border border-emerald-200 text-[11px] text-emerald-950 font-medium leading-snug">
+                            {p.approvalQuery || p.notes || "Disbursement approval requested."}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900">{p.creator?.name || "Finance User"}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">{p.creator?.role || "USER"}</div>
+                          {p.organization?.name && (
+                            <div className="text-[10px] text-slate-400">{p.organization.name}</div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleApprovePayment(p)}
+                              disabled={actionLoading === p.id}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition disabled:opacity-50"
+                              title="Confirm & Authorize disbursement from paying account"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>{actionLoading === p.id ? "Authorizing..." : "Confirm & Authorize"}</span>
+                            </button>
+                            <button
+                              onClick={() => handleRejectPayment(p)}
+                              disabled={actionLoading === p.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition disabled:opacity-50"
+                              title="Reject payment disbursement query"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         {/* One-Click Demo Data Showcase Banner */}
         <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white p-5 rounded-2xl border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">

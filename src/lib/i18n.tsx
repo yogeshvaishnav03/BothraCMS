@@ -195,6 +195,16 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "finance.payments": "Payments & Disbursements",
     "finance.recordPayment": "+ Record Payment",
     "finance.createBill": "+ Create Bill",
+    "finance.payingAccount": "Paying Account / Source",
+    "finance.recipientCategory": "Payee Category",
+    "finance.vendor": "Vendor",
+    "finance.contractor": "Contractor",
+    "finance.employee": "Employee",
+    "finance.approvalQuery": "Approval Reason / Query",
+    "finance.pendingApproval": "Pending Super Admin Approval",
+    "finance.confirmApprove": "Confirm & Approve",
+    "finance.reject": "Reject Query",
+    "finance.approvalQueriesTitle": "Payment Approval Queries & Confirmations",
 
     // Materials & Stock
     "materials.title": "Materials & Inventory",
@@ -408,6 +418,16 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "finance.payments": "भुगतान और निकासी",
     "finance.recordPayment": "+ भुगतान दर्ज करें",
     "finance.createBill": "+ नया बिल बनाएं",
+    "finance.payingAccount": "भुगतान खाता / स्रोत बैंक",
+    "finance.recipientCategory": "प्राप्तकर्ता श्रेणी",
+    "finance.vendor": "विक्रेता",
+    "finance.contractor": "ठेकेदार",
+    "finance.employee": "कर्मचारी",
+    "finance.approvalQuery": "भुगतान का कारण / स्वीकृति अनुरोध",
+    "finance.pendingApproval": "सुपर एडमिन स्वीकृति लंबित",
+    "finance.confirmApprove": "पुष्टि करें और स्वीकृत करें",
+    "finance.reject": "अस्वीकार करें",
+    "finance.approvalQueriesTitle": "भुगतान स्वीकृति अनुरोध एवं पुष्टिकरण",
 
     // Materials & Stock
     "materials.title": "सामग्री और इन्वेंटरी",
