@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatDate, formatQuantity, formatDateTime } from "@/lib/formatters";
 import {
   Building2,
   ArrowLeft,
@@ -17,7 +17,11 @@ import {
   FileText,
   Clock,
   Printer,
+  ShoppingCart,
+  MessageSquare,
+  ExternalLink,
 } from "lucide-react";
+import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 
 export default function PartyStatementPage() {
   const params = useParams();
@@ -25,8 +29,10 @@ export default function PartyStatementPage() {
 
   const [statementData, setStatementData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
 
-  useEffect(() => {
+  const loadStatementAndOrders = () => {
     if (!partyId) return;
     fetch(`/api/parties/${partyId}/statement`)
       .then((r) => r.json())
@@ -42,6 +48,22 @@ export default function PartyStatementPage() {
         setStatementData(null);
       })
       .finally(() => setLoading(false));
+
+    fetch(`/api/orders?vendorPartyId=${partyId}`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data) {
+          setOrders(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load vendor purchase orders:", err);
+      });
+  };
+
+  useEffect(() => {
+    loadStatementAndOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyId]);
 
   if (loading) {
@@ -99,13 +121,24 @@ export default function PartyStatementPage() {
               </h1>
             </div>
           </div>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition print:hidden self-start sm:self-auto"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print / Save as PDF</span>
-          </button>
+          <div className="flex items-center gap-2 print:hidden self-start sm:self-auto">
+            {(party.partyType === "VENDOR" || party.partyType === "BOTH") && (
+              <button
+                onClick={() => setShowPlaceOrderModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-sm transition cursor-pointer"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>Place Order to Vendor</span>
+              </button>
+            )}
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print / Save as PDF</span>
+            </button>
+          </div>
         </div>
 
         {/* Financial Summary Cards */}
@@ -291,7 +324,122 @@ export default function PartyStatementPage() {
             </div>
           )}
         </div>
+
+        {/* Purchase Orders to this Vendor */}
+        {(party.partyType === "VENDOR" || party.partyType === "BOTH") && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-800 flex items-center justify-center font-bold">
+                  <ShoppingCart className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-slate-900 text-sm">
+                    Material Supply Purchase Orders
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    All supply orders placed with this vendor, complete with automated notification tracking.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPlaceOrderModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                <span>+ New Order</span>
+              </button>
+            </div>
+
+            {orders.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs">
+                No purchase orders placed with this vendor yet. Click &ldquo;+ New Order&rdquo; to place an order.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      <th className="py-3 px-4">PO Number</th>
+                      <th className="py-3 px-4">Date Placed</th>
+                      <th className="py-3 px-4">Material Item</th>
+                      <th className="py-3 px-4 text-right">Quantity</th>
+                      <th className="py-3 px-4 text-right">Estimated Total</th>
+                      <th className="py-3 px-4">Expected Date</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Vendor Notification</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {orders.map((po: any) => (
+                      <tr key={po.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-xs text-slate-900">
+                          {po.orderNumber}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-slate-600 font-mono whitespace-nowrap">
+                          {formatDateTime(po.createdAt)}
+                        </td>
+                        <td className="py-3 px-4 text-xs">
+                          <div className="font-bold text-slate-900">{po.material?.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{po.material?.sku}</div>
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-slate-900 tabular-nums">
+                          {formatQuantity(po.quantity, po.unitCode)}
+                        </td>
+                        <td className="py-3 px-4 text-right text-xs font-mono text-slate-700 tabular-nums">
+                          {po.totalAmount ? formatCurrency(po.totalAmount) : "—"}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-slate-600">
+                          {po.expectedDeliveryDate ? formatDate(po.expectedDeliveryDate) : "—"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                              po.status === "DELIVERED"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : po.status === "CONFIRMED"
+                                ? "bg-blue-100 text-blue-800"
+                                : po.status === "CANCELLED"
+                                ? "bg-rose-100 text-rose-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {po.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          {po.whatsappUrl ? (
+                            <a
+                              href={po.whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
+                              title="Send WhatsApp notification to vendor"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>WhatsApp</span>
+                              <ExternalLink className="w-3 h-3 opacity-60" />
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Dispatched</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Place Order Modal */}
+      <PlaceOrderModal
+        isOpen={showPlaceOrderModal}
+        onClose={() => setShowPlaceOrderModal(false)}
+        onOrderPlaced={() => loadStatementAndOrders()}
+      />
     </Shell>
   );
 }

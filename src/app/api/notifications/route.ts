@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export interface OperationalAlert {
   id: string;
-  type: "LOW_STOCK" | "OVERDUE_BILL" | "ATTENDANCE_ANOMALY" | "DAILY_REPORT_MISSING";
+  type: "LOW_STOCK" | "OVERDUE_BILL" | "ATTENDANCE_ANOMALY" | "DAILY_REPORT_MISSING" | "PURCHASE_ORDER";
   severity: "CRITICAL" | "WARNING" | "INFO";
   title: string;
   message: string;
@@ -101,6 +101,32 @@ export async function GET(req: NextRequest) {
         message: `Shift on ${sess.workDate} at ${sess.site.name} was never checked out. Supervisor correction needed.`,
         href: "/attendance",
         createdAt: sess.checkInAt.toISOString(),
+      });
+    }
+
+    // 4. Active Purchase Orders Placed to Vendors
+    const activeOrders = await prisma.purchaseOrder.findMany({
+      where: {
+        organizationId: user.organizationId,
+        status: "PLACED",
+      },
+      include: {
+        material: true,
+        vendor: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+
+    for (const po of activeOrders) {
+      alerts.push({
+        id: `order-placed-${po.id}`,
+        type: "PURCHASE_ORDER",
+        severity: "INFO",
+        title: `Material Order: ${po.orderNumber}`,
+        message: `Order for ${po.quantity} ${po.unitCode} of ${po.material.name} placed with ${po.vendor.name}. Vendor notification dispatched.`,
+        href: `/materials/${po.materialId}`,
+        createdAt: po.createdAt.toISOString(),
       });
     }
 

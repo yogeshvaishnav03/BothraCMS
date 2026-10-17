@@ -32,6 +32,7 @@ model Organization {
   stockMovements    StockMovement[]
   attendanceSessions AttendanceSession[]
   dailyReports      DailySiteReport[]
+  purchaseOrders    PurchaseOrder[]
 }
 
 model User {
@@ -57,6 +58,7 @@ model User {
   createdPayments Payment[]
   createdAttendance AttendanceSession[] @relation("AttendanceCreator")
   correctedAttendance AttendanceSession[] @relation("AttendanceCorrector")
+  createdOrders  PurchaseOrder[]      @relation("OrderCreator")
   auditEvents    AuditEvent[]
 
   @@unique([organizationId, email])
@@ -80,6 +82,7 @@ model Site {
   stores         Store[]
   workforceMembers WorkforceMember[]
   attendanceSessions AttendanceSession[]
+  purchaseOrders PurchaseOrder[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -202,6 +205,7 @@ model Material {
   stockBalances  StockBalance[]
   stockMovements StockMovement[]
   billLines      BillLine[]
+  purchaseOrders PurchaseOrder[]
 
   @@unique([organizationId, sku])
   @@index([organizationId])
@@ -220,6 +224,7 @@ model Store {
   site           Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
   stockBalances  StockBalance[]
   stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([organizationId, siteId])
 }
@@ -287,6 +292,7 @@ model Party {
   stockMovements StockMovement[]
   bills         Bill[]
   payments      Payment[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([organizationId, partyType])
 }
@@ -465,3 +471,39 @@ model IdempotencyRecord {
   @@unique([organizationId, key])
   @@index([organizationId, key])
 }
+
+model PurchaseOrder {
+  id                   String    @id @default(uuid())
+  organizationId       String
+  orderNumber          String
+  materialId           String
+  vendorPartyId        String
+  storeId              String?
+  siteId               String?
+  quantity             Float
+  unitCode             String
+  unitRate             Float?
+  totalAmount          Float?
+  status               String    @default("PLACED") // PLACED, CONFIRMED, DELIVERED, CANCELLED
+  expectedDeliveryDate DateTime?
+  notes                String?
+  notificationMethod   String?   @default("WHATSAPP_AND_EMAIL")
+  notificationSent     Boolean   @default(true)
+  notificationSentAt   DateTime? @default(now())
+  createdBy            String
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  material             Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  vendor               Party        @relation(fields: [vendorPartyId], references: [id], onDelete: Cascade)
+  store                Store?       @relation(fields: [storeId], references: [id])
+  site                 Site?        @relation(fields: [siteId], references: [id])
+  creator              User         @relation("OrderCreator", fields: [createdBy], references: [id])
+
+  @@unique([organizationId, orderNumber])
+  @@index([organizationId, vendorPartyId])
+  @@index([organizationId, materialId])
+  @@index([status])
+}
+

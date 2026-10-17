@@ -82,6 +82,24 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "action.apply": "Apply",
     "action.reset": "Reset",
 
+    // Purchase Orders & Vendor Notifications
+    "order.placeOrder": "Place Order",
+    "order.placeOrderToVendor": "Place Order to Vendor",
+    "order.vendorNotification": "Vendor Order Notification",
+    "order.sendWhatsApp": "Send WhatsApp to Vendor",
+    "order.sendEmail": "Send Email",
+    "order.copyText": "Copy Order Details",
+    "order.recentOrders": "Purchase Orders to Vendors",
+    "order.status": "Order Status",
+    "order.expectedDelivery": "Expected Delivery",
+    "order.quantity": "Order Quantity",
+    "order.vendor": "Select Vendor",
+    "order.unitRate": "Unit Rate (₹)",
+    "order.totalAmount": "Estimated Total",
+    "order.deliveryStore": "Delivery Store / Yard",
+    "order.notes": "Instructions / Site Notes",
+    "order.successTitle": "Order Placed Successfully",
+
     // Common Labels
     "label.date": "Date",
     "label.time": "Time",
@@ -245,6 +263,24 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "action.createNew": "नया बनाएं",
     "action.apply": "लागू करें",
     "action.reset": "रीसेट करें",
+
+    // Purchase Orders & Vendor Notifications
+    "order.placeOrder": "ऑर्डर प्लेस करें",
+    "order.placeOrderToVendor": "विक्रेता को ऑर्डर दें",
+    "order.vendorNotification": "विक्रेता ऑर्डर सूचना",
+    "order.sendWhatsApp": "विक्रेता को व्हाट्सएप भेजें",
+    "order.sendEmail": "ईमेल भेजें",
+    "order.copyText": "विवरण कॉपी करें",
+    "order.recentOrders": "विक्रेताओं को दिए गए आपूर्ति ऑर्डर",
+    "order.status": "ऑर्डर स्थिति",
+    "order.expectedDelivery": "अपेक्षित डिलीवरी",
+    "order.quantity": "ऑर्डर मात्रा",
+    "order.vendor": "विक्रेता चुनें",
+    "order.unitRate": "दर प्रति इकाई (₹)",
+    "order.totalAmount": "अनुमानित कुल राशि",
+    "order.deliveryStore": "डिलीवरी स्टोर / यार्ड",
+    "order.notes": "निर्देश / साइट नोट्स",
+    "order.successTitle": "ऑर्डर सफलतापूर्वक दर्ज हुआ",
 
     // Common Labels
     "label.date": "दिनांक",

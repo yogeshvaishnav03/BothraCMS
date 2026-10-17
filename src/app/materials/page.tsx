@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
+import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 import { formatCurrency, formatQuantity } from "@/lib/formatters";
 import {
   Boxes,
@@ -16,6 +17,7 @@ import {
   X,
   CheckCircle2,
   Trash2,
+  ShoppingCart,
 } from "lucide-react";
 
 export default function MaterialsPage() {
@@ -23,6 +25,10 @@ export default function MaterialsPage() {
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Place Order Modal state
+  const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
+  const [orderModalMaterial, setOrderModalMaterial] = useState<any | null>(null);
 
   // Create Material Modal state
   const [showCreateMaterialModal, setShowCreateMaterialModal] = useState(false);
@@ -353,10 +359,20 @@ export default function MaterialsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => {
+                setOrderModalMaterial(null);
+                setShowPlaceOrderModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-sm transition-all cursor-pointer"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>Place Order</span>
+            </button>
             <button
               onClick={() => setShowCreateMaterialModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4 text-amber-400" />
               <span>+ Add Material</span>
@@ -495,12 +511,36 @@ export default function MaterialsPage() {
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-3">
+                        <div className="flex items-center justify-end gap-2.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOrderModalMaterial({
+                                id: m.id,
+                                name: m.name,
+                                sku: m.sku,
+                                unitCode: m.unitCode,
+                                minStockQty: m.minStockQty,
+                                reorderQty: m.reorderQty,
+                                currentStock: m.totalStock,
+                              });
+                              setShowPlaceOrderModal(true);
+                            }}
+                            className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                              m.isLowStock
+                                ? "bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-xs"
+                                : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                            }`}
+                            title="Place Order to Vendor"
+                          >
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            <span>Order</span>
+                          </button>
                           <Link
                             href={`/materials/${m.id}`}
                             className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
                           >
-                            <span>Open Ledger</span>
+                            <span>Ledger</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </Link>
                           <button
@@ -1106,6 +1146,14 @@ export default function MaterialsPage() {
           </div>
         )}
       </div>
+
+      {/* Place Order to Vendor Modal */}
+      <PlaceOrderModal
+        isOpen={showPlaceOrderModal}
+        onClose={() => setShowPlaceOrderModal(false)}
+        onOrderPlaced={() => loadMaterials()}
+        initialMaterial={orderModalMaterial}
+      />
     </Shell>
   );
 }
