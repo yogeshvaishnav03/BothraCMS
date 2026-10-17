@@ -340,6 +340,12 @@ export default function SuperAdminDashboardPage() {
               {seeding ? "Populating Demo Data..." : "Add Demo Data (1-Click)"}
             </button>
             <Link
+              href="/chat"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold transition shadow-sm"
+            >
+              <MessageSquare className="w-4 h-4" /> Chat with Employees
+            </Link>
+            <Link
               href="/day-book"
               className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-sm"
             >

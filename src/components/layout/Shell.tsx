@@ -30,6 +30,7 @@ import {
   CalendarDays,
   Globe,
   Check,
+  MessageSquare,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 
@@ -124,6 +125,7 @@ export default function Shell({ children }: ShellProps) {
     { key: "nav.attendance", defaultLabel: "Workforce & Attendance", href: "/attendance", icon: HardHat },
     { key: "nav.reports", defaultLabel: "Reports & Analytics", href: "/reports", icon: FileText },
     { key: "nav.audit", defaultLabel: "Audit Logs", href: "/audit", icon: ShieldCheck },
+    { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
     { key: "nav.settings", defaultLabel: "Settings", href: "/settings", icon: Settings },
     ...(user?.role === "SUPER_ADMIN"
       ? [{ key: "nav.superAdmin", defaultLabel: "Super Admin", href: "/admin", icon: ShieldAlert }]
