@@ -76,10 +76,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         ? conversation.participants.find((p) => p.userId !== user.userId)?.user || null
         : null;
 
+    const computedName =
+      conversation.type === "GROUP"
+        ? conversation.name || "Group Chat"
+        : otherUser?.name || "Direct Chat";
+
     return jsonSuccess({
       conversation: {
         ...conversation,
+        name: computedName,
         otherUser,
+        participantsCount: conversation.participants.length,
       },
       messages: messages.map((m) => ({
         id: m.id,
@@ -88,7 +95,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         createdAt: m.createdAt,
         senderId: m.senderId,
         isMine: m.senderId === user.userId,
-        sender: m.sender,
+        sender: m.sender || { id: m.senderId, name: "User", role: "USER", email: "" },
       })),
     });
   } catch (error) {

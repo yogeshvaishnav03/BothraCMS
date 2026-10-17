@@ -69,7 +69,9 @@ export async function POST(req: NextRequest) {
       return jsonSuccess({
         conversation: {
           ...existing,
+          name: targetUser.name,
           otherUser: targetUser,
+          participantsCount: existing.participants.length,
         },
         isNew: false,
       });
@@ -100,7 +102,9 @@ export async function POST(req: NextRequest) {
     return jsonSuccess({
       conversation: {
         ...newConversation,
+        name: targetUser.name,
         otherUser: targetUser,
+        participantsCount: 2,
       },
       isNew: true,
     });

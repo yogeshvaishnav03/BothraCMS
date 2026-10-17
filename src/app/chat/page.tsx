@@ -300,15 +300,15 @@ export default function ChatPage() {
     setSelectedMemberIds([]);
   };
 
-  // Filtered lists
   const filteredConversations = conversations.filter((c) => {
     const q = search.toLowerCase();
+    const cName = c.name || c.otherUser?.name || "";
     if (c.type === "GROUP") {
-      return c.name.toLowerCase().includes(q);
+      return cName.toLowerCase().includes(q);
     }
     return (
-      c.name.toLowerCase().includes(q) ||
-      (c.otherUser && c.otherUser.role.toLowerCase().includes(q))
+      cName.toLowerCase().includes(q) ||
+      Boolean(c.otherUser && c.otherUser.role?.toLowerCase().includes(q))
     );
   });
 
@@ -431,7 +431,7 @@ export default function ChatPage() {
                   }`}
                 >
                   <Users className="w-3 h-3 text-amber-500" />
-                  <span>{t("chat.allEmployees", "Directory")} ({employees.length - 1})</span>
+                  <span>{t("chat.allEmployees", "Directory")} ({Math.max(0, employees.filter((e) => !e.isCurrentUser).length)})</span>
                 </button>
               </div>
             </div>
@@ -461,6 +461,7 @@ export default function ChatPage() {
                       <div className="space-y-1 mt-1">
                         {directConversations.map((c) => {
                           const isActive = activeConversationId === c.id;
+                          const displayName = c.name || c.otherUser?.name || "Direct Chat";
                           return (
                             <button
                               key={c.id}
@@ -472,12 +473,12 @@ export default function ChatPage() {
                               }`}
                             >
                               <div className="w-9 h-9 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                                {c.name.slice(0, 2).toUpperCase()}
+                                {(displayName || "DC").slice(0, 2).toUpperCase()}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between">
                                   <span className="font-bold text-xs truncate text-slate-900">
-                                    {c.name}
+                                    {displayName}
                                   </span>
                                   {c.latestMessage && (
                                     <span className="text-[10px] text-slate-400 whitespace-nowrap ml-1 font-mono">
@@ -554,7 +555,7 @@ export default function ChatPage() {
                                         isActive ? "text-white" : "text-slate-900"
                                       }`}
                                     >
-                                      {g.name}
+                                      {g.name || "Group Chat"}
                                     </span>
                                     <span
                                       className={`text-[10px] font-mono px-1 py-0.2 rounded ${
@@ -594,10 +595,10 @@ export default function ChatPage() {
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-8 h-8 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center font-bold text-xs shrink-0">
-                          {emp.name.slice(0, 2).toUpperCase()}
+                          {(emp.name || "User").slice(0, 2).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-bold text-xs text-slate-900 truncate">{emp.name}</div>
+                          <div className="font-bold text-xs text-slate-900 truncate">{emp.name || "Unnamed Employee"}</div>
                           <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
                             <span className="font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">
                               {emp.role}
@@ -610,7 +611,7 @@ export default function ChatPage() {
                       <button
                         onClick={() => handleStartDirectChat(emp.id)}
                         className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-lg text-xs transition shrink-0 flex items-center gap-1"
-                        title={`Chat with ${emp.name}`}
+                        title={`Chat with ${emp.name || "Employee"}`}
                       >
                         <MessageSquare className="w-3 h-3" />
                         <span>Chat</span>
@@ -625,138 +626,154 @@ export default function ChatPage() {
           {/* Right Column: Chat Messages Window (7 cols) */}
           <div className="md:col-span-8 flex flex-col h-full bg-white">
             {activeConversationId && activeConversation ? (
-              <>
-                {/* Chat Top Banner */}
-                <div className="p-3.5 border-b border-slate-200 bg-white flex items-center justify-between shadow-2xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center font-bold text-sm">
-                      {activeConversation.type === "GROUP" ? (
-                        <Users className="w-5 h-5 text-amber-400" />
-                      ) : (
-                        activeConversation.name.slice(0, 2).toUpperCase()
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-black text-sm text-slate-900">
-                          {activeConversation.name}
-                        </h2>
-                        {activeConversation.type === "DIRECT" ? (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold flex items-center gap-1">
-                            <User className="w-2.5 h-2.5" />
-                            <span>1-on-1 Direct Chat</span>
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200 font-bold flex items-center gap-1">
-                            <Users className="w-2.5 h-2.5" />
-                            <span>Super Admin Group ({activeConversation.participantsCount || activeConversation.participants?.length} members)</span>
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
-                        {activeConversation.type === "DIRECT" && activeConversation.otherUser ? (
-                          <>
-                            <span className="font-semibold text-slate-700">
-                              {activeConversation.otherUser.role}
-                            </span>
-                            <span>&bull;</span>
-                            <span>{activeConversation.otherUser.email}</span>
-                          </>
-                        ) : (
-                          <span>
-                            {activeConversation.description || "Custom channel created by Super Admin"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+              (() => {
+                const activeChatName =
+                  activeConversation.type === "GROUP"
+                    ? activeConversation.name || "Group Chat"
+                    : activeConversation.otherUser?.name || activeConversation.name || "Direct Chat";
+                const activeInitials = (activeChatName || "DC").slice(0, 2).toUpperCase();
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => loadMessages(activeConversationId)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-                      title="Refresh messages"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Messages Body */}
-                <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50">
-                  {messagesLoading && messages.length === 0 ? (
-                    <div className="py-20 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
-                      <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                      <span>Loading messages...</span>
-                    </div>
-                  ) : messages.length === 0 ? (
-                    <div className="py-20 text-center max-w-sm mx-auto space-y-2">
-                      <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
-                        <MessageSquare className="w-6 h-6" />
-                      </div>
-                      <div className="text-sm font-bold text-slate-800">No Messages Yet</div>
-                      <div className="text-xs text-slate-500">
-                        Say hello to start the conversation! Messages are saved authoritatively in the platform database.
-                      </div>
-                    </div>
-                  ) : (
-                    messages.map((m) => (
-                      <div
-                        key={m.id}
-                        className={`flex flex-col ${m.isMine ? "items-end" : "items-start"}`}
-                      >
-                        <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-500">
-                          {!m.isMine && (
-                            <span className="font-bold text-slate-700">
-                              {m.sender.name} ({m.sender.role})
-                            </span>
+                return (
+                  <>
+                    {/* Chat Top Banner */}
+                    <div className="p-3.5 border-b border-slate-200 bg-white flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center font-bold text-sm">
+                          {activeConversation.type === "GROUP" ? (
+                            <Users className="w-5 h-5 text-amber-400" />
+                          ) : (
+                            activeInitials
                           )}
-                          <span>
-                            {new Date(m.createdAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
                         </div>
-
-                        <div
-                          className={`max-w-md p-3 rounded-2xl text-xs leading-relaxed shadow-2xs whitespace-pre-wrap ${
-                            m.isMine
-                              ? "bg-slate-900 text-white rounded-tr-none"
-                              : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
-                          }`}
-                        >
-                          {m.content}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="font-black text-sm text-slate-900">
+                              {activeChatName}
+                            </h2>
+                            {activeConversation.type === "DIRECT" ? (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold flex items-center gap-1">
+                                <User className="w-2.5 h-2.5" />
+                                <span>1-on-1 Direct Chat</span>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200 font-bold flex items-center gap-1">
+                                <Users className="w-2.5 h-2.5" />
+                                <span>Super Admin Group ({activeConversation.participantsCount || activeConversation.participants?.length || 0} members)</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                            {activeConversation.type === "DIRECT" && activeConversation.otherUser ? (
+                              <>
+                                <span className="font-semibold text-slate-700">
+                                  {activeConversation.otherUser.role || "USER"}
+                                </span>
+                                <span>&bull;</span>
+                                <span>{activeConversation.otherUser.email || ""}</span>
+                              </>
+                            ) : (
+                              <span>
+                                {activeConversation.description || "Custom channel created by Super Admin"}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    ))
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
 
-                {/* Message Input Box */}
-                <form
-                  onSubmit={handleSendMessage}
-                  className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
-                >
-                  <input
-                    type="text"
-                    placeholder={t("chat.typeMessage", "Type your message... (Press Enter to send)")}
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    disabled={sending}
-                  />
-                  <button
-                    type="submit"
-                    disabled={sending || !messageInput.trim()}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs transition disabled:opacity-50 shadow-sm shrink-0"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{sending ? "..." : t("chat.send", "Send")}</span>
-                  </button>
-                </form>
-              </>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => loadMessages(activeConversationId)}
+                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                          title="Refresh messages"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Messages Body */}
+                    <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50">
+                      {messagesLoading && messages.length === 0 ? (
+                        <div className="py-20 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+                          <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                          <span>Loading messages...</span>
+                        </div>
+                      ) : messages.length === 0 ? (
+                        <div className="py-20 text-center max-w-sm mx-auto space-y-2">
+                          <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                            <MessageSquare className="w-6 h-6" />
+                          </div>
+                          <div className="text-sm font-bold text-slate-800">No Messages Yet</div>
+                          <div className="text-xs text-slate-500">
+                            Say hello to start the conversation! Messages are saved authoritatively in the platform database.
+                          </div>
+                        </div>
+                      ) : (
+                        messages.map((m) => {
+                          const senderName = m.sender?.name || "User";
+                          const senderRole = m.sender?.role || "";
+                          return (
+                            <div
+                              key={m.id}
+                              className={`flex flex-col ${m.isMine ? "items-end" : "items-start"}`}
+                            >
+                              <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-500">
+                                {!m.isMine && (
+                                  <span className="font-bold text-slate-700">
+                                    {senderName} {senderRole ? `(${senderRole})` : ""}
+                                  </span>
+                                )}
+                                <span>
+                                  {m.createdAt
+                                    ? new Date(m.createdAt).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : ""}
+                                </span>
+                              </div>
+
+                              <div
+                                className={`max-w-md p-3 rounded-2xl text-xs leading-relaxed shadow-2xs whitespace-pre-wrap ${
+                                  m.isMine
+                                    ? "bg-slate-900 text-white rounded-tr-none"
+                                    : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
+                                }`}
+                              >
+                                {m.content}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Message Input Box */}
+                    <form
+                      onSubmit={handleSendMessage}
+                      className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
+                    >
+                      <input
+                        type="text"
+                        placeholder={t("chat.typeMessage", "Type your message... (Press Enter to send)")}
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        disabled={sending}
+                      />
+                      <button
+                        type="submit"
+                        disabled={sending || !messageInput.trim()}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs transition disabled:opacity-50 shadow-sm shrink-0"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>{sending ? "..." : t("chat.send", "Send")}</span>
+                      </button>
+                    </form>
+                  </>
+                );
+              })()
             ) : (
               /* No Active Conversation Selected */
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50">

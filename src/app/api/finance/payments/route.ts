@@ -11,7 +11,7 @@ const createPaymentSchema = z.object({
   partyId: z.string().optional(),
   recipientType: z.enum(["VENDOR", "CONTRACTOR", "EMPLOYEE"]).optional().default("VENDOR"),
   recipientName: z.string().optional(),
-  payingAccount: z.string().min(1, "Paying account is required"),
+  payingAccount: z.string().optional().default("Primary Operating Account"),
   approvalQuery: z.string().optional(),
   reason: z.string().optional(),
   projectId: z.string().min(1).optional(),
@@ -76,8 +76,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createPaymentSchema.parse(body);
 
-    const effectiveReason = data.approvalQuery || data.reason || data.notes || "Disbursement";
-    const canAutoApprove = user.role === "SUPER_ADMIN" && data.autoApprove === true;
+    const effectiveReason = data.approvalQuery || data.reason || (data.notes ? data.notes : undefined);
+    const canAutoApprove =
+      data.autoApprove !== undefined
+        ? data.autoApprove
+        : (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN") && !data.approvalQuery;
 
     const result = await FinanceService.recordPayment({
       organizationId: user.organizationId,

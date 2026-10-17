@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
         return {
           id: conv.id,
           type: conv.type, // DIRECT or GROUP
-          name: conv.type === "GROUP" ? conv.name : otherParticipant?.name || "Direct Chat",
+          name: conv.type === "GROUP" ? conv.name || "Group Chat" : otherParticipant?.name || "Direct Chat",
           description: conv.description,
           createdById: conv.createdById,
           creator: conv.creator,
