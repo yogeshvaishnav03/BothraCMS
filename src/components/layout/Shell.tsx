@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   BookOpen,
   CalendarDays,
+  Globe,
 } from "lucide-react";
 
 interface ShellProps {
@@ -47,6 +48,22 @@ export default function Shell({ children }: ShellProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [currentLang, setCurrentLang] = useState<string>("en");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("buildtrack_language");
+      if (stored) setCurrentLang(stored);
+
+      const handleLang = (e: any) => {
+        if (e.detail?.language) {
+          setCurrentLang(e.detail.language);
+        }
+      };
+      window.addEventListener("languageChanged", handleLang);
+      return () => window.removeEventListener("languageChanged", handleLang);
+    }
+  }, []);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -225,13 +242,23 @@ export default function Shell({ children }: ShellProps) {
               </div>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            title="Logout"
-            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Link
+              href="/settings"
+              title={`Active language: ${currentLang.toUpperCase()} - Change in Settings`}
+              className="px-2 py-1 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition-colors flex items-center gap-1 text-[11px] font-bold"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>{currentLang.toUpperCase()}</span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              title="Logout"
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -247,6 +274,14 @@ export default function Shell({ children }: ShellProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/settings"
+            title={`Active language: ${currentLang.toUpperCase()} - Change in Settings`}
+            className="p-1.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition flex items-center gap-1 text-[11px] font-bold"
+          >
+            <Globe className="w-4 h-4" />
+            <span>{currentLang.toUpperCase()}</span>
+          </Link>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className="relative p-1.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition"

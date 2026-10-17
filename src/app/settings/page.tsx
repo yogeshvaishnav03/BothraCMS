@@ -14,7 +14,60 @@ import {
   MapPin,
   Phone,
   FileText,
+  Globe,
+  Languages,
+  Check,
+  Sparkles,
 } from "lucide-react";
+
+interface LanguageOption {
+  code: string;
+  name: string;
+  nativeName: string;
+  region: string;
+  badge?: string;
+  description: string;
+  previewSample: string;
+}
+
+const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  {
+    code: "en",
+    name: "English",
+    nativeName: "English",
+    region: "Default / Pan-India",
+    badge: "Default",
+    description: "Standard English interface for ERP modules, sites, ledgers and reports.",
+    previewSample: "Welcome to Build Track Pro. Sites, daily work, materials, and accounts are in sync.",
+  },
+  {
+    code: "hi",
+    name: "Hindi",
+    nativeName: "हिन्दी",
+    region: "North & Central India",
+    badge: "Popular",
+    description: "निर्माण स्थल, दैनिक हाजिरी, सामग्री स्टॉक और वाउचर के लिए हिंदी इंटरफेस।",
+    previewSample: "बिल्ड ट्रैक प्रो में आपका स्वागत है। साइट्स, दैनिक कार्य, सामग्री और खाते पूर्णतः सिंक हैं।",
+  },
+  {
+    code: "gu",
+    name: "Gujarati",
+    nativeName: "ગુજરાતી",
+    region: "Gujarat & Western India",
+    badge: "Regional",
+    description: "સાઈટ મેનેજમેન્ટ, મટીરીયલ અને ખર્ચ ટ્રેકિંગ માટે ગુજરાતી ઈન્ટરફેસ.",
+    previewSample: "બિલ્ડ ટ્રેક પ્રો માં સ્વાગત છે. સાઇટ કામ, મટીરીયલ અને હિસાબ સંપૂર્ણ સમન્વયિત છે.",
+  },
+  {
+    code: "mr",
+    name: "Marathi",
+    nativeName: "मराठी",
+    region: "Maharashtra & Goa",
+    badge: "Regional",
+    description: "बांधकाम साइट, हजेरी, साहित्य आणि खर्चाच्या नोंदीसाठी मराठी इंटरफेस.",
+    previewSample: "बिल्ड ट्रॅक प्रो मध्ये आपले स्वागत आहे. साइट, दैनंदिन काम, साहित्य आणि लेजर पूर्णपणे समक्रमित आहेत.",
+  },
+];
 
 interface OrgData {
   id: string;
@@ -27,6 +80,7 @@ interface OrgData {
     companyAddress?: string;
     phone?: string;
     workDayHours?: number;
+    language?: string;
   };
   users: Array<{
     id: string;
@@ -50,10 +104,12 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [langChangeAlert, setLangChangeAlert] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("INR");
   const [timezone, setTimezone] = useState("Asia/Kolkata");
+  const [language, setLanguage] = useState("en");
   const [taxId, setTaxId] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   const [phone, setPhone] = useState("");
@@ -62,6 +118,12 @@ export default function SettingsPage() {
   const [orgData, setOrgData] = useState<OrgData | null>(null);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedLang = localStorage.getItem("buildtrack_language");
+      if (storedLang) {
+        setLanguage(storedLang);
+      }
+    }
     fetchOrg();
   }, []);
 
@@ -80,6 +142,13 @@ export default function SettingsPage() {
         setCompanyAddress(data.settings?.companyAddress || "");
         setPhone(data.settings?.phone || "");
         setWorkDayHours(data.settings?.workDayHours || 8);
+        if (data.settings?.language) {
+          setLanguage(data.settings.language);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("buildtrack_language", data.settings.language);
+            document.cookie = `buildtrack_language=${data.settings.language}; path=/; max-age=31536000; SameSite=Lax`;
+          }
+        }
       } else {
         setErrorMsg(json.error?.message || "Failed to load organization settings");
       }
@@ -88,6 +157,24 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleLanguageChange(langCode: string) {
+    setLanguage(langCode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("buildtrack_language", langCode);
+      document.cookie = `buildtrack_language=${langCode}; path=/; max-age=31536000; SameSite=Lax`;
+      window.dispatchEvent(
+        new CustomEvent("languageChanged", { detail: { language: langCode } })
+      );
+    }
+    const target = SUPPORTED_LANGUAGES.find((l) => l.code === langCode);
+    setLangChangeAlert(
+      `Display language changed to ${target?.name} (${target?.nativeName}). Remember to click "Save Settings" below to store it permanently for your organization.`
+    );
+    setTimeout(() => {
+      setLangChangeAlert(null);
+    }, 6000);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -109,16 +196,21 @@ export default function SettingsPage() {
             companyAddress,
             phone,
             workDayHours: Number(workDayHours),
+            language,
           },
         }),
       });
 
       const json = await res.json();
       if (json.success) {
-        if (typeof window !== "undefined" && name) {
-          localStorage.setItem("bothra_org_name", name);
+        if (typeof window !== "undefined") {
+          if (name) localStorage.setItem("bothra_org_name", name);
+          if (language) {
+            localStorage.setItem("buildtrack_language", language);
+            document.cookie = `buildtrack_language=${language}; path=/; max-age=31536000; SameSite=Lax`;
+          }
         }
-        setSuccessMsg("Organization settings updated and saved successfully.");
+        setSuccessMsg("Organization settings and language preference saved successfully.");
         fetchOrg();
       } else {
         setErrorMsg(json.error?.message || "Failed to update settings");
@@ -141,6 +233,22 @@ export default function SettingsPage() {
             Manage organization profile, currency formatting, tax registration, and active users.
           </p>
         </div>
+
+        {langChangeAlert && (
+          <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm flex items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <Globe className="w-5 h-5 text-blue-600 shrink-0" />
+              <span>{langChangeAlert}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLangChangeAlert(null)}
+              className="text-xs font-bold text-blue-700 hover:text-blue-900 underline shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {successMsg && (
           <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
@@ -268,6 +376,89 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
+                {/* Platform Display Language Section */}
+                <div className="pt-4 border-t border-slate-100">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                        <Languages className="w-4 h-4 text-amber-600" />
+                        Platform Display Language / भाषा चुनें
+                      </label>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Choose your preferred interface language for construction modules, reports, and daily site logs.
+                      </p>
+                    </div>
+                    <span className="self-start sm:self-auto text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                      Active: {SUPPORTED_LANGUAGES.find((l) => l.code === language)?.nativeName || language}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {SUPPORTED_LANGUAGES.map((lang) => {
+                      const isSelected = language === lang.code;
+                      return (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => handleLanguageChange(lang.code)}
+                          className={`relative p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                            isSelected
+                              ? "bg-amber-50/70 border-amber-500 shadow-sm ring-2 ring-amber-500/20"
+                              : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between w-full">
+                            <div className="flex items-center gap-2.5">
+                              <span
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                                  isSelected ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {lang.code.toUpperCase()}
+                              </span>
+                              <div>
+                                <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                                  <span>{lang.nativeName}</span>
+                                  <span className="text-xs font-normal text-slate-500">({lang.name})</span>
+                                </div>
+                                <div className="text-[11px] text-slate-500">{lang.region}</div>
+                              </div>
+                            </div>
+                            {isSelected ? (
+                              <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">
+                                <Check className="w-3.5 h-3.5" /> Selected
+                              </span>
+                            ) : lang.badge ? (
+                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
+                                {lang.badge}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="text-xs text-slate-600 mt-2.5 line-clamp-2">
+                            {lang.description}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Live Localized Sample Preview */}
+                  {(() => {
+                    const activeObj = SUPPORTED_LANGUAGES.find((l) => l.code === language);
+                    return activeObj ? (
+                      <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 flex items-start gap-2.5">
+                        <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold text-slate-900">
+                            Preview ({activeObj.name} - {activeObj.nativeName}):{" "}
+                          </span>
+                          <span className="italic text-slate-600">&ldquo;{activeObj.previewSample}&rdquo;</span>
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Corporate Headquarters / Billing Address
@@ -357,6 +548,47 @@ export default function SettingsPage() {
 
             {/* Right Column: Platform Metadata & Security Summary */}
             <div className="space-y-6">
+              {/* Quick Language Switcher Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-amber-600" />
+                    <h3 className="text-sm font-bold text-slate-900">Language Switcher</h3>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    1-Click
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Switch platform display language instantly:
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {SUPPORTED_LANGUAGES.map((lang) => {
+                    const isSelected = language === lang.code;
+                    return (
+                      <button
+                        key={`quick-${lang.code}`}
+                        type="button"
+                        onClick={() => handleLanguageChange(lang.code)}
+                        className={`p-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-between ${
+                          isSelected
+                            ? "bg-amber-600 text-white border-amber-600 shadow-sm shadow-amber-600/30"
+                            : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex flex-col text-left truncate">
+                          <span className="font-bold text-sm leading-tight">{lang.nativeName}</span>
+                          <span className={`text-[10px] ${isSelected ? "text-amber-100" : "text-slate-500"}`}>
+                            {lang.name}
+                          </span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 shrink-0 text-white" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-md space-y-4">
                 <div className="flex items-center gap-2 text-amber-400">
                   <ShieldCheck className="w-5 h-5" />

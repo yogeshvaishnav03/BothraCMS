@@ -18,6 +18,7 @@ const updateOrgSchema = z.object({
       phone: z.string().optional(),
       lowStockThresholdMultiplier: z.number().min(0.5).max(5).optional(),
       workDayHours: z.number().min(4).max(16).optional(),
+      language: z.string().optional(),
     })
     .optional(),
 });
