@@ -109,6 +109,22 @@ export class LocalStorageProvider implements IStorageProvider {
       }
     }
 
+    // Fallback: If exact file name not found, search directories for any file containing safeKey
+    const dirs = [primaryDir, path.join(process.cwd(), "storage", "uploads", "private"), path.join(os.tmpdir(), "storage", "uploads", "private")];
+    for (const d of dirs) {
+      try {
+        if (fs.existsSync(d)) {
+          const files = await fs.promises.readdir(d);
+          const match = files.find((f) => f.includes(safeKey));
+          if (match) {
+            return await fs.promises.readFile(path.join(d, match));
+          }
+        }
+      } catch {
+        // Continue
+      }
+    }
+
     return null;
   }
 

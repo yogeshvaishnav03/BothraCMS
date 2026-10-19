@@ -362,6 +362,14 @@ export default function ChatPage() {
 
       // 1. Upload photo if selected
       if (selectedImage) {
+        // Pre-compress image to clean data URL as primary reliable payload
+        let localDataUrl: string | null = null;
+        try {
+          localDataUrl = await compressImageToDataUrl(selectedImage, 1200, 0.8);
+        } catch (compressErr) {
+          console.warn("Failed to compress image:", compressErr);
+        }
+
         try {
           const formData = new FormData();
           formData.append("file", selectedImage);
@@ -377,7 +385,13 @@ export default function ChatPage() {
           const ct = uploadRes.headers.get("content-type") || "";
           if (uploadRes.ok && ct.includes("application/json")) {
             const uploadJson = await uploadRes.json();
-            if (uploadJson.success && uploadJson.data?.url) {
+            // If storage provider returned an external cloud URL (S3/R2 CDN), use it;
+            // otherwise use localDataUrl because local storage on serverless does not persist across instances
+            if (
+              uploadJson.success &&
+              uploadJson.data?.url &&
+              (uploadJson.data.url.startsWith("http://") || uploadJson.data.url.startsWith("https://"))
+            ) {
               uploadedImageUrl = uploadJson.data.url;
             }
           }
@@ -385,13 +399,9 @@ export default function ChatPage() {
           console.warn("Storage upload failed, falling back to data URL:", uploadErr);
         }
 
-        // Resilient fallback: If server storage returned error or was unavailable, use compressed base64
+        // Resilient fallback: Use compressed base64 if no external cloud CDN URL
         if (!uploadedImageUrl) {
-          try {
-            uploadedImageUrl = await compressImageToDataUrl(selectedImage);
-          } catch (compressErr) {
-            console.error("Failed to compress image fallback:", compressErr);
-          }
+          uploadedImageUrl = localDataUrl;
         }
 
         if (!uploadedImageUrl && !content) {
@@ -969,6 +979,12 @@ export default function ChatPage() {
                                       onClick={() => setFullscreenImage(m.imageUrl || null)}
                                       className="max-h-72 w-auto max-w-full rounded-xl object-contain transition duration-200 group-hover:scale-101"
                                       loading="lazy"
+                                      referrerPolicy="no-referrer"
+                                      onError={(e) => {
+                                        const target = e.currentTarget;
+                                        target.onerror = null;
+                                        target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='120' viewBox='0 0 260 120'%3E%3Crect width='260' height='120' fill='%23f1f5f9' rx='10'/%3E%3Ctext x='130' y='65' text-anchor='middle' font-family='sans-serif' font-size='12' fill='%2364748b'%3E📷 Photo unavailable%3C/text%3E%3C/svg%3E";
+                                      }}
                                     />
                                     <div
                                       onClick={() => setFullscreenImage(m.imageUrl || null)}
