@@ -6,6 +6,7 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { WorkforceHeadcountService } from "@/services/workforce-headcount-service";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const saveHeadcountSchema = z.object({
   siteId: z.string().min(1, "Site is required"),

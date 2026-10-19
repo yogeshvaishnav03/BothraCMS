@@ -217,6 +217,22 @@ export default function WorkforcePage() {
           `Workforce count for ${siteName} on ${formatDate(modalDate)} saved! Total: ${saved.grandTotal} workers (Artisans: ${saved.artisanCount}, Laborers: ${saved.laborerTotal} [${saved.laborerMale}M / ${saved.laborerFemale}F]).`
         );
         setShowUploadModal(false);
+        if (saved) {
+          setSelectedSiteId(modalSiteId);
+          setSelectedDate(modalDate);
+          setRecords((prev) => {
+            const normalized = {
+              ...saved,
+              siteName,
+            };
+            const remaining = prev.filter(
+              (r) =>
+                r.id !== saved.id &&
+                !(r.siteId === saved.siteId && r.date === saved.date && r.shift === saved.shift)
+            );
+            return [normalized, ...remaining];
+          });
+        }
         await loadData();
       }
     } catch {
@@ -241,6 +257,7 @@ export default function WorkforcePage() {
         setErrorMessage(data.error?.message || "Failed to delete record");
       } else {
         setStatusMessage(`Workforce headcount record deleted.`);
+        setRecords((prev) => prev.filter((r) => r.id !== id));
         await loadData();
       }
     } catch {

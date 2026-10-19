@@ -146,8 +146,77 @@ export class WorkforceHeadcountService {
     organizationId: string,
     filter?: { siteId?: string; date?: string; startDate?: string; endDate?: string }
   ): Promise<WorkforceHeadcountRecord[]> {
-    const records = loadAllRecords();
-    return records
+    const recordsMap = new Map<string, WorkforceHeadcountRecord>();
+
+    // A. Query database (IdempotencyRecord - persistent key-value store across serverless instances)
+    try {
+      const idempRecords = await prisma.idempotencyRecord.findMany({
+        where: {
+          organizationId,
+          operation: "WORKFORCE_HEADCOUNT",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      for (const rec of idempRecords) {
+        try {
+          if (rec.responseBodyJson) {
+            const parsed = JSON.parse(rec.responseBodyJson);
+            const normalized = normalizeRecord(parsed);
+            const key = `${normalized.siteId}#${normalized.date}#${normalized.shift}`;
+            if (!recordsMap.has(key)) {
+              recordsMap.set(key, normalized);
+            }
+          }
+        } catch {}
+      }
+    } catch (err) {
+      console.warn("Notice: IdempotencyRecord fetch for workforce headcount error:", err);
+    }
+
+    // B. Query database (AuditEvent - captures previously logged counts)
+    try {
+      const auditEvents = await prisma.auditEvent.findMany({
+        where: {
+          organizationId,
+          entityType: "SITE_WORKFORCE",
+          action: "WORKFORCE_COUNT_LOGGED",
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      for (const ev of auditEvents) {
+        try {
+          if (ev.afterJson) {
+            const parsed = JSON.parse(ev.afterJson);
+            const normalized = normalizeRecord(parsed);
+            const key = `${normalized.siteId}#${normalized.date}#${normalized.shift}`;
+            if (!recordsMap.has(key)) {
+              recordsMap.set(key, normalized);
+            }
+          }
+        } catch {}
+      }
+    } catch (err) {
+      console.warn("Notice: AuditEvent fetch for workforce headcount error:", err);
+    }
+
+    // C. Merge file / in-memory records (for local dev fallback)
+    try {
+      const fileRecords = loadAllRecords();
+      for (const fr of fileRecords) {
+        if (fr.organizationId === organizationId) {
+          const key = `${fr.siteId}#${fr.date}#${fr.shift}`;
+          if (!recordsMap.has(key)) {
+            recordsMap.set(key, fr);
+          }
+        }
+      }
+    } catch {}
+
+    const allRecords = Array.from(recordsMap.values());
+
+    return allRecords
       .filter((r) => {
         if (r.organizationId !== organizationId) return false;
         if (filter?.siteId && r.siteId !== filter.siteId) return false;
@@ -156,7 +225,7 @@ export class WorkforceHeadcountService {
         if (filter?.endDate && r.date > filter.endDate) return false;
         return true;
       })
-      .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+      .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
   }
 
   /**
@@ -278,9 +347,32 @@ export class WorkforceHeadcountService {
       records.unshift(savedRecord);
     }
 
-    saveAllRecords(records);
+    // 1. Persist to Prisma Database (IdempotencyRecord: persistent across Vercel serverless)
+    const storageKey = `HEADCOUNT#${savedRecord.siteId}#${savedRecord.date}#${savedRecord.shift}`;
+    try {
+      await prisma.idempotencyRecord.upsert({
+        where: {
+          organizationId_key: {
+            organizationId,
+            key: storageKey,
+          },
+        },
+        create: {
+          organizationId,
+          key: storageKey,
+          operation: "WORKFORCE_HEADCOUNT",
+          responseCode: 200,
+          responseBodyJson: JSON.stringify(savedRecord),
+        },
+        update: {
+          responseBodyJson: JSON.stringify(savedRecord),
+        },
+      });
+    } catch (dbErr) {
+      console.warn("Notice: Could not upsert into idempotencyRecord:", dbErr);
+    }
 
-    // Record audit event
+    // 2. Persist to AuditEvent
     try {
       await prisma.auditEvent.create({
         data: {
@@ -296,7 +388,12 @@ export class WorkforceHeadcountService {
           afterJson: JSON.stringify(savedRecord),
         },
       });
-    } catch {}
+    } catch (auditErr) {
+      console.warn("Notice: Could not create auditEvent:", auditErr);
+    }
+
+    // 3. Keep local file / in-memory store synchronized
+    saveAllRecords(records);
 
     return savedRecord;
   }
@@ -305,13 +402,45 @@ export class WorkforceHeadcountService {
    * Delete a headcount record
    */
   static async deleteRecord(organizationId: string, id: string): Promise<boolean> {
+    let deletedFromDb = false;
+
+    // Delete from IdempotencyRecord
+    try {
+      const delIdemp = await prisma.idempotencyRecord.deleteMany({
+        where: {
+          organizationId,
+          operation: "WORKFORCE_HEADCOUNT",
+          responseBodyJson: { contains: id },
+        },
+      });
+      if (delIdemp.count > 0) deletedFromDb = true;
+    } catch (err) {
+      console.warn("Notice: Error deleting from idempotencyRecord:", err);
+    }
+
+    // Delete from AuditEvent
+    try {
+      const delAudit = await prisma.auditEvent.deleteMany({
+        where: {
+          organizationId,
+          entityType: "SITE_WORKFORCE",
+          entityId: id,
+        },
+      });
+      if (delAudit.count > 0) deletedFromDb = true;
+    } catch (err) {
+      console.warn("Notice: Error deleting from auditEvent:", err);
+    }
+
+    // Delete from file/memory
     const records = loadAllRecords();
     const filtered = records.filter((r) => !(r.id === id && r.organizationId === organizationId));
     if (filtered.length !== records.length) {
       saveAllRecords(filtered);
       return true;
     }
-    return false;
+
+    return deletedFromDb;
   }
 
   /**
