@@ -25,6 +25,11 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  Download,
+  Building2,
+  Users,
+  Briefcase,
+  FileSpreadsheet,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import { canUser } from "@/lib/permissions";
@@ -94,6 +99,8 @@ export default function FinancePage() {
   const [paymentMinAmount, setPaymentMinAmount] = useState("");
   const [paymentMaxAmount, setPaymentMaxAmount] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [datePreset, setDatePreset] = useState<"ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM">("ALL");
+  const [amountPreset, setAmountPreset] = useState<"ALL" | "UNDER_50K" | "50K_2L" | "OVER_2L" | "CUSTOM">("ALL");
 
   // Search & Filter state for Vendor Bills
   const [billSearch, setBillSearch] = useState("");
@@ -485,6 +492,121 @@ export default function FinancePage() {
     setPaymentAllocatedTo("");
     setPaymentMinAmount("");
     setPaymentMaxAmount("");
+    setDatePreset("ALL");
+    setAmountPreset("ALL");
+  };
+
+  const paymentCounts = useMemo(() => {
+    return {
+      all: payments.length,
+      posted: payments.filter((p) => p.status === "POSTED" || p.status === "APPROVED").length,
+      pending: payments.filter((p) => p.status === "PENDING_APPROVAL").length,
+      rejected: payments.filter((p) => p.status === "REJECTED").length,
+      reversed: payments.filter((p) => p.status === "REVERSED").length,
+      vendors: payments.filter((p) => (p.recipientType || p.party?.type || "VENDOR") === "VENDOR").length,
+      contractors: payments.filter((p) => (p.recipientType || p.party?.type) === "CONTRACTOR").length,
+      employees: payments.filter((p) => (p.recipientType || p.party?.type) === "EMPLOYEE").length,
+    };
+  }, [payments]);
+
+  const handleDatePreset = (preset: "ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM") => {
+    setDatePreset(preset);
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    if (preset === "ALL") {
+      setPaymentFromDate("");
+      setPaymentToDate("");
+    } else if (preset === "TODAY") {
+      const todayStr = fmt(now);
+      setPaymentFromDate(todayStr);
+      setPaymentToDate(todayStr);
+    } else if (preset === "THIS_MONTH") {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      setPaymentFromDate(fmt(first));
+      setPaymentToDate(fmt(now));
+    } else if (preset === "LAST_30") {
+      const past = new Date();
+      past.setDate(now.getDate() - 30);
+      setPaymentFromDate(fmt(past));
+      setPaymentToDate(fmt(now));
+    } else if (preset === "CUSTOM") {
+      setShowAdvancedFilters(true);
+    }
+  };
+
+  const handleAmountPreset = (preset: "ALL" | "UNDER_50K" | "50K_2L" | "OVER_2L" | "CUSTOM") => {
+    setAmountPreset(preset);
+    if (preset === "ALL") {
+      setPaymentMinAmount("");
+      setPaymentMaxAmount("");
+    } else if (preset === "UNDER_50K") {
+      setPaymentMinAmount("");
+      setPaymentMaxAmount("50000");
+    } else if (preset === "50K_2L") {
+      setPaymentMinAmount("50000");
+      setPaymentMaxAmount("200000");
+    } else if (preset === "OVER_2L") {
+      setPaymentMinAmount("200000");
+      setPaymentMaxAmount("");
+    } else if (preset === "CUSTOM") {
+      setShowAdvancedFilters(true);
+    }
+  };
+
+  const exportPaymentsToCSV = () => {
+    if (filteredPayments.length === 0) return;
+    const headers = [
+      "Payment Date",
+      "Ref Number",
+      "Payee Name",
+      "Payee Type",
+      "Paying Account (Source)",
+      "Method",
+      "Reason / Query",
+      "Allocated Bills",
+      "Amount (Rupees)",
+      "Status",
+    ];
+
+    const rows = filteredPayments.map((p) => {
+      const payee = (p.recipientName || p.party?.name || "Recipient").replace(/"/g, '""');
+      const rType = p.recipientType || p.party?.type || "VENDOR";
+      const payingAcc = (p.payingAccount || "Company Primary A/C").replace(/"/g, '""');
+      const note = (p.approvalQuery || p.notes || p.rejectionReason || "").replace(/"/g, '""');
+      const allocs = (
+        p.allocations && p.allocations.length > 0
+          ? p.allocations.map((a: any) => `Bill #${a.bill?.billNumber || a.billId} (₹${((a.amount || 0) / 100).toFixed(2)})`).join("; ")
+          : "Unallocated"
+      ).replace(/"/g, '""');
+      const amtRupees = ((p.amount || 0) / 100).toFixed(2);
+      const st = p.status || "POSTED";
+
+      return [
+        `"${formatDate(p.paymentDate)}"`,
+        `"${p.referenceNumber || ""}"`,
+        `"${payee}"`,
+        `"${rType}"`,
+        `"${payingAcc}"`,
+        `"${p.method || ""}"`,
+        `"${note}"`,
+        `"${allocs}"`,
+        amtRupees,
+        `"${st}"`,
+      ].join(",");
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `payments_register_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const filteredPayments = useMemo(() => {
@@ -780,66 +902,39 @@ export default function FinancePage() {
         {activeTab === "PAYMENTS" && (
           <div className="space-y-4">
             {/* Search & Filter Toolbar */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
-              {/* Primary Search & Quick Filters Bar */}
-              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3.5 transition-all">
+              {/* Row 1: Search Bar & Primary Actions */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                 {/* Global Search Input */}
-                <div className="relative flex-1 min-w-[260px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={paymentSearch}
                     onChange={(e) => setPaymentSearch(e.target.value)}
                     placeholder="Search by date, payee, ref #, source account, method, bill #, amount, reason..."
-                    className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    className="w-full pl-9 pr-9 py-2.5 text-xs bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-amber-500 rounded-xl focus:outline-none focus:ring-4 focus:ring-amber-500/10 transition-all font-medium placeholder:text-slate-400"
                   />
                   {paymentSearch && (
                     <button
                       onClick={() => setPaymentSearch("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 bg-slate-200/60 hover:bg-slate-200 p-1 rounded-full transition"
                       title="Clear search"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
 
-                {/* Quick Filters: Status, Payee Type, Toggle Advanced, Reset */}
-                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                  {/* Status Dropdown */}
-                  <select
-                    value={paymentStatus}
-                    onChange={(e) => setPaymentStatus(e.target.value)}
-                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    title="Filter by Status"
-                  >
-                    <option value="ALL">All Statuses</option>
-                    <option value="POSTED">Approved / Posted</option>
-                    <option value="PENDING_APPROVAL">Pending Super Admin</option>
-                    <option value="REJECTED">Rejected</option>
-                    <option value="REVERSED">Reversed</option>
-                  </select>
-
-                  {/* Payee Type Dropdown */}
-                  <select
-                    value={paymentPayeeType}
-                    onChange={(e) => setPaymentPayeeType(e.target.value)}
-                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    title="Filter by Payee Type"
-                  >
-                    <option value="ALL">All Payee Types</option>
-                    <option value="VENDOR">Vendors</option>
-                    <option value="CONTRACTOR">Contractors</option>
-                    <option value="EMPLOYEE">Employees</option>
-                  </select>
-
-                  {/* Advanced Filters Button */}
+                {/* Primary Action Buttons */}
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  {/* Filter Options (Expand/Collapse) */}
                   <button
                     onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition whitespace-nowrap ${
+                    className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl border transition-all shadow-xs cursor-pointer ${
                       showAdvancedFilters || activePaymentFiltersCount > 0
-                        ? "bg-amber-50 border-amber-300 text-amber-900"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        ? "bg-amber-50 border-amber-300 text-amber-900 shadow-amber-100"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                     }`}
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -849,255 +944,554 @@ export default function FinancePage() {
                         {activePaymentFiltersCount}
                       </span>
                     )}
-                    {showAdvancedFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    {showAdvancedFilters ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-amber-700" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    )}
                   </button>
 
-                  {/* Clear / Reset button */}
+                  {/* Export CSV button */}
+                  <button
+                    onClick={exportPaymentsToCSV}
+                    disabled={filteredPayments.length === 0}
+                    className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
+                    title="Export currently filtered payments to CSV"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="hidden md:inline">Export CSV</span>
+                  </button>
+
+                  {/* Reset All Filters button */}
                   {activePaymentFiltersCount > 0 && (
                     <button
                       onClick={clearAllPaymentFilters}
-                      className="px-2.5 py-2 text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition whitespace-nowrap"
+                      className="flex items-center gap-1 px-3 py-2.5 text-xs font-bold rounded-xl text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all cursor-pointer"
+                      title="Reset all filters"
                     >
-                      Reset
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reset</span>
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Advanced Filter Controls Grid */}
+              {/* Row 2: Interactive Status Pills (Clickable Segmented Control) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 shrink-0">
+                  Status:
+                </span>
+
+                {/* ALL Status */}
+                <button
+                  onClick={() => setPaymentStatus("ALL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    paymentStatus === "ALL"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  <span>All</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      paymentStatus === "ALL" ? "bg-slate-700 text-slate-200" : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {paymentCounts.all}
+                  </span>
+                </button>
+
+                {/* APPROVED / POSTED */}
+                <button
+                  onClick={() => setPaymentStatus(paymentStatus === "POSTED" ? "ALL" : "POSTED")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    paymentStatus === "POSTED"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/60"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Approved</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      paymentStatus === "POSTED"
+                        ? "bg-emerald-700 text-emerald-100"
+                        : "bg-emerald-100 text-emerald-800"
+                    }`}
+                  >
+                    {paymentCounts.posted}
+                  </span>
+                </button>
+
+                {/* PENDING APPROVAL */}
+                <button
+                  onClick={() =>
+                    setPaymentStatus(paymentStatus === "PENDING_APPROVAL" ? "ALL" : "PENDING_APPROVAL")
+                  }
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    paymentStatus === "PENDING_APPROVAL"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/70"
+                  }`}
+                >
+                  {paymentCounts.pending > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
+                  )}
+                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Pending Super Admin</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      paymentStatus === "PENDING_APPROVAL"
+                        ? "bg-amber-700 text-amber-100"
+                        : "bg-amber-200/80 text-amber-900"
+                    }`}
+                  >
+                    {paymentCounts.pending}
+                  </span>
+                </button>
+
+                {/* REJECTED */}
+                <button
+                  onClick={() => setPaymentStatus(paymentStatus === "REJECTED" ? "ALL" : "REJECTED")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    paymentStatus === "REJECTED"
+                      ? "bg-rose-600 text-white shadow-xs"
+                      : "bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/60"
+                  }`}
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Rejected</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      paymentStatus === "REJECTED" ? "bg-rose-700 text-rose-100" : "bg-rose-100 text-rose-800"
+                    }`}
+                  >
+                    {paymentCounts.rejected}
+                  </span>
+                </button>
+
+                {/* REVERSED */}
+                <button
+                  onClick={() => setPaymentStatus(paymentStatus === "REVERSED" ? "ALL" : "REVERSED")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    paymentStatus === "REVERSED"
+                      ? "bg-slate-700 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                  }`}
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reversed</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      paymentStatus === "REVERSED" ? "bg-slate-600 text-slate-200" : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {paymentCounts.reversed}
+                  </span>
+                </button>
+              </div>
+
+              {/* Row 3: Interactive Quick Preset Pills (Payee Type & Date Shortcuts) */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                {/* Payee Type Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    Payee:
+                  </span>
+                  {[
+                    { key: "ALL", label: "All Types", count: paymentCounts.all },
+                    { key: "VENDOR", label: "Vendors", count: paymentCounts.vendors, icon: Building2 },
+                    { key: "CONTRACTOR", label: "Contractors", count: paymentCounts.contractors, icon: Briefcase },
+                    { key: "EMPLOYEE", label: "Employees", count: paymentCounts.employees, icon: Users },
+                  ].map((tab) => {
+                    const active = paymentPayeeType === tab.key;
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setPaymentPayeeType(active && tab.key !== "ALL" ? "ALL" : tab.key)}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                          active
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 border border-transparent"
+                        }`}
+                      >
+                        {Icon && <Icon className="w-3 h-3" />}
+                        <span>{tab.label}</span>
+                        <span
+                          className={`text-[9px] px-1 rounded font-mono ${
+                            active ? "bg-slate-700 text-white" : "text-slate-500"
+                          }`}
+                        >
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Date Presets */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    Date:
+                  </span>
+                  {[
+                    { key: "ALL", label: "All Dates" },
+                    { key: "TODAY", label: "Today" },
+                    { key: "THIS_MONTH", label: "This Month" },
+                    { key: "LAST_30", label: "Last 30 Days" },
+                    { key: "CUSTOM", label: "Custom ▾" },
+                  ].map((p) => {
+                    const active = datePreset === p.key;
+                    return (
+                      <button
+                        key={p.key}
+                        onClick={() => handleDatePreset(p.key as any)}
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                          active
+                            ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
+                            : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Row 4: Expanded Advanced Filters Drawer */}
               {showAdvancedFilters && (
-                <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {/* From Date */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-slate-400" />
-                      <span>From Date</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={paymentFromDate}
-                      onChange={(e) => setPaymentFromDate(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    />
-                  </div>
-
-                  {/* To Date */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-slate-400" />
-                      <span>To Date</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={paymentToDate}
-                      onChange={(e) => setPaymentToDate(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    />
-                  </div>
-
-                  {/* Paying Account (Source) */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
-                      <Landmark className="w-3 h-3 text-slate-400" />
-                      <span>Paying Account (Source)</span>
-                    </label>
-                    <select
-                      value={paymentPayingAccount}
-                      onChange={(e) => setPaymentPayingAccount(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 truncate"
+                <div className="pt-3 border-t border-slate-100 space-y-3 bg-slate-50/70 -mx-4 -mb-4 p-4 rounded-b-2xl border-t">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Advanced Search & Column Filters</span>
+                    </div>
+                    <button
+                      onClick={() => setShowAdvancedFilters(false)}
+                      className="text-slate-400 hover:text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
                     >
-                      <option value="ALL">All Paying Accounts</option>
-                      {distinctPayingAccounts.map((acc) => (
-                        <option key={acc} value={acc}>
-                          {acc}
-                        </option>
-                      ))}
-                    </select>
+                      <span>Close</span>
+                      <ChevronUp className="w-3 h-3" />
+                    </button>
                   </div>
 
-                  {/* Method */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Method
-                    </label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    >
-                      <option value="ALL">All Methods</option>
-                      <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS/IMPS)</option>
-                      <option value="CHEQUE">Cheque</option>
-                      <option value="CASH">Cash</option>
-                      <option value="UPI">UPI</option>
-                      {distinctMethods
-                        .filter((m) => !["BANK_TRANSFER", "CHEQUE", "CASH", "UPI"].includes(m))
-                        .map((m) => (
-                          <option key={m} value={m}>
-                            {m}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* From Date */}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>From Date</span>
+                        </span>
+                        {paymentFromDate && (
+                          <button
+                            onClick={() => {
+                              setPaymentFromDate("");
+                              setDatePreset("ALL");
+                            }}
+                            className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </label>
+                      <input
+                        type="date"
+                        value={paymentFromDate}
+                        onChange={(e) => {
+                          setPaymentFromDate(e.target.value);
+                          setDatePreset("CUSTOM");
+                        }}
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                      />
+                    </div>
+
+                    {/* To Date */}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>To Date</span>
+                        </span>
+                        {paymentToDate && (
+                          <button
+                            onClick={() => {
+                              setPaymentToDate("");
+                              setDatePreset("ALL");
+                            }}
+                            className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </label>
+                      <input
+                        type="date"
+                        value={paymentToDate}
+                        onChange={(e) => {
+                          setPaymentToDate(e.target.value);
+                          setDatePreset("CUSTOM");
+                        }}
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                      />
+                    </div>
+
+                    {/* Paying Account (Source) */}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <Landmark className="w-3 h-3 text-slate-400" />
+                        <span>Paying Account (Source)</span>
+                      </label>
+                      <select
+                        value={paymentPayingAccount}
+                        onChange={(e) => setPaymentPayingAccount(e.target.value)}
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 truncate"
+                      >
+                        <option value="ALL">All Paying Accounts ({distinctPayingAccounts.length})</option>
+                        {distinctPayingAccounts.map((acc) => (
+                          <option key={acc} value={acc}>
+                            {acc}
                           </option>
                         ))}
-                    </select>
+                      </select>
+                    </div>
+
+                    {/* Method */}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <CreditCard className="w-3 h-3 text-slate-400" />
+                        <span>Payment Method</span>
+                      </label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                      >
+                        <option value="ALL">All Methods</option>
+                        <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                        <option value="CHEQUE">Cheque</option>
+                        <option value="CASH">Cash</option>
+                        <option value="UPI">UPI</option>
+                        {distinctMethods
+                          .filter((m) => !["BANK_TRANSFER", "CHEQUE", "CASH", "UPI"].includes(m))
+                          .map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {/* Reason / Query */}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Reason / Query / Notes
+                      </label>
+                      <input
+                        type="text"
+                        value={paymentReason}
+                        onChange={(e) => setPaymentReason(e.target.value)}
+                        placeholder="e.g. advance, cement, query..."
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                      />
+                    </div>
+
+                    {/* Allocated To */}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700">
+                          Allocated Bill #
+                        </label>
+                        <div className="flex items-center gap-1 text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPaymentAllocatedTo(paymentAllocatedTo === "unallocated" ? "" : "unallocated")
+                            }
+                            className={`px-1.5 py-0.2 rounded font-semibold transition cursor-pointer ${
+                              paymentAllocatedTo === "unallocated"
+                                ? "bg-amber-100 text-amber-800"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            Unallocated
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={paymentAllocatedTo}
+                        onChange={(e) => setPaymentAllocatedTo(e.target.value)}
+                        placeholder="e.g. Bill #, unallocated..."
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                      />
+                    </div>
+
+                    {/* Min Amount */}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Min Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={paymentMinAmount}
+                        onChange={(e) => {
+                          setPaymentMinAmount(e.target.value);
+                          setAmountPreset("CUSTOM");
+                        }}
+                        placeholder="₹ Min (e.g. 1000)"
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                      />
+                    </div>
+
+                    {/* Max Amount */}
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Max Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={paymentMaxAmount}
+                        onChange={(e) => {
+                          setPaymentMaxAmount(e.target.value);
+                          setAmountPreset("CUSTOM");
+                        }}
+                        placeholder="₹ Max (e.g. 50000)"
+                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                      />
+                    </div>
                   </div>
 
-                  {/* Reason / Query */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Reason / Query
-                    </label>
-                    <input
-                      type="text"
-                      value={paymentReason}
-                      onChange={(e) => setPaymentReason(e.target.value)}
-                      placeholder="e.g. site material, advance..."
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    />
-                  </div>
-
-                  {/* Allocated To */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Allocated To
-                    </label>
-                    <input
-                      type="text"
-                      value={paymentAllocatedTo}
-                      onChange={(e) => setPaymentAllocatedTo(e.target.value)}
-                      placeholder="e.g. Bill #, unallocated, allocated..."
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    />
-                  </div>
-
-                  {/* Min Amount */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Min Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={paymentMinAmount}
-                      onChange={(e) => setPaymentMinAmount(e.target.value)}
-                      placeholder="₹ Min (e.g. 1000)"
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    />
-                  </div>
-
-                  {/* Max Amount */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Max Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={paymentMaxAmount}
-                      onChange={(e) => setPaymentMaxAmount(e.target.value)}
-                      placeholder="₹ Max (e.g. 50000)"
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    />
+                  {/* Quick Amount presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1 text-xs">
+                    <span className="text-[11px] font-bold text-slate-400">Quick Amount:</span>
+                    {[
+                      { key: "ALL", label: "All Amounts" },
+                      { key: "UNDER_50K", label: "< ₹50,000" },
+                      { key: "50K_2L", label: "₹50,000 – ₹2,00,000" },
+                      { key: "OVER_2L", label: "> ₹2,00,000" },
+                    ].map((p) => (
+                      <button
+                        key={p.key}
+                        onClick={() => handleAmountPreset(p.key as any)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer ${
+                          amountPreset === p.key
+                            ? "bg-slate-900 text-white"
+                            : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Status & Active Filter Chips */}
-              <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100 flex-wrap gap-2">
+              {/* Row 5: Summary & Interactive Active Filter Chips */}
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <span>
-                    Showing <strong className="text-slate-900">{filteredPayments.length}</strong> of{" "}
-                    <strong className="text-slate-900">{payments.length}</strong> payments
+                  <span className="font-medium text-slate-600">
+                    Showing <strong className="text-slate-900 font-bold">{filteredPayments.length}</strong> of{" "}
+                    <strong className="text-slate-900 font-bold">{payments.length}</strong> payments
                   </span>
                   {filteredPayments.length > 0 && (
-                    <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
-                      Filtered Total: {formatCurrency(filteredPaymentsTotal)}
+                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs shadow-xs flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span>Filtered Total: {formatCurrency(filteredPaymentsTotal)}</span>
                     </span>
                   )}
                 </div>
 
                 {activePaymentFiltersCount > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] text-slate-400">Filters:</span>
+                    <span className="text-[11px] font-bold text-slate-400">Active:</span>
                     {paymentSearch && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                      <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-amber-200/80">
                         &quot;{paymentSearch}&quot;
-                        <button onClick={() => setPaymentSearch("")} className="hover:text-slate-900">
+                        <button onClick={() => setPaymentSearch("")} className="hover:text-amber-950 cursor-pointer">
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     )}
                     {paymentStatus !== "ALL" && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-slate-300">
                         Status: {paymentStatus}
-                        <button onClick={() => setPaymentStatus("ALL")} className="hover:text-slate-900">
+                        <button onClick={() => setPaymentStatus("ALL")} className="hover:text-black cursor-pointer">
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     )}
                     {paymentPayeeType !== "ALL" && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-slate-300">
                         Type: {paymentPayeeType}
-                        <button onClick={() => setPaymentPayeeType("ALL")} className="hover:text-slate-900">
+                        <button onClick={() => setPaymentPayeeType("ALL")} className="hover:text-black cursor-pointer">
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     )}
                     {(paymentFromDate || paymentToDate) && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-slate-300">
                         Date: {paymentFromDate || "Start"} → {paymentToDate || "End"}
                         <button
                           onClick={() => {
                             setPaymentFromDate("");
                             setPaymentToDate("");
+                            setDatePreset("ALL");
                           }}
-                          className="hover:text-slate-900"
+                          className="hover:text-black cursor-pointer"
                         >
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     )}
                     {paymentPayingAccount !== "ALL" && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
-                        Source: {paymentPayingAccount.slice(0, 18)}...
-                        <button onClick={() => setPaymentPayingAccount("ALL")} className="hover:text-slate-900">
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-slate-300">
+                        Account: {paymentPayingAccount.slice(0, 18)}...
+                        <button onClick={() => setPaymentPayingAccount("ALL")} className="hover:text-black cursor-pointer">
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     )}
                     {paymentMethod !== "ALL" && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-slate-300">
                         Method: {paymentMethod}
-                        <button onClick={() => setPaymentMethod("ALL")} className="hover:text-slate-900">
+                        <button onClick={() => setPaymentMethod("ALL")} className="hover:text-black cursor-pointer">
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     )}
                     {paymentReason && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-slate-300">
                         Reason: {paymentReason}
-                        <button onClick={() => setPaymentReason("")} className="hover:text-slate-900">
+                        <button onClick={() => setPaymentReason("")} className="hover:text-black cursor-pointer">
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     )}
                     {paymentAllocatedTo && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-slate-300">
                         Allocated: {paymentAllocatedTo}
-                        <button onClick={() => setPaymentAllocatedTo("")} className="hover:text-slate-900">
+                        <button onClick={() => setPaymentAllocatedTo("")} className="hover:text-black cursor-pointer">
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
                     )}
                     {(paymentMinAmount || paymentMaxAmount) && (
-                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
-                        Amount: ₹{paymentMinAmount || "0"} - ₹{paymentMaxAmount || "∞"}
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded-md text-[10px] font-bold border border-slate-300">
+                        Amount: ₹{paymentMinAmount || "0"} – ₹{paymentMaxAmount || "∞"}
                         <button
                           onClick={() => {
                             setPaymentMinAmount("");
                             setPaymentMaxAmount("");
+                            setAmountPreset("ALL");
                           }}
-                          className="hover:text-slate-900"
+                          className="hover:text-black cursor-pointer"
                         >
                           <X className="w-2.5 h-2.5" />
                         </button>
@@ -1105,7 +1499,7 @@ export default function FinancePage() {
                     )}
                     <button
                       onClick={clearAllPaymentFilters}
-                      className="text-[10px] text-rose-600 hover:text-rose-800 font-bold ml-1 hover:underline"
+                      className="text-[11px] text-rose-600 hover:text-rose-800 font-bold ml-1 hover:underline cursor-pointer"
                     >
                       Clear all
                     </button>
