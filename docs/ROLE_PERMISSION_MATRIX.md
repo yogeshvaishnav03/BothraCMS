@@ -44,8 +44,8 @@
 | `sites:manage` | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `projects:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `projects:write` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `tasks:read` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ |
-| `tasks:write` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `tasks:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `tasks:write` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `inventory:read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | `inventory:receipt` | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | `inventory:issue` | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |

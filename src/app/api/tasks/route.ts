@@ -113,10 +113,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
-    requirePermission(user, "tasks:write");
 
     const body = await req.json();
     const data = createTaskSchema.parse(body);
+
+    const resolvedType = data.taskType || "STANDARD";
+    if (resolvedType === "STANDARD") {
+      requirePermission(user, "tasks:write");
+    } else {
+      // Personal tasks and raising requests to owner/manager can be created by any staff with tasks:read
+      requirePermission(user, "tasks:read");
+    }
 
     let effectiveProjectId = (data.projectId || "").trim();
     const isGeneralOrOther =
@@ -176,7 +183,6 @@ export async function POST(req: NextRequest) {
     }
 
     let targetAssigneeId = data.assigneeUserId;
-    const resolvedType = data.taskType || "STANDARD";
 
     if (resolvedType === "PERSONAL" && !targetAssigneeId) {
       targetAssigneeId = user.userId;

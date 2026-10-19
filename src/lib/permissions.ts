@@ -99,6 +99,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
   ACCOUNTANT: [
     "projects:read",
+    "tasks:read",
+    "tasks:write",
     "inventory:read",
     "finance:read",
     "finance:write",
@@ -108,6 +110,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   STOREKEEPER: [
     "projects:read",
     "tasks:read",
+    "tasks:write",
     "inventory:read",
     "inventory:receipt",
     "inventory:issue",
@@ -117,6 +120,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
   HR_VIEWER: [
     "projects:read",
+    "tasks:read",
+    "tasks:write",
     "attendance:read",
     "attendance:write",
     "attendance:correct",

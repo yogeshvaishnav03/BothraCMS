@@ -375,5 +375,68 @@ describe("Priority 2: Tasks and Employee Accountability", () => {
     expect(data.data.length).toBeGreaterThanOrEqual(1);
     expect(data.data[0].name).toBe("General Site Operations");
   });
+
+  it("should allow ACCOUNTANT to create tasks, personal tasks, and raise requests without permission errors", async () => {
+    const acctUser = await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        email: `accountant_${Date.now()}@buildtrack.test`,
+        name: "Pooja Sharma",
+        role: "ACCOUNTANT",
+        passwordHash: "hash_test_123",
+      },
+    });
+
+    const token = await createSessionToken({
+      userId: acctUser.id,
+      email: acctUser.email,
+      role: acctUser.role,
+      organizationId: org.id,
+    });
+
+    // Assign accountant to project
+    await prisma.projectAssignment.create({
+      data: {
+        organizationId: org.id,
+        projectId: project.id,
+        userId: acctUser.id,
+        role: "ACCOUNTANT",
+        status: "ACTIVE",
+        assignedById: ownerUser.id,
+      },
+    });
+
+    // 1. Accountant creates a standard task for vendor bills
+    const req1 = makeJsonRequest("http://localhost:3000/api/tasks", "POST", {
+      projectId: project.id,
+      title: "Collect GST challans from cement vendor",
+      priority: "HIGH",
+      taskType: "STANDARD",
+      assigneeUserId: supervisorUser.id,
+    }, token);
+
+    const res1 = await createTaskHandler(req1);
+    const data1 = await res1.json();
+
+    expect(res1.status).toBe(201);
+    expect(data1.success).toBe(true);
+    expect(data1.data.title).toBe("Collect GST challans from cement vendor");
+
+    // 2. Accountant raises request for Owner
+    const req2 = makeJsonRequest("http://localhost:3000/api/tasks", "POST", {
+      projectId: "OTHER",
+      title: "Urgent RTGS payment approval for steel supplier",
+      priority: "CRITICAL",
+      taskType: "REQUEST_OWNER",
+      assigneeUserId: ownerUser.id,
+    }, token);
+
+    const res2 = await createTaskHandler(req2);
+    const data2 = await res2.json();
+
+    expect(res2.status).toBe(201);
+    expect(data2.success).toBe(true);
+    expect(data2.data.taskType).toBe("REQUEST_OWNER");
+  });
 });
 
