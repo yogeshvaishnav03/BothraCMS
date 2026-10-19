@@ -127,6 +127,50 @@ export default function AttachmentManager({
     }
   };
 
+  const handleReplaceUpload = async (
+    oldId: string,
+    oldCategory: string,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setErrorMsg(null);
+    setStatusMsg(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("entityType", entityType);
+      formData.append("entityId", entityId);
+      if (projectId) formData.append("projectId", projectId);
+      if (folderId) formData.append("folderId", folderId);
+      formData.append("category", oldCategory || category);
+
+      const res = await fetch("/api/attachments", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to upload replacement file");
+      }
+
+      // Delete the old attachment record
+      await fetch(`/api/attachments/${oldId}`, { method: "DELETE" });
+
+      setStatusMsg("Document re-uploaded & replaced successfully!");
+      loadAttachments();
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to replace file");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
   const handleDelete = async (id: string, fileName: string) => {
     if (!confirm(`Are you sure you want to delete attachment "${fileName}"?`)) return;
 
@@ -196,7 +240,7 @@ export default function AttachmentManager({
                   {isImage ? (
                     <div
                       onClick={() => setPreviewImage(att.url)}
-                      className="w-full h-24 bg-slate-100 rounded-lg overflow-hidden cursor-pointer relative mb-1.5 group-hover:opacity-90"
+                      className="w-full h-24 bg-slate-100 rounded-lg overflow-hidden cursor-pointer relative mb-1.5 group-hover:opacity-90 flex items-center justify-center"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -204,6 +248,13 @@ export default function AttachmentManager({
                         alt={att.fileName}
                         className="w-full h-full object-cover"
                         loading="lazy"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (!target.dataset.triedFallback) {
+                            target.dataset.triedFallback = "true";
+                            target.src = `/api/uploads/${att.fileId}?t=${Date.now()}`;
+                          }
+                        }}
                       />
                       <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <ExternalLink className="w-4 h-4 text-white" />
@@ -233,18 +284,31 @@ export default function AttachmentManager({
                 <div className="pt-2 border-t border-slate-100 mt-2 flex items-center justify-between text-[10px] text-slate-400">
                   <span className="truncate max-w-[80px]">{att.uploadedBy}</span>
                   <div className="flex items-center gap-1">
+                    <label
+                      className="p-1 text-slate-400 hover:text-amber-600 cursor-pointer transition rounded"
+                      title="Replace / Re-upload this document"
+                    >
+                      <Upload className="w-3 h-3" />
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={(e) => handleReplaceUpload(att.id, att.category, e)}
+                        disabled={uploading}
+                        className="hidden"
+                      />
+                    </label>
                     <a
                       href={att.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1 text-slate-400 hover:text-amber-600"
+                      className="p-1 text-slate-400 hover:text-amber-600 transition"
                       title="Open full document"
                     >
                       <ExternalLink className="w-3 h-3" />
                     </a>
                     <button
                       onClick={() => handleDelete(att.id, att.fileName)}
-                      className="p-1 text-slate-400 hover:text-rose-600"
+                      className="p-1 text-slate-400 hover:text-rose-600 transition"
                       title="Delete attachment"
                     >
                       <Trash2 className="w-3 h-3" />

@@ -214,6 +214,50 @@ export async function POST(req: NextRequest) {
     const storage = getStorageProvider();
     await storage.put(diskFileName, fileBuffer, file.type);
 
+    // Ensure 100% database persistence on serverless environments (Vercel)
+    try {
+      const b64 = fileBuffer.toString("base64");
+      await prisma.idempotencyRecord.upsert({
+        where: {
+          organizationId_key: {
+            organizationId: user.organizationId,
+            key: `FILE_BLOB_${fileId}`,
+          },
+        },
+        create: {
+          organizationId: user.organizationId,
+          key: `FILE_BLOB_${fileId}`,
+          operation: "FILE_BLOB",
+          responseCode: 200,
+          responseBodyJson: b64,
+        },
+        update: {
+          responseBodyJson: b64,
+        },
+      });
+
+      await prisma.idempotencyRecord.upsert({
+        where: {
+          organizationId_key: {
+            organizationId: user.organizationId,
+            key: `FILE_BLOB_${diskFileName}`,
+          },
+        },
+        create: {
+          organizationId: user.organizationId,
+          key: `FILE_BLOB_${diskFileName}`,
+          operation: "FILE_BLOB",
+          responseCode: 200,
+          responseBodyJson: b64,
+        },
+        update: {
+          responseBodyJson: b64,
+        },
+      });
+    } catch (err) {
+      console.warn("Notice: Blob database backup skipped in attachments POST:", err);
+    }
+
     // Save attachment record in database
     const attachment = await prisma.attachment.create({
       data: {

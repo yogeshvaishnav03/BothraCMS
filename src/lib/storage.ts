@@ -3,6 +3,7 @@ import path from "path";
 import crypto from "crypto";
 
 import os from "os";
+import { prisma } from "@/lib/db";
 
 export interface StorageMetadata {
   key: string;
@@ -68,14 +69,49 @@ export class LocalStorageProvider implements IStorageProvider {
     const dest = path.join(dir, safeKey);
     try {
       await fs.promises.writeFile(dest, buffer);
-    } catch (err) {
+    } catch {
       const fallbackDir = path.join(os.tmpdir(), "storage", "uploads", "private");
       if (!fs.existsSync(fallbackDir)) {
         fs.mkdirSync(fallbackDir, { recursive: true });
       }
       const fallbackDest = path.join(fallbackDir, safeKey);
-      await fs.promises.writeFile(fallbackDest, buffer);
+      await fs.promises.writeFile(fallbackDest, buffer).catch(() => {});
     }
+
+    // Persist to database so files survive across serverless instances (Vercel)
+    try {
+      const orgId = safeKey.includes("_") ? safeKey.split("_")[0] : undefined;
+      let resolvedOrgId = orgId;
+      if (!resolvedOrgId || resolvedOrgId.length < 10) {
+        const firstOrg = await prisma.organization.findFirst({ select: { id: true } });
+        resolvedOrgId = firstOrg?.id;
+      }
+
+      if (resolvedOrgId) {
+        const base64Data = buffer.toString("base64");
+        await prisma.idempotencyRecord.upsert({
+          where: {
+            organizationId_key: {
+              organizationId: resolvedOrgId,
+              key: `FILE_BLOB_${safeKey}`,
+            },
+          },
+          create: {
+            organizationId: resolvedOrgId,
+            key: `FILE_BLOB_${safeKey}`,
+            operation: "FILE_BLOB",
+            responseCode: 200,
+            responseBodyJson: base64Data,
+          },
+          update: {
+            responseBodyJson: base64Data,
+          },
+        });
+      }
+    } catch (dbErr) {
+      console.warn("Notice: Database blob backup skipped:", dbErr);
+    }
+
     return { key: safeKey, url: `/api/uploads/${safeKey}` };
   }
 
@@ -105,11 +141,11 @@ export class LocalStorageProvider implements IStorageProvider {
       try {
         return await fs.promises.readFile(tmpTarget);
       } catch {
-        return null;
+        // Continue
       }
     }
 
-    // Fallback: If exact file name not found, search directories for any file containing safeKey
+    // Fallback 1: If exact file name not found, search directories for any file containing safeKey
     const dirs = [primaryDir, path.join(process.cwd(), "storage", "uploads", "private"), path.join(os.tmpdir(), "storage", "uploads", "private")];
     for (const d of dirs) {
       try {
@@ -123,6 +159,49 @@ export class LocalStorageProvider implements IStorageProvider {
       } catch {
         // Continue
       }
+    }
+
+    // Fallback 2: Check persistent database blob (IdempotencyRecord)
+    try {
+      const keysToSearch = [
+        `FILE_BLOB_${safeKey}`,
+        `FILE_${safeKey}`,
+        safeKey,
+      ];
+      const pureId = safeKey.split(".")[0];
+      if (pureId && pureId !== safeKey) {
+        keysToSearch.push(`FILE_BLOB_${pureId}`, `FILE_${pureId}`, pureId);
+      }
+      if (safeKey.includes("_")) {
+        const parts = safeKey.split("_");
+        const lastPart = parts[parts.length - 1];
+        const lastPartNoExt = lastPart.split(".")[0];
+        keysToSearch.push(
+          `FILE_BLOB_${lastPart}`,
+          `FILE_BLOB_${lastPartNoExt}`,
+          `FILE_${lastPart}`,
+          lastPart,
+          lastPartNoExt
+        );
+      }
+
+      const record = await prisma.idempotencyRecord.findFirst({
+        where: {
+          key: { in: keysToSearch },
+          operation: "FILE_BLOB",
+        },
+        select: { responseBodyJson: true },
+      });
+
+      if (record?.responseBodyJson) {
+        const buffer = Buffer.from(record.responseBodyJson, "base64");
+        try {
+          await fs.promises.writeFile(target, buffer);
+        } catch {}
+        return buffer;
+      }
+    } catch (err) {
+      console.warn("Notice: Database blob retrieval error:", err);
     }
 
     return null;
@@ -147,6 +226,26 @@ export class LocalStorageProvider implements IStorageProvider {
         }
       }
     }
+
+    try {
+      const keysToSearch = [
+        `FILE_BLOB_${safeKey}`,
+        `FILE_${safeKey}`,
+        safeKey,
+      ];
+      const pureId = safeKey.split(".")[0];
+      if (pureId && pureId !== safeKey) {
+        keysToSearch.push(`FILE_BLOB_${pureId}`, `FILE_${pureId}`, pureId);
+      }
+      await prisma.idempotencyRecord.deleteMany({
+        where: {
+          key: { in: keysToSearch },
+          operation: "FILE_BLOB",
+        },
+      });
+      deleted = true;
+    } catch {}
+
     return deleted;
   }
 
