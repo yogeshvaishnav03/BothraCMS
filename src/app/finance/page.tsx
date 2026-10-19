@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -20,6 +20,11 @@ import {
   Clock,
   UserCheck,
   Paperclip,
+  Calendar,
+  Filter,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import { canUser } from "@/lib/permissions";
@@ -75,6 +80,24 @@ export default function FinancePage() {
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [paymentToReverse, setPaymentToReverse] = useState<any>(null);
   const [reverseReason, setReverseReason] = useState("");
+
+  // Search & Filter state for Payments Register
+  const [paymentSearch, setPaymentSearch] = useState("");
+  const [paymentFromDate, setPaymentFromDate] = useState("");
+  const [paymentToDate, setPaymentToDate] = useState("");
+  const [paymentPayeeType, setPaymentPayeeType] = useState("ALL");
+  const [paymentPayingAccount, setPaymentPayingAccount] = useState("ALL");
+  const [paymentMethod, setPaymentMethod] = useState("ALL");
+  const [paymentStatus, setPaymentStatus] = useState("ALL");
+  const [paymentReason, setPaymentReason] = useState("");
+  const [paymentAllocatedTo, setPaymentAllocatedTo] = useState("");
+  const [paymentMinAmount, setPaymentMinAmount] = useState("");
+  const [paymentMaxAmount, setPaymentMaxAmount] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // Search & Filter state for Vendor Bills
+  const [billSearch, setBillSearch] = useState("");
+  const [billStatus, setBillStatus] = useState("ALL");
 
   // Feedback states
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -403,6 +426,226 @@ export default function FinancePage() {
     (b) => b.partyId === selectedPartyId && b.outstandingAmount > 0
   );
 
+  // Distinct Paying Accounts extracted from existing payments
+  const distinctPayingAccounts = useMemo(() => {
+    const set = new Set<string>();
+    payments.forEach((p) => {
+      const acc = p.payingAccount?.trim() || "Company Primary A/C";
+      if (acc) set.add(acc);
+    });
+    return Array.from(set).sort();
+  }, [payments]);
+
+  // Distinct Methods extracted from existing payments
+  const distinctMethods = useMemo(() => {
+    const set = new Set<string>();
+    payments.forEach((p) => {
+      if (p.method) set.add(p.method);
+    });
+    return Array.from(set).sort();
+  }, [payments]);
+
+  const activePaymentFiltersCount = useMemo(() => {
+    let count = 0;
+    if (paymentSearch.trim()) count++;
+    if (paymentFromDate) count++;
+    if (paymentToDate) count++;
+    if (paymentPayeeType !== "ALL") count++;
+    if (paymentPayingAccount !== "ALL") count++;
+    if (paymentMethod !== "ALL") count++;
+    if (paymentStatus !== "ALL") count++;
+    if (paymentReason.trim()) count++;
+    if (paymentAllocatedTo.trim()) count++;
+    if (paymentMinAmount.trim()) count++;
+    if (paymentMaxAmount.trim()) count++;
+    return count;
+  }, [
+    paymentSearch,
+    paymentFromDate,
+    paymentToDate,
+    paymentPayeeType,
+    paymentPayingAccount,
+    paymentMethod,
+    paymentStatus,
+    paymentReason,
+    paymentAllocatedTo,
+    paymentMinAmount,
+    paymentMaxAmount,
+  ]);
+
+  const clearAllPaymentFilters = () => {
+    setPaymentSearch("");
+    setPaymentFromDate("");
+    setPaymentToDate("");
+    setPaymentPayeeType("ALL");
+    setPaymentPayingAccount("ALL");
+    setPaymentMethod("ALL");
+    setPaymentStatus("ALL");
+    setPaymentReason("");
+    setPaymentAllocatedTo("");
+    setPaymentMinAmount("");
+    setPaymentMaxAmount("");
+  };
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter((p) => {
+      const payee = (p.recipientName || p.party?.name || "Recipient").toLowerCase();
+      const rType = (p.recipientType || p.party?.type || "VENDOR").toUpperCase();
+      const payingAcc = (p.payingAccount || "Company Primary A/C").toLowerCase();
+      const methodStr = (p.method || "").toUpperCase();
+      const reasonStr = `${p.approvalQuery || ""} ${p.notes || ""} ${p.rejectionReason || ""}`.toLowerCase();
+      const refStr = (p.referenceNumber || "").toLowerCase();
+      const creatorName = (p.creator?.name || "").toLowerCase();
+
+      // Allocations
+      const hasAllocations = p.allocations && p.allocations.length > 0;
+      const allocationsStr = hasAllocations
+        ? p.allocations
+            .map((a: any) => `bill #${a.bill?.billNumber || a.billId} ${a.bill?.billNumber || a.billId}`)
+            .join(" ")
+            .toLowerCase()
+        : "unallocated missing bill allocation";
+
+      const pStatus = (p.status || "").toUpperCase();
+      const amtRupees = (Number(p.amount) || 0) / 100;
+      const formattedDateStr = formatDate(p.paymentDate).toLowerCase();
+
+      // Normalize date to YYYY-MM-DD
+      let pDateYMD = "";
+      if (p.paymentDate) {
+        try {
+          const d = typeof p.paymentDate === "string" ? new Date(p.paymentDate) : p.paymentDate;
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            pDateYMD = `${y}-${m}-${day}`;
+          }
+        } catch {
+          pDateYMD = "";
+        }
+      }
+
+      // 1. Global Search (matches across all columns)
+      if (paymentSearch.trim()) {
+        const q = paymentSearch.trim().toLowerCase();
+        const matchesGlobal =
+          payee.includes(q) ||
+          rType.toLowerCase().includes(q) ||
+          refStr.includes(q) ||
+          payingAcc.includes(q) ||
+          methodStr.toLowerCase().includes(q) ||
+          reasonStr.includes(q) ||
+          allocationsStr.includes(q) ||
+          creatorName.includes(q) ||
+          pStatus.toLowerCase().includes(q) ||
+          amtRupees.toString().includes(q) ||
+          (p.amount / 100).toFixed(2).includes(q) ||
+          pDateYMD.includes(q) ||
+          formattedDateStr.includes(q);
+
+        if (!matchesGlobal) return false;
+      }
+
+      // 2. Date Range: From Date & To Date
+      if (paymentFromDate) {
+        if (!pDateYMD || pDateYMD < paymentFromDate) return false;
+      }
+      if (paymentToDate) {
+        if (!pDateYMD || pDateYMD > paymentToDate) return false;
+      }
+
+      // 3. Payee Type Filter
+      if (paymentPayeeType !== "ALL") {
+        if (rType !== paymentPayeeType) return false;
+      }
+
+      // 4. Paying Account (Source)
+      if (paymentPayingAccount !== "ALL") {
+        const acc = p.payingAccount?.trim() || "Company Primary A/C";
+        if (acc !== paymentPayingAccount) return false;
+      }
+
+      // 5. Method Filter
+      if (paymentMethod !== "ALL") {
+        if (methodStr !== paymentMethod.toUpperCase()) return false;
+      }
+
+      // 6. Reason / Query filter
+      if (paymentReason.trim()) {
+        const qReason = paymentReason.trim().toLowerCase();
+        if (!reasonStr.includes(qReason)) return false;
+      }
+
+      // 7. Allocated To filter
+      if (paymentAllocatedTo.trim()) {
+        const qAlloc = paymentAllocatedTo.trim().toLowerCase();
+        if (qAlloc === "unallocated") {
+          if (hasAllocations) return false;
+        } else if (qAlloc === "allocated") {
+          if (!hasAllocations) return false;
+        } else {
+          if (!allocationsStr.includes(qAlloc)) return false;
+        }
+      }
+
+      // 8. Amount Range (Min / Max in Rupees)
+      if (paymentMinAmount.trim()) {
+        const minVal = parseFloat(paymentMinAmount);
+        if (!isNaN(minVal) && amtRupees < minVal) return false;
+      }
+      if (paymentMaxAmount.trim()) {
+        const maxVal = parseFloat(paymentMaxAmount);
+        if (!isNaN(maxVal) && amtRupees > maxVal) return false;
+      }
+
+      // 9. Status filter
+      if (paymentStatus !== "ALL") {
+        if (paymentStatus === "APPROVED" || paymentStatus === "POSTED") {
+          if (p.status !== "POSTED" && p.status !== "APPROVED") return false;
+        } else {
+          if (p.status !== paymentStatus) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [
+    payments,
+    paymentSearch,
+    paymentFromDate,
+    paymentToDate,
+    paymentPayeeType,
+    paymentPayingAccount,
+    paymentMethod,
+    paymentStatus,
+    paymentReason,
+    paymentAllocatedTo,
+    paymentMinAmount,
+    paymentMaxAmount,
+  ]);
+
+  const filteredPaymentsTotal = useMemo(() => {
+    return filteredPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }, [filteredPayments]);
+
+  const filteredBills = useMemo(() => {
+    return bills.filter((b) => {
+      if (billSearch.trim()) {
+        const q = billSearch.trim().toLowerCase();
+        const match =
+          (b.billNumber || "").toLowerCase().includes(q) ||
+          (b.party?.name || "").toLowerCase().includes(q) ||
+          formatDate(b.billDate).toLowerCase().includes(q) ||
+          ((Number(b.totalAmount) || 0) / 100).toString().includes(q);
+        if (!match) return false;
+      }
+      if (billStatus === "PAID" && b.outstandingAmount > 0) return false;
+      if (billStatus === "PENDING" && b.outstandingAmount === 0) return false;
+      return true;
+    });
+  }, [bills, billSearch, billStatus]);
+
   return (
     <Shell>
       <div className="space-y-6">
@@ -506,7 +749,13 @@ export default function FinancePage() {
             }`}
           >
             <CreditCard className="w-4 h-4" />
-            <span>Payments Register ({payments.length})</span>
+            <span>
+              Payments Register (
+              {filteredPayments.length !== payments.length
+                ? `${filteredPayments.length} of ${payments.length}`
+                : payments.length}
+              )
+            </span>
           </button>
           <button
             onClick={() => setActiveTab("BILLS")}
@@ -517,273 +766,702 @@ export default function FinancePage() {
             }`}
           >
             <Receipt className="w-4 h-4" />
-            <span>Vendor Bills ({bills.length})</span>
+            <span>
+              Vendor Bills (
+              {filteredBills.length !== bills.length
+                ? `${filteredBills.length} of ${bills.length}`
+                : bills.length}
+              )
+            </span>
           </button>
         </div>
 
         {/* Payments Table */}
         {activeTab === "PAYMENTS" && (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">Date & Ref</th>
-                    <th className="py-3 px-4">Payee & Type</th>
-                    <th className="py-3 px-4">Paying Account (Source)</th>
-                    <th className="py-3 px-4">Method</th>
-                    <th className="py-3 px-4">Reason / Query</th>
-                    <th className="py-3 px-4">Allocated To</th>
-                    <th className="py-3 px-4 text-right">Amount</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {payments.map((p) => {
-                    const isReversed = p.status === "REVERSED";
-                    const isPending = p.status === "PENDING_APPROVAL";
-                    const isRejected = p.status === "REJECTED";
-                    const payee = p.recipientName || p.party?.name || "Recipient";
-                    const rType = p.recipientType || (p.party?.type) || "VENDOR";
-                    const canSuperAdminAct = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+          <div className="space-y-4">
+            {/* Search & Filter Toolbar */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+              {/* Primary Search & Quick Filters Bar */}
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                {/* Global Search Input */}
+                <div className="relative flex-1 min-w-[260px]">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={paymentSearch}
+                    onChange={(e) => setPaymentSearch(e.target.value)}
+                    placeholder="Search by date, payee, ref #, source account, method, bill #, amount, reason..."
+                    className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                  />
+                  {paymentSearch && (
+                    <button
+                      onClick={() => setPaymentSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                      title="Clear search"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
 
-                    return (
-                      <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4 text-xs font-mono text-slate-600">
-                          <div className="font-bold text-slate-800">{formatDate(p.paymentDate)}</div>
-                          <div className="text-[11px] text-slate-400">Ref: {p.referenceNumber}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                            {p.partyId ? (
-                              <Link
-                                href={`/parties/${p.partyId}`}
-                                className="hover:text-amber-600 hover:underline"
+                {/* Quick Filters: Status, Payee Type, Toggle Advanced, Reset */}
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                  {/* Status Dropdown */}
+                  <select
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value)}
+                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    title="Filter by Status"
+                  >
+                    <option value="ALL">All Statuses</option>
+                    <option value="POSTED">Approved / Posted</option>
+                    <option value="PENDING_APPROVAL">Pending Super Admin</option>
+                    <option value="REJECTED">Rejected</option>
+                    <option value="REVERSED">Reversed</option>
+                  </select>
+
+                  {/* Payee Type Dropdown */}
+                  <select
+                    value={paymentPayeeType}
+                    onChange={(e) => setPaymentPayeeType(e.target.value)}
+                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    title="Filter by Payee Type"
+                  >
+                    <option value="ALL">All Payee Types</option>
+                    <option value="VENDOR">Vendors</option>
+                    <option value="CONTRACTOR">Contractors</option>
+                    <option value="EMPLOYEE">Employees</option>
+                  </select>
+
+                  {/* Advanced Filters Button */}
+                  <button
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border transition whitespace-nowrap ${
+                      showAdvancedFilters || activePaymentFiltersCount > 0
+                        ? "bg-amber-50 border-amber-300 text-amber-900"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span>Filter Options</span>
+                    {activePaymentFiltersCount > 0 && (
+                      <span className="w-4 h-4 rounded-full bg-amber-600 text-white text-[10px] flex items-center justify-center font-bold">
+                        {activePaymentFiltersCount}
+                      </span>
+                    )}
+                    {showAdvancedFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+
+                  {/* Clear / Reset button */}
+                  {activePaymentFiltersCount > 0 && (
+                    <button
+                      onClick={clearAllPaymentFilters}
+                      className="px-2.5 py-2 text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition whitespace-nowrap"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Advanced Filter Controls Grid */}
+              {showAdvancedFilters && (
+                <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* From Date */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-slate-400" />
+                      <span>From Date</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={paymentFromDate}
+                      onChange={(e) => setPaymentFromDate(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  {/* To Date */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-slate-400" />
+                      <span>To Date</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={paymentToDate}
+                      onChange={(e) => setPaymentToDate(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  {/* Paying Account (Source) */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                      <Landmark className="w-3 h-3 text-slate-400" />
+                      <span>Paying Account (Source)</span>
+                    </label>
+                    <select
+                      value={paymentPayingAccount}
+                      onChange={(e) => setPaymentPayingAccount(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 truncate"
+                    >
+                      <option value="ALL">All Paying Accounts</option>
+                      {distinctPayingAccounts.map((acc) => (
+                        <option key={acc} value={acc}>
+                          {acc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Method */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Method
+                    </label>
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    >
+                      <option value="ALL">All Methods</option>
+                      <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                      <option value="CHEQUE">Cheque</option>
+                      <option value="CASH">Cash</option>
+                      <option value="UPI">UPI</option>
+                      {distinctMethods
+                        .filter((m) => !["BANK_TRANSFER", "CHEQUE", "CASH", "UPI"].includes(m))
+                        .map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Reason / Query */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Reason / Query
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentReason}
+                      onChange={(e) => setPaymentReason(e.target.value)}
+                      placeholder="e.g. site material, advance..."
+                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  {/* Allocated To */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Allocated To
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentAllocatedTo}
+                      onChange={(e) => setPaymentAllocatedTo(e.target.value)}
+                      placeholder="e.g. Bill #, unallocated, allocated..."
+                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  {/* Min Amount */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Min Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={paymentMinAmount}
+                      onChange={(e) => setPaymentMinAmount(e.target.value)}
+                      placeholder="₹ Min (e.g. 1000)"
+                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+
+                  {/* Max Amount */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Max Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={paymentMaxAmount}
+                      onChange={(e) => setPaymentMaxAmount(e.target.value)}
+                      placeholder="₹ Max (e.g. 50000)"
+                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Status & Active Filter Chips */}
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span>
+                    Showing <strong className="text-slate-900">{filteredPayments.length}</strong> of{" "}
+                    <strong className="text-slate-900">{payments.length}</strong> payments
+                  </span>
+                  {filteredPayments.length > 0 && (
+                    <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                      Filtered Total: {formatCurrency(filteredPaymentsTotal)}
+                    </span>
+                  )}
+                </div>
+
+                {activePaymentFiltersCount > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] text-slate-400">Filters:</span>
+                    {paymentSearch && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        "{paymentSearch}"
+                        <button onClick={() => setPaymentSearch("")} className="hover:text-slate-900">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {paymentStatus !== "ALL" && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        Status: {paymentStatus}
+                        <button onClick={() => setPaymentStatus("ALL")} className="hover:text-slate-900">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {paymentPayeeType !== "ALL" && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        Type: {paymentPayeeType}
+                        <button onClick={() => setPaymentPayeeType("ALL")} className="hover:text-slate-900">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {(paymentFromDate || paymentToDate) && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        Date: {paymentFromDate || "Start"} → {paymentToDate || "End"}
+                        <button
+                          onClick={() => {
+                            setPaymentFromDate("");
+                            setPaymentToDate("");
+                          }}
+                          className="hover:text-slate-900"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {paymentPayingAccount !== "ALL" && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        Source: {paymentPayingAccount.slice(0, 18)}...
+                        <button onClick={() => setPaymentPayingAccount("ALL")} className="hover:text-slate-900">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {paymentMethod !== "ALL" && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        Method: {paymentMethod}
+                        <button onClick={() => setPaymentMethod("ALL")} className="hover:text-slate-900">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {paymentReason && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        Reason: {paymentReason}
+                        <button onClick={() => setPaymentReason("")} className="hover:text-slate-900">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {paymentAllocatedTo && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        Allocated: {paymentAllocatedTo}
+                        <button onClick={() => setPaymentAllocatedTo("")} className="hover:text-slate-900">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {(paymentMinAmount || paymentMaxAmount) && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
+                        Amount: ₹{paymentMinAmount || "0"} - ₹{paymentMaxAmount || "∞"}
+                        <button
+                          onClick={() => {
+                            setPaymentMinAmount("");
+                            setPaymentMaxAmount("");
+                          }}
+                          className="hover:text-slate-900"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    <button
+                      onClick={clearAllPaymentFilters}
+                      className="text-[10px] text-rose-600 hover:text-rose-800 font-bold ml-1 hover:underline"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Payments Table */}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      <th className="py-3 px-4">Date & Ref</th>
+                      <th className="py-3 px-4">Payee & Type</th>
+                      <th className="py-3 px-4">Paying Account (Source)</th>
+                      <th className="py-3 px-4">Method</th>
+                      <th className="py-3 px-4">Reason / Query</th>
+                      <th className="py-3 px-4">Allocated To</th>
+                      <th className="py-3 px-4 text-right">Amount</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredPayments.map((p) => {
+                      const isReversed = p.status === "REVERSED";
+                      const isPending = p.status === "PENDING_APPROVAL";
+                      const isRejected = p.status === "REJECTED";
+                      const payee = p.recipientName || p.party?.name || "Recipient";
+                      const rType = p.recipientType || p.party?.type || "VENDOR";
+                      const canSuperAdminAct =
+                        currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-4 text-xs font-mono text-slate-600">
+                            <div className="font-bold text-slate-800">{formatDate(p.paymentDate)}</div>
+                            <div className="text-[11px] text-slate-400">Ref: {p.referenceNumber}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                              {p.partyId ? (
+                                <Link
+                                  href={`/parties/${p.partyId}`}
+                                  className="hover:text-amber-600 hover:underline"
+                                >
+                                  {payee}
+                                </Link>
+                              ) : (
+                                <span>{payee}</span>
+                              )}
+                              <span
+                                className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                  rType === "EMPLOYEE"
+                                    ? "bg-amber-50 text-amber-800 border-amber-300"
+                                    : rType === "CONTRACTOR"
+                                    ? "bg-purple-50 text-purple-800 border-purple-300"
+                                    : "bg-blue-50 text-blue-800 border-blue-300"
+                                }`}
                               >
-                                {payee}
-                              </Link>
-                            ) : (
-                              <span>{payee}</span>
-                            )}
-                            <span
-                              className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
-                                rType === "EMPLOYEE"
-                                  ? "bg-amber-50 text-amber-800 border-amber-300"
-                                  : rType === "CONTRACTOR"
-                                  ? "bg-purple-50 text-purple-800 border-purple-300"
-                                  : "bg-blue-50 text-blue-800 border-blue-300"
-                              }`}
-                            >
-                              {rType}
-                            </span>
-                          </div>
-                          {p.creator?.name && (
-                            <div className="text-[10px] text-slate-400">By: {p.creator.name}</div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-xs">
-                          <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                            <Landmark className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span>{p.payingAccount || "Company Primary A/C"}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-xs">
-                          <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                            {p.method}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-xs max-w-xs">
-                          <div className="text-slate-700 truncate" title={p.approvalQuery || p.notes || ""}>
-                            {p.approvalQuery || p.notes || "—"}
-                          </div>
-                          {isRejected && p.rejectionReason && (
-                            <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
-                              Declined: {p.rejectionReason}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-xs text-slate-600">
-                          {p.allocations && p.allocations.length > 0 ? (
-                            p.allocations.map((a: any) => (
-                              <div key={a.id} className="font-mono text-[11px]">
-                                Bill #{a.bill?.billNumber || a.billId} ({formatCurrency(a.amount)})
-                              </div>
-                            ))
-                          ) : (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-slate-400 italic">Unallocated</span>
-                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-fit">
-                                Missing Bill Allocation
+                                {rType}
                               </span>
                             </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right font-black tabular-nums">
-                          <span
-                            className={
-                              isReversed || isRejected
-                                ? "line-through text-slate-400"
-                                : isPending
-                                ? "text-amber-700 font-bold"
-                                : "text-emerald-600"
-                            }
-                          >
-                            {formatCurrency(p.amount)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          {isPending ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-amber-600" />
-                              <span>Pending Super Admin</span>
+                            {p.creator?.name && (
+                              <div className="text-[10px] text-slate-400">By: {p.creator.name}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-xs">
+                            <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                              <Landmark className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{p.payingAccount || "Company Primary A/C"}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-xs">
+                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                              {p.method}
                             </span>
-                          ) : isRejected ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-rose-100 text-rose-800 border border-rose-200">
-                              Rejected
-                            </span>
-                          ) : isReversed ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-slate-100 text-slate-700">
-                              Reversed
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-800">
-                              Approved
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() =>
-                                setAttachmentTarget({
-                                  type: "PAYMENT",
-                                  id: p.id,
-                                  title: `Payment Receipt: ${p.referenceNumber || p.id.slice(0, 8)}`,
-                                  categoryDefault: "PAYMENT_RECEIPT",
-                                })
+                          </td>
+                          <td className="py-3 px-4 text-xs max-w-xs">
+                            <div className="text-slate-700 truncate" title={p.approvalQuery || p.notes || ""}>
+                              {p.approvalQuery || p.notes || "—"}
+                            </div>
+                            {isRejected && p.rejectionReason && (
+                              <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
+                                Declined: {p.rejectionReason}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-600">
+                            {p.allocations && p.allocations.length > 0 ? (
+                              p.allocations.map((a: any) => (
+                                <div key={a.id} className="font-mono text-[11px]">
+                                  Bill #{a.bill?.billNumber || a.billId} ({formatCurrency(a.amount)})
+                                </div>
+                              ))
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-slate-400 italic">Unallocated</span>
+                                <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-fit">
+                                  Missing Bill Allocation
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right font-black tabular-nums">
+                            <span
+                              className={
+                                isReversed || isRejected
+                                  ? "line-through text-slate-400"
+                                  : isPending
+                                  ? "text-amber-700 font-bold"
+                                  : "text-emerald-600"
                               }
-                              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-                              title="Upload or view payment receipt / voucher"
                             >
-                              <Paperclip className="w-3.5 h-3.5" />
-                            </button>
-                            {isPending && canSuperAdminAct ? (
-                              <>
-                                <button
-                                  onClick={() => handleApprovePayment(p)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs transition"
-                                  title="Confirm & Approve disbursement"
-                                >
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  <span>Approve</span>
-                                </button>
-                                <button
-                                  onClick={() => handleRejectPayment(p)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition"
-                                  title="Reject disbursement query"
-                                >
-                                  <XCircle className="w-3 h-3" />
-                                  <span>Reject</span>
-                                </button>
-                              </>
-                            ) : isPending ? (
-                              <span className="text-[11px] text-amber-700 font-medium italic">Awaiting Admin</span>
-                            ) : p.status === "POSTED" && !isReversed && canReverseFinance ? (
+                              {formatCurrency(p.amount)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {isPending ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span>Pending Super Admin</span>
+                              </span>
+                            ) : isRejected ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-rose-100 text-rose-800 border border-rose-200">
+                                Rejected
+                              </span>
+                            ) : isReversed ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-slate-100 text-slate-700">
+                                Reversed
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-800">
+                                Approved
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
                               <button
-                                onClick={() => {
-                                  setPaymentToReverse(p);
-                                  setShowReverseModal(true);
-                                }}
-                                className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline"
+                                onClick={() =>
+                                  setAttachmentTarget({
+                                    type: "PAYMENT",
+                                    id: p.id,
+                                    title: `Payment Receipt: ${p.referenceNumber || p.id.slice(0, 8)}`,
+                                    categoryDefault: "PAYMENT_RECEIPT",
+                                  })
+                                }
+                                className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                                title="Upload or view payment receipt / voucher"
                               >
-                                <RotateCcw className="w-3 h-3" />
-                                <span>Reverse</span>
+                                <Paperclip className="w-3.5 h-3.5" />
                               </button>
-                            ) : null}
+                              {isPending && canSuperAdminAct ? (
+                                <>
+                                  <button
+                                    onClick={() => handleApprovePayment(p)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs transition"
+                                    title="Confirm & Approve disbursement"
+                                  >
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span>Approve</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectPayment(p)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition"
+                                    title="Reject disbursement query"
+                                  >
+                                    <XCircle className="w-3 h-3" />
+                                    <span>Reject</span>
+                                  </button>
+                                </>
+                              ) : isPending ? (
+                                <span className="text-[11px] text-amber-700 font-medium italic">
+                                  Awaiting Admin
+                                </span>
+                              ) : p.status === "POSTED" && !isReversed && canReverseFinance ? (
+                                <button
+                                  onClick={() => {
+                                    setPaymentToReverse(p);
+                                    setShowReverseModal(true);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>Reverse</span>
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredPayments.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Filter className="w-8 h-8 text-slate-300" />
+                            <p className="font-semibold text-slate-700">
+                              No payments found matching the selected filters
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              Try adjusting your search terms, dates, or clearing some filters.
+                            </p>
+                            {activePaymentFiltersCount > 0 && (
+                              <button
+                                onClick={clearAllPaymentFilters}
+                                className="mt-2 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition"
+                              >
+                                Reset all filters
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
         {/* Bills Table */}
         {activeTab === "BILLS" && (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">Bill #</th>
-                    <th className="py-3 px-4">Vendor</th>
-                    <th className="py-3 px-4">Bill Date</th>
-                    <th className="py-3 px-4 text-right">Total Amount</th>
-                    <th className="py-3 px-4 text-right">Amount Paid</th>
-                    <th className="py-3 px-4 text-right">Pending Balance</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {bills.map((b) => (
-                    <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        {b.billNumber}
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-slate-800">
-                        <Link href={`/parties/${b.partyId}`} className="hover:text-amber-600 hover:underline">
-                          {b.party?.name}
-                        </Link>
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-600">{formatDate(b.billDate)}</td>
-                      <td className="py-3 px-4 text-right font-medium text-slate-900 tabular-nums">
-                        {formatCurrency(b.totalAmount)}
-                      </td>
-                      <td className="py-3 px-4 text-right font-medium text-emerald-600 tabular-nums">
-                        {formatCurrency(b.paidAmount)}
-                      </td>
-                      <td className="py-3 px-4 text-right font-black tabular-nums">
-                        <span className={b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}>
-                          {formatCurrency(b.outstandingAmount)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {b.outstandingAmount === 0 ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                            PAID
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
-                            PENDING
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <button
-                          onClick={() =>
-                            setAttachmentTarget({
-                              type: "BILL",
-                              id: b.id,
-                              title: `Bill #${b.billNumber} Invoices & Challans`,
-                              categoryDefault: "INVOICE",
-                            })
-                          }
-                          className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                          title="Upload or view invoice / challan photograph"
-                        >
-                          <Paperclip className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Attach</span>
-                        </button>
-                      </td>
+          <div className="space-y-4">
+            {/* Bills Search & Filter Toolbar */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={billSearch}
+                  onChange={(e) => setBillSearch(e.target.value)}
+                  placeholder="Search bills by bill #, vendor name, date, amount..."
+                  className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+                {billSearch && (
+                  <button
+                    onClick={() => setBillSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={billStatus}
+                  onChange={(e) => setBillStatus(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                >
+                  <option value="ALL">All Bills</option>
+                  <option value="PENDING">Pending Balance</option>
+                  <option value="PAID">Fully Paid</option>
+                </select>
+                {(billSearch || billStatus !== "ALL") && (
+                  <button
+                    onClick={() => {
+                      setBillSearch("");
+                      setBillStatus("ALL");
+                    }}
+                    className="px-2.5 py-2 text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Bills Table Container */}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      <th className="py-3 px-4">Bill #</th>
+                      <th className="py-3 px-4">Vendor</th>
+                      <th className="py-3 px-4">Bill Date</th>
+                      <th className="py-3 px-4 text-right">Total Amount</th>
+                      <th className="py-3 px-4 text-right">Amount Paid</th>
+                      <th className="py-3 px-4 text-right">Pending Balance</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredBills.map((b) => (
+                      <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                          {b.billNumber}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-800">
+                          <Link href={`/parties/${b.partyId}`} className="hover:text-amber-600 hover:underline">
+                            {b.party?.name}
+                          </Link>
+                        </td>
+                        <td className="py-3 px-4 text-xs text-slate-600">{formatDate(b.billDate)}</td>
+                        <td className="py-3 px-4 text-right font-medium text-slate-900 tabular-nums">
+                          {formatCurrency(b.totalAmount)}
+                        </td>
+                        <td className="py-3 px-4 text-right font-medium text-emerald-600 tabular-nums">
+                          {formatCurrency(b.paidAmount)}
+                        </td>
+                        <td className="py-3 px-4 text-right font-black tabular-nums">
+                          <span className={b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}>
+                            {formatCurrency(b.outstandingAmount)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {b.outstandingAmount === 0 ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                              PAID
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                              PENDING
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <button
+                            onClick={() =>
+                              setAttachmentTarget({
+                                type: "BILL",
+                                id: b.id,
+                                title: `Bill #${b.billNumber} Invoices & Challans`,
+                                categoryDefault: "INVOICE",
+                              })
+                            }
+                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                            title="Upload or view invoice / challan photograph"
+                          >
+                            <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Attach</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredBills.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Filter className="w-8 h-8 text-slate-300" />
+                            <p className="font-semibold text-slate-700">No vendor bills found</p>
+                            <p className="text-xs text-slate-400">Try adjusting your search terms or filter.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
