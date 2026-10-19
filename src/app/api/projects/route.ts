@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     if (siteId) where.siteId = siteId;
     if (status) where.status = status;
 
-    const projects = await prisma.project.findMany({
+    let projects = await prisma.project.findMany({
       where,
       include: {
         site: true,
@@ -54,6 +54,45 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    if (projects.length === 0 && !siteId && !status && !includeArchived && accessibleProjectIds === null) {
+      const totalCount = await prisma.project.count({
+        where: { organizationId: user.organizationId },
+      });
+      if (totalCount === 0) {
+        let site = await prisma.site.findFirst({
+          where: { organizationId: user.organizationId, status: "ACTIVE" },
+        });
+        if (!site) {
+          site = await prisma.site.create({
+            data: {
+              organizationId: user.organizationId,
+              name: "Main Site / Head Office",
+              code: `SITE-${user.organizationId.slice(-4)}`,
+              address: "Central Site Operations",
+              status: "ACTIVE",
+            },
+          });
+        }
+        const defaultProject = await prisma.project.create({
+          data: {
+            organizationId: user.organizationId,
+            siteId: site.id,
+            code: "PRJ-GEN",
+            name: "General Site Operations",
+            status: "IN_PROGRESS",
+          },
+          include: {
+            site: true,
+            manager: { select: { id: true, name: true, email: true } },
+            _count: {
+              select: { tasks: true, dailyReports: true, stockMovements: true },
+            },
+          },
+        });
+        projects.push(defaultProject);
+      }
+    }
 
     const hasFinanceAccess = canReadFinance(user);
     const sanitizedProjects = projects.map((p) => {

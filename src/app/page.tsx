@@ -148,11 +148,7 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!quickTitle.trim() || submittingTask) return;
 
-    const targetProjId = quickProjectId || (projects.length > 0 ? projects[0].id : "");
-    if (!targetProjId) {
-      setErrorMessage("Please select a project before creating a task.");
-      return;
-    }
+    const targetProjId = quickProjectId || (projects.length > 0 ? projects[0].id : "OTHER");
 
     setSubmittingTask(true);
     setErrorMessage(null);
@@ -1684,18 +1680,25 @@ export default function DashboardPage() {
                     Target Project *
                   </label>
                   <select
-                    value={quickProjectId}
+                    value={quickProjectId || (projects.length > 0 ? projects[0].id : "OTHER")}
                     onChange={(e) => setQuickProjectId(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {projects.map((p) => {
-                      const siteName = p.site?.name || sites.find((s) => s.id === p.siteId)?.name;
-                      return (
-                        <option key={p.id} value={p.id}>
-                          {p.code} - {p.name} {siteName ? `[${siteName}]` : ""}
-                        </option>
-                      );
-                    })}
+                    {projects.length === 0 ? (
+                      <option value="OTHER">Other / General Operations (Default Site)</option>
+                    ) : (
+                      <>
+                        {projects.map((p) => {
+                          const siteName = p.site?.name || sites.find((s) => s.id === p.siteId)?.name;
+                          return (
+                            <option key={p.id} value={p.id}>
+                              {p.code} - {p.name} {siteName ? `[${siteName}]` : ""}
+                            </option>
+                          );
+                        })}
+                        <option value="OTHER">Other / General Operations (Not site-specific)</option>
+                      </>
+                    )}
                   </select>
                 </div>
 

@@ -1,5 +1,19 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { POST as createTaskHandler } from "@/app/api/tasks/route";
+import { GET as getProjectsHandler } from "@/app/api/projects/route";
+
+function makeJsonRequest(url: string, method: string, body?: any, token?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Cookie"] = `${SESSION_COOKIE_NAME}=${token}`;
+  return new NextRequest(new URL(url, "http://localhost:3000"), {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
 
 describe("Priority 2: Tasks and Employee Accountability", () => {
   let org: any;
@@ -44,7 +58,7 @@ describe("Priority 2: Tasks and Employee Accountability", () => {
         organizationId: org.id,
         email: `supervisor_${Date.now()}@buildtrack.test`,
         name: "Site Supervisor",
-        role: "SITE_ENGINEER",
+        role: "SITE_SUPERVISOR",
         passwordHash: "hash_test_123",
       },
     });
@@ -282,4 +296,84 @@ describe("Priority 2: Tasks and Employee Accountability", () => {
     expect(overdueIds).toContain(overdueTask.id);
     expect(overdueIds).not.toContain(completedPastTask.id);
   });
+
+  it("should create tasks with projectId: 'OTHER' and resolve to General Site Operations", async () => {
+    const token = await createSessionToken({
+      userId: ownerUser.id,
+      email: ownerUser.email,
+      role: ownerUser.role,
+      organizationId: org.id,
+    });
+
+    const req = makeJsonRequest("http://localhost:3000/api/tasks", "POST", {
+      projectId: "OTHER",
+      title: "General Maintenance of Generator",
+      priority: "HIGH",
+      taskType: "STANDARD",
+    }, token);
+
+    const res = await createTaskHandler(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(data.success).toBe(true);
+    expect(data.data.title).toBe("General Maintenance of Generator");
+    expect(data.data.project).toBeDefined();
+    expect(data.data.project.name).toBe("General Site Operations");
+  });
+
+  it("should support personal task creation with omitted or empty projectId", async () => {
+    const token = await createSessionToken({
+      userId: supervisorUser.id,
+      email: supervisorUser.email,
+      role: supervisorUser.role,
+      organizationId: org.id,
+    });
+
+    const req = makeJsonRequest("http://localhost:3000/api/tasks", "POST", {
+      projectId: "",
+      title: "My Personal Daily Site Inspection Checklist",
+      priority: "LOW",
+      taskType: "PERSONAL",
+    }, token);
+
+    const res = await createTaskHandler(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(data.success).toBe(true);
+    expect(data.data.assigneeUserId).toBe(supervisorUser.id);
+    expect(data.data.project.name).toBe("General Site Operations");
+  });
+
+  it("should auto-provision General Site Operations project for an organization with 0 projects on GET api/projects", async () => {
+    const zeroOrg = await prisma.organization.create({
+      data: { name: `Zero Org ${Date.now()}`, currency: "INR" },
+    });
+    const zeroUser = await prisma.user.create({
+      data: {
+        organizationId: zeroOrg.id,
+        email: `zero_${Date.now()}@test.com`,
+        name: "Zero Admin",
+        role: "ORG_ADMIN",
+        passwordHash: "hash",
+      },
+    });
+    const token = await createSessionToken({
+      userId: zeroUser.id,
+      email: zeroUser.email,
+      role: zeroUser.role,
+      organizationId: zeroOrg.id,
+    });
+
+    const req = makeJsonRequest("http://localhost:3000/api/projects", "GET", undefined, token);
+    const res = await getProjectsHandler(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.data.length).toBeGreaterThanOrEqual(1);
+    expect(data.data[0].name).toBe("General Site Operations");
+  });
 });
+

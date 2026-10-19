@@ -12,7 +12,7 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 const createTaskSchema = z.object({
-  projectId: z.string().min(1),
+  projectId: z.string().optional().default(""),
   title: z.string().min(2),
   description: z.string().optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).default("MEDIUM"),
@@ -118,13 +118,61 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createTaskSchema.parse(body);
 
-    await requireProjectAccess(user, data.projectId, "tasks:write");
+    let effectiveProjectId = (data.projectId || "").trim();
+    const isGeneralOrOther =
+      !effectiveProjectId ||
+      effectiveProjectId === "OTHER" ||
+      effectiveProjectId === "GENERAL";
 
-    const project = await prisma.project.findFirst({
-      where: { id: data.projectId, organizationId: user.organizationId, isArchived: false },
-    });
-    if (!project) {
-      return jsonError("Project not found or outside organization scope", "PROJECT_NOT_FOUND", 404);
+    if (isGeneralOrOther) {
+      // Find or auto-ensure dedicated General Site Operations project for the organization
+      let genProject = await prisma.project.findFirst({
+        where: {
+          organizationId: user.organizationId,
+          isArchived: false,
+          OR: [
+            { code: "PRJ-GEN" },
+            { name: "General Site Operations" },
+          ],
+        },
+      });
+
+      if (!genProject) {
+        let site = await prisma.site.findFirst({
+          where: { organizationId: user.organizationId, status: "ACTIVE" },
+        });
+        if (!site) {
+          site = await prisma.site.create({
+            data: {
+              organizationId: user.organizationId,
+              name: "Main Site / Head Office",
+              code: `SITE-${user.organizationId.slice(-4)}`,
+              address: "Central Site Operations",
+              status: "ACTIVE",
+            },
+          });
+        }
+        genProject = await prisma.project.create({
+          data: {
+            organizationId: user.organizationId,
+            siteId: site.id,
+            code: "PRJ-GEN",
+            name: "General Site Operations",
+            status: "IN_PROGRESS",
+          },
+        });
+      }
+
+      effectiveProjectId = genProject.id;
+    } else {
+      await requireProjectAccess(user, effectiveProjectId, "tasks:write");
+
+      const project = await prisma.project.findFirst({
+        where: { id: effectiveProjectId, organizationId: user.organizationId, isArchived: false },
+      });
+      if (!project) {
+        return jsonError("Project not found or outside organization scope", "PROJECT_NOT_FOUND", 404);
+      }
     }
 
     let targetAssigneeId = data.assigneeUserId;
@@ -146,7 +194,7 @@ export async function POST(req: NextRequest) {
     const task = await prisma.task.create({
       data: {
         organizationId: user.organizationId,
-        projectId: data.projectId,
+        projectId: effectiveProjectId,
         title: data.title,
         description: data.description,
         priority: data.priority,

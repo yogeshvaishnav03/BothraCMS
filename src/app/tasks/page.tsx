@@ -138,9 +138,12 @@ export default function TasksPage() {
             ? projRes.data.projects
             : [];
           setProjects(rawProj);
-          if (rawProj.length > 0 && !projectId) {
-            setProjectId(rawProj[0].id);
-          }
+          setProjectId((prev) => {
+            if (prev && (prev === "OTHER" || rawProj.some((p: any) => p.id === prev))) {
+              return prev;
+            }
+            return rawProj.length > 0 ? rawProj[0].id : "OTHER";
+          });
         }
         if (empRes && empRes.success) {
           const rawEmp = Array.isArray(empRes.data?.employees)
@@ -219,7 +222,7 @@ export default function TasksPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId,
+          projectId: projectId || (projects.length > 0 ? projects[0].id : "OTHER"),
           title,
           description: description || undefined,
           priority,
@@ -242,6 +245,7 @@ export default function TasksPage() {
         setReminderAt("");
         setAssigneeUserId("");
         setTaskType("STANDARD");
+        setProjectId(projects.length > 0 ? projects[0].id : "OTHER");
         loadData();
       }
     } catch {
@@ -382,7 +386,15 @@ export default function TasksPage() {
           </div>
 
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setProjectId((prev) => {
+                if (prev && (prev === "OTHER" || projects.some((p) => p.id === prev))) {
+                  return prev;
+                }
+                return projects.length > 0 ? projects[0].id : "OTHER";
+              });
+              setShowCreateModal(true);
+            }}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -704,17 +716,32 @@ export default function TasksPage() {
                     Target Project
                   </label>
                   <select
-                    value={projectId}
+                    value={projectId || (projects.length > 0 ? projects[0].id : "OTHER")}
                     onChange={(e) => setProjectId(e.target.value)}
-                    required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                   >
-                    {(Array.isArray(projects) ? projects : []).map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.code})
-                      </option>
-                    ))}
+                    {projects.length === 0 ? (
+                      <option value="OTHER">Other / General Operations (Default Site)</option>
+                    ) : (
+                      <>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.code})
+                          </option>
+                        ))}
+                        <option value="OTHER">Other / General Operations (Not site-specific)</option>
+                      </>
+                    )}
                   </select>
+                  {projects.length === 0 ? (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      No project-specific site assigned. Task will be logged under General Site Operations.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Select specific project or choose &apos;Other / General Operations&apos; for unlinked tasks.
+                    </p>
+                  )}
                 </div>
 
                 <div>
