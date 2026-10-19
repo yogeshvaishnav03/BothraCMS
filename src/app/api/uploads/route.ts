@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { getUserContext } from "@/lib/auth";
@@ -9,7 +8,6 @@ import { getStorageProvider } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
-const UPLOAD_BASE_DIR = path.resolve(process.cwd(), "storage", "uploads", "private");
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -47,11 +45,6 @@ function isValidMagicBytes(buffer: Buffer, mimeType: string): boolean {
     return isRiff && isWebp;
   }
   return false;
-}
-
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOAD_BASE_DIR)) {
-  fs.mkdirSync(UPLOAD_BASE_DIR, { recursive: true });
 }
 
 export async function POST(req: NextRequest) {
@@ -101,7 +94,6 @@ export async function POST(req: NextRequest) {
     const safeExt = EXTENSION_MAP[file.type] || ".bin";
     const fileId = crypto.randomUUID();
     const diskFileName = `${user.organizationId}_${fileId}${safeExt}`;
-    const filePath = path.join(UPLOAD_BASE_DIR, diskFileName);
 
     // Sanitize user provided filename to prevent header injection and path traversal
     const sanitizedOriginalName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");

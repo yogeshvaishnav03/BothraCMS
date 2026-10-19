@@ -79,6 +79,69 @@ interface MessageItem {
   };
 }
 
+// Safely fetch and parse JSON, never throwing SyntaxError on HTML (e.g. 500 error pages)
+async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
+  try {
+    const res = await fetch(url, init);
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      return await res.json();
+    }
+    return {
+      success: false,
+      error: { message: `Server error (${res.status} ${res.statusText || "Error"})` },
+    };
+  } catch (err: any) {
+    return { success: false, error: { message: err?.message || "Network request failed" } };
+  }
+}
+
+// Client-side image compression to base64 Data URL (used as resilient fallback if storage provider fails)
+function compressImageToDataUrl(file: File, maxDimension = 1280, quality = 0.8): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) return resolve("");
+
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+            return;
+          }
+        } catch {
+          // Fallback to original read result if canvas processing errors
+        }
+        resolve(result);
+      };
+      img.onerror = () => resolve(result);
+      img.src = result;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ChatPage() {
   const { t } = useLanguage();
 
@@ -176,9 +239,9 @@ export default function ChatPage() {
   const loadChatData = useCallback(async () => {
     try {
       const [userRes, convRes, empRes] = await Promise.all([
-        fetch("/api/auth/me").then((r) => r.json()),
-        fetch("/api/chat/conversations").then((r) => r.json()),
-        fetch("/api/chat/employees").then((r) => r.json()),
+        safeFetchJson("/api/auth/me"),
+        safeFetchJson("/api/chat/conversations"),
+        safeFetchJson("/api/chat/employees"),
       ]);
 
       if (userRes.success && userRes.data) {
@@ -205,8 +268,7 @@ export default function ChatPage() {
   const loadMessages = useCallback(async (convId: string, background = false) => {
     if (!background) setMessagesLoading(true);
     try {
-      const res = await fetch(`/api/chat/conversations/${convId}/messages`);
-      const json = await res.json();
+      const json = await safeFetchJson(`/api/chat/conversations/${convId}/messages`);
       if (json.success && json.data) {
         setMessages((prev) => {
           const incoming: MessageItem[] = json.data.messages || [];
@@ -266,12 +328,11 @@ export default function ChatPage() {
   // Start or open a direct 1-to-1 conversation with an employee
   const handleStartDirectChat = async (targetUserId: string) => {
     try {
-      const res = await fetch("/api/chat/conversations/direct", {
+      const json = await safeFetchJson("/api/chat/conversations/direct", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetUserId }),
       });
-      const json = await res.json();
       if (json.success && json.data?.conversation) {
         const convId = json.data.conversation.id;
         setActiveConversationId(convId);
@@ -301,25 +362,45 @@ export default function ChatPage() {
 
       // 1. Upload photo if selected
       if (selectedImage) {
-        const formData = new FormData();
-        formData.append("file", selectedImage);
-        formData.append("category", "PHOTO");
-        formData.append("entityType", "CHAT");
-        formData.append("entityId", activeConversationId);
+        try {
+          const formData = new FormData();
+          formData.append("file", selectedImage);
+          formData.append("category", "PHOTO");
+          formData.append("entityType", "CHAT");
+          formData.append("entityId", activeConversationId);
 
-        const uploadRes = await fetch("/api/uploads", {
-          method: "POST",
-          body: formData,
-        });
-        const uploadJson = await uploadRes.json();
-        if (!uploadJson.success || !uploadJson.data?.url) {
-          throw new Error(uploadJson.error?.message || "Failed to upload image.");
+          const uploadRes = await fetch("/api/uploads", {
+            method: "POST",
+            body: formData,
+          });
+
+          const ct = uploadRes.headers.get("content-type") || "";
+          if (uploadRes.ok && ct.includes("application/json")) {
+            const uploadJson = await uploadRes.json();
+            if (uploadJson.success && uploadJson.data?.url) {
+              uploadedImageUrl = uploadJson.data.url;
+            }
+          }
+        } catch (uploadErr) {
+          console.warn("Storage upload failed, falling back to data URL:", uploadErr);
         }
-        uploadedImageUrl = uploadJson.data.url;
+
+        // Resilient fallback: If server storage returned error or was unavailable, use compressed base64
+        if (!uploadedImageUrl) {
+          try {
+            uploadedImageUrl = await compressImageToDataUrl(selectedImage);
+          } catch (compressErr) {
+            console.error("Failed to compress image fallback:", compressErr);
+          }
+        }
+
+        if (!uploadedImageUrl && !content) {
+          throw new Error("Unable to attach image. Please try again with another photo.");
+        }
       }
 
       // 2. Post message with content and optional imageUrl
-      const res = await fetch(`/api/chat/conversations/${activeConversationId}/messages`, {
+      const json = await safeFetchJson(`/api/chat/conversations/${activeConversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -327,7 +408,7 @@ export default function ChatPage() {
           imageUrl: uploadedImageUrl,
         }),
       });
-      const json = await res.json();
+
       if (json.success && json.data?.message) {
         setMessages((prev) => [...prev, json.data.message]);
         setMessageInput("");
@@ -335,11 +416,9 @@ export default function ChatPage() {
         setTimeout(() => scrollToBottom(true), 50);
 
         // Refresh conversations list to update latestMessage
-        fetch("/api/chat/conversations")
-          .then((r) => r.json())
-          .then((r) => {
-            if (r.success) setConversations(r.data.conversations || []);
-          });
+        safeFetchJson("/api/chat/conversations").then((r) => {
+          if (r.success) setConversations(r.data.conversations || []);
+        });
       } else {
         alert(json.error?.message || "Failed to send message");
       }
@@ -371,7 +450,7 @@ export default function ChatPage() {
     setGroupError(null);
 
     try {
-      const res = await fetch("/api/chat/conversations/group", {
+      const json = await safeFetchJson("/api/chat/conversations/group", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -380,8 +459,8 @@ export default function ChatPage() {
           memberIds: selectedMemberIds,
         }),
       });
-      const json = await res.json();
-      if (res.ok && json.success) {
+
+      if (json.success) {
         setShowCreateGroupModal(false);
         setGroupName("");
         setGroupDescription("");

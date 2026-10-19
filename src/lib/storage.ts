@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 
+import os from "os";
+
 export interface StorageMetadata {
   key: string;
   originalName: string;
@@ -20,7 +22,35 @@ export interface IStorageProvider {
   getSignedDownloadUrl(key: string, originalName?: string, expiresInSeconds?: number): Promise<string>;
 }
 
-const LOCAL_STORAGE_DIR = path.resolve(process.cwd(), "storage", "uploads", "private");
+export function resolveLocalStorageDir(): string {
+  if (process.env.STORAGE_DIR) {
+    return path.resolve(process.env.STORAGE_DIR);
+  }
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT) {
+    return path.join(os.tmpdir(), "storage", "uploads", "private");
+  }
+  return path.resolve(process.cwd(), "storage", "uploads", "private");
+}
+
+export function ensureLocalStorageDir(): string {
+  const dir = resolveLocalStorageDir();
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  } catch {
+    const fallback = path.join(os.tmpdir(), "storage", "uploads", "private");
+    try {
+      if (!fs.existsSync(fallback)) {
+        fs.mkdirSync(fallback, { recursive: true });
+      }
+    } catch {
+      // Ignore
+    }
+    return fallback;
+  }
+}
 
 /**
  * Local Disk Provider
@@ -28,34 +58,80 @@ const LOCAL_STORAGE_DIR = path.resolve(process.cwd(), "storage", "uploads", "pri
 export class LocalStorageProvider implements IStorageProvider {
   name: "LOCAL" = "LOCAL";
 
-  constructor() {
-    if (!fs.existsSync(LOCAL_STORAGE_DIR)) {
-      fs.mkdirSync(LOCAL_STORAGE_DIR, { recursive: true });
-    }
+  private getDir(): string {
+    return ensureLocalStorageDir();
   }
 
   async put(key: string, buffer: Buffer): Promise<{ key: string; url?: string }> {
     const safeKey = path.basename(key);
-    const dest = path.join(LOCAL_STORAGE_DIR, safeKey);
-    await fs.promises.writeFile(dest, buffer);
+    const dir = this.getDir();
+    const dest = path.join(dir, safeKey);
+    try {
+      await fs.promises.writeFile(dest, buffer);
+    } catch (err) {
+      const fallbackDir = path.join(os.tmpdir(), "storage", "uploads", "private");
+      if (!fs.existsSync(fallbackDir)) {
+        fs.mkdirSync(fallbackDir, { recursive: true });
+      }
+      const fallbackDest = path.join(fallbackDir, safeKey);
+      await fs.promises.writeFile(fallbackDest, buffer);
+    }
     return { key: safeKey, url: `/api/uploads/${safeKey}` };
   }
 
   async get(key: string): Promise<Buffer | null> {
     const safeKey = path.basename(key);
-    const target = path.join(LOCAL_STORAGE_DIR, safeKey);
-    if (!fs.existsSync(target)) return null;
-    return await fs.promises.readFile(target);
+    const primaryDir = this.getDir();
+    const target = path.join(primaryDir, safeKey);
+    if (fs.existsSync(target)) {
+      try {
+        return await fs.promises.readFile(target);
+      } catch {
+        // Continue
+      }
+    }
+
+    const cwdTarget = path.join(process.cwd(), "storage", "uploads", "private", safeKey);
+    if (fs.existsSync(cwdTarget)) {
+      try {
+        return await fs.promises.readFile(cwdTarget);
+      } catch {
+        // Continue
+      }
+    }
+
+    const tmpTarget = path.join(os.tmpdir(), "storage", "uploads", "private", safeKey);
+    if (fs.existsSync(tmpTarget)) {
+      try {
+        return await fs.promises.readFile(tmpTarget);
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
   }
 
   async delete(key: string): Promise<boolean> {
     const safeKey = path.basename(key);
-    const target = path.join(LOCAL_STORAGE_DIR, safeKey);
-    if (fs.existsSync(target)) {
-      await fs.promises.unlink(target);
-      return true;
+    let deleted = false;
+    const dirs = [
+      this.getDir(),
+      path.join(process.cwd(), "storage", "uploads", "private"),
+      path.join(os.tmpdir(), "storage", "uploads", "private"),
+    ];
+    for (const dir of dirs) {
+      const target = path.join(dir, safeKey);
+      if (fs.existsSync(target)) {
+        try {
+          await fs.promises.unlink(target);
+          deleted = true;
+        } catch {
+          // Ignore
+        }
+      }
     }
-    return false;
+    return deleted;
   }
 
   async getSignedDownloadUrl(key: string): Promise<string> {
