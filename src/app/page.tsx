@@ -16,6 +16,7 @@ import {
   PackagePlus,
   PackageMinus,
   UserCheck,
+  Clock,
   CheckCircle2,
   X,
   Plus,
@@ -24,16 +25,27 @@ import {
   Building2,
   MapPin,
   Globe,
+  Camera,
+  User,
+  Image as ImageIcon,
+  ShieldCheck,
+  Calendar,
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [dashboardMode, setDashboardMode] = useState<"EXECUTIVE" | "EMPLOYEE">("EXECUTIVE");
+  const [recentPhotos, setRecentPhotos] = useState<any[]>([]);
+  const [lightboxPhoto, setLightboxPhoto] = useState<any>(null);
+
   const [kpi, setKpi] = useState<any>(null);
   const [activeKpiModal, setActiveKpiModal] = useState<string | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
+  const [allTasks, setAllTasks] = useState<any[]>([]);
   const [workers, setWorkers] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,10 +58,8 @@ export default function DashboardPage() {
   const [quickPriority, setQuickPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
   const [quickDueAt, setQuickDueAt] = useState("");
 
-  // Quick Crew Check-in Modal
-  const [showCheckInModal, setShowCheckInModal] = useState(false);
-  const [selectedWorkerId, setSelectedWorkerId] = useState("");
-  const [checkInSiteId, setCheckInSiteId] = useState("");
+  // Attendance state for logged in user
+  const [todaySessions, setTodaySessions] = useState<any[]>([]);
 
   // Feedback notifications
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -76,8 +86,20 @@ export default function DashboardPage() {
       fetch("/api/materials").then((r) => r.json()),
       fetch(`/api/workforce${siteId ? `?siteId=${siteId}` : ""}`).then((r) => r.json()),
       fetch("/api/sites").then((r) => r.json()),
+      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
+      fetch("/api/attachments?category=PHOTO&limit=8").then((r) => r.json()).catch(() => ({})),
     ])
-      .then(([kpiRes, projRes, taskRes, attRes, matRes, wfRes, sitesRes]) => {
+      .then(([kpiRes, projRes, taskRes, attRes, matRes, wfRes, sitesRes, meRes, photoRes]) => {
+        if (meRes.success && meRes.data) {
+          setCurrentUser(meRes.data.user);
+        }
+        if (photoRes.success && photoRes.data) {
+          setRecentPhotos(photoRes.data || []);
+        }
+        if (attRes.success) {
+          setTodaySessions(attRes.data || []);
+        }
+
         const rawProjs = projRes.data || [];
         const rawTasks = taskRes.data || [];
         const rawWorkers = wfRes.data || [];
@@ -85,9 +107,6 @@ export default function DashboardPage() {
 
         setSites(rawSites);
         setWorkers(rawWorkers);
-        if (rawWorkers.length > 0) {
-          setSelectedWorkerId((prev) => (rawWorkers.some((w: any) => w.id === prev) ? prev : rawWorkers[0].id));
-        }
 
         const filteredProjs = siteId ? rawProjs.filter((p: any) => p.siteId === siteId) : rawProjs;
         const filteredTasks = siteId
@@ -99,6 +118,7 @@ export default function DashboardPage() {
           setQuickProjectId(filteredProjs[0].id);
         }
 
+        setAllTasks(filteredTasks);
         setTasks(filteredTasks.filter((t: any) => t.status === "TODO" || t.status === "IN_PROGRESS"));
         refreshKpis(kpiRes.data, siteId);
       })
@@ -107,12 +127,6 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false));
   };
-
-  useEffect(() => {
-    if (workers.length > 0) {
-      setSelectedWorkerId((prev) => (workers.some((w) => w.id === prev) ? prev : workers[0].id));
-    }
-  }, [workers]);
 
   useEffect(() => {
     const savedSite = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") || "" : "";
@@ -198,47 +212,88 @@ export default function DashboardPage() {
     }
   };
 
-  const handleQuickCheckInSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedWorkerId || submittingCheckIn) return;
+  const currentUserSession = todaySessions.find((s) => {
+    const userEmpCode = currentUser?.id ? `USR-${currentUser.id.slice(-6).toUpperCase()}` : "";
+    if (userEmpCode && s.workforceMember?.employeeCode === userEmpCode) return true;
+    if (currentUser?.name && s.workforceMember?.name?.trim().toLowerCase() === currentUser.name?.trim().toLowerCase()) return true;
+    return false;
+  });
+  const isUserCheckedIn = !!currentUserSession;
+  const isUserCheckedOut = !!currentUserSession?.checkOutAt;
 
-    const siteToUse =
-      checkInSiteId ||
-      activeSiteId ||
-      (projects.length > 0 ? projects[0].siteId : "") ||
-      (sites.length > 0 ? sites[0].id : "");
-    if (!siteToUse) {
-      setErrorMessage("Please select a site for crew check-in.");
-      return;
+  const getGpsCoords = async (): Promise<{ lat?: number; lng?: number; acc?: number }> => {
+    if (typeof window === "undefined" || !navigator.geolocation) return {};
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 4000,
+          enableHighAccuracy: true,
+        });
+      });
+      return {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        acc: pos.coords.accuracy,
+      };
+    } catch {
+      return {};
     }
+  };
 
+  const handleQuickCheckInOut = async () => {
+    if (submittingCheckIn) return;
     setSubmittingCheckIn(true);
     setErrorMessage(null);
     setStatusMessage(null);
 
     try {
-      const res = await fetch("/api/attendance/check-in", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workforceMemberId: selectedWorkerId,
-          siteId: siteToUse,
-          workDate: new Date().toISOString().split("T")[0],
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to record check-in on server");
-        return;
+      const gps = await getGpsCoords();
+      if (!isUserCheckedIn) {
+        // Perform self check-in
+        const res = await fetch("/api/attendance/check-in", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            siteId: activeSiteId || (sites.length > 0 ? sites[0].id : undefined),
+            workDate: new Date().toISOString().split("T")[0],
+            latitude: gps.lat,
+            longitude: gps.lng,
+            accuracyM: gps.acc,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setErrorMessage(data.error?.message || "Failed to check in");
+          return;
+        }
+        const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
+        setStatusMessage(`Checked in successfully at ${timeStr}${gpsStr}!`);
+        loadDashboard(activeSiteId);
+      } else if (!isUserCheckedOut) {
+        // Perform self check-out
+        const res = await fetch("/api/attendance/check-out", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: currentUserSession?.id,
+            latitude: gps.lat,
+            longitude: gps.lng,
+            accuracyM: gps.acc,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setErrorMessage(data.error?.message || "Failed to check out");
+          return;
+        }
+        const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
+        setStatusMessage(`Checked out successfully at ${timeStr}${gpsStr}!`);
+        loadDashboard(activeSiteId);
       }
-
-      const worker = workers.find((w) => w.id === selectedWorkerId);
-      setStatusMessage(`Worker "${worker?.name || 'Trade Crew'}" checked in successfully!`);
-      setShowCheckInModal(false);
-      loadDashboard(activeSiteId);
     } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to record check-in"}`);
+      setErrorMessage(`Network error: ${err.message || "Failed to update attendance"}`);
     } finally {
       setSubmittingCheckIn(false);
     }
@@ -692,6 +747,44 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Dashboard Mode Selector: Executive / Owner vs Personalized Employee Workspace */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setDashboardMode("EXECUTIVE")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                dashboardMode === "EXECUTIVE"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Owner & Executive Overview</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDashboardMode("EMPLOYEE")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                dashboardMode === "EMPLOYEE"
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Personalized Employee Workspace</span>
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-500 px-2 flex items-center gap-2">
+            {currentUser && (
+              <span>
+                Logged in as <strong className="text-slate-800">{currentUser.name}</strong> ({currentUser.role})
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* Quick Site Switcher Bar */}
         {sites.length > 0 && (
           <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-xl overflow-x-auto max-w-full border border-slate-200/80">
@@ -780,8 +873,171 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Real KPI Cards Grid */}
-        {loading ? (
+        {/* Personalized Employee Workspace */}
+        {dashboardMode === "EMPLOYEE" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+              <Link
+                href="/tasks?filter=my_tasks"
+                className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group select-none block"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider">My Open Tasks</span>
+                  <div className="p-2 rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
+                    <CheckSquare className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-slate-900">
+                  {allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.assignee?.id === currentUser?.id) && t.status !== "COMPLETED" && t.status !== "VERIFIED").length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                  <span>Assigned to you</span>
+                  <span className="text-amber-600 font-medium group-hover:underline">Open List →</span>
+                </div>
+              </Link>
+
+              <Link
+                href="/tasks?filter=overdue"
+                className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-rose-400 hover:shadow-md transition-all cursor-pointer group select-none block"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider">My Overdue Tasks</span>
+                  <div className="p-2 rounded-lg bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-rose-600">
+                  {allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.assignee?.id === currentUser?.id) && t.dueAt && new Date(t.dueAt).getTime() < Date.now() && t.status !== "COMPLETED" && t.status !== "VERIFIED").length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                  <span>Needs urgent action</span>
+                  <span className="text-rose-600 font-medium group-hover:underline">View →</span>
+                </div>
+              </Link>
+
+              <Link
+                href="/tasks?filter=completed"
+                className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none block"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Completed By Me</span>
+                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-emerald-600">
+                  {allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.completedById === currentUser?.id) && (t.status === "COMPLETED" || t.status === "VERIFIED")).length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                  <span>Delivered work</span>
+                  <span className="text-emerald-700 font-medium group-hover:underline">View →</span>
+                </div>
+              </Link>
+
+              <Link
+                href="/tasks?filter=requests"
+                className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group select-none block"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider">My Role Requests</span>
+                  <div className="p-2 rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-purple-600">
+                  {allTasks.filter((t: any) => t.createdBy === currentUser?.id && t.taskType && t.taskType !== "STANDARD").length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                  <span>Requests for Owner/Arch</span>
+                  <span className="text-purple-600 font-medium group-hover:underline">Track →</span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Employee Active Tasks Work Queue */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <CheckSquare className="w-4 h-4 text-amber-500" />
+                    <span>My Active Task Work Queue</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Tasks currently assigned to your account requiring execution</p>
+                </div>
+                <Link href="/tasks" className="text-xs font-bold text-amber-600 hover:underline">
+                  Go to All Site Tasks →
+                </Link>
+              </div>
+
+              {allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.assignee?.id === currentUser?.id) && t.status !== "COMPLETED" && t.status !== "VERIFIED").length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                  <div className="font-bold text-slate-700 text-sm">All caught up!</div>
+                  <p className="mt-0.5">No open tasks currently assigned to you. Create a personal task or request from the tasks page.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {allTasks
+                    .filter((t: any) => (t.assigneeUserId === currentUser?.id || t.assignee?.id === currentUser?.id) && t.status !== "COMPLETED" && t.status !== "VERIFIED")
+                    .slice(0, 6)
+                    .map((t: any) => {
+                      const isOverdue = t.dueAt && new Date(t.dueAt).getTime() < Date.now();
+                      return (
+                        <div
+                          key={t.id}
+                          className="p-3.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 text-sm">{t.title}</span>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                                  t.priority === "CRITICAL"
+                                    ? "bg-rose-100 text-rose-800"
+                                    : t.priority === "HIGH"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-slate-200 text-slate-700"
+                                }`}
+                              >
+                                {t.priority}
+                              </span>
+                              {isOverdue && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-600 text-white uppercase">
+                                  Overdue
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
+                              <span>Project: <strong className="text-slate-700">{t.project?.name || "General"}</strong></span>
+                              {t.dueAt && <span>Due: <strong>{formatDate(t.dueAt)}</strong></span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => handleQuickCompleteTask(t.id, t.title)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-2xs transition flex items-center gap-1"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Mark Done</span>
+                            </button>
+                            <Link
+                              href="/tasks"
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition"
+                            >
+                              Details
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Real KPI Cards Grid (Executive Mode) */}
+        {dashboardMode === "EXECUTIVE" && (loading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-28 rounded-xl bg-slate-200/60 animate-pulse" />
@@ -974,7 +1230,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        )}
+        ))}
 
         {/* Supervisor Mobile Quick Actions Dock */}
         <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 shadow-md">
@@ -1007,16 +1263,46 @@ export default function DashboardPage() {
               </div>
             </Link>
 
-            <button
-              onClick={() => setShowCheckInModal(true)}
-              className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all text-left"
-            >
-              <UserCheck className="w-5 h-5 text-blue-400 shrink-0" />
-              <div>
-                <div className="text-xs font-bold text-white">Crew Check-In</div>
-                <div className="text-[10px] text-slate-400">Tap worker attendance</div>
-              </div>
-            </button>
+            {!isUserCheckedIn ? (
+              <button
+                onClick={handleQuickCheckInOut}
+                disabled={submittingCheckIn}
+                className="p-3 bg-emerald-950/40 hover:bg-emerald-900/60 rounded-xl border border-emerald-600/50 flex items-center gap-2.5 transition-all text-left disabled:opacity-50"
+              >
+                <UserCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-white">
+                    {submittingCheckIn ? "Checking In..." : "Check In"}
+                  </div>
+                  <div className="text-[10px] text-emerald-300">Tap to record attendance</div>
+                </div>
+              </button>
+            ) : !isUserCheckedOut ? (
+              <button
+                onClick={handleQuickCheckInOut}
+                disabled={submittingCheckIn}
+                className="p-3 bg-rose-950/40 hover:bg-rose-900/60 rounded-xl border border-rose-600/50 flex items-center gap-2.5 transition-all text-left disabled:opacity-50"
+              >
+                <Clock className="w-5 h-5 text-rose-400 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-white">
+                    {submittingCheckIn ? "Checking Out..." : "Check Out"}
+                  </div>
+                  <div className="text-[10px] text-rose-300">Tap to end shift</div>
+                </div>
+              </button>
+            ) : (
+              <Link
+                href="/attendance"
+                className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all text-left"
+              >
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-white">Shift Done</div>
+                  <div className="text-[10px] text-slate-400">View attendance log</div>
+                </div>
+              </Link>
+            )}
 
             <button
               onClick={() => setShowQuickTaskModal(true)}
@@ -1310,6 +1596,57 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Recent Site Photographs & Quality Inspection Gallery */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                <Camera className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Recent Site Photographs & Quality Inspections</h2>
+                <p className="text-xs text-slate-500">Live field images, delivery challans, and progress updates from site teams</p>
+              </div>
+            </div>
+            {recentPhotos.length > 0 && (
+              <span className="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                {recentPhotos.length} Photos
+              </span>
+            )}
+          </div>
+
+          {recentPhotos.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              <Camera className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <div className="font-bold text-slate-700">No site photographs uploaded yet</div>
+              <p className="mt-0.5">Supervisors and engineers can capture photos during task execution and material inwards.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {recentPhotos.map((photo: any) => (
+                <div
+                  key={photo.id}
+                  onClick={() => setLightboxPhoto(photo)}
+                  className="group relative aspect-video bg-slate-100 rounded-xl overflow-hidden border border-slate-200 cursor-pointer shadow-xs hover:border-amber-400 transition"
+                >
+                  <img
+                    src={photo.url}
+                    alt={photo.fileName}
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90 p-2.5 flex flex-col justify-end text-white">
+                    <div className="text-[11px] font-bold truncate">{photo.fileName}</div>
+                    <div className="text-[10px] text-slate-300 flex items-center justify-between mt-0.5">
+                      <span>{photo.uploadedBy || "Site Team"}</span>
+                      <span>{formatDate(photo.createdAt)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Modal: Quick Task Creation */}
         {showQuickTaskModal && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1412,96 +1749,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Modal: Quick Crew Check-in */}
-        {showCheckInModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <HardHat className="w-5 h-5 text-emerald-600" />
-                  <span>Quick Crew Check-In</span>
-                </div>
-                <button
-                  onClick={() => setShowCheckInModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleQuickCheckInSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Select Target Site *
-                  </label>
-                  <select
-                    value={checkInSiteId || activeSiteId || (sites.length > 0 ? sites[0].id : "")}
-                    onChange={(e) => setCheckInSiteId(e.target.value)}
-                    required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {sites.length === 0 ? (
-                      <option value="" disabled>
-                        No active sites available
-                      </option>
-                    ) : (
-                      sites.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} {s.code ? `(${s.code})` : ""}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Select Worker to Check In *
-                  </label>
-                  <select
-                    value={selectedWorkerId}
-                    onChange={(e) => setSelectedWorkerId(e.target.value)}
-                    required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {workers.length === 0 ? (
-                      <option value="" disabled>
-                        No active workers found — Register via Attendance page
-                      </option>
-                    ) : (
-                      workers.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name} ({w.employeeCode} - {w.workerType})
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800">
-                  Worker will be marked PRESENT with current timestamp and checked in to the selected site.
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCheckInModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-sm"
-                  >
-                    Confirm Check-In
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
         {/* Modal: KPI Short Details */}
         {activeKpiModal && (() => {
           const modalData = renderKpiModalContent();
@@ -1581,6 +1828,41 @@ export default function DashboardPage() {
             </div>
           );
         })()}
+
+        {/* Lightbox Modal for Recent Site Photos */}
+        {lightboxPhoto && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => setLightboxPhoto(null)}
+          >
+            <div
+              className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-3.5 bg-slate-950 flex items-center justify-between text-white border-b border-slate-800">
+                <div>
+                  <div className="font-bold text-sm">{lightboxPhoto.fileName}</div>
+                  <div className="text-xs text-slate-400">
+                    Uploaded by {lightboxPhoto.uploadedBy} on {formatDate(lightboxPhoto.createdAt)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setLightboxPhoto(null)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 flex items-center justify-center p-2 bg-black/60 overflow-hidden">
+                <img
+                  src={lightboxPhoto.url}
+                  alt={lightboxPhoto.fileName}
+                  className="max-h-[75vh] max-w-full object-contain rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Shell>
   );

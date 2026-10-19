@@ -4,6 +4,8 @@ import { getUserContext } from "@/lib/auth";
 import { InventoryService } from "@/services/inventory-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
+import { requireUserContext, requireProjectAccess } from "@/lib/server-auth";
+
 export const dynamic = "force-dynamic";
 
 const issueSchema = z.object({
@@ -12,16 +14,20 @@ const issueSchema = z.object({
   quantity: z.number().positive(),
   projectId: z.string().min(1).optional(),
   taskId: z.string().min(1).optional(),
+  attachmentIds: z.array(z.string()).optional(),
   notes: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req, "inventory:issue");
 
     const body = await req.json();
     const data = issueSchema.parse(body);
+
+    if (data.projectId) {
+      await requireProjectAccess(user, data.projectId, "inventory:issue");
+    }
 
     const result = await InventoryService.issueGoods({
       organizationId: user.organizationId,
@@ -30,6 +36,7 @@ export async function POST(req: NextRequest) {
       quantity: data.quantity,
       projectId: data.projectId,
       taskId: data.taskId,
+      attachmentIds: data.attachmentIds,
       notes: data.notes,
       userId: user.userId,
       role: user.role,

@@ -19,7 +19,9 @@ import {
   XCircle,
   Clock,
   UserCheck,
+  Paperclip,
 } from "lucide-react";
+import AttachmentManager from "@/components/attachments/AttachmentManager";
 
 export default function FinancePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -30,6 +32,14 @@ export default function FinancePage() {
   const [materials, setMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"BILLS" | "PAYMENTS">("PAYMENTS");
+
+  // Attachment Modal state (Priority 3)
+  const [attachmentTarget, setAttachmentTarget] = useState<{
+    type: string;
+    id: string;
+    title: string;
+    categoryDefault?: string;
+  } | null>(null);
 
   // Payment Modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -594,7 +604,12 @@ export default function FinancePage() {
                               </div>
                             ))
                           ) : (
-                            <span className="text-slate-400 italic">Unallocated</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-slate-400 italic">Unallocated</span>
+                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-fit">
+                                Missing Bill Allocation
+                              </span>
+                            </div>
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-black tabular-nums">
@@ -631,39 +646,55 @@ export default function FinancePage() {
                           )}
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
-                          {isPending && canSuperAdminAct ? (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => handleApprovePayment(p)}
-                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs transition"
-                                title="Confirm & Approve disbursement"
-                              >
-                                <CheckCircle2 className="w-3 h-3" />
-                                <span>Approve</span>
-                              </button>
-                              <button
-                                onClick={() => handleRejectPayment(p)}
-                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition"
-                                title="Reject disbursement query"
-                              >
-                                <XCircle className="w-3 h-3" />
-                                <span>Reject</span>
-                              </button>
-                            </div>
-                          ) : isPending ? (
-                            <span className="text-[11px] text-amber-700 font-medium italic">Awaiting Admin</span>
-                          ) : p.status === "POSTED" && !isReversed ? (
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => {
-                                setPaymentToReverse(p);
-                                setShowReverseModal(true);
-                              }}
-                              className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline"
+                              onClick={() =>
+                                setAttachmentTarget({
+                                  type: "PAYMENT",
+                                  id: p.id,
+                                  title: `Payment Receipt: ${p.referenceNumber || p.id.slice(0, 8)}`,
+                                  categoryDefault: "PAYMENT_RECEIPT",
+                                })
+                              }
+                              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                              title="Upload or view payment receipt / voucher"
                             >
-                              <RotateCcw className="w-3 h-3" />
-                              <span>Reverse</span>
+                              <Paperclip className="w-3.5 h-3.5" />
                             </button>
-                          ) : null}
+                            {isPending && canSuperAdminAct ? (
+                              <>
+                                <button
+                                  onClick={() => handleApprovePayment(p)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs transition"
+                                  title="Confirm & Approve disbursement"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Approve</span>
+                                </button>
+                                <button
+                                  onClick={() => handleRejectPayment(p)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition"
+                                  title="Reject disbursement query"
+                                >
+                                  <XCircle className="w-3 h-3" />
+                                  <span>Reject</span>
+                                </button>
+                              </>
+                            ) : isPending ? (
+                              <span className="text-[11px] text-amber-700 font-medium italic">Awaiting Admin</span>
+                            ) : p.status === "POSTED" && !isReversed ? (
+                              <button
+                                onClick={() => {
+                                  setPaymentToReverse(p);
+                                  setShowReverseModal(true);
+                                }}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Reverse</span>
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -688,6 +719,7 @@ export default function FinancePage() {
                     <th className="py-3 px-4 text-right">Amount Paid</th>
                     <th className="py-3 px-4 text-right">Pending Balance</th>
                     <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -723,6 +755,23 @@ export default function FinancePage() {
                             PENDING
                           </span>
                         )}
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <button
+                          onClick={() =>
+                            setAttachmentTarget({
+                              type: "BILL",
+                              id: b.id,
+                              title: `Bill #${b.billNumber} Invoices & Challans`,
+                              categoryDefault: "INVOICE",
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                          title="Upload or view invoice / challan photograph"
+                        >
+                          <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Attach</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1289,6 +1338,38 @@ export default function FinancePage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Attachment Modal (Priority 3) */}
+        {attachmentTarget && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <Paperclip className="w-5 h-5 text-amber-500" />
+                  <span>{attachmentTarget.title}</span>
+                </div>
+                <button
+                  onClick={() => setAttachmentTarget(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                <AttachmentManager
+                  entityType={attachmentTarget.type}
+                  entityId={attachmentTarget.id}
+                  title={attachmentTarget.title}
+                  allowUpload={true}
+                  categoryDefault={attachmentTarget.categoryDefault || "INVOICE"}
+                  highlightMissing={true}
+                  missingLabel="No invoice or receipt attached yet"
+                />
+              </div>
             </div>
           </div>
         )}

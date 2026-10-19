@@ -1,52 +1,76 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getUserContext } from "@/lib/auth";
-import { assertPermission } from "@/lib/permissions";
+import { requireUserContext, requirePermission, canReadFinance } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
 const createPartySchema = z.object({
-  partyType: z.enum(["VENDOR", "CONTRACTOR", "BOTH"]),
   name: z.string().min(2),
+  partyType: z.enum(["VENDOR", "CONTRACTOR", "BOTH", "CLIENT", "OTHER"]).default("VENDOR"),
   phone: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().or(z.literal("")),
   address: z.string().optional(),
   taxIdentifier: z.string().optional(),
+  contractValue: z.number().min(0).optional(),
   notes: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req);
 
     const { searchParams } = new URL(req.url);
     const partyType = searchParams.get("type"); // VENDOR, CONTRACTOR, BOTH, ALL
+    const includeArchived = searchParams.get("includeArchived") === "true";
 
-    const where: any = { organizationId: user.organizationId, active: true };
+    const where: any = { organizationId: user.organizationId };
+    if (!includeArchived) {
+      where.active = true;
+      where.isArchived = false;
+    }
     if (partyType && partyType !== "ALL") {
       where.partyType = { in: [partyType, "BOTH"] };
     }
 
+    const hasFinanceAccess = canReadFinance(user);
+
     const parties = await prisma.party.findMany({
       where,
-      include: {
-        bills: {
-          where: { status: "POSTED" },
-          include: { allocations: { where: { reversedAt: null } } },
-        },
-        payments: {
-          where: { status: "POSTED" },
-        },
-      },
+      include: hasFinanceAccess
+        ? {
+            bills: {
+              where: { status: "POSTED", isArchived: false },
+              include: { allocations: { where: { reversedAt: null } } },
+            },
+            payments: {
+              where: { status: "POSTED", isArchived: false },
+            },
+          }
+        : undefined,
       orderBy: { name: "asc" },
     });
 
     const enriched = parties.map((p: any) => {
-      const totalBilled = p.bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
-      const totalPaid = p.payments.reduce((sum: number, pay: any) => sum + (pay.amount || 0), 0);
+      if (!hasFinanceAccess) {
+        return {
+          id: p.id,
+          name: p.name,
+          partyType: p.partyType,
+          phone: p.phone,
+          email: p.email,
+          address: p.address,
+          taxIdentifier: p.taxIdentifier,
+          notes: p.notes,
+          active: p.active,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+        };
+      }
+
+      const totalBilled = (p.bills || []).reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
+      const totalPaid = (p.payments || []).reduce((sum: number, pay: any) => sum + (pay.amount || 0), 0);
       const outstandingBalance = totalBilled - totalPaid;
 
       return {
@@ -57,9 +81,14 @@ export async function GET(req: NextRequest) {
         email: p.email,
         address: p.address,
         taxIdentifier: p.taxIdentifier,
+        contractValue: p.contractValue || 0,
         totalBilled,
         totalPaid,
         outstandingBalance,
+        notes: p.notes,
+        active: p.active,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
       };
     });
 
@@ -71,10 +100,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
-
-    assertPermission(user.role, "finance:write");
+    const user = await requireUserContext(req);
+    requirePermission(user, "finance:write");
 
     const body = await req.json();
     const data = createPartySchema.parse(body);
@@ -82,13 +109,30 @@ export async function POST(req: NextRequest) {
     const party = await prisma.party.create({
       data: {
         organizationId: user.organizationId,
+        name: data.name.trim(),
         partyType: data.partyType,
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        address: data.address,
-        taxIdentifier: data.taxIdentifier,
-        notes: data.notes,
+        phone: data.phone?.trim() || null,
+        email: data.email?.trim() || null,
+        address: data.address?.trim() || null,
+        taxIdentifier: data.taxIdentifier?.trim() || null,
+        contractValue: data.contractValue || 0,
+        notes: data.notes?.trim() || null,
+      },
+    });
+
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "PARTY_CREATED",
+        entityType: "PARTY",
+        entityId: party.id,
+        afterJson: JSON.stringify({
+          name: party.name,
+          partyType: party.partyType,
+          contractValue: party.contractValue,
+        }),
+        reason: `Created ${party.partyType.toLowerCase()} profile for ${party.name}`,
       },
     });
 
@@ -100,10 +144,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
-
-    assertPermission(user.role, "finance:write");
+    const user = await requireUserContext(req);
+    requirePermission(user, "finance:write");
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -117,11 +159,32 @@ export async function DELETE(req: NextRequest) {
       return jsonError("Party not found", "NOT_FOUND", 404);
     }
 
-    await prisma.party.delete({
+    // Soft-delete / Archival to preserve transaction history
+    await prisma.party.update({
       where: { id: party.id },
+      data: {
+        active: false,
+        isArchived: true,
+        archivedAt: new Date(),
+        archivedById: user.userId,
+        archiveReason: "Party profile archived by authorized user",
+      },
     });
 
-    return jsonSuccess({ deleted: true, id: party.id });
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "PARTY_ARCHIVED",
+        entityType: "PARTY",
+        entityId: party.id,
+        beforeJson: JSON.stringify({ name: party.name, partyType: party.partyType, active: party.active }),
+        afterJson: JSON.stringify({ active: false, isArchived: true }),
+        reason: "Party archived while preserving historical bills and payment links",
+      },
+    });
+
+    return jsonSuccess({ archived: true, deleted: true, id: party.id });
   } catch (error) {
     return handleApiError(error);
   }

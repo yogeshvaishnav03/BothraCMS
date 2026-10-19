@@ -20,8 +20,16 @@ import {
   ShoppingCart,
   MessageSquare,
   ExternalLink,
+  HardHat,
+  Truck,
+  Paperclip,
+  History,
+  Package,
+  Landmark,
 } from "lucide-react";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
+import AttachmentManager from "@/components/attachments/AttachmentManager";
+import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 
 export default function PartyStatementPage() {
   const params = useParams();
@@ -31,6 +39,7 @@ export default function PartyStatementPage() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
 
   const loadStatementAndOrders = () => {
     if (!partyId) return;
@@ -96,6 +105,32 @@ export default function PartyStatementPage() {
   }
 
   const { party, totalBilled, totalPaid, outstandingBalance, bills, payments } = statementData;
+  const isContractor = party.partyType === "CONTRACTOR" || party.partyType === "BOTH";
+  const isVendor = party.partyType === "VENDOR" || party.partyType === "BOTH";
+
+  // Calculate material-wise breakdown from bill line items
+  const materialSummaryMap: Record<string, { description: string; qty: number; spend: number }> = {};
+  bills.forEach((b: any) => {
+    (b.lines || []).forEach((line: any) => {
+      const key = line.materialId || line.description || "General Supply";
+      if (!materialSummaryMap[key]) {
+        materialSummaryMap[key] = {
+          description: line.description || "General Material Supply",
+          qty: 0,
+          spend: 0,
+        };
+      }
+      materialSummaryMap[key].qty += line.quantity || 0;
+      materialSummaryMap[key].spend += line.lineTotal || 0;
+    });
+  });
+  const materialSummaries = Object.values(materialSummaryMap);
+
+  // Contractor contract progress
+  const contractVal = party.contractValue || 0;
+  const billedPct = contractVal > 0 ? Math.min(100, Math.round((totalBilled / contractVal) * 100)) : 0;
+  const paidPct = contractVal > 0 ? Math.min(100, Math.round((totalPaid / contractVal) * 100)) : 0;
+  const remainingContract = Math.max(0, contractVal - totalBilled);
 
   return (
     <Shell>
@@ -110,19 +145,28 @@ export default function PartyStatementPage() {
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
-              <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                Vendor / Contractor Financial Statement
+              <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-2">
+                <span>{isContractor ? "Subcontractor Contract & Statement" : "Material Supplier Financial Statement"}</span>
               </div>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                 <span>{party.name}</span>
-                <span className="font-mono text-xs px-2.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">
+                <span
+                  className={`font-mono text-xs px-2.5 py-0.5 rounded font-bold ${
+                    isContractor ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                  }`}
+                >
                   {party.partyType}
                 </span>
+                {party.taxIdentifier && (
+                  <span className="text-xs font-mono text-slate-500 font-medium">
+                    (GSTIN: {party.taxIdentifier})
+                  </span>
+                )}
               </h1>
             </div>
           </div>
           <div className="flex items-center gap-2 print:hidden self-start sm:self-auto">
-            {(party.partyType === "VENDOR" || party.partyType === "BOTH") && (
+            {isVendor && (
               <button
                 onClick={() => setShowPlaceOrderModal(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-sm transition cursor-pointer"
@@ -132,20 +176,73 @@ export default function PartyStatementPage() {
               </button>
             )}
             <button
+              onClick={() => setShowAuditModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs shadow-sm transition"
+              title="Audit & Version History"
+            >
+              <History className="w-4 h-4 text-indigo-600" />
+              <span>Audit Log</span>
+            </button>
+            <button
               onClick={() => window.print()}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition"
+              className="flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition"
             >
               <Printer className="w-4 h-4" />
-              <span>Print / Save as PDF</span>
+              <span>Print / PDF</span>
             </button>
           </div>
         </div>
+
+        {/* Contractor Contract Summary (if Contractor) */}
+        {isContractor && contractVal > 0 && (
+          <div className="bg-gradient-to-r from-purple-900 to-indigo-950 rounded-2xl p-5 text-white shadow-md">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-purple-800/60">
+              <div>
+                <div className="text-xs text-purple-300 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                  <HardHat className="w-4 h-4 text-amber-400" />
+                  <span>Subcontractor Contract Milestone Tracking</span>
+                </div>
+                <div className="text-xl font-black mt-1">Sanctioned Value: {formatCurrency(contractVal)}</div>
+              </div>
+              <div className="flex items-center gap-6 text-sm">
+                <div>
+                  <div className="text-xs text-purple-300">Remaining Contract Balance</div>
+                  <div className="text-lg font-bold text-amber-400">{formatCurrency(remainingContract)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-purple-300">Work Billed %</div>
+                  <div className="text-lg font-bold text-white">{billedPct}%</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress Bars */}
+            <div className="pt-3 space-y-2">
+              <div className="flex justify-between text-xs text-purple-200">
+                <span>Progress Billed: {formatCurrency(totalBilled)} ({billedPct}%)</span>
+                <span>Payments Released: {formatCurrency(totalPaid)} ({paidPct}%)</span>
+              </div>
+              <div className="w-full h-3 bg-purple-950/60 rounded-full overflow-hidden flex">
+                <div
+                  style={{ width: `${paidPct}%` }}
+                  className="bg-emerald-400 h-full rounded-l-full"
+                  title={`Paid: ${paidPct}%`}
+                />
+                <div
+                  style={{ width: `${Math.max(0, billedPct - paidPct)}%` }}
+                  className="bg-amber-400 h-full"
+                  title={`Billed Unpaid: ${billedPct - paidPct}%`}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Financial Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Invoiced / Billed
+              {isContractor ? "Cumulative Work Certified / Billed" : "Total Invoiced Liability"}
             </span>
             <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
               {formatCurrency(totalBilled)}
@@ -157,35 +254,74 @@ export default function PartyStatementPage() {
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Amount Paid
+              Cumulative Amount Paid
             </span>
             <div className="text-2xl font-black text-emerald-600 mt-1 tabular-nums">
               {formatCurrency(totalPaid)}
             </div>
             <div className="text-[11px] text-slate-500 mt-1">
-              Verified disbursements ({payments.length} payments)
+              Disbursements released ({payments.length} payments)
             </div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm bg-gradient-to-br from-amber-50/50 to-white">
             <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
-              Current Outstanding Payable
+              Current Outstanding Balance
             </span>
             <div className="text-2xl font-black text-amber-600 mt-1 tabular-nums">
               {formatCurrency(outstandingBalance)}
             </div>
             <div className="text-[11px] text-amber-700 font-medium mt-1">
-              Reconciled liability = Total Billed − Total Paid
+              Net balance payable = Total Billed − Total Paid
             </div>
           </div>
         </div>
+
+        {/* Material-wise Purchase Breakdown for Vendors */}
+        {materialSummaries.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Package className="w-4 h-4 text-amber-600" />
+                <span>Material Supply & Item-wise Breakdown</span>
+              </h2>
+              <span className="text-xs font-mono font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded">
+                {materialSummaries.length} Items
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                  <tr>
+                    <th className="py-3 px-4">Material / Item Description</th>
+                    <th className="py-3 px-4 text-right">Cumulative Quantity</th>
+                    <th className="py-3 px-4 text-right">Total Spend</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {materialSummaries.map((m, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/80">
+                      <td className="py-3 px-4 font-bold text-slate-900">{m.description}</td>
+                      <td className="py-3 px-4 text-right font-medium text-slate-700">
+                        {m.qty > 0 ? m.qty.toLocaleString() : "—"}
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-slate-900 tabular-nums">
+                        {formatCurrency(m.spend)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Posted Bills Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
               <Receipt className="w-4 h-4 text-blue-600" />
-              <span>Posted Invoices & Bills</span>
+              <span>Posted Invoices & Work Bills</span>
             </h2>
             <span className="text-xs font-mono font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded">
               {bills.length} Bills
@@ -257,7 +393,7 @@ export default function PartyStatementPage() {
           <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-emerald-600" />
-              <span>Payments & Settlements</span>
+              <span>Payments & Settlements Register</span>
             </h2>
             <span className="text-xs font-mono font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded">
               {payments.length} Payments
@@ -275,6 +411,7 @@ export default function PartyStatementPage() {
                   <tr>
                     <th className="py-3 px-4">Payment Date</th>
                     <th className="py-3 px-4">Method / UTR #</th>
+                    <th className="py-3 px-4">Paying Account</th>
                     <th className="py-3 px-4">Allocated To Bill</th>
                     <th className="py-3 px-4 text-right">Payment Amount</th>
                     <th className="py-3 px-4 text-center">Status</th>
@@ -289,7 +426,13 @@ export default function PartyStatementPage() {
                       <td className="py-3 px-4 text-xs">
                         <div className="font-bold text-slate-900">{p.method}</div>
                         <div className="text-[11px] font-mono text-slate-500">
-                          Ref: {p.referenceNumber}
+                          Ref: {p.referenceNumber || "—"}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-700">
+                        <div className="flex items-center gap-1">
+                          <Landmark className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{p.payingAccount || "Primary Operating A/C"}</span>
                         </div>
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-600">
@@ -311,6 +454,8 @@ export default function PartyStatementPage() {
                           className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
                             p.status === "POSTED"
                               ? "bg-emerald-100 text-emerald-800"
+                              : p.status === "PENDING_APPROVAL"
+                              ? "bg-amber-100 text-amber-800"
                               : "bg-rose-100 text-rose-800"
                           }`}
                         >
@@ -326,7 +471,7 @@ export default function PartyStatementPage() {
         </div>
 
         {/* Purchase Orders to this Vendor */}
-        {(party.partyType === "VENDOR" || party.partyType === "BOTH") && (
+        {isVendor && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -431,6 +576,38 @@ export default function PartyStatementPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Documents, Agreements & Challans */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div className="flex items-center gap-2">
+              <Paperclip className="w-5 h-5 text-amber-500" />
+              <h2 className="font-bold text-slate-900 text-base">
+                {isContractor ? "Subcontractor Documents & Work Agreements" : "Vendor Documents, GST & Invoices"}
+              </h2>
+            </div>
+            <span className="text-xs text-slate-400 font-medium">Secured Storage Integration</span>
+          </div>
+
+          <AttachmentManager
+            entityType="PARTY"
+            entityId={party.id}
+            title={`${party.name} Files`}
+            allowUpload={true}
+            categoryDefault="INVOICE"
+            highlightMissing={false}
+          />
+        </div>
+
+        {/* Audit History Modal */}
+        {showAuditModal && (
+          <AuditHistoryModal
+            entityType="PARTY"
+            entityId={party.id}
+            title={`Audit History: ${party.name}`}
+            onClose={() => setShowAuditModal(false)}
+          />
         )}
       </div>
 

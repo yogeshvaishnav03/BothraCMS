@@ -7,7 +7,7 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 const checkOutSchema = z.object({
-  sessionId: z.string().min(1),
+  sessionId: z.string().min(1).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   accuracyM: z.number().optional(),
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const data = checkOutSchema.parse(body);
 
     const session = await AttendanceService.checkOut({

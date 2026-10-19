@@ -1,8 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getUserContext } from "@/lib/auth";
-import { assertPermission } from "@/lib/permissions";
+import {
+  requireUserContext,
+  requirePermission,
+  getUserAccessibleProjectIds,
+  canReadFinance,
+} from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -20,14 +24,22 @@ const createProjectSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req);
 
     const { searchParams } = new URL(req.url);
     const siteId = searchParams.get("siteId");
     const status = searchParams.get("status");
+    const includeArchived = searchParams.get("includeArchived") === "true";
+
+    const accessibleProjectIds = await getUserAccessibleProjectIds(user);
 
     const where: any = { organizationId: user.organizationId };
+    if (!includeArchived) {
+      where.isArchived = false;
+    }
+    if (accessibleProjectIds !== null) {
+      where.id = { in: accessibleProjectIds };
+    }
     if (siteId) where.siteId = siteId;
     if (status) where.status = status;
 
@@ -43,7 +55,16 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return jsonSuccess(projects);
+    const hasFinanceAccess = canReadFinance(user);
+    const sanitizedProjects = projects.map((p) => {
+      const copy: any = { ...p };
+      if (!hasFinanceAccess) {
+        delete copy.budgetAmount;
+      }
+      return copy;
+    });
+
+    return jsonSuccess(sanitizedProjects);
   } catch (error) {
     return handleApiError(error);
   }
@@ -51,10 +72,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
-
-    assertPermission(user.role, "projects:write");
+    const user = await requireUserContext(req);
+    requirePermission(user, "projects:write");
 
     const body = await req.json();
     const data = createProjectSchema.parse(body);
@@ -97,6 +116,20 @@ export async function POST(req: NextRequest) {
       },
       include: { site: true, manager: true },
     });
+
+    // If managerUserId was specified, assign them
+    if (data.managerUserId) {
+      await prisma.projectAssignment.create({
+        data: {
+          organizationId: user.organizationId,
+          projectId: project.id,
+          userId: data.managerUserId,
+          role: "PROJECT_MANAGER",
+          status: "ACTIVE",
+          assignedById: user.userId,
+        },
+      });
+    }
 
     await prisma.auditEvent.create({
       data: {

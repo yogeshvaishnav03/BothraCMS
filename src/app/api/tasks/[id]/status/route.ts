@@ -8,7 +8,7 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 const updateStatusSchema = z.object({
-  status: z.enum(["TODO", "IN_PROGRESS", "BLOCKED", "COMPLETED"]),
+  status: z.enum(["TODO", "IN_PROGRESS", "BLOCKED", "COMPLETED", "VERIFIED"]),
   note: z.string().optional(),
 });
 
@@ -31,13 +31,32 @@ export async function PATCH(
 
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
+    if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
+      const { requireProjectAccess } = await import("@/lib/server-auth");
+      await requireProjectAccess(user, task.projectId, "tasks:write");
+    }
+
     const oldStatus = task.status;
+    const updateData: any = { status };
+
+    if (status === "COMPLETED" && oldStatus !== "COMPLETED") {
+      updateData.completedAt = new Date();
+      updateData.completedById = user.userId;
+    } else if (status === "VERIFIED") {
+      updateData.verifiedAt = new Date();
+      updateData.verifiedById = user.userId;
+    }
 
     const [updatedTask] = await prisma.$transaction([
       prisma.task.update({
         where: { id: task.id },
-        data: { status },
-        include: { project: true, assignee: true },
+        data: updateData,
+        include: {
+          project: true,
+          assignee: true,
+          completedBy: { select: { id: true, name: true } },
+          verifiedBy: { select: { id: true, name: true } },
+        },
       }),
       prisma.taskStatusHistory.create({
         data: {
@@ -45,7 +64,7 @@ export async function PATCH(
           oldStatus,
           newStatus: status,
           changedBy: user.userId,
-          note: note || null,
+          note: note || (status === "VERIFIED" ? "Task verified by supervisor" : null),
         },
       }),
     ]);

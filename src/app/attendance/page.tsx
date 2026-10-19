@@ -20,18 +20,12 @@ import {
 } from "lucide-react";
 
 export default function AttendancePage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [workers, setWorkers] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
   const [workDate, setWorkDate] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(true);
-
-  // Check-In modal
-  const [showCheckInModal, setShowCheckInModal] = useState(false);
-  const [selectedWorkerId, setSelectedWorkerId] = useState("");
-  const [checkInSiteId, setCheckInSiteId] = useState("");
-  const [notes, setNotes] = useState("");
-  const [captureGps, setCaptureGps] = useState(true);
 
   // Register Worker modal
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -56,17 +50,17 @@ export default function AttendancePage() {
   const loadData = () => {
     setLoading(true);
     Promise.all([
+      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
       fetch("/api/workforce").then((r) => r.json()),
       fetch(`/api/attendance?workDate=${workDate}`).then((r) => r.json()),
       fetch("/api/sites").then((r) => r.json()),
     ])
-      .then(([workerRes, attRes, sitesRes]) => {
+      .then(([authRes, workerRes, attRes, sitesRes]) => {
+        if (authRes?.success && authRes.data?.user) {
+          setCurrentUser(authRes.data.user);
+        }
         if (workerRes.success) {
-          const rawWorkers = workerRes.data || [];
-          setWorkers(rawWorkers);
-          if (rawWorkers.length > 0) {
-            setSelectedWorkerId((prev) => (rawWorkers.some((w: any) => w.id === prev) ? prev : rawWorkers[0].id));
-          }
+          setWorkers(workerRes.data || []);
         }
         if (attRes.success) {
           setSessions(attRes.data || []);
@@ -75,7 +69,6 @@ export default function AttendancePage() {
           const rawSites = sitesRes.data || [];
           setSites(rawSites);
           if (rawSites.length > 0) {
-            setCheckInSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
             setDefaultSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
           }
         }
@@ -87,14 +80,7 @@ export default function AttendancePage() {
   };
 
   useEffect(() => {
-    if (workers.length > 0) {
-      setSelectedWorkerId((prev) => (workers.some((w) => w.id === prev) ? prev : workers[0].id));
-    }
-  }, [workers]);
-
-  useEffect(() => {
     if (sites.length > 0) {
-      setCheckInSiteId((prev) => (sites.some((s) => s.id === prev) ? prev : sites[0].id));
       setDefaultSiteId((prev) => (sites.some((s) => s.id === prev) ? prev : sites[0].id));
     }
   }, [sites]);
@@ -172,58 +158,51 @@ export default function AttendancePage() {
     }
   };
 
-  const handleCheckInSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const getGpsCoords = async (): Promise<{ lat?: number; lng?: number; acc?: number }> => {
+    if (typeof window === "undefined" || !navigator.geolocation) return {};
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 4000,
+          enableHighAccuracy: true,
+        });
+      });
+      return {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        acc: pos.coords.accuracy,
+      };
+    } catch {
+      return {};
+    }
+  };
+
+  const handleSelfCheckIn = async () => {
     setSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
 
-    let lat: number | undefined;
-    let lng: number | undefined;
-    let acc: number | undefined;
-
-    if (captureGps && navigator.geolocation) {
-      try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
-        });
-        lat = pos.coords.latitude;
-        lng = pos.coords.longitude;
-        acc = pos.coords.accuracy;
-      } catch {
-        // Continue if GPS permission is denied
-      }
-    }
-
-    const siteToUse = checkInSiteId || (sites.length > 0 ? sites[0].id : "");
-    if (!siteToUse) {
-      setErrorMessage("Please select a site for check-in.");
-      setSubmitting(false);
-      return;
-    }
-
     try {
+      const gps = await getGpsCoords();
       const res = await fetch("/api/attendance/check-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          workforceMemberId: selectedWorkerId,
-          siteId: siteToUse,
           workDate,
-          latitude: lat,
-          longitude: lng,
-          accuracyM: acc,
-          notes: notes || undefined,
+          siteId: sites.length > 0 ? sites[0].id : undefined,
+          latitude: gps.lat,
+          longitude: gps.lng,
+          accuracyM: gps.acc,
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to check in worker");
+        setErrorMessage(data.error?.message || "Failed to check in");
       } else {
-        setStatusMessage("Worker checked in successfully!");
-        setShowCheckInModal(false);
-        setNotes("");
+        const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
+        setStatusMessage(`Checked in successfully at ${timeStr}${gpsStr}!`);
         loadData();
       }
     } catch {
@@ -233,23 +212,66 @@ export default function AttendancePage() {
     }
   };
 
-  const handleCheckOut = async (sessionId: string) => {
+  const handleWorkerCheckIn = async (workerId: string) => {
     setSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
 
     try {
-      const res = await fetch("/api/attendance/check-out", {
+      const gps = await getGpsCoords();
+      const res = await fetch("/api/attendance/check-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({
+          workforceMemberId: workerId,
+          siteId: sites.length > 0 ? sites[0].id : undefined,
+          workDate,
+          latitude: gps.lat,
+          longitude: gps.lng,
+          accuracyM: gps.acc,
+        }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to check out worker");
+        setErrorMessage(data.error?.message || "Failed to check in worker");
       } else {
-        setStatusMessage("Worker checked out successfully!");
+        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
+        setStatusMessage(`Worker checked in successfully${gpsStr}!`);
+        loadData();
+      }
+    } catch {
+      setErrorMessage("Network error during worker check-in");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCheckOut = async (sessionId?: string) => {
+    setSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const gps = await getGpsCoords();
+      const res = await fetch("/api/attendance/check-out", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          latitude: gps.lat,
+          longitude: gps.lng,
+          accuracyM: gps.acc,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to check out");
+      } else {
+        const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
+        setStatusMessage(`Checked out successfully at ${timeStr}${gpsStr}!`);
         loadData();
       }
     } catch {
@@ -296,6 +318,16 @@ export default function AttendancePage() {
   const activeSessionMap = new Map();
   sessions.forEach((s) => activeSessionMap.set(s.workforceMemberId, s));
 
+  // Find current user's session for today
+  const currentUserSession = sessions.find((s) => {
+    const userEmpCode = currentUser?.id ? `USR-${currentUser.id.slice(-6).toUpperCase()}` : "";
+    if (userEmpCode && s.workforceMember?.employeeCode === userEmpCode) return true;
+    if (currentUser?.name && s.workforceMember?.name?.trim().toLowerCase() === currentUser.name?.trim().toLowerCase()) return true;
+    return false;
+  });
+  const isUserCheckedIn = !!currentUserSession;
+  const isUserCheckedOut = !!currentUserSession?.checkOutAt;
+
   return (
     <Shell>
       <div className="space-y-6">
@@ -329,23 +361,30 @@ export default function AttendancePage() {
               <UserPlus className="w-4 h-4 text-amber-400" />
               <span>+ Register Worker</span>
             </button>
-            <button
-              onClick={() => {
-                if (workers.length > 0) {
-                  setSelectedWorkerId((prev) => (workers.some((w) => w.id === prev) ? prev : workers[0].id));
-                } else {
-                  loadData();
-                }
-                if (sites.length > 0) {
-                  setCheckInSiteId((prev) => (sites.some((s) => s.id === prev) ? prev : sites[0].id));
-                }
-                setShowCheckInModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
-            >
-              <UserCheck className="w-4 h-4" />
-              <span>+ Check In Worker</span>
-            </button>
+            {!isUserCheckedIn ? (
+              <button
+                onClick={handleSelfCheckIn}
+                disabled={submitting}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50"
+              >
+                <UserCheck className="w-4 h-4" />
+                <span>{submitting ? "Checking In..." : "Check In"}</span>
+              </button>
+            ) : !isUserCheckedOut ? (
+              <button
+                onClick={() => handleCheckOut(currentUserSession.id)}
+                disabled={submitting}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50"
+              >
+                <Clock className="w-4 h-4" />
+                <span>{submitting ? "Checking Out..." : "Check Out"}</span>
+              </button>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Shift Completed</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -488,10 +527,21 @@ export default function AttendancePage() {
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {!isCheckedIn && (
+                              <button
+                                onClick={() => handleWorkerCheckIn(w.id)}
+                                disabled={submitting}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
+                              >
+                                Check In
+                              </button>
+                            )}
+
                             {isCheckedIn && !isCheckedOut && (
                               <button
                                 onClick={() => handleCheckOut(session.id)}
-                                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-sm"
+                                disabled={submitting}
+                                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
                               >
                                 Check Out
                               </button>
@@ -528,133 +578,6 @@ export default function AttendancePage() {
             </div>
           )}
         </div>
-
-        {/* Modal: Check-In Worker */}
-        {showCheckInModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <UserCheck className="w-5 h-5 text-emerald-600" />
-                  <span>Check In Worker for Shift</span>
-                </div>
-                <button
-                  onClick={() => setShowCheckInModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCheckInSubmit} className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-slate-700 uppercase">
-                      Select Worker
-                    </label>
-                    {workers.length === 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCheckInModal(false);
-                          setShowRegisterModal(true);
-                        }}
-                        className="text-xs text-amber-600 hover:text-amber-700 font-semibold underline"
-                      >
-                        + Register Worker
-                      </button>
-                    )}
-                  </div>
-                  <select
-                    value={selectedWorkerId}
-                    onChange={(e) => setSelectedWorkerId(e.target.value)}
-                    required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {workers.length === 0 ? (
-                      <option value="" disabled>
-                        No active workers found — Register one first
-                      </option>
-                    ) : (
-                      workers.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name} ({w.employeeCode}) — {w.workerType}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Work Site
-                  </label>
-                  <select
-                    value={checkInSiteId}
-                    onChange={(e) => setCheckInSiteId(e.target.value)}
-                    required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {sites.length === 0 ? (
-                      <option value="" disabled>
-                        No active sites found
-                      </option>
-                    ) : (
-                      sites.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.code})
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    id="gpsCheckbox"
-                    checked={captureGps}
-                    onChange={(e) => setCaptureGps(e.target.checked)}
-                    className="w-4 h-4 text-amber-500 rounded"
-                  />
-                  <label htmlFor="gpsCheckbox" className="font-medium cursor-pointer">
-                    Capture event GPS coordinates snapshot (Privacy compliant)
-                  </label>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Gate / Shift Notes
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Assigned to 5th floor slab team"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCheckInModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
-                  >
-                    {submitting ? "Checking In..." : "Confirm Check-In"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {/* Modal: Attendance Correction */}
         {showCorrectionModal && sessionToCorrect && (

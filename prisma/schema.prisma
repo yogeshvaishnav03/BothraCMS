@@ -17,23 +17,29 @@ model Organization {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  users             User[]
-  sites             Site[]
-  projects          Project[]
-  materials         Material[]
+  users              User[]
+  sites              Site[]
+  projects           Project[]
+  materials          Material[]
   materialCategories MaterialCategory[]
-  parties           Party[]
-  workforceMembers  WorkforceMember[]
-  auditEvents       AuditEvent[]
-  tasks             Task[]
-  bills             Bill[]
-  payments          Payment[]
-  stores            Store[]
-  stockMovements    StockMovement[]
+  parties            Party[]
+  workforceMembers   WorkforceMember[]
+  auditEvents        AuditEvent[]
+  tasks              Task[]
+  bills              Bill[]
+  payments           Payment[]
+  stores             Store[]
+  stockMovements     StockMovement[]
   attendanceSessions AttendanceSession[]
-  dailyReports      DailySiteReport[]
-  purchaseOrders    PurchaseOrder[]
-  conversations     Conversation[]
+  dailyReports       DailySiteReport[]
+  purchaseOrders     PurchaseOrder[]
+  conversations      Conversation[]
+  attachments        Attachment[]
+  documentFolders    DocumentFolder[]
+  taskComments       TaskComment[]
+  projectAssignments ProjectAssignment[]
+  notifications      Notification[]
+  folderPermissions  FolderPermission[]
 }
 
 model User {
@@ -48,22 +54,30 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  managedProjects Project[]   @relation("ProjectManager")
-  assignedTasks  Task[]       @relation("TaskAssignee")
-  createdTasks   Task[]       @relation("TaskCreator")
-  taskHistories  TaskStatusHistory[]
-  createdReports DailySiteReport[]
-  createdMovements StockMovement[]
-  createdBills   Bill[]
-  createdPayments Payment[]
-  createdAttendance AttendanceSession[] @relation("AttendanceCreator")
-  correctedAttendance AttendanceSession[] @relation("AttendanceCorrector")
-  createdOrders  PurchaseOrder[]      @relation("OrderCreator")
-  createdConversations Conversation[] @relation("ConversationCreator")
-  conversationParticipants ConversationParticipant[]
-  sentMessages      ChatMessage[]
-  auditEvents    AuditEvent[]
+  organization                Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  managedProjects             Project[]             @relation("ProjectManager")
+  assignedTasks               Task[]                @relation("TaskAssignee")
+  createdTasks                Task[]                @relation("TaskCreator")
+  taskHistories               TaskStatusHistory[]
+  createdReports              DailySiteReport[]
+  createdMovements            StockMovement[]
+  createdBills                Bill[]
+  createdPayments             Payment[]
+  createdAttendance           AttendanceSession[]   @relation("AttendanceCreator")
+  correctedAttendance         AttendanceSession[]   @relation("AttendanceCorrector")
+  createdOrders               PurchaseOrder[]       @relation("OrderCreator")
+  createdConversations        Conversation[]        @relation("ConversationCreator")
+  conversationParticipants    ConversationParticipant[]
+  sentMessages                ChatMessage[]
+  auditEvents                 AuditEvent[]
+  completedTasks              Task[]                @relation("TaskCompleter")
+  verifiedTasks               Task[]                @relation("TaskVerifier")
+  taskComments                TaskComment[]
+  uploadedAttachments         Attachment[]
+  projectAssignments          ProjectAssignment[]
+  assignedProjectAssignments  ProjectAssignment[]   @relation("ProjectAssignmentAssigner")
+  notifications               Notification[]
+  folderPermissions           FolderPermission[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -81,12 +95,12 @@ model Site {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  projects       Project[]
-  stores         Store[]
-  workforceMembers WorkforceMember[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projects           Project[]
+  stores             Store[]
+  workforceMembers   WorkforceMember[]
   attendanceSessions AttendanceSession[]
-  purchaseOrders PurchaseOrder[]
+  purchaseOrders     PurchaseOrder[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -99,47 +113,70 @@ model Project {
   code           String
   name           String
   managerUserId  String?
-  status         String    @default("IN_PROGRESS") // PLANNING, IN_PROGRESS, ON_HOLD, COMPLETED
+  status         String    @default("IN_PROGRESS") // PLANNING, IN_PROGRESS, ON_HOLD, COMPLETED, ARCHIVED
   startDate      DateTime?
   endDate        DateTime?
   budgetAmount   Float     @default(0) // currency amount (e.g. INR rupees)
   notes          String?
+  isArchived     Boolean   @default(false)
+  archivedAt     DateTime?
+  archivedById   String?
+  archiveReason  String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  site           Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  manager        User?        @relation("ProjectManager", fields: [managerUserId], references: [id])
-  tasks          Task[]
-  dailyReports   DailySiteReport[]
-  stockMovements StockMovement[]
-  bills          Bill[]
-  payments       Payment[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site               Site                @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  manager            User?               @relation("ProjectManager", fields: [managerUserId], references: [id])
+  tasks              Task[]
+  dailyReports       DailySiteReport[]
+  stockMovements     StockMovement[]
+  bills              Bill[]
+  payments           Payment[]
   attendanceSessions AttendanceSession[]
+  purchaseOrders     PurchaseOrder[]
+  attachments        Attachment[]
+  documentFolders    DocumentFolder[]
+  assignments        ProjectAssignment[]
 
   @@unique([organizationId, code])
   @@index([organizationId, siteId])
 }
 
 model Task {
-  id             String    @id @default(uuid())
-  organizationId String
-  projectId      String
-  title          String
-  description    String?
-  priority       String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
-  status         String    @default("TODO") // TODO, IN_PROGRESS, BLOCKED, COMPLETED
-  assigneeUserId String?
-  dueAt          DateTime?
-  createdBy      String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  organizationId      String
+  projectId           String
+  title               String
+  description         String?
+  priority            String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status              String    @default("TODO") // TODO, IN_PROGRESS, BLOCKED, COMPLETED, VERIFIED, ARCHIVED
+  assigneeUserId      String?
+  dueAt               DateTime?
+  completedAt         DateTime?
+  completedById       String?
+  verifiedAt          DateTime?
+  verifiedById        String?
+  taskType            String?   @default("STANDARD") // STANDARD, PERSONAL, REQUEST_OWNER, REQUEST_MANAGER, REQUEST_ARCHITECT
+  reminderAt          DateTime?
+  reminderDeliveredAt DateTime?
+  isArchived          Boolean   @default(false)
+  archivedAt          DateTime?
+  archivedById        String?
+  archiveReason       String?
+  createdBy           String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee       User?        @relation("TaskAssignee", fields: [assigneeUserId], references: [id])
-  creator        User         @relation("TaskCreator", fields: [createdBy], references: [id])
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee       User?               @relation("TaskAssignee", fields: [assigneeUserId], references: [id])
+  creator        User                @relation("TaskCreator", fields: [createdBy], references: [id])
+  completedBy    User?               @relation("TaskCompleter", fields: [completedById], references: [id])
+  verifiedBy     User?               @relation("TaskVerifier", fields: [verifiedById], references: [id])
   statusHistory  TaskStatusHistory[]
+  comments       TaskComment[]
+  attachments    Attachment[]
   stockMovements StockMovement[]
 
   @@index([organizationId, projectId])
@@ -192,7 +229,7 @@ model MaterialCategory {
 }
 
 model Material {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   categoryId     String?
   sku            String
@@ -201,6 +238,10 @@ model Material {
   minStockQty    Float    @default(0)
   reorderQty     Float    @default(0)
   active         Boolean  @default(true)
+  isArchived     Boolean   @default(false)
+  archivedAt     DateTime?
+  archivedById   String?
+  archiveReason  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -210,19 +251,21 @@ model Material {
   stockMovements StockMovement[]
   billLines      BillLine[]
   purchaseOrders PurchaseOrder[]
+  attachments    Attachment[]
 
   @@unique([organizationId, sku])
   @@index([organizationId])
 }
 
 model Store {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   siteId         String
   name           String
-  status         String   @default("ACTIVE") // ACTIVE, ARCHIVED
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status         String    @default("ACTIVE") // ACTIVE, ARCHIVED
+  isArchived     Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   site           Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
@@ -263,6 +306,7 @@ model StockMovement {
   referenceDoc   String?   // Challan #, PO #, Transfer Voucher #
   reversalOfId   String?
   notes          String?
+  isArchived     Boolean   @default(false)
   createdBy      String
   createdAt      DateTime  @default(now())
 
@@ -273,13 +317,14 @@ model StockMovement {
   project        Project?     @relation(fields: [projectId], references: [id])
   task           Task?        @relation(fields: [taskId], references: [id])
   creator        User         @relation(fields: [createdBy], references: [id])
+  attachments    Attachment[]
 
   @@index([organizationId, materialId, storeId])
   @@index([movementAt])
 }
 
 model Party {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   organizationId String
   partyType     String   // VENDOR, CONTRACTOR, BOTH
   name          String
@@ -288,14 +333,19 @@ model Party {
   address       String?
   taxIdentifier String?  // GSTIN / PAN
   active        Boolean  @default(true)
+  isArchived    Boolean   @default(false)
+  archivedAt    DateTime?
+  archivedById  String?
+  archiveReason String?
   notes         String?
+  contractValue Float?   @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stockMovements StockMovement[]
-  bills         Bill[]
-  payments      Payment[]
+  bills          Bill[]
+  payments       Payment[]
   purchaseOrders PurchaseOrder[]
 
   @@index([organizationId, partyType])
@@ -310,7 +360,11 @@ model Bill {
   billDate       DateTime
   dueDate        DateTime?
   totalAmount    Float     // minor units / currency
-  status         String    @default("POSTED") // DRAFT, POSTED, VOIDED
+  status         String    @default("POSTED") // DRAFT, POSTED, VOIDED, ARCHIVED
+  isArchived     Boolean   @default(false)
+  archivedAt     DateTime?
+  archivedById   String?
+  archiveReason  String?
   notes          String?
   createdBy      String
   postedAt       DateTime? @default(now())
@@ -365,6 +419,10 @@ model Payment {
   idempotencyKey  String
   reversedAt      DateTime?
   reversalReason  String?
+  isArchived      Boolean   @default(false)
+  archivedAt      DateTime?
+  archivedById    String?
+  archiveReason   String?
   notes           String?
   createdBy       String
   createdAt       DateTime  @default(now())
@@ -375,6 +433,7 @@ model Payment {
   project         Project?     @relation(fields: [projectId], references: [id])
   creator         User         @relation(fields: [createdBy], references: [id])
   allocations     PaymentAllocation[]
+  attachments     Attachment[]
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, partyId])
@@ -397,7 +456,7 @@ model PaymentAllocation {
 }
 
 model WorkforceMember {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   employeeCode   String
   name           String
@@ -406,11 +465,15 @@ model WorkforceMember {
   defaultSiteId  String?
   dailyWageRate  Float?   // currency
   active         Boolean  @default(true)
+  isArchived     Boolean   @default(false)
+  archivedAt     DateTime?
+  archivedById   String?
+  archiveReason  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  defaultSite    Site?        @relation(fields: [defaultSiteId], references: [id])
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  defaultSite        Site?               @relation(fields: [defaultSiteId], references: [id])
   attendanceSessions AttendanceSession[]
 
   @@unique([organizationId, employeeCode])
@@ -436,6 +499,10 @@ model AttendanceSession {
   notes             String?
   correctedBy       String?
   correctionReason  String?
+  isArchived        Boolean   @default(false)
+  archivedAt        DateTime?
+  archivedById      String?
+  archiveReason     String?
   createdBy         String
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -446,6 +513,7 @@ model AttendanceSession {
   project           Project?        @relation(fields: [projectId], references: [id])
   creator           User            @relation("AttendanceCreator", fields: [createdBy], references: [id])
   corrector         User?           @relation("AttendanceCorrector", fields: [correctedBy], references: [id])
+  attachments       Attachment[]
 
   @@unique([organizationId, workforceMemberId, siteId, workDate])
   @@index([organizationId, siteId, workDate])
@@ -514,6 +582,8 @@ model PurchaseOrder {
   vendor               Party        @relation(fields: [vendorPartyId], references: [id], onDelete: Cascade)
   store                Store?       @relation(fields: [storeId], references: [id])
   site                 Site?        @relation(fields: [siteId], references: [id])
+  projectId            String?
+  project              Project?     @relation(fields: [projectId], references: [id])
   creator              User         @relation("OrderCreator", fields: [createdBy], references: [id])
 
   @@unique([organizationId, orderNumber])
@@ -561,6 +631,7 @@ model ChatMessage {
   conversationId String
   senderId       String
   content        String
+  imageUrl       String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -572,3 +643,158 @@ model ChatMessage {
   @@index([createdAt])
 }
 
+model TaskComment {
+  id             String   @id @default(uuid())
+  organizationId String
+  taskId         String
+  userId         String
+  content        String
+  type           String   @default("COMMENT") // COMMENT, QUESTION, ASSISTANCE_REQUEST, PROGRESS_UPDATE
+  photoUrl       String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task           Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([organizationId])
+}
+
+model DocumentFolder {
+  id             String    @id @default(uuid())
+  organizationId String
+  projectId      String
+  name           String
+  description    String?
+  parentId       String?
+  isArchived     Boolean   @default(false)
+  archivedAt     DateTime?
+  archivedById   String?
+  archiveReason  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent         DocumentFolder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  subfolders     DocumentFolder[]   @relation("FolderHierarchy")
+  attachments    Attachment[]
+  permissions    FolderPermission[]
+
+  @@unique([projectId, parentId, name])
+  @@index([organizationId, projectId])
+}
+
+model Attachment {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  entityType          String    // PAYMENT, BILL, PARTY, MATERIAL, STOCK_MOVEMENT, ATTENDANCE, TASK, PROJECT_DOCUMENT
+  entityId            String
+  fileId              String
+  fileName            String
+  fileSize            Int
+  mimeType            String
+  category            String    @default("GENERAL") // PHOTO, INVOICE, CHALLAN, DRAWING, SPECIFICATION, RECEIPT, GENERAL
+  diskFileName        String
+  projectId           String?
+  folderId            String?
+  taskId              String?
+  stockMovementId     String?
+  attendanceSessionId String?
+  materialId          String?
+  paymentId           String?
+  isArchived          Boolean   @default(false)
+  archivedAt          DateTime?
+  archivedById        String?
+  archiveReason       String?
+  notes               String?
+  uploadedById        String
+  createdAt           DateTime  @default(now())
+
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project             Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  folder              DocumentFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  task                Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  stockMovement       StockMovement?     @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+  attendanceSession   AttendanceSession? @relation(fields: [attendanceSessionId], references: [id], onDelete: SetNull)
+  material            Material?          @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  payment             Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  uploadedBy          User               @relation(fields: [uploadedById], references: [id])
+
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, projectId])
+  @@index([folderId])
+  @@index([taskId])
+  @@index([stockMovementId])
+  @@index([attendanceSessionId])
+  @@index([materialId])
+  @@index([paymentId])
+}
+
+model ProjectAssignment {
+  id             String    @id @default(uuid())
+  organizationId String
+  projectId      String
+  userId         String
+  role           String?   // e.g. "SITE_SUPERVISOR", "SITE_ENGINEER", "CONTRACTOR", etc.
+  status         String    @default("ACTIVE") // ACTIVE, REVOKED, INACTIVE
+  assignedById   String
+  assignedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy     User         @relation("ProjectAssignmentAssigner", fields: [assignedById], references: [id])
+
+  @@unique([projectId, userId])
+  @@index([organizationId, projectId])
+  @@index([userId, status])
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String
+  type           String    // TASK_REMINDER, LOW_STOCK, ORDER_APPROVAL, PAYMENT_APPROVAL, CHAT_MESSAGE, GENERAL
+  title          String
+  message        String
+  severity       String    @default("INFO") // INFO, WARNING, CRITICAL
+  entityType     String?   // TASK, MATERIAL, BILL, PAYMENT, etc.
+  entityId       String?
+  href           String?
+  readAt         DateTime?
+  deliveredAt    DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, readAt])
+  @@index([organizationId, entityType, entityId])
+}
+
+model FolderPermission {
+  id             String    @id @default(uuid())
+  organizationId String
+  folderId       String
+  userId         String?
+  role           String?   // Optional role-based permission (e.g. "SITE_SUPERVISOR")
+  canView        Boolean   @default(true)
+  canUpload      Boolean   @default(false)
+  canEdit        Boolean   @default(false)
+  canDelete      Boolean   @default(false)
+  canDownload    Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  folder         DocumentFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  user           User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, folderId])
+  @@index([folderId, userId])
+  @@index([folderId, role])
+}

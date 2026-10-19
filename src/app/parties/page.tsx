@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, rupeesToPaise, paiseToRupees } from "@/lib/formatters";
 import {
   Building2,
   Plus,
@@ -16,22 +16,38 @@ import {
   Phone,
   Mail,
   Trash2,
+  Edit2,
+  History,
+  HardHat,
+  Truck,
+  Briefcase,
+  FileText,
 } from "lucide-react";
+import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 
 export default function PartiesPage() {
   const [parties, setParties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL"); // ALL, VENDOR, CONTRACTOR
 
-  // Register modal states
+  // Register / Edit modal states
   const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
+
   const [name, setName] = useState("");
-  const [partyType, setPartyType] = useState("VENDOR");
+  const [partyType, setPartyType] = useState<"VENDOR" | "CONTRACTOR" | "BOTH">("VENDOR");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [taxIdentifier, setTaxIdentifier] = useState("");
+  const [contractValueRupees, setContractValueRupees] = useState("");
+  const [editReason, setEditReason] = useState("");
+
+  // Audit modal state
+  const [auditParty, setAuditParty] = useState<{ id: string; name: string } | null>(null);
+
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -43,7 +59,7 @@ export default function PartiesPage() {
       .then((res) => {
         if (res.success) {
           const raw = res.data || [];
-          setParties(typeFilter === "ALL" ? raw : raw.filter((p: any) => p.partyType === typeFilter));
+          setParties(typeFilter === "ALL" ? raw : raw.filter((p: any) => p.partyType === typeFilter || p.partyType === "BOTH"));
         }
       })
       .catch((err) => {
@@ -56,6 +72,34 @@ export default function PartiesPage() {
     loadParties();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeFilter]);
+
+  const handleOpenCreate = () => {
+    setIsEditing(false);
+    setEditingPartyId(null);
+    setName("");
+    setPartyType(typeFilter === "CONTRACTOR" ? "CONTRACTOR" : "VENDOR");
+    setPhone("");
+    setEmail("");
+    setAddress("");
+    setTaxIdentifier("");
+    setContractValueRupees("");
+    setEditReason("");
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (p: any) => {
+    setIsEditing(true);
+    setEditingPartyId(p.id);
+    setName(p.name);
+    setPartyType(p.partyType);
+    setPhone(p.phone || "");
+    setEmail(p.email || "");
+    setAddress(p.address || "");
+    setTaxIdentifier(p.taxIdentifier || "");
+    setContractValueRupees(p.contractValue ? (paiseToRupees(p.contractValue)).toString() : "");
+    setEditReason("");
+    setShowModal(true);
+  };
 
   const handleDeleteParty = async (id: string, partyName: string) => {
     if (!confirm(`Are you sure you want to delete party "${partyName}"?`)) return;
@@ -75,40 +119,68 @@ export default function PartiesPage() {
     }
   };
 
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setErrorMessage(null);
 
-    try {
-      const res = await fetch("/api/parties", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          partyType,
-          phone: phone || undefined,
-          email: email || undefined,
-          address: address || undefined,
-          taxIdentifier: taxIdentifier || undefined,
-        }),
-      });
+    const contractPaise = contractValueRupees && !isNaN(parseFloat(contractValueRupees))
+      ? rupeesToPaise(parseFloat(contractValueRupees))
+      : 0;
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to register party");
+    try {
+      if (isEditing && editingPartyId) {
+        // Edit existing party
+        const res = await fetch(`/api/parties/${editingPartyId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            partyType,
+            phone: phone || null,
+            email: email || null,
+            address: address || null,
+            taxIdentifier: taxIdentifier || null,
+            contractValue: contractPaise,
+            reason: editReason || undefined,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setErrorMessage(data.error?.message || "Failed to update party");
+        } else {
+          setStatusMessage(`Party "${name}" updated successfully.`);
+          setShowModal(false);
+          loadParties();
+        }
       } else {
-        setStatusMessage("Party registered successfully!");
-        setShowModal(false);
-        setName("");
-        setPhone("");
-        setEmail("");
-        setAddress("");
-        setTaxIdentifier("");
-        loadParties();
+        // Create new party
+        const res = await fetch("/api/parties", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            partyType,
+            phone: phone || undefined,
+            email: email || undefined,
+            address: address || undefined,
+            taxIdentifier: taxIdentifier || undefined,
+            contractValue: contractPaise,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setErrorMessage(data.error?.message || "Failed to register party");
+        } else {
+          setStatusMessage("Party registered successfully!");
+          setShowModal(false);
+          loadParties();
+        }
       }
     } catch {
-      setErrorMessage("Network error during registration");
+      setErrorMessage("Network error during operation");
     } finally {
       setSubmitting(false);
     }
@@ -117,7 +189,8 @@ export default function PartiesPage() {
   const filteredParties = parties.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.taxIdentifier && p.taxIdentifier.toLowerCase().includes(search.toLowerCase()))
+      (p.taxIdentifier && p.taxIdentifier.toLowerCase().includes(search.toLowerCase())) ||
+      (p.phone && p.phone.includes(search))
   );
 
   return (
@@ -131,16 +204,16 @@ export default function PartiesPage() {
               <span>Vendors & Contractors Directory</span>
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              Material suppliers and labour contractors. Balances are dynamically reconciled from posted bills and payments.
+              Separate supplier accounts and subcontractor contracts with cumulative bills, payments, and outstanding balances.
             </p>
           </div>
 
           <button
-            onClick={() => setShowModal(true)}
+            onClick={handleOpenCreate}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Register Vendor / Contractor</span>
+            <span>+ Register Partner</span>
           </button>
         </div>
 
@@ -158,33 +231,52 @@ export default function PartiesPage() {
           </div>
         )}
 
-        {/* Filters */}
+        {/* Filters and Tabs */}
         <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="relative flex-1 w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
-              placeholder="Search by company name or GSTIN..."
+              placeholder="Search by company name, GSTIN, or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
 
-          <div className="flex items-center gap-1 shrink-0 w-full sm:w-auto">
-            {["ALL", "VENDOR", "CONTRACTOR"].map((type) => (
-              <button
-                key={type}
-                onClick={() => setTypeFilter(type)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  typeFilter === type
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {type}
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto">
+            <button
+              onClick={() => setTypeFilter("ALL")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                typeFilter === "ALL"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <span>All ({parties.length})</span>
+            </button>
+            <button
+              onClick={() => setTypeFilter("VENDOR")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                typeFilter === "VENDOR"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Vendors</span>
+            </button>
+            <button
+              onClick={() => setTypeFilter("CONTRACTOR")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                typeFilter === "CONTRACTOR"
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <HardHat className="w-3.5 h-3.5" />
+              <span>Contractors</span>
+            </button>
           </div>
         </div>
 
@@ -207,99 +299,142 @@ export default function PartiesPage() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Party Name / GSTIN</th>
+                    <th className="py-3 px-4">Partner Name / GSTIN</th>
                     <th className="py-3 px-4">Type</th>
                     <th className="py-3 px-4">Contact</th>
+                    {typeFilter === "CONTRACTOR" && (
+                      <th className="py-3 px-4 text-right">Contract Value</th>
+                    )}
                     <th className="py-3 px-4 text-right">Total Billed</th>
                     <th className="py-3 px-4 text-right">Total Paid</th>
                     <th className="py-3 px-4 text-right">Outstanding Balance</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredParties.map((p) => (
-                    <tr
-                      key={p.id}
-                      className="hover:bg-amber-50/40 transition-colors group cursor-pointer"
-                    >
-                      <td className="py-3.5 px-4">
-                        <Link href={`/parties/${p.id}`} className="block">
-                          <div className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors">
-                            {p.name}
-                          </div>
-                          {p.taxIdentifier && (
-                            <div className="text-xs text-slate-500 font-mono">
-                              GSTIN: {p.taxIdentifier}
+                  {filteredParties.map((p) => {
+                    const isContractor = p.partyType === "CONTRACTOR" || p.partyType === "BOTH";
+
+                    return (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-amber-50/40 transition-colors group"
+                      >
+                        <td className="py-3.5 px-4">
+                          <Link href={`/parties/${p.id}`} className="block">
+                            <div className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors">
+                              {p.name}
+                            </div>
+                            {p.taxIdentifier && (
+                              <div className="text-xs text-slate-500 font-mono">
+                                GSTIN / PAN: {p.taxIdentifier}
+                              </div>
+                            )}
+                          </Link>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                              p.partyType === "VENDOR"
+                                ? "bg-blue-100 text-blue-800"
+                                : p.partyType === "CONTRACTOR"
+                                ? "bg-purple-100 text-purple-800"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {p.partyType}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-xs text-slate-600">
+                          {p.phone && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              {p.phone}
                             </div>
                           )}
-                        </Link>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                            p.partyType === "VENDOR"
-                              ? "bg-blue-100 text-blue-800"
-                              : p.partyType === "CONTRACTOR"
-                              ? "bg-purple-100 text-purple-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                        >
-                          {p.partyType}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-xs text-slate-600">
-                        {p.phone && <div className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" />{p.phone}</div>}
-                        {p.email && <div className="flex items-center gap-1 text-[11px] text-slate-400"><Mail className="w-3 h-3 text-slate-400" />{p.email}</div>}
-                        {!p.phone && !p.email && "—"}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-medium text-slate-700 tabular-nums">
-                        {formatCurrency(p.totalBilled)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-medium text-emerald-600 tabular-nums">
-                        {formatCurrency(p.totalPaid)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-black tabular-nums">
-                        <span className={p.outstandingBalance > 0 ? "text-amber-600" : "text-slate-900"}>
-                          {formatCurrency(p.outstandingBalance)}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/parties/${p.id}`}
-                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
+                          {p.email && (
+                            <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                              <Mail className="w-3 h-3 text-slate-400" />
+                              {p.email}
+                            </div>
+                          )}
+                          {!p.phone && !p.email && "—"}
+                        </td>
+                        {typeFilter === "CONTRACTOR" && (
+                          <td className="py-3.5 px-4 text-right font-medium text-purple-700 tabular-nums">
+                            {p.contractValue > 0 ? formatCurrency(p.contractValue) : "—"}
+                          </td>
+                        )}
+                        <td className="py-3.5 px-4 text-right font-medium text-slate-700 tabular-nums">
+                          {formatCurrency(p.totalBilled)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-medium text-emerald-600 tabular-nums">
+                          {formatCurrency(p.totalPaid)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-black tabular-nums">
+                          <span
+                            className={
+                              p.outstandingBalance > 0
+                                ? "text-amber-600"
+                                : p.outstandingBalance < 0
+                                ? "text-emerald-600"
+                                : "text-slate-400"
+                            }
                           >
-                            <span>Statement</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Link>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteParty(p.id, p.name);
-                            }}
-                            title="Delete Party"
-                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {formatCurrency(p.outstandingBalance)}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Link
+                              href={`/parties/${p.id}`}
+                              className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-md transition"
+                            >
+                              Statement
+                            </Link>
+
+                            <button
+                              onClick={() => handleOpenEdit(p)}
+                              title="Edit Party Details"
+                              className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => setAuditParty({ id: p.id, name: p.name })}
+                              title="Audit History"
+                              className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteParty(p.id, p.name)}
+                              title="Delete Party"
+                              className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* Modal: Register Party */}
+        {/* Modal: Register / Edit Partner */}
         {showModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-amber-500" />
-                  <span>Register Vendor or Contractor</span>
+                  <span>{isEditing ? "Edit Partner Details" : "Register Vendor / Contractor"}</span>
                 </div>
                 <button
                   onClick={() => setShowModal(false)}
@@ -309,35 +444,55 @@ export default function PartiesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleRegisterSubmit} className="space-y-4">
+              <form onSubmit={handleFormSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Company / Trade Name
+                    Partner Category
+                  </label>
+                  <select
+                    value={partyType}
+                    onChange={(e: any) => setPartyType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                  >
+                    <option value="VENDOR">Vendor (Material Supplier)</option>
+                    <option value="CONTRACTOR">Contractor (Labour / Workmanship)</option>
+                    <option value="BOTH">Both (Material + Turnkey Contractor)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Legal / Business Name
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Asian Paints Depot, Noida"
+                    placeholder="e.g. Shree Cement Agencies / Apex Civil Works"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Party Type
-                  </label>
-                  <select
-                    value={partyType}
-                    onChange={(e) => setPartyType(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  >
-                    <option value="VENDOR">Material Supplier / Vendor</option>
-                    <option value="CONTRACTOR">Labour / Service Contractor</option>
-                    <option value="BOTH">Both Vendor & Contractor</option>
-                  </select>
-                </div>
+                {partyType !== "VENDOR" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Agreed Contract Value (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="e.g. 500000"
+                      value={contractValueRupees}
+                      onChange={(e) => setContractValueRupees(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Total sanctioned value of work order / subcontractor agreement.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -345,8 +500,8 @@ export default function PartiesPage() {
                       Phone Number
                     </label>
                     <input
-                      type="text"
-                      placeholder="+91 98765 43210"
+                      type="tel"
+                      placeholder="e.g. +91 98765 43210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
@@ -354,30 +509,58 @@ export default function PartiesPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Tax ID / GSTIN
+                      Email Address
                     </label>
                     <input
-                      type="text"
-                      placeholder="07AAAAA0000A1Z5"
-                      value={taxIdentifier}
-                      onChange={(e) => setTaxIdentifier(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
+                      type="email"
+                      placeholder="e.g. billing@partner.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Office / Depot Address
+                    GSTIN / Tax ID / PAN
                   </label>
                   <input
                     type="text"
-                    placeholder="Sector 62, Noida Industrial Area"
+                    placeholder="e.g. 27AAAAA0000A1Z5"
+                    value={taxIdentifier}
+                    onChange={(e) => setTaxIdentifier(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono uppercase"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Billing / Physical Address
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Full registered address..."
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
                   />
                 </div>
+
+                {isEditing && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Reason for Change (Audit Log)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Contract value revised as per addendum #2"
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                    />
+                  </div>
+                )}
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                   <button
@@ -392,12 +575,22 @@ export default function PartiesPage() {
                     disabled={submitting}
                     className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
                   >
-                    {submitting ? "Saving..." : "Save Party"}
+                    {submitting ? "Saving..." : isEditing ? "Save Changes" : "Register Partner"}
                   </button>
                 </div>
               </form>
             </div>
           </div>
+        )}
+
+        {/* Audit History Modal */}
+        {auditParty && (
+          <AuditHistoryModal
+            entityType="PARTY"
+            entityId={auditParty.id}
+            title={`Audit History: ${auditParty.name}`}
+            onClose={() => setAuditParty(null)}
+          />
         )}
       </div>
     </Shell>

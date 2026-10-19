@@ -321,6 +321,42 @@ describe("Build Track Pro — Phase 1 Features & Integration Test Suite", () => 
     expect(checkOutResult.checkOutAt).not.toBeNull();
   });
 
+  it("P1-4b: User 1-click self check-in and check-out with GPS coordinates and automatic session resolution", async () => {
+    // 1. User checks in without specifying workforceMemberId or siteId
+    const today = new Date().toISOString().split("T")[0];
+    const selfSession = await AttendanceService.checkIn({
+      organizationId: testOrgId,
+      workDate: today,
+      latitude: 28.6139,
+      longitude: 77.2090,
+      accuracyM: 5.0,
+      userId: testSupervisorUserId,
+      role: "SITE_SUPERVISOR",
+    });
+
+    expect(selfSession).toBeDefined();
+    expect(selfSession.checkInAt).toBeDefined();
+    expect(selfSession.checkInLat).toBe(28.6139);
+    expect(selfSession.checkInLng).toBe(77.2090);
+    expect(selfSession.checkOutAt).toBeNull();
+    expect(selfSession.createdBy).toBe(testSupervisorUserId);
+
+    // 2. User checks out without specifying sessionId - service auto-resolves today's session
+    const selfCheckOut = await AttendanceService.checkOut({
+      organizationId: testOrgId,
+      latitude: 28.6140,
+      longitude: 77.2091,
+      accuracyM: 4.5,
+      userId: testSupervisorUserId,
+      role: "SITE_SUPERVISOR",
+    });
+
+    expect(selfCheckOut.id).toBe(selfSession.id);
+    expect(selfCheckOut.checkOutAt).not.toBeNull();
+    expect(selfCheckOut.checkOutLat).toBe(28.6140);
+    expect(selfCheckOut.checkOutLng).toBe(77.2091);
+  });
+
   // --- 5. DAILY SITE REPORT PERSISTENCE ---
   it("P1-5: Daily site report creation, site-scoping, and supervisor auditing", async () => {
     const today = new Date().toISOString().split("T")[0];

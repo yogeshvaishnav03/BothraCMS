@@ -12,9 +12,13 @@ export interface ReceiveGoodsInput {
   organizationId: string;
   storeId: string;
   vendorPartyId?: string;
+  projectId?: string;
   referenceDoc?: string;
   notes?: string;
+  movementType?: "RECEIPT" | "OPENING";
+  idempotencyKey?: string;
   items: GoodsReceiptItem[];
+  attachmentIds?: string[];
   userId: string;
   role: Role;
 }
@@ -26,6 +30,7 @@ export interface IssueGoodsInput {
   quantity: number;
   projectId?: string;
   taskId?: string;
+  attachmentIds?: string[];
   notes?: string;
   userId: string;
   role: Role;
@@ -72,6 +77,22 @@ export class InventoryService {
       throw new Error("NotFound: Store not found or outside organization scope");
     }
 
+    if (input.idempotencyKey) {
+      const existing = await prisma.idempotencyRecord.findUnique({
+        where: {
+          organizationId_key: {
+            organizationId: input.organizationId,
+            key: input.idempotencyKey,
+          },
+        },
+      });
+      if (existing) {
+        return JSON.parse(existing.responseBodyJson);
+      }
+    }
+
+    const mType = input.movementType === "OPENING" ? "OPENING" : "RECEIPT";
+
     return await prisma.$transaction(async (tx: any) => {
       const createdMovements = [];
 
@@ -93,13 +114,14 @@ export class InventoryService {
             organizationId: input.organizationId,
             materialId: material.id,
             storeId: input.storeId,
-            movementType: "RECEIPT",
+            movementType: mType,
             quantityDelta: item.quantity,
             unitCode: material.unitCode,
             unitRate: item.unitRate ?? null,
             vendorPartyId: input.vendorPartyId ?? null,
+            projectId: input.projectId ?? null,
             referenceDoc: input.referenceDoc ?? null,
-            notes: input.notes ?? null,
+            notes: input.notes ?? (mType === "OPENING" ? "Opening Stock Balance" : null),
             createdBy: input.userId,
           },
         });
@@ -133,7 +155,21 @@ export class InventoryService {
         }
       }
 
-      // 3. Log Audit Event
+      // 3. Link attachments if provided
+      if (input.attachmentIds && input.attachmentIds.length > 0 && createdMovements.length > 0) {
+        await tx.attachment.updateMany({
+          where: {
+            id: { in: input.attachmentIds },
+            organizationId: input.organizationId,
+          },
+          data: {
+            stockMovementId: createdMovements[0].id,
+            projectId: input.projectId ?? null,
+          },
+        });
+      }
+
+      // 4. Log Audit Event
       await tx.auditEvent.create({
         data: {
           organizationId: input.organizationId,
@@ -145,14 +181,29 @@ export class InventoryService {
             storeId: input.storeId,
             vendorPartyId: input.vendorPartyId,
             itemCount: input.items.length,
+            attachmentCount: input.attachmentIds?.length ?? 0,
           }),
         },
       });
 
-      return {
+      const response = {
         success: true,
         movements: createdMovements,
       };
+
+      if (input.idempotencyKey) {
+        await tx.idempotencyRecord.create({
+          data: {
+            organizationId: input.organizationId,
+            key: input.idempotencyKey,
+            operation: "INVENTORY_RECEIPT",
+            responseCode: 201,
+            responseBodyJson: JSON.stringify(response),
+          },
+        });
+      }
+
+      return response;
     });
   }
 
@@ -214,7 +265,21 @@ export class InventoryService {
         },
       });
 
-      // 3. Decrement StockBalance
+      // 3. Link attachments if provided
+      if (input.attachmentIds && input.attachmentIds.length > 0) {
+        await tx.attachment.updateMany({
+          where: {
+            id: { in: input.attachmentIds },
+            organizationId: input.organizationId,
+          },
+          data: {
+            stockMovementId: movement.id,
+            projectId: input.projectId ?? null,
+          },
+        });
+      }
+
+      // 4. Decrement StockBalance
       await tx.stockBalance.update({
         where: { id: balance!.id },
         data: {
@@ -222,7 +287,7 @@ export class InventoryService {
         },
       });
 
-      // 4. Log Audit Event
+      // 5. Log Audit Event
       await tx.auditEvent.create({
         data: {
           organizationId: input.organizationId,
@@ -235,6 +300,7 @@ export class InventoryService {
             quantity: input.quantity,
             remainingStock: currentStock - input.quantity,
             projectId: input.projectId,
+            attachmentCount: input.attachmentIds?.length ?? 0,
           }),
         },
       });
@@ -555,5 +621,250 @@ export class InventoryService {
       totalIssued,
       entries: ledgerEntries,
     };
+  }
+
+  /**
+   * Computes available stock strictly from the authoritative stock movement ledger
+   */
+  static async getAuthoritativeStockFromLedger(
+    organizationId: string,
+    materialId: string,
+    storeId?: string
+  ): Promise<number> {
+    const whereClause: any = { organizationId, materialId };
+    if (storeId) whereClause.storeId = storeId;
+
+    const aggregation = await prisma.stockMovement.aggregate({
+      where: whereClause,
+      _sum: { quantityDelta: true },
+    });
+
+    return roundQuantity(aggregation._sum.quantityDelta || 0);
+  }
+
+  /**
+   * Reconciles StockBalance projections with authoritative StockMovement ledger
+   */
+  static async reconcileStockBalance(
+    organizationId: string,
+    materialId: string,
+    storeId: string
+  ): Promise<number> {
+    const ledgerStock = await this.getAuthoritativeStockFromLedger(organizationId, materialId, storeId);
+
+    const balance = await prisma.stockBalance.findUnique({
+      where: {
+        materialId_storeId: { materialId, storeId },
+      },
+    });
+
+    if (balance) {
+      if (Math.abs(balance.quantityOnHand - ledgerStock) > 0.0001) {
+        await prisma.stockBalance.update({
+          where: { id: balance.id },
+          data: { quantityOnHand: ledgerStock },
+        });
+      }
+    } else if (ledgerStock !== 0) {
+      await prisma.stockBalance.create({
+        data: {
+          materialId,
+          storeId,
+          quantityOnHand: ledgerStock,
+        },
+      });
+    }
+
+    return ledgerStock;
+  }
+
+  /**
+   * Computes comprehensive stock status and alert details with specific reasons
+   */
+  static async getMaterialStockStatus(
+    organizationId: string,
+    materialId: string,
+    storeId?: string
+  ) {
+    const material = await prisma.material.findFirst({
+      where: { id: materialId, organizationId },
+      include: {
+        category: true,
+        stockBalances: {
+          include: { store: true },
+        },
+      },
+    });
+
+    if (!material) {
+      throw new Error("NotFound: Material not found");
+    }
+
+    // Authoritative ledger stock
+    const availableStock = await this.getAuthoritativeStockFromLedger(
+      organizationId,
+      materialId,
+      storeId
+    );
+
+    const minStock = material.minStockQty;
+    const reorderLevel = material.reorderQty;
+    let isLowStock = false;
+    let isZeroStock = false;
+    let alertSeverity: "CRITICAL" | "WARNING" | "NORMAL" = "NORMAL";
+    let alertReason = "Stock level healthy";
+
+    if (availableStock <= 0) {
+      isZeroStock = true;
+      isLowStock = true;
+      alertSeverity = "CRITICAL";
+      alertReason = `Out of Stock: Inventory is completely depleted (0 ${material.unitCode} available)`;
+    } else if (minStock > 0 && availableStock < minStock) {
+      isLowStock = true;
+      alertSeverity = "WARNING";
+      alertReason = `Low Stock Alert: Available balance (${availableStock} ${material.unitCode}) is below configured minimum threshold (${minStock} ${material.unitCode})`;
+    } else if (minStock > 0 && availableStock === minStock) {
+      isLowStock = false;
+      alertSeverity = "NORMAL";
+      alertReason = `At threshold: ${availableStock} ${material.unitCode} (not below threshold)`;
+    } else if (reorderLevel > 0 && availableStock <= reorderLevel) {
+      isLowStock = true;
+      alertSeverity = "WARNING";
+      alertReason = `Reorder Level Reached: Stock (${availableStock} ${material.unitCode}) is at or below reorder threshold (${reorderLevel} ${material.unitCode})`;
+    }
+
+    return {
+      materialId: material.id,
+      name: material.name,
+      sku: material.sku,
+      unitCode: material.unitCode,
+      category: material.category?.name || "General",
+      availableStock,
+      minStockQty: minStock,
+      reorderQty: reorderLevel,
+      isLowStock,
+      isZeroStock,
+      alertSeverity,
+      alertReason,
+      stockBalances: material.stockBalances,
+    };
+  }
+
+  /**
+   * Authoritative summary of all materials for an organization
+   * Directly calculates available stock from StockMovement ledger and reconciles StockBalance.
+   */
+  static async getAuthoritativeStockSummary(
+    organizationId: string,
+    siteId?: string
+  ) {
+    const materials = await prisma.material.findMany({
+      where: { organizationId, active: true, isArchived: false },
+      include: {
+        category: true,
+        stockBalances: {
+          include: { store: { include: { site: true } } },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    const results = [];
+
+    for (const m of materials) {
+      let storeIds: string[] | undefined = undefined;
+      if (siteId) {
+        storeIds = m.stockBalances
+          .filter((b: any) => b.store?.siteId === siteId)
+          .map((b: any) => b.storeId);
+      }
+
+      // Compute authoritative sum from ledger
+      const whereMovement: any = { organizationId, materialId: m.id, isArchived: false };
+      if (storeIds && storeIds.length > 0) {
+        whereMovement.storeId = { in: storeIds };
+      }
+
+      const agg = await prisma.stockMovement.aggregate({
+        where: whereMovement,
+        _sum: { quantityDelta: true },
+      });
+      const availableStock = roundQuantity(agg._sum.quantityDelta || 0);
+
+      // Reconcile StockBalance for each store
+      for (const sb of m.stockBalances) {
+        if (!siteId || sb.store?.siteId === siteId) {
+          const storeAgg = await prisma.stockMovement.aggregate({
+            where: { organizationId, materialId: m.id, storeId: sb.storeId, isArchived: false },
+            _sum: { quantityDelta: true },
+          });
+          const storeStock = roundQuantity(storeAgg._sum.quantityDelta || 0);
+          if (Math.abs(sb.quantityOnHand - storeStock) > 0.0001) {
+            await prisma.stockBalance.update({
+              where: { id: sb.id },
+              data: { quantityOnHand: storeStock },
+            });
+            sb.quantityOnHand = storeStock;
+          }
+        }
+      }
+
+      const minStock = m.minStockQty || 0;
+      const reorderLevel = m.reorderQty || 0;
+      let isLowStock = false;
+      let isZeroStock = false;
+      let alertSeverity: "CRITICAL" | "WARNING" | "NORMAL" = "NORMAL";
+      let alertReason = `Normal stock: ${availableStock} ${m.unitCode}`;
+
+      if (availableStock <= 0) {
+        isZeroStock = true;
+        isLowStock = true;
+        alertSeverity = "CRITICAL";
+        alertReason = `Out of stock: 0 ${m.unitCode} remaining in store`;
+      } else if (minStock > 0 && availableStock < minStock) {
+        isLowStock = true;
+        alertSeverity = "WARNING";
+        alertReason = `Low stock: ${availableStock} ${m.unitCode} available (below minimum safety threshold: ${minStock} ${m.unitCode})`;
+      } else if (minStock > 0 && availableStock === minStock) {
+        isLowStock = false;
+        alertSeverity = "NORMAL";
+        alertReason = `At threshold: ${availableStock} ${m.unitCode} (not below threshold)`;
+      } else if (reorderLevel > 0 && availableStock <= reorderLevel) {
+        isLowStock = true;
+        alertSeverity = "WARNING";
+        alertReason = `Reorder point reached: ${availableStock} / ${reorderLevel} ${m.unitCode}`;
+      }
+
+      results.push({
+        id: m.id,
+        materialId: m.id,
+        name: m.name,
+        code: m.sku,
+        sku: m.sku,
+        categoryId: m.categoryId,
+        category: m.category,
+        categoryName: m.category?.name || "General",
+        unitCode: m.unitCode,
+        totalStock: availableStock,
+        actualStock: availableStock,
+        authoritativeStock: availableStock,
+        availableStock,
+        quantityOnHand: availableStock,
+        minStockQty: minStock,
+        minStock,
+        reorderQty: reorderLevel,
+        isLowStock,
+        isZeroStock,
+        alertSeverity,
+        alertReason,
+        stockStatus: isZeroStock ? "ZERO_STOCK" : isLowStock ? "LOW_STOCK" : "NORMAL",
+        stockBalances: m.stockBalances,
+        active: m.active,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+      });
+    }
+
+    return results;
   }
 }

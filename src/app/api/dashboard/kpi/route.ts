@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const siteId = searchParams.get("siteId") || undefined;
 
-    const metrics = await DashboardService.getKpiMetrics(user.organizationId, siteId);
+    const metrics = await DashboardService.getKpiMetrics(user.organizationId, siteId, user);
     return jsonSuccess(metrics);
   } catch (error) {
     return handleApiError(error);

@@ -1,8 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getUserContext } from "@/lib/auth";
-import { assertPermission } from "@/lib/permissions";
+import {
+  requireUserContext,
+  requirePermission,
+  requireProjectAccess,
+  getUserAccessibleProjectIds,
+} from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -14,31 +18,88 @@ const createTaskSchema = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).default("MEDIUM"),
   assigneeUserId: z.string().min(1).optional(),
   dueAt: z.string().optional(),
+  taskType: z.enum(["STANDARD", "PERSONAL", "REQUEST_OWNER", "REQUEST_MANAGER", "REQUEST_ARCHITECT"]).optional(),
+  reminderAt: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req);
 
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get("projectId");
     const status = searchParams.get("status");
     const priority = searchParams.get("priority");
     const assigneeUserId = searchParams.get("assigneeUserId");
+    const employeeId = searchParams.get("employeeId");
+    const taskType = searchParams.get("taskType");
+    const filter = searchParams.get("filter"); // all, pending, overdue, completed, verified, my_tasks, assigned_by_me
+    const includeArchived = searchParams.get("includeArchived") === "true";
+
+    if (projectId) {
+      await requireProjectAccess(user, projectId, "tasks:read");
+    }
 
     const where: any = { organizationId: user.organizationId };
-    if (projectId) where.projectId = projectId;
+    if (!includeArchived) {
+      where.isArchived = false;
+    }
+
+    if (projectId) {
+      where.projectId = projectId;
+    } else {
+      const accessibleProjectIds = await getUserAccessibleProjectIds(user);
+      if (accessibleProjectIds !== null) {
+        where.OR = [
+          { projectId: { in: accessibleProjectIds } },
+          { assigneeUserId: user.userId },
+          { createdBy: user.userId },
+        ];
+      }
+    }
+
     if (status) where.status = status;
     if (priority) where.priority = priority;
     if (assigneeUserId) where.assigneeUserId = assigneeUserId;
+    if (employeeId) where.assigneeUserId = employeeId;
+    if (taskType) where.taskType = taskType;
+
+    const now = new Date();
+    if (filter === "pending") {
+      where.status = { in: ["TODO", "IN_PROGRESS", "BLOCKED"] };
+    } else if (filter === "overdue") {
+      where.status = { notIn: ["COMPLETED", "VERIFIED", "ARCHIVED"] };
+      where.dueAt = { lt: now };
+    } else if (filter === "completed") {
+      where.status = "COMPLETED";
+    } else if (filter === "verified") {
+      where.status = "VERIFIED";
+    } else if (filter === "my_tasks") {
+      where.assigneeUserId = user.userId;
+    } else if (filter === "assigned_by_me") {
+      where.createdBy = user.userId;
+    }
 
     const tasks = await prisma.task.findMany({
       where,
       include: {
         project: { include: { site: true } },
-        assignee: { select: { id: true, name: true, email: true } },
-        creator: { select: { id: true, name: true } },
+        assignee: { select: { id: true, name: true, email: true, role: true } },
+        creator: { select: { id: true, name: true, role: true } },
+        completedBy: { select: { id: true, name: true } },
+        verifiedBy: { select: { id: true, name: true } },
+        comments: {
+          include: { user: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+        statusHistory: {
+          include: { user: { select: { id: true, name: true } } },
+          orderBy: { createdAt: "desc" },
+        },
+        attachments: {
+          where: { isArchived: false },
+          select: { id: true, fileId: true, fileName: true, mimeType: true, category: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -51,24 +112,31 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
-
-    assertPermission(user.role, "tasks:write");
+    const user = await requireUserContext(req);
+    requirePermission(user, "tasks:write");
 
     const body = await req.json();
     const data = createTaskSchema.parse(body);
 
+    await requireProjectAccess(user, data.projectId, "tasks:write");
+
     const project = await prisma.project.findFirst({
-      where: { id: data.projectId, organizationId: user.organizationId },
+      where: { id: data.projectId, organizationId: user.organizationId, isArchived: false },
     });
     if (!project) {
       return jsonError("Project not found or outside organization scope", "PROJECT_NOT_FOUND", 404);
     }
 
-    if (data.assigneeUserId) {
+    let targetAssigneeId = data.assigneeUserId;
+    const resolvedType = data.taskType || "STANDARD";
+
+    if (resolvedType === "PERSONAL" && !targetAssigneeId) {
+      targetAssigneeId = user.userId;
+    }
+
+    if (targetAssigneeId) {
       const assignee = await prisma.user.findFirst({
-        where: { id: data.assigneeUserId, organizationId: user.organizationId },
+        where: { id: targetAssigneeId, organizationId: user.organizationId },
       });
       if (!assignee) {
         return jsonError("Assignee user not found or outside organization scope", "USER_NOT_FOUND", 404);
@@ -82,8 +150,10 @@ export async function POST(req: NextRequest) {
         title: data.title,
         description: data.description,
         priority: data.priority,
-        assigneeUserId: data.assigneeUserId,
+        assigneeUserId: targetAssigneeId,
+        taskType: resolvedType,
         dueAt: data.dueAt ? new Date(data.dueAt) : null,
+        reminderAt: data.reminderAt ? new Date(data.reminderAt) : null,
         createdBy: user.userId,
       },
       include: {
@@ -99,7 +169,7 @@ export async function POST(req: NextRequest) {
         oldStatus: "NONE",
         newStatus: "TODO",
         changedBy: user.userId,
-        note: "Task created",
+        note: resolvedType === "PERSONAL" ? "Personal task initialized" : "Task created",
       },
     });
 
@@ -111,10 +181,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
-
-    assertPermission(user.role, "tasks:write");
+    const user = await requireUserContext(req);
+    requirePermission(user, "tasks:write");
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -128,16 +196,35 @@ export async function DELETE(req: NextRequest) {
       return jsonError("Task not found", "NOT_FOUND", 404);
     }
 
-    // Clean up status histories first if needed, or rely on cascade
-    await prisma.taskStatusHistory.deleteMany({
-      where: { taskId: task.id },
-    });
+    // Verify project access
+    await requireProjectAccess(user, task.projectId, "tasks:write");
 
-    await prisma.task.delete({
+    // Soft-delete / Archival to preserve historical status and comment history
+    await prisma.task.update({
       where: { id: task.id },
+      data: {
+        isArchived: true,
+        status: "ARCHIVED",
+        archivedAt: new Date(),
+        archivedById: user.userId,
+        archiveReason: "Task archived by authorized user",
+      },
     });
 
-    return jsonSuccess({ deleted: true, id });
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "TASK_ARCHIVED",
+        entityType: "TASK",
+        entityId: task.id,
+        beforeJson: JSON.stringify({ title: task.title, status: task.status }),
+        afterJson: JSON.stringify({ isArchived: true, status: "ARCHIVED" }),
+        reason: "Task archived with all comments and history preserved",
+      },
+    });
+
+    return jsonSuccess({ archived: true, deleted: true, id });
   } catch (error) {
     return handleApiError(error);
   }

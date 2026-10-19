@@ -47,6 +47,11 @@ export function handleApiError(error: unknown) {
     return jsonError("Validation error", "VALIDATION_ERROR", 422, error.flatten());
   }
 
+  if (error && typeof error === "object" && "statusCode" in error && "code" in error) {
+    const authErr = error as { message: string; statusCode: number; code: string };
+    return jsonError(authErr.message, authErr.code, authErr.statusCode);
+  }
+
   if (error instanceof Error) {
     if (error.message.startsWith("Forbidden:")) {
       return jsonError(error.message, "FORBIDDEN", 403);

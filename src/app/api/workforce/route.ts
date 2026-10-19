@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const siteId = searchParams.get("siteId");
     const workerType = searchParams.get("workerType");
 
-    const where: any = { organizationId: user.organizationId, active: true };
+    const where: any = { organizationId: user.organizationId, active: true, isArchived: false };
     if (siteId) where.defaultSiteId = siteId;
     if (workerType) where.workerType = workerType;
 
@@ -195,11 +195,29 @@ export async function DELETE(req: NextRequest) {
       return jsonError("Worker not found", "NOT_FOUND", 404);
     }
 
-    await prisma.workforceMember.delete({
+    const archived = await prisma.workforceMember.update({
       where: { id: worker.id },
+      data: {
+        active: false,
+        isArchived: true,
+        archivedAt: new Date(),
+        archivedById: user.userId,
+        archiveReason: "Deactivated and archived by user",
+      },
     });
 
-    return jsonSuccess({ deleted: true, id: worker.id });
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "WORKER_ARCHIVED",
+        entityType: "WORKFORCE_MEMBER",
+        entityId: worker.id,
+        reason: `Archived worker ${worker.name} (${worker.employeeCode})`,
+      },
+    });
+
+    return jsonSuccess({ archived: true, id: worker.id });
   } catch (error) {
     return handleApiError(error);
   }

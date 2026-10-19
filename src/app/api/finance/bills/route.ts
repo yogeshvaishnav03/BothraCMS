@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getUserContext } from "@/lib/auth";
+import { requireUserContext, requirePermission, requireProjectAccess } from "@/lib/server-auth";
 import { FinanceService } from "@/services/finance-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
@@ -27,14 +27,24 @@ const createBillSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req);
+    requirePermission(user, "finance:read");
 
     const { searchParams } = new URL(req.url);
     const partyId = searchParams.get("partyId");
+    const projectId = searchParams.get("projectId");
+    const includeArchived = searchParams.get("includeArchived") === "true";
+
+    if (projectId) {
+      await requireProjectAccess(user, projectId, "finance:read");
+    }
 
     const where: any = { organizationId: user.organizationId, status: "POSTED" };
+    if (!includeArchived) {
+      where.isArchived = false;
+    }
     if (partyId) where.partyId = partyId;
+    if (projectId) where.projectId = projectId;
 
     const bills = await prisma.bill.findMany({
       where,
@@ -65,11 +75,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req);
+    requirePermission(user, "finance:write");
 
     const body = await req.json();
     const data = createBillSchema.parse(body);
+
+    if (data.projectId) {
+      await requireProjectAccess(user, data.projectId, "finance:write");
+    }
 
     const bill = await FinanceService.createBill({
       organizationId: user.organizationId,

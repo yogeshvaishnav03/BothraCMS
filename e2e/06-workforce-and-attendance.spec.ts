@@ -14,7 +14,8 @@ test.describe("E2E Journey 6: Workforce Registration & GPS Attendance", () => {
     await expect(page.locator("text=Workforce Attendance & Shifts")).toBeVisible({ timeout: 10000 });
 
     // Action buttons exist
-    await expect(page.locator("button:has-text('+ Check In Worker')")).toBeVisible();
+    const checkBtn = page.locator("button:has-text('Check In'), button:has-text('Check Out'), text=Shift Completed");
+    await expect(checkBtn.first()).toBeVisible();
     await expect(page.locator("button:has-text('+ Register Worker')")).toBeVisible();
 
     // Summary cards exist
@@ -33,15 +34,15 @@ test.describe("E2E Journey 6: Workforce Registration & GPS Attendance", () => {
     await expect(page.locator("text=Register Workforce Personnel")).not.toBeVisible();
   });
 
-  test("should open Check-In modal and render GPS permission toggle", async ({ page }) => {
+  test("should support 1-click Check In and Check Out without modal popup", async ({ page }) => {
     await page.goto("/attendance");
 
-    await page.click("button:has-text('+ Check In Worker')");
-    await expect(page.locator("text=Check In Worker for Shift")).toBeVisible();
-    await expect(page.locator("text=Select Worker")).toBeVisible();
-    await expect(page.locator("text=Capture event GPS coordinates")).toBeVisible();
-
-    await page.click("button:has-text('Cancel')");
+    // The modal should NOT open on attendance page
     await expect(page.locator("text=Check In Worker for Shift")).not.toBeVisible();
+    await expect(page.locator("text=Select Worker")).not.toBeVisible();
+
+    // Action button exists (Check In or Check Out)
+    const checkAction = page.locator("button:has-text('Check In'), button:has-text('Check Out'), text=Shift Completed");
+    await expect(checkAction.first()).toBeVisible();
   });
 });

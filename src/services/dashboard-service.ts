@@ -1,19 +1,30 @@
 import { prisma } from "@/lib/db";
 import { roundPaise } from "@/lib/financial-math";
+import { UserContext } from "@/lib/auth";
+import { canReadFinance, isOrgOwnerOrAdmin, getUserAccessibleProjectIds } from "@/lib/server-auth";
+import { InventoryService } from "@/services/inventory-service";
 
 export class DashboardService {
-  static async getKpiMetrics(organizationId: string, siteId?: string) {
+  static async getKpiMetrics(organizationId: string, siteId?: string, userContext?: UserContext) {
     const todayStr = new Date().toISOString().split("T")[0];
     const startOfToday = new Date(`${todayStr}T00:00:00.000Z`);
     const endOfToday = new Date(`${todayStr}T23:59:59.999Z`);
     const now = new Date();
 
+    const hasFinanceAccess = userContext ? canReadFinance(userContext) : true;
+    const accessibleProjectIds = userContext ? await getUserAccessibleProjectIds(userContext) : null;
+
     // 1. Active Projects Count & List
     const activeProjectsWhere: any = {
       organizationId,
       status: { in: ["PLANNING", "IN_PROGRESS", "ACTIVE"] },
+      isArchived: false,
     };
     if (siteId) activeProjectsWhere.siteId = siteId;
+    if (accessibleProjectIds !== null) {
+      activeProjectsWhere.id = { in: accessibleProjectIds };
+    }
+
     const [activeProjectsCount, activeProjectsList] = await Promise.all([
       prisma.project.count({ where: activeProjectsWhere }),
       prisma.project.findMany({
@@ -31,9 +42,14 @@ export class DashboardService {
     const tasksDueTodayWhere: any = {
       organizationId,
       dueAt: { gte: startOfToday, lte: endOfToday },
-      status: { not: "COMPLETED" },
+      status: { notIn: ["COMPLETED", "VERIFIED", "ARCHIVED"] },
+      isArchived: false,
     };
     if (siteId) tasksDueTodayWhere.project = { siteId };
+    if (accessibleProjectIds !== null) {
+      tasksDueTodayWhere.projectId = { in: accessibleProjectIds };
+    }
+
     const [tasksDueTodayCount, tasksDueTodayList] = await Promise.all([
       prisma.task.count({ where: tasksDueTodayWhere }),
       prisma.task.findMany({
@@ -51,9 +67,14 @@ export class DashboardService {
     const tasksOverdueWhere: any = {
       organizationId,
       dueAt: { lt: now },
-      status: { not: "COMPLETED" },
+      status: { notIn: ["COMPLETED", "VERIFIED", "ARCHIVED"] },
+      isArchived: false,
     };
     if (siteId) tasksOverdueWhere.project = { siteId };
+    if (accessibleProjectIds !== null) {
+      tasksOverdueWhere.projectId = { in: accessibleProjectIds };
+    }
+
     const [tasksOverdueCount, tasksOverdueList] = await Promise.all([
       prisma.task.count({ where: tasksOverdueWhere }),
       prisma.task.findMany({
@@ -72,8 +93,16 @@ export class DashboardService {
       organizationId,
       workDate: todayStr,
       status: { in: ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"] },
+      isArchived: false,
     };
     if (siteId) attendanceWhere.siteId = siteId;
+    if (accessibleProjectIds !== null) {
+      attendanceWhere.OR = [
+        { projectId: { in: accessibleProjectIds } },
+        { projectId: null },
+      ];
+    }
+
     const [workersPresentTodayCount, attendanceList] = await Promise.all([
       prisma.attendanceSession.count({ where: attendanceWhere }),
       prisma.attendanceSession.findMany({
@@ -87,86 +116,91 @@ export class DashboardService {
       }),
     ]);
 
-    // 5. Low Stock Items Count
-    const materials = await prisma.material.findMany({
-      where: { organizationId, active: true },
-      include: {
-        category: { select: { name: true } },
-        stockBalances: siteId ? { where: { store: { siteId } } } : true,
-      },
-    });
+    // 5. Authoritative Low Stock Items from Inventory Ledger
+    const stockSummaries = await InventoryService.getAuthoritativeStockSummary(organizationId, siteId);
+    const lowStockItems = stockSummaries.filter((m) => m.isLowStock);
+    const lowStockItemsCount = lowStockItems.length;
+    const lowStockItemsList = lowStockItems.slice(0, 10).map((mat) => ({
+      id: mat.id,
+      name: mat.name,
+      code: mat.code,
+      category: mat.categoryName,
+      quantityOnHand: mat.availableStock,
+      actualStock: mat.availableStock,
+      minStockQty: mat.minStockQty,
+      reorderQty: mat.reorderQty,
+      unitCode: mat.unitCode,
+      alertReason: mat.alertReason,
+      alertSeverity: mat.alertSeverity,
+    }));
 
-    let lowStockItemsCount = 0;
-    const lowStockItemsList: any[] = [];
-    for (const mat of materials) {
-      const totalStock = mat.stockBalances.reduce(
-        (sum: number, b: any) => sum + (b.quantityOnHand ?? 0),
-        0
-      );
-      if (mat.minStockQty > 0 && totalStock <= mat.minStockQty) {
-        lowStockItemsCount++;
-        if (lowStockItemsList.length < 10) {
-          lowStockItemsList.push({
-            id: mat.id,
-            name: mat.name,
-            code: mat.sku,
-            category: mat.category?.name || "General",
-            quantityOnHand: totalStock,
-            minStockQty: mat.minStockQty,
-            unitCode: mat.unitCode,
-          });
-        }
-      }
-    }
+    // 6. Financial Metrics (only calculated and exposed if user has finance:read permission)
+    let paymentsMadeTodayAmount: number | undefined = undefined;
+    let totalOutstandingPayablesAmount: number | undefined = undefined;
+    let paymentsTodayList: any[] | undefined = undefined;
+    let outstandingBillsList: any[] | undefined = undefined;
 
-    // 6. Payments Made Today
-    const paymentsToday = await prisma.payment.findMany({
-      where: {
-        organizationId,
-        paymentDate: { gte: startOfToday, lte: endOfToday },
-        status: "POSTED",
-      },
-      include: {
-        party: { select: { name: true } },
-      },
-      orderBy: { paymentDate: "desc" },
-      take: 10,
-    });
-    const paymentsMadeTodayAmount = roundPaise(
-      paymentsToday.reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0)
-    );
-
-    // 7. Total Outstanding Payables
-    const postedBills = await prisma.bill.findMany({
-      where: { organizationId, status: "POSTED" },
-      include: {
-        party: { select: { name: true } },
-        allocations: {
-          where: { reversedAt: null, payment: { status: "POSTED" } },
+    if (hasFinanceAccess) {
+      const paymentsToday = await prisma.payment.findMany({
+        where: {
+          organizationId,
+          paymentDate: { gte: startOfToday, lte: endOfToday },
+          status: "POSTED",
+          isArchived: false,
         },
-      },
-      orderBy: { dueDate: "asc" },
-    });
+        include: {
+          party: { select: { name: true } },
+        },
+        orderBy: { paymentDate: "desc" },
+        take: 10,
+      });
 
-    let totalOutstandingPayablesAmount = 0;
-    const outstandingBillsList: any[] = [];
-    for (const b of postedBills) {
-      const paid = roundPaise(b.allocations.reduce((sum: number, a: any) => sum + (a.amount ?? 0), 0));
-      const remaining = roundPaise(b.totalAmount - paid);
-      if (remaining > 0) {
-        totalOutstandingPayablesAmount = roundPaise(totalOutstandingPayablesAmount + remaining);
-        if (outstandingBillsList.length < 10) {
-          outstandingBillsList.push({
-            id: b.id,
-            billNumber: b.billNumber,
-            partyName: b.party?.name || "Vendor/Contractor",
-            totalAmount: b.totalAmount,
-            paidAmount: paid,
-            remainingAmount: remaining,
-            dueDate: b.dueDate ? b.dueDate.toISOString() : null,
-          });
+      paymentsMadeTodayAmount = roundPaise(
+        paymentsToday.reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0)
+      );
+      paymentsTodayList = paymentsToday.map((p) => ({
+        id: p.id,
+        recipientName: p.recipientName || p.party?.name || "Payee",
+        amount: p.amount,
+        method: p.method,
+        referenceNumber: p.referenceNumber,
+        payingAccount: p.payingAccount,
+        paymentDate: p.paymentDate.toISOString(),
+      }));
+
+      const postedBills = await prisma.bill.findMany({
+        where: { organizationId, status: "POSTED", isArchived: false },
+        include: {
+          party: { select: { name: true } },
+          allocations: {
+            where: { reversedAt: null, payment: { status: "POSTED" } },
+          },
+        },
+        orderBy: { dueDate: "asc" },
+      });
+
+      let outstandingSum = 0;
+      const billsList: any[] = [];
+      for (const b of postedBills) {
+        const paid = roundPaise(b.allocations.reduce((sum: number, a: any) => sum + (a.amount ?? 0), 0));
+        const remaining = roundPaise(b.totalAmount - paid);
+        if (remaining > 0) {
+          outstandingSum = roundPaise(outstandingSum + remaining);
+          if (billsList.length < 10) {
+            billsList.push({
+              id: b.id,
+              billNumber: b.billNumber,
+              partyName: b.party?.name || "Vendor/Contractor",
+              totalAmount: b.totalAmount,
+              paidAmount: paid,
+              remainingAmount: remaining,
+              dueDate: b.dueDate ? b.dueDate.toISOString() : null,
+            });
+          }
         }
       }
+      totalOutstandingPayablesAmount = outstandingSum;
+      outstandingBillsList = billsList;
     }
 
     return {
@@ -182,7 +216,7 @@ export class DashboardService {
         name: p.name,
         code: p.code,
         status: p.status,
-        budgetAmount: p.budgetAmount,
+        budgetAmount: hasFinanceAccess ? p.budgetAmount : undefined,
         siteName: p.site?.name,
         managerName: p.manager?.name,
       })),
@@ -211,15 +245,7 @@ export class DashboardService {
         status: a.status,
       })),
       lowStockItems: lowStockItemsList,
-      paymentsMadeToday: paymentsToday.map((p) => ({
-        id: p.id,
-        recipientName: p.recipientName || p.party?.name || "Payee",
-        amount: p.amount,
-        method: p.method,
-        referenceNumber: p.referenceNumber,
-        payingAccount: p.payingAccount,
-        paymentDate: p.paymentDate.toISOString(),
-      })),
+      paymentsMadeToday: paymentsTodayList,
       outstandingPayables: outstandingBillsList,
     };
   }

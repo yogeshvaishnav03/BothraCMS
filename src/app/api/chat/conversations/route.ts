@@ -89,7 +89,11 @@ export async function GET(req: NextRequest) {
           latestMessage: latestMsg
             ? {
                 id: latestMsg.id,
-                content: latestMsg.content,
+                content:
+                  latestMsg.imageUrl && (!latestMsg.content || latestMsg.content === "[Photo]")
+                    ? "📷 Photo"
+                    : latestMsg.content,
+                imageUrl: latestMsg.imageUrl,
                 createdAt: latestMsg.createdAt,
                 senderId: latestMsg.senderId,
                 senderName: latestMsg.sender?.name || "User",

@@ -23,6 +23,11 @@ import {
   HardHat,
   Building,
   Check,
+  Image as ImageIcon,
+  ChevronDown,
+  Download,
+  Eye,
+  ArrowLeft,
 } from "lucide-react";
 
 interface Employee {
@@ -50,6 +55,7 @@ interface ConversationItem {
   latestMessage?: {
     id: string;
     content: string;
+    imageUrl?: string | null;
     createdAt: string;
     senderId: string;
     senderName: string;
@@ -61,6 +67,7 @@ interface MessageItem {
   id: string;
   conversationId: string;
   content: string;
+  imageUrl?: string | null;
   createdAt: string;
   senderId: string;
   isMine: boolean;
@@ -97,13 +104,72 @@ export default function ChatPage() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  // Image Sharing & Fullscreen Modal State
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const isScrolledUpRef = useRef<boolean>(false);
+  const prevMessagesCountRef = useRef<number>(0);
+  const prevActiveConvIdRef = useRef<string | null>(null);
 
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
 
-  // Scroll to bottom of chat
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // Dedicated container scroll-to-bottom (does NOT scroll whole page window)
+  const scrollToBottom = useCallback((smooth = true) => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: smooth ? "smooth" : "auto",
+      });
+      setShowScrollBottomBtn(false);
+      isScrolledUpRef.current = false;
+    }
+  }, []);
+
+  // Monitor scroll in messages window to detect if user is reading older messages
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    const scrolledUp = distanceFromBottom > 90;
+    isScrolledUpRef.current = scrolledUp;
+    setShowScrollBottomBtn(scrolledUp);
+  }, []);
+
+  // Handle image selection from file picker
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file (JPEG, PNG, WebP).");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size exceeds 5MB limit. Please select a smaller photo.");
+      return;
+    }
+
+    setSelectedImage(file);
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreviewUrl(previewUrl);
+  };
+
+  // Clear selected image
+  const handleClearImage = () => {
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setSelectedImage(null);
+    setImagePreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   // Load User, Conversations, and Employees
@@ -142,7 +208,16 @@ export default function ChatPage() {
       const res = await fetch(`/api/chat/conversations/${convId}/messages`);
       const json = await res.json();
       if (json.success && json.data) {
-        setMessages(json.data.messages || []);
+        setMessages((prev) => {
+          const incoming: MessageItem[] = json.data.messages || [];
+          if (
+            prev.length === incoming.length &&
+            prev[prev.length - 1]?.id === incoming[incoming.length - 1]?.id
+          ) {
+            return prev;
+          }
+          return incoming;
+        });
         setActiveConversation(json.data.conversation || null);
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("refreshNotifications"));
@@ -162,12 +237,22 @@ export default function ChatPage() {
     }
   }, [activeConversationId, loadMessages]);
 
-  // Scroll to bottom when messages change
+  // Smart auto-scroll: only scrolls to bottom if conversation changed or user is at bottom
   useEffect(() => {
-    if (messages.length > 0) {
-      scrollToBottom();
+    if (messages.length === 0) return;
+
+    const isDifferentConv = prevActiveConvIdRef.current !== activeConversationId;
+    const hasNewMessages = messages.length > prevMessagesCountRef.current;
+
+    prevMessagesCountRef.current = messages.length;
+    prevActiveConvIdRef.current = activeConversationId;
+
+    if (isDifferentConv) {
+      setTimeout(() => scrollToBottom(false), 50);
+    } else if (hasNewMessages && !isScrolledUpRef.current) {
+      setTimeout(() => scrollToBottom(true), 50);
     }
-  }, [messages]);
+  }, [messages, activeConversationId, scrollToBottom]);
 
   // Auto-poll messages every 4 seconds for active conversation
   useEffect(() => {
@@ -201,25 +286,54 @@ export default function ChatPage() {
     }
   };
 
-  // Send a message
+  // Send a message (with optional image attachment)
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!activeConversationId || !messageInput.trim() || sending) return;
+    if (!activeConversationId || sending) return;
 
     const content = messageInput.trim();
-    setMessageInput("");
+    if (!content && !selectedImage) return;
+
     setSending(true);
 
     try {
+      let uploadedImageUrl: string | null = null;
+
+      // 1. Upload photo if selected
+      if (selectedImage) {
+        const formData = new FormData();
+        formData.append("file", selectedImage);
+        formData.append("category", "PHOTO");
+        formData.append("entityType", "CHAT");
+        formData.append("entityId", activeConversationId);
+
+        const uploadRes = await fetch("/api/uploads", {
+          method: "POST",
+          body: formData,
+        });
+        const uploadJson = await uploadRes.json();
+        if (!uploadJson.success || !uploadJson.data?.url) {
+          throw new Error(uploadJson.error?.message || "Failed to upload image.");
+        }
+        uploadedImageUrl = uploadJson.data.url;
+      }
+
+      // 2. Post message with content and optional imageUrl
       const res = await fetch(`/api/chat/conversations/${activeConversationId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({
+          content: content || (uploadedImageUrl ? "[Photo]" : ""),
+          imageUrl: uploadedImageUrl,
+        }),
       });
       const json = await res.json();
       if (json.success && json.data?.message) {
         setMessages((prev) => [...prev, json.data.message]);
-        scrollToBottom();
+        setMessageInput("");
+        handleClearImage();
+        setTimeout(() => scrollToBottom(true), 50);
+
         // Refresh conversations list to update latestMessage
         fetch("/api/chat/conversations")
           .then((r) => r.json())
@@ -228,11 +342,10 @@ export default function ChatPage() {
           });
       } else {
         alert(json.error?.message || "Failed to send message");
-        setMessageInput(content); // restore on failure
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error sending message:", err);
-      setMessageInput(content);
+      alert(err.message || "Failed to send message. Please try again.");
     } finally {
       setSending(false);
     }
@@ -391,9 +504,13 @@ export default function ChatPage() {
         </div>
 
         {/* Main Chat Interface */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[620px] max-h-[750px]">
-          {/* Left Column: Conversations & Employees Directory (5 cols) */}
-          <div className="md:col-span-4 border-r border-slate-200 flex flex-col h-full bg-slate-50/50">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:grid md:grid-cols-12 h-[calc(100vh-12.5rem)] min-h-[580px] max-h-[820px]">
+          {/* Left Column: Conversations & Employees Directory (4 cols on desktop) */}
+          <div
+            className={`border-r border-slate-200 flex flex-col h-full min-h-0 bg-slate-50/50 overflow-hidden ${
+              activeConversationId ? "hidden md:flex md:col-span-4" : "flex md:col-span-4"
+            }`}
+          >
             {/* Search & Switch Tabs */}
             <div className="p-3 border-b border-slate-200 bg-white space-y-2">
               <div className="relative">
@@ -626,8 +743,12 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Right Column: Chat Messages Window (7 cols) */}
-          <div className="md:col-span-8 flex flex-col h-full bg-white">
+          {/* Right Column: Chat Messages Window (8 cols on desktop) */}
+          <div
+            className={`flex flex-col h-full min-h-0 bg-white overflow-hidden relative ${
+              !activeConversationId ? "hidden md:flex md:col-span-8" : "flex md:col-span-8"
+            }`}
+          >
             {activeConversationId && activeConversation ? (
               (() => {
                 const activeChatName =
@@ -639,43 +760,52 @@ export default function ChatPage() {
                 return (
                   <>
                     {/* Chat Top Banner */}
-                    <div className="p-3.5 border-b border-slate-200 bg-white flex items-center justify-between shadow-2xs">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center font-bold text-sm">
+                    <div className="p-3.5 border-b border-slate-200 bg-white flex items-center justify-between shadow-2xs shrink-0">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Mobile Back Button to Return to Conversations */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveConversationId(null)}
+                          className="md:hidden p-1.5 -ml-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition shrink-0"
+                          title="Back to chats"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <div className="w-10 h-10 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center font-bold text-sm shrink-0">
                           {activeConversation.type === "GROUP" ? (
                             <Users className="w-5 h-5 text-amber-400" />
                           ) : (
                             activeInitials
                           )}
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <h2 className="font-black text-sm text-slate-900">
+                            <h2 className="font-black text-sm text-slate-900 truncate">
                               {activeChatName}
                             </h2>
                             {activeConversation.type === "DIRECT" ? (
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold flex items-center gap-1">
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold flex items-center gap-1 shrink-0">
                                 <User className="w-2.5 h-2.5" />
                                 <span>1-on-1 Direct Chat</span>
                               </span>
                             ) : (
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200 font-bold flex items-center gap-1">
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200 font-bold flex items-center gap-1 shrink-0">
                                 <Users className="w-2.5 h-2.5" />
                                 <span>Super Admin Group ({activeConversation.participantsCount || activeConversation.participants?.length || 0} members)</span>
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2 truncate">
                             {activeConversation.type === "DIRECT" && activeConversation.otherUser ? (
                               <>
                                 <span className="font-semibold text-slate-700">
                                   {activeConversation.otherUser.role || "USER"}
                                 </span>
                                 <span>&bull;</span>
-                                <span>{activeConversation.otherUser.email || ""}</span>
+                                <span className="truncate">{activeConversation.otherUser.email || ""}</span>
                               </>
                             ) : (
-                              <span>
+                              <span className="truncate">
                                 {activeConversation.description || "Custom channel created by Super Admin"}
                               </span>
                             )}
@@ -683,8 +813,9 @@ export default function ChatPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
+                          type="button"
                           onClick={() => loadMessages(activeConversationId)}
                           className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
                           title="Refresh messages"
@@ -694,8 +825,12 @@ export default function ChatPage() {
                       </div>
                     </div>
 
-                    {/* Messages Body */}
-                    <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50">
+                    {/* Messages Body (Isolated scroll container - does not expand page downwards) */}
+                    <div
+                      ref={messagesContainerRef}
+                      onScroll={handleScroll}
+                      className="flex-1 min-h-0 p-4 overflow-y-auto space-y-3 bg-slate-50/50 overscroll-contain"
+                    >
                       {messagesLoading && messages.length === 0 ? (
                         <div className="py-20 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
                           <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
@@ -708,13 +843,16 @@ export default function ChatPage() {
                           </div>
                           <div className="text-sm font-bold text-slate-800">No Messages Yet</div>
                           <div className="text-xs text-slate-500">
-                            Say hello to start the conversation! Messages are saved authoritatively in the platform database.
+                            Say hello or share an inspection photo to start chatting! Messages are saved securely in the database.
                           </div>
                         </div>
                       ) : (
                         messages.map((m) => {
                           const senderName = m.sender?.name || "User";
                           const senderRole = m.sender?.role || "";
+                          const hasPhoto = Boolean(m.imageUrl);
+                          const hasCaption = m.content && m.content !== "[Photo]";
+
                           return (
                             <div
                               key={m.id}
@@ -737,41 +875,153 @@ export default function ChatPage() {
                               </div>
 
                               <div
-                                className={`max-w-md p-3 rounded-2xl text-xs leading-relaxed shadow-2xs whitespace-pre-wrap ${
+                                className={`max-w-md p-2.5 rounded-2xl text-xs leading-relaxed shadow-2xs ${
                                   m.isMine
                                     ? "bg-slate-900 text-white rounded-tr-none"
                                     : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
                                 }`}
                               >
-                                {m.content}
+                                {/* Shared Photo Preview */}
+                                {m.imageUrl && (
+                                  <div className="relative group overflow-hidden rounded-xl bg-slate-950/10 cursor-pointer">
+                                    <img
+                                      src={m.imageUrl}
+                                      alt="Shared in chat"
+                                      onClick={() => setFullscreenImage(m.imageUrl || null)}
+                                      className="max-h-72 w-auto max-w-full rounded-xl object-contain transition duration-200 group-hover:scale-101"
+                                      loading="lazy"
+                                    />
+                                    <div
+                                      onClick={() => setFullscreenImage(m.imageUrl || null)}
+                                      className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                      <span>Click to preview</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Caption or text content */}
+                                {hasCaption && (
+                                  <div
+                                    className={`whitespace-pre-wrap break-words ${
+                                      hasPhoto ? "mt-2 pt-1 border-t border-white/10 px-0.5" : "px-1"
+                                    }`}
+                                  >
+                                    {m.content}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
                         })
                       )}
-                      <div ref={messagesEndRef} />
                     </div>
+
+                    {/* Floating Jump to Latest Button */}
+                    {showScrollBottomBtn && (
+                      <button
+                        type="button"
+                        onClick={() => scrollToBottom(true)}
+                        className="absolute bottom-20 right-6 z-20 px-3.5 py-1.5 bg-slate-900/90 hover:bg-slate-900 text-amber-400 font-bold text-xs rounded-full shadow-lg flex items-center gap-1.5 backdrop-blur-xs transition transform hover:scale-105 active:scale-95 border border-slate-700 animate-in fade-in slide-in-from-bottom-2"
+                        title="Scroll to latest messages"
+                      >
+                        <ChevronDown className="w-4 h-4 animate-bounce" />
+                        <span>Latest messages</span>
+                      </button>
+                    )}
+
+                    {/* Selected Image Preview Attachment Banner */}
+                    {selectedImage && (
+                      <div className="p-2.5 px-3 bg-amber-50/90 border-t border-amber-200/80 flex items-center justify-between gap-3 shrink-0 animate-in fade-in slide-in-from-bottom-1">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {imagePreviewUrl ? (
+                            <img
+                              src={imagePreviewUrl}
+                              alt="Upload preview"
+                              className="w-12 h-12 object-cover rounded-lg border border-amber-300 shadow-2xs shrink-0"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-amber-200 flex items-center justify-center shrink-0">
+                              <ImageIcon className="w-6 h-6 text-amber-700" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-slate-900 truncate">
+                              {selectedImage.name}
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              {(selectedImage.size / 1024).toFixed(1)} KB &bull; Photo ready to send
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleClearImage}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          title="Remove image"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
 
                     {/* Message Input Box */}
                     <form
                       onSubmit={handleSendMessage}
-                      className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
+                      className="p-3 border-t border-slate-200 bg-white flex items-center gap-2 shrink-0"
                     >
                       <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={sending}
+                        className={`p-2 rounded-xl transition border shrink-0 flex items-center justify-center ${
+                          selectedImage
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : "text-slate-500 hover:text-amber-600 hover:bg-amber-50 border-slate-200 hover:border-amber-300"
+                        } disabled:opacity-50`}
+                        title="Attach image / site photo (Max 5MB)"
+                      >
+                        <ImageIcon className="w-4 h-4" />
+                      </button>
+
+                      <input
                         type="text"
-                        placeholder={t("chat.typeMessage", "Type your message... (Press Enter to send)")}
+                        placeholder={
+                          selectedImage
+                            ? "Add an optional caption for this photo... (Press Enter to send)"
+                            : t("chat.typeMessage", "Type your message... (Press Enter to send)")
+                        }
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                         disabled={sending}
                       />
+
                       <button
                         type="submit"
-                        disabled={sending || !messageInput.trim()}
+                        disabled={sending || (!messageInput.trim() && !selectedImage)}
                         className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs transition disabled:opacity-50 shadow-sm shrink-0"
                       >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>{sending ? "..." : t("chat.send", "Send")}</span>
+                        {sending ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                            <span>Sending...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            <span>{t("chat.send", "Send")}</span>
+                          </>
+                        )}
                       </button>
                     </form>
                   </>
@@ -791,6 +1041,7 @@ export default function ChatPage() {
                 </p>
                 <div className="mt-4 flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => setActiveTab("employees")}
                     className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition"
                   >
@@ -962,6 +1213,51 @@ export default function ChatPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Photo Viewer Modal */}
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between pb-3 text-white">
+              <span className="text-xs font-semibold flex items-center gap-1.5 text-slate-300">
+                <ImageIcon className="w-4 h-4 text-amber-400" />
+                <span>Shared Photo Preview</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={fullscreenImage}
+                  download="chat-photo.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                  title="Download / Open original full size"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setFullscreenImage(null)}
+                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                  title="Close preview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <img
+              src={fullscreenImage}
+              alt="Shared full photo"
+              className="max-h-[80vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
+            />
           </div>
         </div>
       )}

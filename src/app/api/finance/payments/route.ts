@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getUserContext } from "@/lib/auth";
+import { requireUserContext, requirePermission, requireProjectAccess } from "@/lib/server-auth";
 import { FinanceService } from "@/services/finance-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
@@ -34,20 +34,30 @@ const createPaymentSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req);
+    requirePermission(user, "finance:read");
 
     const { searchParams } = new URL(req.url);
     const partyId = searchParams.get("partyId");
+    const projectId = searchParams.get("projectId");
     const status = searchParams.get("status");
     const allTenants = searchParams.get("allTenants") === "true";
+    const includeArchived = searchParams.get("includeArchived") === "true";
+
+    if (projectId) {
+      await requireProjectAccess(user, projectId, "finance:read");
+    }
 
     const where: any = {};
     if (!allTenants || user.role !== "SUPER_ADMIN") {
       where.organizationId = user.organizationId;
     }
+    if (!includeArchived) {
+      where.isArchived = false;
+    }
 
     if (partyId) where.partyId = partyId;
+    if (projectId) where.projectId = projectId;
     if (status) where.status = status;
 
     const payments = await prisma.payment.findMany({
@@ -58,6 +68,10 @@ export async function GET(req: NextRequest) {
         organization: { select: { id: true, name: true } },
         creator: { select: { id: true, name: true, role: true, email: true } },
         allocations: { include: { bill: true } },
+        attachments: {
+          where: { isArchived: false },
+          select: { id: true, fileId: true, fileName: true, category: true, mimeType: true },
+        },
       },
       orderBy: { paymentDate: "desc" },
     });
@@ -70,17 +84,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req);
+    requirePermission(user, "finance:write");
 
     const body = await req.json();
     const data = createPaymentSchema.parse(body);
 
-    const effectiveReason = data.approvalQuery || data.reason || (data.notes ? data.notes : undefined);
-    const canAutoApprove =
-      data.autoApprove !== undefined
-        ? data.autoApprove
-        : (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN") && !data.approvalQuery;
+    if (data.projectId) {
+      await requireProjectAccess(user, data.projectId, "finance:write");
+    }
 
     const result = await FinanceService.recordPayment({
       organizationId: user.organizationId,
@@ -88,7 +100,7 @@ export async function POST(req: NextRequest) {
       recipientType: data.recipientType,
       recipientName: data.recipientName,
       payingAccount: data.payingAccount,
-      approvalQuery: effectiveReason,
+      approvalQuery: data.approvalQuery || data.reason,
       projectId: data.projectId,
       paymentDate: new Date(data.paymentDate),
       amount: data.amount,
@@ -96,10 +108,10 @@ export async function POST(req: NextRequest) {
       referenceNumber: data.referenceNumber,
       idempotencyKey: data.idempotencyKey,
       notes: data.notes,
-      allocations: data.allocations,
       userId: user.userId,
       role: user.role,
-      autoApprove: canAutoApprove,
+      autoApprove: data.autoApprove,
+      allocations: data.allocations,
     });
 
     return jsonSuccess(result, result.idempotentReplay ? 200 : 201);

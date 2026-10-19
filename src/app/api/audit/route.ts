@@ -15,9 +15,15 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+    const entityType = searchParams.get("entityType");
+    const entityId = searchParams.get("entityId");
+
+    const where: any = { organizationId: user.organizationId };
+    if (entityType) where.entityType = entityType.toUpperCase();
+    if (entityId) where.entityId = entityId;
 
     const auditEvents = await prisma.auditEvent.findMany({
-      where: { organizationId: user.organizationId },
+      where,
       include: {
         actor: { select: { id: true, name: true, email: true, role: true } },
       },

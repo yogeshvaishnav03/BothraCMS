@@ -6,9 +6,17 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
-const postMessageSchema = z.object({
-  content: z.string().min(1, "Message content cannot be empty"),
-});
+const postMessageSchema = z
+  .object({
+    content: z.string().optional().default(""),
+    imageUrl: z.string().nullable().optional(),
+  })
+  .refine(
+    (data) =>
+      (data.content && data.content.trim().length > 0) ||
+      (data.imageUrl && data.imageUrl.trim().length > 0),
+    { message: "Message must contain text content or an image" }
+  );
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -92,6 +100,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         id: m.id,
         conversationId: m.conversationId,
         content: m.content,
+        imageUrl: m.imageUrl,
         createdAt: m.createdAt,
         senderId: m.senderId,
         isMine: m.senderId === user.userId,
@@ -129,13 +138,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const now = new Date();
+    const textContent = (parsed.data.content || "").trim();
+    const imageUrl = parsed.data.imageUrl ? parsed.data.imageUrl.trim() : null;
 
     // Create the message
     const message = await prisma.chatMessage.create({
       data: {
         conversationId: params.id,
         senderId: user.userId,
-        content: parsed.data.content.trim(),
+        content: textContent || (imageUrl ? "[Photo]" : ""),
+        imageUrl,
       },
       include: {
         sender: {
@@ -165,6 +177,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         id: message.id,
         conversationId: message.conversationId,
         content: message.content,
+        imageUrl: message.imageUrl,
         createdAt: message.createdAt,
         senderId: message.senderId,
         isMine: true,

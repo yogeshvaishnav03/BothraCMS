@@ -1,61 +1,45 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getUserContext } from "@/lib/auth";
-import { assertPermission } from "@/lib/permissions";
+import { requireUserContext, requirePermission } from "@/lib/server-auth";
+import { InventoryService } from "@/services/inventory-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
 const createMaterialSchema = z.object({
-  sku: z.string().min(2),
+  sku: z.string().min(2).max(50),
   name: z.string().min(2),
-  categoryId: z.string().uuid().optional(),
-  unitCode: z.enum(["BAG", "KG", "TONNE", "LITRE", "METER", "PIECE", "BOX"]),
+  categoryId: z.string().optional(),
+  unitCode: z.string().min(1).default("PIECE"),
   minStockQty: z.number().min(0).default(0),
   reorderQty: z.number().min(0).default(0),
 });
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req);
 
     const { searchParams } = new URL(req.url);
-    const search = searchParams.get("search");
+    const search = searchParams.get("search")?.toLowerCase();
     const categoryId = searchParams.get("categoryId");
 
-    const where: any = { organizationId: user.organizationId, active: true };
-    if (categoryId) where.categoryId = categoryId;
+    // Unified Authoritative Stock Calculation from Ledger
+    const allStockStatus = await InventoryService.getAuthoritativeStockSummary(user.organizationId);
+
+    let filtered = allStockStatus;
+    if (categoryId) {
+      filtered = filtered.filter((m) => m.categoryId === categoryId);
+    }
     if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { sku: { contains: search } },
-      ];
+      filtered = filtered.filter(
+        (m) =>
+          m.name.toLowerCase().includes(search) ||
+          m.sku.toLowerCase().includes(search)
+      );
     }
 
-    const materials = await prisma.material.findMany({
-      where,
-      include: {
-        category: true,
-        stockBalances: {
-          include: { store: { include: { site: true } } },
-        },
-      },
-      orderBy: { name: "asc" },
-    });
-
-    const enriched = materials.map((m: any) => {
-      const totalStock = m.stockBalances.reduce((sum: number, b: any) => sum + (b.quantityOnHand || 0), 0);
-      const isLowStock = m.minStockQty > 0 && totalStock <= m.minStockQty;
-      return {
-        ...m,
-        totalStock,
-        isLowStock,
-      };
-    });
-
-    return jsonSuccess(enriched);
+    return jsonSuccess(filtered);
   } catch (error) {
     return handleApiError(error);
   }
@@ -63,10 +47,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
-
-    assertPermission(user.role, "inventory:adjust");
+    const user = await requireUserContext(req);
+    requirePermission(user, "inventory:adjust");
 
     const body = await req.json();
     const data = createMaterialSchema.parse(body);
@@ -84,6 +66,18 @@ export async function POST(req: NextRequest) {
       include: { category: true },
     });
 
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "MATERIAL_CREATED",
+        entityType: "MATERIAL",
+        entityId: material.id,
+        afterJson: JSON.stringify({ name: material.name, sku: material.sku }),
+        reason: "Material item added to inventory catalog",
+      },
+    });
+
     return jsonSuccess(material, 201);
   } catch (error) {
     return handleApiError(error);
@@ -92,10 +86,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
-
-    assertPermission(user.role, "inventory:adjust");
+    const user = await requireUserContext(req);
+    requirePermission(user, "inventory:adjust");
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -109,11 +101,32 @@ export async function DELETE(req: NextRequest) {
       return jsonError("Material not found", "NOT_FOUND", 404);
     }
 
-    await prisma.material.delete({
+    // Soft-delete / Archival to preserve historical ledger records
+    await prisma.material.update({
       where: { id: material.id },
+      data: {
+        active: false,
+        isArchived: true,
+        archivedAt: new Date(),
+        archivedById: user.userId,
+        archiveReason: "Material archived by authorized user",
+      },
     });
 
-    return jsonSuccess({ deleted: true, id: material.id });
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "MATERIAL_ARCHIVED",
+        entityType: "MATERIAL",
+        entityId: material.id,
+        beforeJson: JSON.stringify({ name: material.name, sku: material.sku, active: material.active }),
+        afterJson: JSON.stringify({ active: false, isArchived: true }),
+        reason: "Material archived to preserve stock movement ledger history",
+      },
+    });
+
+    return jsonSuccess({ archived: true, deleted: true, id: material.id });
   } catch (error) {
     return handleApiError(error);
   }

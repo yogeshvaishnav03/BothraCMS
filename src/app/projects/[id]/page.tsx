@@ -22,7 +22,16 @@ import {
   Plus,
   X,
   CheckCircle2,
+  Paperclip,
+  FolderPlus,
+  Folder,
+  FolderOpen,
+  Edit2,
+  History,
+  FileText,
 } from "lucide-react";
+import AttachmentManager from "@/components/attachments/AttachmentManager";
+import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 
 export default function ProjectDetailsPage() {
   const params = useParams();
@@ -30,7 +39,7 @@ export default function ProjectDetailsPage() {
 
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"DSR" | "TASKS" | "MATERIALS">("DSR");
+  const [activeTab, setActiveTab] = useState<"DSR" | "TASKS" | "MATERIALS" | "DOCUMENTS">("DSR");
 
   // Dynamic Modals
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -42,6 +51,24 @@ export default function ProjectDetailsPage() {
   const [reportProgress, setReportProgress] = useState("");
   const [reportBlockers, setReportBlockers] = useState("");
 
+  // Edit Project Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editBudget, setEditBudget] = useState("");
+  const [editStatus, setEditStatus] = useState("ACTIVE");
+  const [editReason, setEditReason] = useState("");
+
+  // Folders state (Priority 7)
+  const [folders, setFolders] = useState<any[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderDesc, setNewFolderDesc] = useState("");
+
+  // Audit Modal state
+  const [showAuditModal, setShowAuditModal] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -49,13 +76,22 @@ export default function ProjectDetailsPage() {
   const loadProject = () => {
     if (!projectId) return;
     setLoading(true);
-    fetch(`/api/projects/${projectId}`)
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setProject(res.data);
+    Promise.all([
+      fetch(`/api/projects/${projectId}`).then((r) => r.json()),
+      fetch(`/api/projects/${projectId}/folders`).then((r) => r.json()).catch(() => ({ success: false })),
+    ])
+      .then(([projRes, foldRes]) => {
+        if (projRes.success && projRes.data) {
+          setProject(projRes.data);
+          setEditName(projRes.data.name);
+          setEditDescription(projRes.data.description || "");
+          setEditBudget(projRes.data.budgetAmount ? projRes.data.budgetAmount.toString() : "");
+          setEditStatus(projRes.data.status || "ACTIVE");
         } else {
           setProject(null);
+        }
+        if (foldRes.success && foldRes.data) {
+          setFolders(foldRes.data);
         }
       })
       .catch((err) => {
@@ -144,6 +180,75 @@ export default function ProjectDetailsPage() {
     }
   };
 
+  const handleCreateFolder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFolderName.trim() || !project) return;
+    setSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch(`/api/projects/${project.id}/folders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newFolderName.trim(),
+          description: newFolderDesc.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to create folder");
+      } else {
+        setStatusMessage(`Folder "${newFolderName}" created!`);
+        setShowFolderModal(false);
+        setNewFolderName("");
+        setNewFolderDesc("");
+        // Reload folders
+        const foldRes = await fetch(`/api/projects/${project.id}/folders`).then((r) => r.json());
+        if (foldRes.success) setFolders(foldRes.data || []);
+      }
+    } catch {
+      setErrorMessage("Network error creating folder");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!project) return;
+    setSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName,
+          description: editDescription || undefined,
+          budgetAmount: editBudget ? parseFloat(editBudget) : undefined,
+          status: editStatus,
+          reason: editReason || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to update project");
+      } else {
+        setStatusMessage(`Project "${editName}" updated successfully.`);
+        setShowEditModal(false);
+        loadProject();
+      }
+    } catch {
+      setErrorMessage("Network error updating project");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Shell>
@@ -180,7 +285,7 @@ export default function ProjectDetailsPage() {
     );
   }
 
-  const budget = project.financials?.budgetAmount || 0;
+  const budget = project.financials?.budgetAmount || project.budgetAmount || 0;
   const billed = project.financials?.totalBilled || 0;
   const budgetUtilization = budget > 0 ? Math.min(100, Math.round((billed / (budget * 100)) * 100)) : 0;
 
@@ -231,6 +336,22 @@ export default function ProjectDetailsPage() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowEditModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-sm transition-all"
+              title="Edit Project Details"
+            >
+              <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+              <span>Edit</span>
+            </button>
+            <button
+              onClick={() => setShowAuditModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-sm transition-all"
+              title="Inspect Audit History"
+            >
+              <History className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Audit</span>
+            </button>
+            <button
               onClick={() => setShowReportModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
             >
@@ -255,6 +376,17 @@ export default function ProjectDetailsPage() {
               <span>{statusMessage}</span>
             </div>
             <button onClick={() => setStatusMessage(null)} className="p-0.5 text-emerald-600 hover:text-emerald-800">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        {errorMessage && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button onClick={() => setErrorMessage(null)} className="p-0.5 text-rose-600 hover:text-rose-800">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -326,10 +458,10 @@ export default function ProjectDetailsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-slate-200">
+        <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto">
           <button
             onClick={() => setActiveTab("DSR")}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
               activeTab === "DSR"
                 ? "border-amber-600 text-amber-700"
                 : "border-transparent text-slate-500 hover:text-slate-900"
@@ -340,7 +472,7 @@ export default function ProjectDetailsPage() {
           </button>
           <button
             onClick={() => setActiveTab("TASKS")}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
               activeTab === "TASKS"
                 ? "border-amber-600 text-amber-700"
                 : "border-transparent text-slate-500 hover:text-slate-900"
@@ -351,7 +483,7 @@ export default function ProjectDetailsPage() {
           </button>
           <button
             onClick={() => setActiveTab("MATERIALS")}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
               activeTab === "MATERIALS"
                 ? "border-amber-600 text-amber-700"
                 : "border-transparent text-slate-500 hover:text-slate-900"
@@ -359,6 +491,17 @@ export default function ProjectDetailsPage() {
           >
             <Boxes className="w-4 h-4" />
             Material Consumption ({project.stockMovements?.length || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab("DOCUMENTS")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
+              activeTab === "DOCUMENTS"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <FolderOpen className="w-4 h-4 text-amber-500" />
+            Project Documents & Drawings
           </button>
         </div>
 
@@ -501,6 +644,82 @@ export default function ProjectDetailsPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab 4: Project Documents & Drawings (Priority 7) */}
+        {activeTab === "DOCUMENTS" && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div>
+                  <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <FolderKanban className="w-5 h-5 text-amber-500" />
+                    <span>Project Drawings & Document Archive</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Architectural plans, structural drawings, approvals, specifications, and inspection photos.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowFolderModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs self-start sm:self-auto"
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>+ New Folder</span>
+                </button>
+              </div>
+
+              {/* Folder Selector Pills */}
+              <div className="flex items-center gap-2 pt-4 overflow-x-auto pb-2">
+                <button
+                  onClick={() => setSelectedFolderId(null)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
+                    selectedFolderId === null
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>All Documents</span>
+                </button>
+
+                {folders.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setSelectedFolderId(f.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
+                      selectedFolderId === f.id
+                        ? "bg-amber-500 text-slate-950 shadow-xs"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    <Folder className="w-3.5 h-3.5" />
+                    <span>{f.name}</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10">
+                      {f._count?.attachments || 0}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Embedded Document Manager */}
+              <div className="pt-4 border-t border-slate-100 mt-2">
+                <AttachmentManager
+                  entityType="PROJECT_DOCUMENT"
+                  entityId={project.id}
+                  projectId={project.id}
+                  folderId={selectedFolderId || undefined}
+                  title={
+                    selectedFolderId
+                      ? `Documents in "${folders.find((f) => f.id === selectedFolderId)?.name || "Folder"}"`
+                      : "All Project Files & Drawings"
+                  }
+                  allowUpload={true}
+                  categoryDefault="DRAWING"
+                />
+              </div>
+            </div>
           </div>
         )}
 
@@ -649,6 +868,188 @@ export default function ProjectDetailsPage() {
               </form>
             </div>
           </div>
+        )}
+
+        {/* Modal: New Folder (Priority 7) */}
+        {showFolderModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <FolderPlus className="w-5 h-5 text-amber-500" />
+                  <span>Create Document Folder</span>
+                </div>
+                <button
+                  onClick={() => setShowFolderModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateFolder} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Folder Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Architectural Drawings / Approvals & NOCs"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Description (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Approved layout plans signed by municipal corporation"
+                    value={newFolderDesc}
+                    onChange={(e) => setNewFolderDesc(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFolderModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
+                  >
+                    {submitting ? "Creating..." : "Create Folder"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Edit Project & Audit (Priority 6) */}
+        {showEditModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <Edit2 className="w-5 h-5 text-amber-500" />
+                  <span>Edit Project Details</span>
+                </div>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditProject} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Project Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Budget (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      value={editBudget}
+                      onChange={(e) => setEditBudget(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    >
+                      <option value="ACTIVE">Active</option>
+                      <option value="ON_HOLD">On Hold</option>
+                      <option value="COMPLETED">Completed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Reason for Change (Audit Log)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Budget increase approved by executive board"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
+                  >
+                    {submitting ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Audit History (Priority 6) */}
+        {showAuditModal && (
+          <AuditHistoryModal
+            entityType="PROJECT"
+            entityId={project.id}
+            title={`Audit History: ${project.name} (${project.code})`}
+            onClose={() => setShowAuditModal(false)}
+          />
         )}
       </div>
     </Shell>

@@ -346,4 +346,72 @@ describe("Chat & Employee Messaging Lifecycle Tests", () => {
     expect(countAfterJson.success).toBe(true);
     expect(countAfterJson.data.unreadCount).toBe(0);
   });
+
+  it("should allow sharing images with or without captions in chat messages", async () => {
+    // 1. Post message with both photo and caption
+    const postImageWithTextReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages`,
+      "POST",
+      {
+        content: "Site inspection beam crack photo",
+        imageUrl: "/api/uploads/test-inspection-photo-123.jpg",
+      },
+      superAdminToken
+    );
+    const postRes1 = await postMessageHandler(postImageWithTextReq, { params: { id: directConversationId } });
+    expect(postRes1.status).toBe(200);
+    const json1 = await postRes1.json();
+    expect(json1.success).toBe(true);
+    expect(json1.data.message.content).toBe("Site inspection beam crack photo");
+    expect(json1.data.message.imageUrl).toBe("/api/uploads/test-inspection-photo-123.jpg");
+
+    // 2. Post message with photo only (no caption text)
+    const postImageOnlyReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages`,
+      "POST",
+      {
+        content: "",
+        imageUrl: "/api/uploads/test-concrete-pour-456.jpg",
+      },
+      supervisorToken
+    );
+    const postRes2 = await postMessageHandler(postImageOnlyReq, { params: { id: directConversationId } });
+    expect(postRes2.status).toBe(200);
+    const json2 = await postRes2.json();
+    expect(json2.success).toBe(true);
+    expect(json2.data.message.content).toBe("[Photo]");
+    expect(json2.data.message.imageUrl).toBe("/api/uploads/test-concrete-pour-456.jpg");
+
+    // 3. Fetch conversation messages and verify image presence
+    const getMsgsReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages`,
+      "GET",
+      undefined,
+      superAdminToken
+    );
+    const getMsgsRes = await getMessagesHandler(getMsgsReq, { params: { id: directConversationId } });
+    expect(getMsgsRes.status).toBe(200);
+    const getMsgsJson = await getMsgsRes.json();
+    expect(getMsgsJson.success).toBe(true);
+
+    const msgs = getMsgsJson.data.messages;
+    const photoOnlyMsg = msgs.find((m: any) => m.imageUrl === "/api/uploads/test-concrete-pour-456.jpg");
+    expect(photoOnlyMsg).toBeDefined();
+    expect(photoOnlyMsg.imageUrl).toBe("/api/uploads/test-concrete-pour-456.jpg");
+
+    // 4. Verify conversation list shows photo indicator for latestMessage
+    const convsReq = makeJsonRequest(
+      "http://localhost:3000/api/chat/conversations",
+      "GET",
+      undefined,
+      superAdminToken
+    );
+    const convsRes = await getConversationsHandler(convsReq);
+    expect(convsRes.status).toBe(200);
+    const convsJson = await convsRes.json();
+    const convItem = convsJson.data.conversations.find((c: any) => c.id === directConversationId);
+    expect(convItem).toBeDefined();
+    expect(convItem.latestMessage.content).toBe("📷 Photo");
+    expect(convItem.latestMessage.imageUrl).toBe("/api/uploads/test-concrete-pour-456.jpg");
+  });
 });

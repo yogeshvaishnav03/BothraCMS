@@ -3,21 +3,22 @@ import { assertPermission, Role } from "@/lib/permissions";
 
 export interface CheckInInput {
   organizationId: string;
-  workforceMemberId: string;
-  siteId: string;
+  workforceMemberId?: string;
+  siteId?: string;
   projectId?: string;
-  workDate: string; // YYYY-MM-DD
+  workDate?: string; // YYYY-MM-DD
   latitude?: number;
   longitude?: number;
   accuracyM?: number;
   notes?: string;
+  attachmentIds?: string[];
   userId: string;
   role: Role;
 }
 
 export interface CheckOutInput {
   organizationId: string;
-  sessionId: string;
+  sessionId?: string;
   latitude?: number;
   longitude?: number;
   accuracyM?: number;
@@ -39,23 +40,82 @@ export interface CorrectAttendanceInput {
 
 export class AttendanceService {
   /**
-   * Check in a workforce member for a shift
+   * Check in a workforce member or current user for a shift
    */
   static async checkIn(input: CheckInInput) {
-    assertPermission(input.role, "attendance:write");
+    let member: any = null;
 
-    const member = await prisma.workforceMember.findFirst({
-      where: { id: input.workforceMemberId, organizationId: input.organizationId },
-    });
-    if (!member) {
-      throw new Error("NotFound: Workforce member not found");
+    if (input.workforceMemberId) {
+      assertPermission(input.role, "attendance:write");
+      member = await prisma.workforceMember.findFirst({
+        where: { id: input.workforceMemberId, organizationId: input.organizationId },
+      });
+      if (!member) {
+        throw new Error("NotFound: Workforce member not found");
+      }
+    } else {
+      // Self check-in for the authenticated user
+      const user = await prisma.user.findFirst({
+        where: { id: input.userId, organizationId: input.organizationId },
+      });
+      if (!user) {
+        throw new Error("NotFound: User not found");
+      }
+
+      // Check if user already has an associated workforce member
+      member = await prisma.workforceMember.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          OR: [
+            { employeeCode: `USR-${user.id.slice(-6).toUpperCase()}` },
+            { name: user.name },
+          ],
+        },
+      });
+
+      if (!member) {
+        member = await prisma.workforceMember.create({
+          data: {
+            organizationId: input.organizationId,
+            employeeCode: `USR-${user.id.slice(-6).toUpperCase()}`,
+            name: user.name || "Staff Member",
+            workerType: user.role === "SITE_SUPERVISOR" ? "FOREMAN" : "SITE_ENGINEER",
+            defaultSiteId: input.siteId || undefined,
+            active: true,
+          },
+        });
+      }
     }
 
-    const site = await prisma.site.findFirst({
-      where: { id: input.siteId, organizationId: input.organizationId },
-    });
-    if (!site) {
-      throw new Error("NotFound: Site not found or outside organization scope");
+    let site: any = null;
+    let resolvedSiteId = input.siteId;
+
+    if (resolvedSiteId) {
+      site = await prisma.site.findFirst({
+        where: { id: resolvedSiteId, organizationId: input.organizationId },
+      });
+      if (!site) {
+        throw new Error("NotFound: Site not found or outside organization scope");
+      }
+    } else {
+      // Fallback to worker default site, or first active site in organization
+      if (member.defaultSiteId) {
+        site = await prisma.site.findFirst({
+          where: { id: member.defaultSiteId, organizationId: input.organizationId },
+        });
+      }
+      if (!site) {
+        site = (await prisma.site.findFirst({
+          where: { organizationId: input.organizationId, status: "ACTIVE" },
+          orderBy: { createdAt: "asc" },
+        })) || (await prisma.site.findFirst({
+          where: { organizationId: input.organizationId },
+        }));
+      }
+      if (!site) {
+        throw new Error("NotFound: No active site found in organization");
+      }
+      resolvedSiteId = site.id;
     }
 
     if (input.projectId) {
@@ -67,33 +127,32 @@ export class AttendanceService {
       }
     }
 
-    // Check for existing session on same day at site
-    const existingSession = await prisma.attendanceSession.findUnique({
+    const effectiveWorkDate = input.workDate || new Date().toISOString().split("T")[0];
+
+    // Check for existing session on same day
+    const existingSession = await prisma.attendanceSession.findFirst({
       where: {
-        organizationId_workforceMemberId_siteId_workDate: {
-          organizationId: input.organizationId,
-          workforceMemberId: input.workforceMemberId,
-          siteId: input.siteId,
-          workDate: input.workDate,
-        },
+        organizationId: input.organizationId,
+        workforceMemberId: member.id,
+        workDate: effectiveWorkDate,
       },
     });
 
     if (existingSession) {
       throw new Error(
-        `Worker ${member.name} (${member.employeeCode}) has already checked in on ${input.workDate}`
+        `Worker ${member.name} (${member.employeeCode}) has already checked in on ${effectiveWorkDate}`
       );
     }
 
     const now = new Date();
 
-    return await prisma.attendanceSession.create({
+    const session = await prisma.attendanceSession.create({
       data: {
         organizationId: input.organizationId,
-        workforceMemberId: input.workforceMemberId,
-        siteId: input.siteId,
+        workforceMemberId: member.id,
+        siteId: resolvedSiteId!,
         projectId: input.projectId ?? null,
-        workDate: input.workDate,
+        workDate: effectiveWorkDate,
         checkInAt: now,
         checkInLat: input.latitude ?? null,
         checkInLng: input.longitude ?? null,
@@ -105,23 +164,75 @@ export class AttendanceService {
       include: {
         workforceMember: true,
         site: true,
+        project: true,
+        attachments: true,
       },
     });
+
+    if (input.attachmentIds && input.attachmentIds.length > 0) {
+      await prisma.attachment.updateMany({
+        where: {
+          id: { in: input.attachmentIds },
+          organizationId: input.organizationId,
+        },
+        data: {
+          attendanceSessionId: session.id,
+          projectId: input.projectId ?? null,
+        },
+      });
+    }
+
+    return session;
   }
 
   /**
    * Check out an active session
    */
   static async checkOut(input: CheckOutInput) {
-    assertPermission(input.role, "attendance:write");
+    let session: any = null;
 
-    const session = await prisma.attendanceSession.findFirst({
-      where: { id: input.sessionId, organizationId: input.organizationId },
-      include: { workforceMember: true },
-    });
+    if (input.sessionId) {
+      session = await prisma.attendanceSession.findFirst({
+        where: { id: input.sessionId, organizationId: input.organizationId },
+        include: { workforceMember: true },
+      });
+      if (!session) {
+        throw new Error("NotFound: Attendance session not found");
+      }
+      // If user is checking out someone else, verify permission
+      if (session.createdBy !== input.userId) {
+        assertPermission(input.role, "attendance:write");
+      }
+    } else {
+      // Self-checkout: find open session for today belonging to user's workforce member
+      const user = await prisma.user.findUnique({ where: { id: input.userId } });
+      const member = await prisma.workforceMember.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          OR: [
+            { employeeCode: `USR-${input.userId.slice(-6).toUpperCase()}` },
+            ...(user?.name ? [{ name: user.name }] : []),
+          ],
+        },
+      });
 
-    if (!session) {
-      throw new Error("NotFound: Attendance session not found");
+      if (!member) {
+        throw new Error("NotFound: No workforce record found for this user");
+      }
+
+      session = await prisma.attendanceSession.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          workforceMemberId: member.id,
+          checkOutAt: null,
+        },
+        orderBy: { checkInAt: "desc" },
+        include: { workforceMember: true },
+      });
+
+      if (!session) {
+        throw new Error("NotFound: No active attendance session found to check out");
+      }
     }
 
     if (session.checkOutAt) {
@@ -217,6 +328,9 @@ export class AttendanceService {
         site: true,
         project: true,
         creator: { select: { id: true, name: true } },
+        attachments: {
+          where: { isArchived: false },
+        },
       },
       orderBy: { checkInAt: "desc" },
     });
