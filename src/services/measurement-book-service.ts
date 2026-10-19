@@ -76,12 +76,7 @@ function writeAtomic(entries: MeasurementEntry[]) {
 
   fs.writeFileSync(tempFile, serialized, "utf-8");
 
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      fs.copyFileSync(STORAGE_FILE, BACKUP_FILE);
-    }
-  } catch {}
-
+  // Perform atomic replacement without leaving stray backup files
   try {
     fs.renameSync(tempFile, STORAGE_FILE);
   } catch {

@@ -64,7 +64,7 @@ export default function Shell({ children }: ShellProps) {
 
   // Fetch operational alerts and unread chat message counts
   const fetchNotifications = useCallback(() => {
-    fetch("/api/notifications")
+    fetch("/api/notifications", { cache: "no-store" })
       .then((r) => r.json())
       .then((res) => {
         if (res.success && res.data) {
@@ -87,7 +87,7 @@ export default function Shell({ children }: ShellProps) {
   }, [pathname]);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => {
         if (!res.ok) {
           router.push("/login");
@@ -103,7 +103,7 @@ export default function Shell({ children }: ShellProps) {
       .catch(() => router.push("/login"))
       .finally(() => setLoading(false));
 
-    fetch("/api/sites")
+    fetch("/api/sites", { cache: "no-store" })
       .then((r) => r.json())
       .then((res) => {
         const sitesList = res.data || [];

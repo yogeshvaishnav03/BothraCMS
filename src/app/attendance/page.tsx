@@ -91,9 +91,9 @@ export default function AttendancePage() {
 
     try {
       const [authRes, sitesRes, historyRes] = await Promise.all([
-        fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/sites").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/attendance/history?months=3").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/sites", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/attendance/history?months=3", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
       ]);
 
       if (authRes?.success && authRes.data?.user) {

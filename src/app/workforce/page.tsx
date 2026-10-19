@@ -114,10 +114,10 @@ export default function WorkforcePage() {
 
     try {
       const [authRes, sitesRes, headcountRes, workforceRes] = await Promise.all([
-        fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/sites").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/workforce/headcount").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/workforce").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/sites", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/workforce/headcount", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/workforce", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
       ]);
 
       if (authRes?.success && authRes.data?.user) {

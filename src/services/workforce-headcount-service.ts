@@ -133,7 +133,6 @@ function saveAllRecords(records: WorkforceHeadcountRecord[]) {
   try {
     const jsonStr = JSON.stringify(records, null, 2);
     fs.writeFileSync(STORAGE_FILE, jsonStr, "utf-8");
-    fs.writeFileSync(BACKUP_FILE, jsonStr, "utf-8");
   } catch (err) {
     console.warn("Notice: Saved to in-memory store; persistent disk write skipped:", err);
   }

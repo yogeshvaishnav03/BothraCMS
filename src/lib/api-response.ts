@@ -11,13 +11,26 @@ export interface ApiResponse<T = any> {
   };
 }
 
+const NO_CACHE_HEADERS: Record<string, string> = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
 export function jsonSuccess<T>(data: T, status = 200, headers?: HeadersInit) {
+  const mergedHeaders = new Headers(headers);
+  for (const [k, v] of Object.entries(NO_CACHE_HEADERS)) {
+    if (!mergedHeaders.has(k)) {
+      mergedHeaders.set(k, v);
+    }
+  }
+
   return NextResponse.json(
     {
       success: true,
       data,
     },
-    { status, headers }
+    { status, headers: mergedHeaders }
   );
 }
 
@@ -25,8 +38,16 @@ export function jsonError(
   message: string,
   code = "BAD_REQUEST",
   status = 400,
-  details?: any
+  details?: any,
+  headers?: HeadersInit
 ) {
+  const mergedHeaders = new Headers(headers);
+  for (const [k, v] of Object.entries(NO_CACHE_HEADERS)) {
+    if (!mergedHeaders.has(k)) {
+      mergedHeaders.set(k, v);
+    }
+  }
+
   return NextResponse.json(
     {
       success: false,
@@ -36,7 +57,7 @@ export function jsonError(
         details,
       },
     },
-    { status }
+    { status, headers: mergedHeaders }
   );
 }
 
