@@ -289,7 +289,10 @@ export class WorkforceHeadcountService {
           action: "WORKFORCE_COUNT_LOGGED",
           entityType: "SITE_WORKFORCE",
           entityId: savedRecord.id,
-          reason: `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanCount}, Craftsmen: ${craftsmanCount}, Laborers: ${laborerTotal} [${laborerMale} Male, ${laborerFemale} Female])`,
+          reason:
+            craftsmanCount > 0
+              ? `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanCount}, Craftsmen: ${craftsmanCount}, Laborers: ${laborerTotal} [${laborerMale} Male, ${laborerFemale} Female])`
+              : `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanCount}, Laborers: ${laborerTotal} [${laborerMale} Male, ${laborerFemale} Female])`,
           afterJson: JSON.stringify(savedRecord),
         },
       });
