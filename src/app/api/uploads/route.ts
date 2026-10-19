@@ -122,6 +122,23 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Also create an Attachment record so the serve route (/api/uploads/[id])
+    // can reliably locate the file by fileId + organizationId for all users.
+    await prisma.attachment.create({
+      data: {
+        organizationId: user.organizationId,
+        entityType: entityType.toUpperCase() || "GENERAL",
+        entityId: entityId || fileId,
+        fileId,
+        fileName: sanitizedOriginalName,
+        fileSize: file.size,
+        mimeType: file.type,
+        category: category || "GENERAL",
+        diskFileName,
+        uploadedById: user.userId,
+      },
+    });
+
     return jsonSuccess(
       {
         id: fileId,
