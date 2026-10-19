@@ -13,15 +13,23 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const monthsParam = parseInt(searchParams.get("months") || "3", 10);
     const targetMonths = isNaN(monthsParam) || monthsParam <= 0 ? 3 : monthsParam;
+    const scopeParam = searchParams.get("scope");
+    const siteIdParam = searchParams.get("siteId");
 
-    // Calculate start date (N months ago from the 1st of that month)
+    const isSuperAdmin = user.role === "SUPER_ADMIN";
+    const isAdmin = user.role === "ORG_ADMIN";
+    const isPrivileged = isSuperAdmin || isAdmin || ["HR_VIEWER", "AUDITOR"].includes(user.role);
+
+    // If Super Admin: default scope is "all". If Org Admin: allow scope "all" or "self" (default "all")
+    const fetchAll = isPrivileged && (scopeParam === "all" || (!scopeParam && (isSuperAdmin || isAdmin)));
+
+    // Calculate start date (N months ago)
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - targetMonths);
     const startDateStr = startDate.toISOString().split("T")[0];
-
     const todayStr = new Date().toISOString().split("T")[0];
 
-    // Resolve associated workforce member for the user
+    // Resolve associated workforce member for the logged-in user
     const userEmpCode = `USR-${user.userId.slice(-6).toUpperCase()}`;
     const member = await prisma.workforceMember.findFirst({
       where: {
@@ -33,28 +41,91 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const whereConditions: any[] = [{ createdBy: user.userId }];
-    if (member) {
-      whereConditions.push({ workforceMemberId: member.id });
-    }
-
-    // Fetch past attendance sessions
-    const sessions = await prisma.attendanceSession.findMany({
+    // Query logged-in user's today session (for check-in / check-out state)
+    const todaySessionRaw = await prisma.attendanceSession.findFirst({
       where: {
         organizationId: user.organizationId,
-        workDate: { gte: startDateStr },
-        OR: whereConditions,
+        workDate: todayStr,
+        OR: [
+          { createdBy: user.userId },
+          ...(member ? [{ workforceMemberId: member.id }] : []),
+        ],
         isArchived: false,
       },
       include: {
         site: { select: { id: true, name: true, code: true } },
         project: { select: { id: true, name: true, code: true } },
         workforceMember: { select: { id: true, name: true, employeeCode: true, workerType: true } },
+        creator: { select: { id: true, name: true, email: true, role: true } },
+      },
+    });
+
+    let todaySession: any = null;
+    if (todaySessionRaw) {
+      let durMin = 0;
+      if (todaySessionRaw.checkInAt && todaySessionRaw.checkOutAt) {
+        durMin = Math.max(
+          0,
+          Math.round((new Date(todaySessionRaw.checkOutAt).getTime() - new Date(todaySessionRaw.checkInAt).getTime()) / 60000)
+        );
+      } else if (todaySessionRaw.checkInAt) {
+        durMin = Math.max(0, Math.round((Date.now() - new Date(todaySessionRaw.checkInAt).getTime()) / 60000));
+      }
+      const hrs = Math.floor(durMin / 60);
+      const mns = durMin % 60;
+      todaySession = {
+        id: todaySessionRaw.id,
+        workDate: todaySessionRaw.workDate,
+        status: todaySessionRaw.status,
+        checkInAt: todaySessionRaw.checkInAt,
+        checkInLat: todaySessionRaw.checkInLat,
+        checkInLng: todaySessionRaw.checkInLng,
+        checkOutAt: todaySessionRaw.checkOutAt,
+        checkOutLat: todaySessionRaw.checkOutLat,
+        checkOutLng: todaySessionRaw.checkOutLng,
+        durationMinutes: durMin,
+        durationFormatted:
+          durMin > 0 ? `${hrs > 0 ? `${hrs}h ` : ""}${mns}m` : todaySessionRaw.checkOutAt ? "0m" : "In Progress",
+        durationHours: parseFloat((durMin / 60).toFixed(1)),
+        site: todaySessionRaw.site,
+        project: todaySessionRaw.project,
+        notes: todaySessionRaw.notes,
+        isToday: true,
+      };
+    }
+
+    // Prepare where clause for attendance history
+    const sessionWhere: any = {
+      organizationId: user.organizationId,
+      workDate: { gte: startDateStr },
+      isArchived: false,
+    };
+
+    if (siteIdParam && siteIdParam !== "ALL") {
+      sessionWhere.siteId = siteIdParam;
+    }
+
+    if (!fetchAll) {
+      const personalConditions: any[] = [{ createdBy: user.userId }];
+      if (member) {
+        personalConditions.push({ workforceMemberId: member.id });
+      }
+      sessionWhere.OR = personalConditions;
+    }
+
+    // Fetch past attendance sessions
+    const sessions = await prisma.attendanceSession.findMany({
+      where: sessionWhere,
+      include: {
+        site: { select: { id: true, name: true, code: true } },
+        project: { select: { id: true, name: true, code: true } },
+        workforceMember: { select: { id: true, name: true, employeeCode: true, workerType: true } },
+        creator: { select: { id: true, name: true, email: true, role: true } },
       },
       orderBy: [{ workDate: "desc" }, { checkInAt: "desc" }],
     });
 
-    // Enrich sessions with formatted hours and duration
+    // Enrich sessions with formatted hours, duration, and staff details
     const enrichedSessions = sessions.map((s) => {
       let durationMinutes = 0;
       if (s.checkInAt && s.checkOutAt) {
@@ -78,6 +149,11 @@ export async function GET(req: NextRequest) {
           ? "0m"
           : "In Progress";
 
+      const employeeName = s.creator?.name || s.workforceMember?.name || "Staff Member";
+      const employeeRole = s.creator?.role || s.workforceMember?.workerType || "STAFF";
+      const employeeCode =
+        s.workforceMember?.employeeCode || (s.creator ? `USR-${s.creator.id.slice(-6).toUpperCase()}` : "N/A");
+
       return {
         id: s.id,
         workDate: s.workDate,
@@ -93,19 +169,21 @@ export async function GET(req: NextRequest) {
         durationHours: parseFloat((durationMinutes / 60).toFixed(1)),
         site: s.site,
         project: s.project,
+        workforceMember: s.workforceMember,
+        creator: s.creator,
+        employeeName,
+        employeeRole,
+        employeeCode,
+        employeeEmail: s.creator?.email || null,
         notes: s.notes,
         correctionReason: s.correctionReason,
         isToday: s.workDate === todayStr,
       };
     });
 
-    // Check today's active status
-    const todaySession = enrichedSessions.find((s) => s.workDate === todayStr) || null;
-
     // Monthly breakdown (e.g. 2026-10, 2026-09, 2026-08)
     const monthsMap = new Map<string, { monthKey: string; label: string; count: number; totalMinutes: number }>();
 
-    // Generate past N month keys in order
     for (let i = 0; i < targetMonths; i++) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
@@ -135,13 +213,19 @@ export async function GET(req: NextRequest) {
       totalHours: parseFloat((m.totalMinutes / 60).toFixed(1)),
     }));
 
-    // Overall metrics for the 3-month window
+    // Calculate metrics
     const totalDaysPresent = enrichedSessions.length;
     const completedShifts = enrichedSessions.filter((s) => !!s.checkOutAt).length;
     const totalMinutesLogged = enrichedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
     const totalHoursLogged = parseFloat((totalMinutesLogged / 60).toFixed(1));
     const averageDailyHours =
       totalDaysPresent > 0 ? parseFloat((totalHoursLogged / totalDaysPresent).toFixed(1)) : 0;
+
+    // Org-wide metrics for privileged viewers
+    const activeStaffToday = enrichedSessions.filter((s) => s.isToday && !s.checkOutAt).length;
+    const completedStaffToday = enrichedSessions.filter((s) => s.isToday && !!s.checkOutAt).length;
+    const totalStaffOnSiteToday = activeStaffToday + completedStaffToday;
+    const uniqueStaffCount = new Set(enrichedSessions.map((s) => s.employeeName + s.employeeCode)).size;
 
     return jsonSuccess({
       employee: {
@@ -151,6 +235,10 @@ export async function GET(req: NextRequest) {
         role: user.role,
         employeeCode: member?.employeeCode || userEmpCode,
       },
+      scope: fetchAll ? "all" : "self",
+      canViewAll: isPrivileged,
+      isSuperAdmin,
+      isAdmin,
       todaySession,
       metrics: {
         targetMonths,
@@ -158,6 +246,10 @@ export async function GET(req: NextRequest) {
         completedShifts,
         totalHoursLogged,
         averageDailyHours,
+        activeStaffToday,
+        completedStaffToday,
+        totalStaffOnSiteToday,
+        uniqueStaffCount,
       },
       monthsBreakdown,
       sessions: enrichedSessions,
