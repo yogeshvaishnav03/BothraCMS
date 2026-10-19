@@ -1021,7 +1021,7 @@ export default function FinancePage() {
                     <span className="text-[11px] text-slate-400">Filters:</span>
                     {paymentSearch && (
                       <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-medium border border-slate-200">
-                        "{paymentSearch}"
+                        &quot;{paymentSearch}&quot;
                         <button onClick={() => setPaymentSearch("")} className="hover:text-slate-900">
                           <X className="w-2.5 h-2.5" />
                         </button>
