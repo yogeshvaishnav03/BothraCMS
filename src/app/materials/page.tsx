@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
@@ -18,6 +18,9 @@ import {
   CheckCircle2,
   Trash2,
   ShoppingCart,
+  ChevronDown,
+  Check,
+  Sparkles,
 } from "lucide-react";
 
 interface StandardMaterialPreset {
@@ -142,48 +145,43 @@ export default function MaterialsPage() {
   const [newMatReorder, setNewMatReorder] = useState("");
   const [selectedMaterialPreset, setSelectedMaterialPreset] = useState("");
   const [isCustomMaterialName, setIsCustomMaterialName] = useState(false);
+  const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
+  const materialDropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleSelectMaterialPreset = (val: string) => {
-    setSelectedMaterialPreset(val);
-    if (val === "__CUSTOM__") {
-      setIsCustomMaterialName(true);
-      setNewMatName("");
-      return;
-    }
-    setIsCustomMaterialName(false);
-    let foundItem: any = null;
-    for (const group of STANDARD_CONSTRUCTION_MATERIALS) {
-      const match = group.items.find((i) => i.name === val);
-      if (match) {
-        foundItem = match;
-        break;
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        materialDropdownRef.current &&
+        !materialDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsMaterialDropdownOpen(false);
       }
-    }
-    if (foundItem) {
-      setNewMatName(foundItem.name);
-      setNewMatUnit(foundItem.unit);
-      setNewMatMinStock(foundItem.min ? String(foundItem.min) : "");
-      setNewMatReorder(foundItem.reorder ? String(foundItem.reorder) : "");
-      setNewMatSku(`${foundItem.sku}-${Math.floor(100 + Math.random() * 900)}`);
-    } else {
-      setNewMatName(val);
-    }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleSelectPreset = (preset: StandardMaterialPreset) => {
+    setNewMatName(preset.name);
+    setNewMatUnit(preset.unit);
+    setNewMatMinStock(preset.min ? String(preset.min) : "");
+    setNewMatReorder(preset.reorder ? String(preset.reorder) : "");
+    setNewMatSku(`${preset.sku}-${Math.floor(100 + Math.random() * 900)}`);
+    setSelectedMaterialPreset(preset.name);
+    setIsCustomMaterialName(false);
+    setIsMaterialDropdownOpen(false);
   };
 
-  const handleToggleCustomName = () => {
-    const nextState = !isCustomMaterialName;
-    setIsCustomMaterialName(nextState);
-    if (nextState) {
-      setSelectedMaterialPreset("__CUSTOM__");
-    } else {
-      setSelectedMaterialPreset("");
-      setNewMatName("");
-    }
-  };
-
-  const handleCustomNameChange = (val: string) => {
-    setNewMatName(val);
-    const cleaned = val
+  const handleSelectCustomName = (nameToUse: string) => {
+    const trimmed = nameToUse.trim();
+    if (!trimmed) return;
+    setNewMatName(trimmed);
+    setSelectedMaterialPreset("__CUSTOM__");
+    setIsCustomMaterialName(true);
+    const cleaned = trimmed
       .toUpperCase()
       .replace(/[^A-Z0-9\s]/g, "")
       .trim()
@@ -193,7 +191,67 @@ export default function MaterialsPage() {
     if (cleaned) {
       setNewMatSku(`MAT-${cleaned}-${Math.floor(100 + Math.random() * 900)}`);
     }
+    setIsMaterialDropdownOpen(false);
   };
+
+  const handleSearchInputChange = (val: string) => {
+    setNewMatName(val);
+    setIsMaterialDropdownOpen(true);
+
+    // Look for exact catalog match
+    let found: StandardMaterialPreset | null = null;
+    for (const group of STANDARD_CONSTRUCTION_MATERIALS) {
+      const match = group.items.find(
+        (i) => i.name.toLowerCase() === val.trim().toLowerCase()
+      );
+      if (match) {
+        found = match;
+        break;
+      }
+    }
+
+    if (found) {
+      setNewMatUnit(found.unit);
+      setNewMatMinStock(found.min ? String(found.min) : "");
+      setNewMatReorder(found.reorder ? String(found.reorder) : "");
+      setNewMatSku(`${found.sku}-${Math.floor(100 + Math.random() * 900)}`);
+      setSelectedMaterialPreset(found.name);
+      setIsCustomMaterialName(false);
+    } else {
+      setSelectedMaterialPreset("__CUSTOM__");
+      setIsCustomMaterialName(true);
+      const cleaned = val
+        .toUpperCase()
+        .replace(/[^A-Z0-9\s]/g, "")
+        .trim()
+        .split(/\s+/)
+        .slice(0, 3)
+        .join("-");
+      if (cleaned) {
+        setNewMatSku(`MAT-${cleaned}-${Math.floor(100 + Math.random() * 900)}`);
+      }
+    }
+  };
+
+  const filteredMaterialGroups = STANDARD_CONSTRUCTION_MATERIALS.map((group) => {
+    const q = newMatName.trim().toLowerCase();
+    if (!q) return group;
+    const matchingItems = group.items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        item.sku.toLowerCase().includes(q) ||
+        group.category.toLowerCase().includes(q)
+    );
+    return {
+      ...group,
+      items: matchingItems,
+    };
+  }).filter((group) => group.items.length > 0);
+
+  const totalMatchingMaterials = filteredMaterialGroups.reduce(
+    (acc, g) => acc + g.items.length,
+    0
+  );
 
   // Modal states
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -327,6 +385,7 @@ export default function MaterialsPage() {
         setNewMatReorder("");
         setSelectedMaterialPreset("");
         setIsCustomMaterialName(false);
+        setIsMaterialDropdownOpen(false);
         loadMaterials();
       }
     } catch {
@@ -538,6 +597,7 @@ export default function MaterialsPage() {
                 setNewMatReorder("");
                 setSelectedMaterialPreset("");
                 setIsCustomMaterialName(false);
+                setIsMaterialDropdownOpen(false);
                 setShowCreateMaterialModal(true);
               }}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
@@ -1226,7 +1286,7 @@ export default function MaterialsPage() {
         {/* Modal: Create Material */}
         {showCreateMaterialModal && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Boxes className="w-5 h-5 text-amber-500" />
@@ -1234,67 +1294,172 @@ export default function MaterialsPage() {
                 </div>
                 <button
                   onClick={() => setShowCreateMaterialModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <form onSubmit={handleCreateMaterial} className="space-y-4">
-                <div>
+                <div className="relative" ref={materialDropdownRef}>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-xs font-semibold text-slate-700 uppercase">
                       Material Name *
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleToggleCustomName}
-                      className="text-[11px] font-bold text-amber-600 hover:text-amber-700 underline flex items-center gap-1 cursor-pointer"
-                    >
-                      {isCustomMaterialName ? "📋 Select from Dropdown" : "➕ + Add New Material Name"}
-                    </button>
+                    {newMatName.trim() && (
+                      <span className="text-[11px] text-slate-500">
+                        {selectedMaterialPreset && selectedMaterialPreset !== "__CUSTOM__" ? (
+                          <span className="text-emerald-700 font-bold inline-flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                            <Check className="w-3 h-3 text-emerald-600" /> Catalog Preset Selected
+                          </span>
+                        ) : (
+                          <span className="text-amber-700 font-bold inline-flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
+                            <Sparkles className="w-3 h-3 text-amber-600" /> Custom Material
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </div>
 
-                  {!isCustomMaterialName ? (
-                    <div>
-                      <select
-                        value={selectedMaterialPreset}
-                        onChange={(e) => handleSelectMaterialPreset(e.target.value)}
-                        required
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                  {/* Search Combobox Input */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Type to search material (e.g. Cement, 12mm TMT, Sand, Paint)..."
+                      value={newMatName}
+                      onChange={(e) => handleSearchInputChange(e.target.value)}
+                      onFocus={() => setIsMaterialDropdownOpen(true)}
+                      className="w-full pl-9 pr-16 bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    />
+                    <div className="absolute right-2 top-2 flex items-center gap-0.5">
+                      {newMatName && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewMatName("");
+                            setSelectedMaterialPreset("");
+                            setIsCustomMaterialName(false);
+                            setIsMaterialDropdownOpen(true);
+                          }}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                          title="Clear input"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsMaterialDropdownOpen((prev) => !prev)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                        title="Toggle materials list"
                       >
-                        <option value="">-- Select Material from Dropdown --</option>
-                        <option value="__CUSTOM__">➕ + Add New / Custom Material Name (Type Below)...</option>
-                        {STANDARD_CONSTRUCTION_MATERIALS.map((group) => (
-                          <optgroup key={group.category} label={`── ${group.category} ──`}>
-                            {group.items.map((item) => (
-                              <option key={item.name} value={item.name}>
-                                {item.name} ({item.unit})
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        Select a standard material to auto-fill unit &amp; inventory reorder levels, or click &quot;+ Add New Material Name&quot; to type a custom name.
-                      </p>
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform duration-200 ${
+                            isMaterialDropdownOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
                     </div>
-                  ) : (
-                    <div>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Type new material name (e.g. UltraTech Super Cement 53 / Gyproc Sheet)"
-                        value={newMatName}
-                        onChange={(e) => handleCustomNameChange(e.target.value)}
-                        autoFocus
-                        className="w-full bg-slate-50 border border-amber-300 ring-2 ring-amber-500/10 rounded-lg p-2.5 text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        Entering custom material name. SKU code &amp; unit can be configured below.
-                      </p>
+                  </div>
+
+                  {/* Search Autocomplete Dropdown List */}
+                  {isMaterialDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-64 overflow-y-auto divide-y divide-slate-100">
+                      {/* Option to use typed text as custom material */}
+                      {newMatName.trim() && (
+                        <div
+                          onClick={() => handleSelectCustomName(newMatName)}
+                          className="p-2.5 bg-amber-50/70 hover:bg-amber-100/90 cursor-pointer flex items-center justify-between transition-colors border-b border-amber-100"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Plus className="w-4 h-4 text-amber-600 shrink-0" />
+                            <div className="text-xs text-amber-900 font-medium">
+                              Use <strong className="font-bold text-amber-950">&quot;{newMatName.trim()}&quot;</strong> as custom material name
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold uppercase bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full shrink-0">
+                            Custom
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Header summary */}
+                      <div className="px-3 py-1.5 bg-slate-50 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                        <span>
+                          {newMatName.trim()
+                            ? `Found ${totalMatchingMaterials} matching standard material${
+                                totalMatchingMaterials === 1 ? "" : "s"
+                              }`
+                            : "Standard Construction Catalog (Click to select)"}
+                        </span>
+                        <span className="text-[10px] text-slate-400">Auto-fills unit &amp; thresholds</span>
+                      </div>
+
+                      {/* Filtered items */}
+                      {filteredMaterialGroups.length > 0 ? (
+                        filteredMaterialGroups.map((group) => (
+                          <div key={group.category} className="py-1">
+                            <div className="px-3 py-1 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              {group.category}
+                            </div>
+                            {group.items.map((item) => {
+                              const isSelected = newMatName === item.name;
+                              return (
+                                <div
+                                  key={item.name}
+                                  onClick={() => handleSelectPreset(item)}
+                                  className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                                    isSelected
+                                      ? "bg-amber-50 font-bold text-amber-900"
+                                      : "hover:bg-slate-50 text-slate-800"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {isSelected ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    ) : (
+                                      <div className="w-3.5 h-3.5 shrink-0" />
+                                    )}
+                                    <div>
+                                      <div className="text-xs font-semibold text-slate-800">
+                                        {item.name}
+                                      </div>
+                                      <div className="text-[10px] text-slate-400">
+                                        SKU: {item.sku} • Min: {item.min} • Reorder: {item.reorder} {item.unit}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
+                                    {item.unit}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center">
+                          <p className="text-xs text-slate-500">
+                            No catalog materials matching &quot;{newMatName}&quot;
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectCustomName(newMatName)}
+                            className="mt-2 text-xs font-bold text-amber-600 hover:text-amber-700 underline inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Use &quot;{newMatName}&quot; as custom material
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Type to quickly search materials (e.g. &quot;Cement&quot;, &quot;12mm&quot;, &quot;Sand&quot;, &quot;Paint&quot;) or enter any custom name.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
