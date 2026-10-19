@@ -29,6 +29,20 @@ import {
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 
+// Safely fetch and parse JSON, never throwing SyntaxError on HTML (e.g. 500 error pages)
+async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
+  try {
+    const res = await fetch(url, init);
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      return await res.json();
+    }
+    return { success: false, data: [] };
+  } catch {
+    return { success: false, data: [] };
+  }
+}
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -104,23 +118,37 @@ export default function TasksPage() {
     }
 
     Promise.all([
-      fetch(url).then((r) => r.json()),
-      fetch("/api/projects").then((r) => r.json()),
-      fetch("/api/chat/employees").then((r) => r.json()),
+      safeFetchJson(url),
+      safeFetchJson("/api/projects"),
+      safeFetchJson("/api/chat/employees"),
     ])
       .then(([tasksRes, projRes, empRes]) => {
-        if (tasksRes.success) {
-          setTasks(tasksRes.data || []);
+        if (tasksRes && tasksRes.success) {
+          const rawTasks = Array.isArray(tasksRes.data)
+            ? tasksRes.data
+            : Array.isArray(tasksRes.data?.tasks)
+            ? tasksRes.data.tasks
+            : [];
+          setTasks(rawTasks);
         }
-        if (projRes.success) {
-          const rawProj = projRes.data || [];
+        if (projRes && projRes.success) {
+          const rawProj = Array.isArray(projRes.data)
+            ? projRes.data
+            : Array.isArray(projRes.data?.projects)
+            ? projRes.data.projects
+            : [];
           setProjects(rawProj);
           if (rawProj.length > 0 && !projectId) {
             setProjectId(rawProj[0].id);
           }
         }
-        if (empRes.success) {
-          setEmployees(empRes.data || []);
+        if (empRes && empRes.success) {
+          const rawEmp = Array.isArray(empRes.data?.employees)
+            ? empRes.data.employees
+            : Array.isArray(empRes.data)
+            ? empRes.data
+            : [];
+          setEmployees(rawEmp);
         }
       })
       .catch((err) => {
@@ -136,11 +164,10 @@ export default function TasksPage() {
 
   const loadComments = (taskId: string) => {
     setCommentsLoading(true);
-    fetch(`/api/tasks/${taskId}/comments`)
-      .then((r) => r.json())
+    safeFetchJson(`/api/tasks/${taskId}/comments`)
       .then((res) => {
-        if (res.success) {
-          setComments(res.data || []);
+        if (res && res.success) {
+          setComments(Array.isArray(res.data) ? res.data : []);
         }
       })
       .catch(console.error)
@@ -330,9 +357,10 @@ export default function TasksPage() {
     return new Date(task.dueAt).getTime() < Date.now();
   };
 
-  const filteredTasks = tasks.filter(
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+  const filteredTasks = safeTasks.filter(
     (t) =>
-      t.title.toLowerCase().includes(search.toLowerCase()) ||
+      (t.title || "").toLowerCase().includes(search.toLowerCase()) ||
       (t.description && t.description.toLowerCase().includes(search.toLowerCase())) ||
       (t.assignee?.name && t.assignee.name.toLowerCase().includes(search.toLowerCase())) ||
       (t.project?.name && t.project.name.toLowerCase().includes(search.toLowerCase()))
@@ -399,7 +427,7 @@ export default function TasksPage() {
               className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700"
             >
               <option value="">All Employees</option>
-              {employees.map((emp) => (
+              {(Array.isArray(employees) ? employees : []).map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.name} ({emp.role})
                 </option>
@@ -681,7 +709,7 @@ export default function TasksPage() {
                     required
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    {projects.map((p) => (
+                    {(Array.isArray(projects) ? projects : []).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} ({p.code})
                       </option>
@@ -744,7 +772,7 @@ export default function TasksPage() {
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                     >
                       <option value="">Unassigned / Current User</option>
-                      {employees.map((emp) => (
+                      {(Array.isArray(employees) ? employees : []).map((emp) => (
                         <option key={emp.id} value={emp.id}>
                           {emp.name} ({emp.role})
                         </option>
@@ -886,7 +914,7 @@ export default function TasksPage() {
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                     >
                       <option value="">Unassigned</option>
-                      {employees.map((emp) => (
+                      {(Array.isArray(employees) ? employees : []).map((emp) => (
                         <option key={emp.id} value={emp.id}>
                           {emp.name} ({emp.role})
                         </option>
@@ -1059,7 +1087,7 @@ export default function TasksPage() {
                     No comments or requests yet. Post a question or note below.
                   </div>
                 ) : (
-                  comments.map((c) => (
+                  (Array.isArray(comments) ? comments : []).map((c) => (
                     <div
                       key={c.id}
                       className={`p-3 rounded-xl border text-xs space-y-1.5 ${
