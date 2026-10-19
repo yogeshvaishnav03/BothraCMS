@@ -11,17 +11,20 @@ export interface WorkforceHeadcountRecord {
   siteName: string;
   date: string; // YYYY-MM-DD
   shift: "GENERAL" | "DAY" | "NIGHT";
-  artisanMale: number;
-  artisanFemale: number;
-  artisanTotal: number;
-  craftsmanMale: number;
-  craftsmanFemale: number;
-  craftsmanTotal: number;
+  artisanCount: number; // Direct headcount
+  craftsmanCount: number; // Direct headcount
   laborerMale: number;
   laborerFemale: number;
   laborerTotal: number;
-  totalMale: number;
-  totalFemale: number;
+  // Backward compatibility fields
+  artisanMale?: number;
+  artisanFemale?: number;
+  artisanTotal?: number;
+  craftsmanMale?: number;
+  craftsmanFemale?: number;
+  craftsmanTotal?: number;
+  totalMale?: number;
+  totalFemale?: number;
   grandTotal: number;
   contractorName?: string;
   notes?: string;
@@ -35,12 +38,14 @@ export interface SaveHeadcountInput {
   siteId: string;
   date: string; // YYYY-MM-DD
   shift?: "GENERAL" | "DAY" | "NIGHT";
-  artisanMale: number;
-  artisanFemale: number;
-  craftsmanMale: number;
-  craftsmanFemale: number;
+  artisanCount?: number;
+  craftsmanCount?: number;
   laborerMale: number;
   laborerFemale: number;
+  artisanMale?: number;
+  artisanFemale?: number;
+  craftsmanMale?: number;
+  craftsmanFemale?: number;
   contractorName?: string;
   notes?: string;
 }
@@ -68,6 +73,31 @@ function ensureStorageDir() {
   }
 }
 
+function normalizeRecord(r: any): WorkforceHeadcountRecord {
+  const artisanCount = Number(
+    r.artisanCount ?? r.artisanTotal ?? ((Number(r.artisanMale) || 0) + (Number(r.artisanFemale) || 0))
+  ) || 0;
+  const craftsmanCount = Number(
+    r.craftsmanCount ?? r.craftsmanTotal ?? ((Number(r.craftsmanMale) || 0) + (Number(r.craftsmanFemale) || 0))
+  ) || 0;
+  const laborerMale = Number(r.laborerMale) || 0;
+  const laborerFemale = Number(r.laborerFemale) || 0;
+  const laborerTotal = Number(r.laborerTotal ?? (laborerMale + laborerFemale)) || 0;
+  const grandTotal = Number(r.grandTotal ?? (artisanCount + craftsmanCount + laborerTotal)) || 0;
+
+  return {
+    ...r,
+    artisanCount,
+    artisanTotal: artisanCount,
+    craftsmanCount,
+    craftsmanTotal: craftsmanCount,
+    laborerMale,
+    laborerFemale,
+    laborerTotal,
+    grandTotal,
+  };
+}
+
 function loadAllRecords(): WorkforceHeadcountRecord[] {
   ensureStorageDir();
   try {
@@ -75,8 +105,9 @@ function loadAllRecords(): WorkforceHeadcountRecord[] {
       const raw = fs.readFileSync(STORAGE_FILE, "utf-8");
       const data = JSON.parse(raw);
       if (Array.isArray(data)) {
-        g.__WORKFORCE_HEADCOUNT__ = data;
-        return data;
+        const normalized = data.map(normalizeRecord);
+        g.__WORKFORCE_HEADCOUNT__ = normalized;
+        return normalized;
       }
     }
   } catch (err) {
@@ -86,13 +117,14 @@ function loadAllRecords(): WorkforceHeadcountRecord[] {
         const bakRaw = fs.readFileSync(BACKUP_FILE, "utf-8");
         const bakData = JSON.parse(bakRaw);
         if (Array.isArray(bakData)) {
-          g.__WORKFORCE_HEADCOUNT__ = bakData;
-          return bakData;
+          const normalized = bakData.map(normalizeRecord);
+          g.__WORKFORCE_HEADCOUNT__ = normalized;
+          return normalized;
         }
       }
     } catch {}
   }
-  return g.__WORKFORCE_HEADCOUNT__ || [];
+  return (g.__WORKFORCE_HEADCOUNT__ || []).map(normalizeRecord);
 }
 
 function saveAllRecords(records: WorkforceHeadcountRecord[]) {
@@ -154,21 +186,33 @@ export class WorkforceHeadcountService {
     const shift = input.shift || "GENERAL";
     const date = input.date || new Date().toISOString().split("T")[0];
 
-    const artisanMale = Math.max(0, Math.floor(Number(input.artisanMale) || 0));
-    const artisanFemale = Math.max(0, Math.floor(Number(input.artisanFemale) || 0));
-    const artisanTotal = artisanMale + artisanFemale;
+    const artisanCount = Math.max(
+      0,
+      Math.floor(
+        Number(
+          input.artisanCount !== undefined
+            ? input.artisanCount
+            : (Number(input.artisanMale) || 0) + (Number(input.artisanFemale) || 0)
+        ) || 0
+      )
+    );
 
-    const craftsmanMale = Math.max(0, Math.floor(Number(input.craftsmanMale) || 0));
-    const craftsmanFemale = Math.max(0, Math.floor(Number(input.craftsmanFemale) || 0));
-    const craftsmanTotal = craftsmanMale + craftsmanFemale;
+    const craftsmanCount = Math.max(
+      0,
+      Math.floor(
+        Number(
+          input.craftsmanCount !== undefined
+            ? input.craftsmanCount
+            : (Number(input.craftsmanMale) || 0) + (Number(input.craftsmanFemale) || 0)
+        ) || 0
+      )
+    );
 
     const laborerMale = Math.max(0, Math.floor(Number(input.laborerMale) || 0));
     const laborerFemale = Math.max(0, Math.floor(Number(input.laborerFemale) || 0));
     const laborerTotal = laborerMale + laborerFemale;
 
-    const totalMale = artisanMale + craftsmanMale + laborerMale;
-    const totalFemale = artisanFemale + craftsmanFemale + laborerFemale;
-    const grandTotal = totalMale + totalFemale;
+    const grandTotal = artisanCount + craftsmanCount + laborerTotal;
 
     const now = new Date().toISOString();
     const records = loadAllRecords();
@@ -189,17 +233,15 @@ export class WorkforceHeadcountService {
       savedRecord = {
         ...records[existingIndex],
         siteName,
-        artisanMale,
-        artisanFemale,
-        artisanTotal,
-        craftsmanMale,
-        craftsmanFemale,
-        craftsmanTotal,
+        artisanCount,
+        craftsmanCount,
+        artisanTotal: artisanCount,
+        craftsmanTotal: craftsmanCount,
         laborerMale,
         laborerFemale,
         laborerTotal,
-        totalMale,
-        totalFemale,
+        totalMale: laborerMale,
+        totalFemale: laborerFemale,
         grandTotal,
         contractorName: input.contractorName?.trim() || records[existingIndex].contractorName,
         notes: input.notes?.trim() ?? records[existingIndex].notes,
@@ -217,17 +259,15 @@ export class WorkforceHeadcountService {
         siteName,
         date,
         shift,
-        artisanMale,
-        artisanFemale,
-        artisanTotal,
-        craftsmanMale,
-        craftsmanFemale,
-        craftsmanTotal,
+        artisanCount,
+        craftsmanCount,
+        artisanTotal: artisanCount,
+        craftsmanTotal: craftsmanCount,
         laborerMale,
         laborerFemale,
         laborerTotal,
-        totalMale,
-        totalFemale,
+        totalMale: laborerMale,
+        totalFemale: laborerFemale,
         grandTotal,
         contractorName: input.contractorName?.trim() || undefined,
         notes: input.notes?.trim() || undefined,
@@ -250,7 +290,7 @@ export class WorkforceHeadcountService {
           action: "WORKFORCE_COUNT_LOGGED",
           entityType: "SITE_WORKFORCE",
           entityId: savedRecord.id,
-          reason: `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanTotal}, Craftsmen: ${craftsmanTotal}, Laborers: ${laborerTotal})`,
+          reason: `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanCount}, Craftsmen: ${craftsmanCount}, Laborers: ${laborerTotal} [${laborerMale} Male, ${laborerFemale} Female])`,
           afterJson: JSON.stringify(savedRecord),
         },
       });
@@ -279,12 +319,12 @@ export class WorkforceHeadcountService {
     const today = date || new Date().toISOString().split("T")[0];
     const records = await this.listRecords(organizationId, { siteId, date: today });
 
-    const totalArtisan = records.reduce((s, r) => s + r.artisanTotal, 0);
-    const totalCraftsman = records.reduce((s, r) => s + r.craftsmanTotal, 0);
+    const totalArtisan = records.reduce((s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
+    const totalCraftsman = records.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
     const totalLaborer = records.reduce((s, r) => s + r.laborerTotal, 0);
-    const totalMale = records.reduce((s, r) => s + r.totalMale, 0);
-    const totalFemale = records.reduce((s, r) => s + r.totalFemale, 0);
-    const grandTotal = totalMale + totalFemale;
+    const totalLaborerMale = records.reduce((s, r) => s + r.laborerMale, 0);
+    const totalLaborerFemale = records.reduce((s, r) => s + r.laborerFemale, 0);
+    const grandTotal = totalArtisan + totalCraftsman + totalLaborer;
 
     return {
       date: today,
@@ -292,11 +332,11 @@ export class WorkforceHeadcountService {
       totalArtisan,
       totalCraftsman,
       totalLaborer,
-      totalMale,
-      totalFemale,
+      totalLaborerMale,
+      totalLaborerFemale,
       grandTotal,
-      maleRatio: grandTotal > 0 ? Math.round((totalMale / grandTotal) * 100) : 0,
-      femaleRatio: grandTotal > 0 ? Math.round((totalFemale / grandTotal) * 100) : 0,
+      laborerMaleRatio: totalLaborer > 0 ? Math.round((totalLaborerMale / totalLaborer) * 100) : 0,
+      laborerFemaleRatio: totalLaborer > 0 ? Math.round((totalLaborerFemale / totalLaborer) * 100) : 0,
     };
   }
 }

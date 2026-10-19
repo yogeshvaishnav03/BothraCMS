@@ -33,17 +33,15 @@ interface HeadcountRecord {
   siteName: string;
   date: string;
   shift: "GENERAL" | "DAY" | "NIGHT";
-  artisanMale: number;
-  artisanFemale: number;
-  artisanTotal: number;
-  craftsmanMale: number;
-  craftsmanFemale: number;
-  craftsmanTotal: number;
+  artisanCount: number;
+  craftsmanCount: number;
   laborerMale: number;
   laborerFemale: number;
   laborerTotal: number;
-  totalMale: number;
-  totalFemale: number;
+  artisanTotal?: number;
+  craftsmanTotal?: number;
+  totalMale?: number;
+  totalFemale?: number;
   grandTotal: number;
   contractorName?: string;
   notes?: string;
@@ -80,11 +78,9 @@ export default function WorkforcePage() {
   const [modalDate, setModalDate] = useState(new Date().toISOString().split("T")[0]);
   const [modalShift, setModalShift] = useState<"GENERAL" | "DAY" | "NIGHT">("GENERAL");
 
-  // Headcount breakdown state
-  const [artisanMale, setArtisanMale] = useState<number>(0);
-  const [artisanFemale, setArtisanFemale] = useState<number>(0);
-  const [craftsmanMale, setCraftsmanMale] = useState<number>(0);
-  const [craftsmanFemale, setCraftsmanFemale] = useState<number>(0);
+  // Headcount breakdown state: Direct counts for Artisan & Craftsman; Male & Female for Laborer
+  const [artisanCount, setArtisanCount] = useState<number>(0);
+  const [craftsmanCount, setCraftsmanCount] = useState<number>(0);
   const [laborerMale, setLaborerMale] = useState<number>(0);
   const [laborerFemale, setLaborerFemale] = useState<number>(0);
   const [contractorName, setContractorName] = useState("");
@@ -109,12 +105,8 @@ export default function WorkforcePage() {
   const canWrite = canUser(currentUser, "attendance:write");
 
   // Calculate live totals for the modal form
-  const modalArtisanTotal = artisanMale + artisanFemale;
-  const modalCraftsmanTotal = craftsmanMale + craftsmanFemale;
   const modalLaborerTotal = laborerMale + laborerFemale;
-  const modalTotalMale = artisanMale + craftsmanMale + laborerMale;
-  const modalTotalFemale = artisanFemale + craftsmanFemale + laborerFemale;
-  const modalGrandTotal = modalTotalMale + modalTotalFemale;
+  const modalGrandTotal = artisanCount + craftsmanCount + modalLaborerTotal;
 
   const loadData = async () => {
     setLoading(true);
@@ -165,22 +157,18 @@ export default function WorkforcePage() {
       setModalSiteId(existing.siteId);
       setModalDate(existing.date);
       setModalShift(existing.shift);
-      setArtisanMale(existing.artisanMale);
-      setArtisanFemale(existing.artisanFemale);
-      setCraftsmanMale(existing.craftsmanMale);
-      setCraftsmanFemale(existing.craftsmanFemale);
-      setLaborerMale(existing.laborerMale);
-      setLaborerFemale(existing.laborerFemale);
+      setArtisanCount(existing.artisanCount ?? existing.artisanTotal ?? 0);
+      setCraftsmanCount(existing.craftsmanCount ?? existing.craftsmanTotal ?? 0);
+      setLaborerMale(existing.laborerMale || 0);
+      setLaborerFemale(existing.laborerFemale || 0);
       setContractorName(existing.contractorName || "");
       setNotes(existing.notes || "");
     } else {
       setModalSiteId(selectedSiteId || (sites.length > 0 ? sites[0].id : ""));
       setModalDate(selectedDate);
       setModalShift("GENERAL");
-      setArtisanMale(0);
-      setArtisanFemale(0);
-      setCraftsmanMale(0);
-      setCraftsmanFemale(0);
+      setArtisanCount(0);
+      setCraftsmanCount(0);
       setLaborerMale(0);
       setLaborerFemale(0);
       setContractorName("");
@@ -197,7 +185,7 @@ export default function WorkforcePage() {
     }
 
     if (modalGrandTotal === 0) {
-      setErrorMessage("Please enter worker count for at least one trade (Artisan, Craftsman, or Laborer).");
+      setErrorMessage("Please enter worker count for at least one category (Artisan, Craftsman, or Laborer).");
       return;
     }
 
@@ -213,10 +201,8 @@ export default function WorkforcePage() {
           siteId: modalSiteId,
           date: modalDate,
           shift: modalShift,
-          artisanMale,
-          artisanFemale,
-          craftsmanMale,
-          craftsmanFemale,
+          artisanCount,
+          craftsmanCount,
           laborerMale,
           laborerFemale,
           contractorName: contractorName.trim() || undefined,
@@ -229,8 +215,9 @@ export default function WorkforcePage() {
         setErrorMessage(data.error?.message || "Failed to save workforce count");
       } else {
         const siteName = sites.find((s) => s.id === modalSiteId)?.name || "Site";
+        const saved = data.data;
         setStatusMessage(
-          `Workforce count for ${siteName} on ${formatDate(modalDate)} saved! Total: ${data.data.grandTotal} workers (${data.data.totalMale} Male, ${data.data.totalFemale} Female).`
+          `Workforce count for ${siteName} on ${formatDate(modalDate)} saved! Total: ${saved.grandTotal} workers (Artisans: ${saved.artisanCount}, Craftsmen: ${saved.craftsmanCount}, Laborers: ${saved.laborerTotal} [${saved.laborerMale}M / ${saved.laborerFemale}F]).`
         );
         setShowUploadModal(false);
         await loadData();
@@ -330,15 +317,15 @@ export default function WorkforcePage() {
   }, [records, selectedSiteId, selectedDate]);
 
   // Summary statistics for the site
-  const siteTotalArtisan = filteredRecords.reduce((s, r) => s + r.artisanTotal, 0);
-  const siteTotalCraftsman = filteredRecords.reduce((s, r) => s + r.craftsmanTotal, 0);
-  const siteTotalLaborer = filteredRecords.reduce((s, r) => s + r.laborerTotal, 0);
+  const siteTotalArtisan = filteredRecords.reduce((s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
+  const siteTotalCraftsman = filteredRecords.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
+  const siteTotalLaborer = filteredRecords.reduce((s, r) => s + (r.laborerTotal ?? 0), 0);
+  const siteLaborerMale = filteredRecords.reduce((s, r) => s + (r.laborerMale ?? 0), 0);
+  const siteLaborerFemale = filteredRecords.reduce((s, r) => s + (r.laborerFemale ?? 0), 0);
   const siteGrandTotal = siteTotalArtisan + siteTotalCraftsman + siteTotalLaborer;
 
-  const siteTotalMale = filteredRecords.reduce((s, r) => s + r.totalMale, 0);
-  const siteTotalFemale = filteredRecords.reduce((s, r) => s + r.totalFemale, 0);
-  const malePercent = siteGrandTotal > 0 ? Math.round((siteTotalMale / siteGrandTotal) * 100) : 0;
-  const femalePercent = siteGrandTotal > 0 ? Math.round((siteTotalFemale / siteGrandTotal) * 100) : 0;
+  const laborerMalePercent = siteTotalLaborer > 0 ? Math.round((siteLaborerMale / siteTotalLaborer) * 100) : 0;
+  const laborerFemalePercent = siteTotalLaborer > 0 ? Math.round((siteLaborerFemale / siteTotalLaborer) * 100) : 0;
 
   const currentSelectedSite = sites.find((s) => s.id === selectedSiteId);
 
@@ -502,12 +489,12 @@ export default function WorkforcePage() {
                   <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 </div>
                 <div className="text-xl font-black text-slate-900 mt-1 tabular-nums">
-                  {selectedSiteTodayRecord ? selectedSiteTodayRecord.artisanTotal : siteTotalArtisan}
+                  {selectedSiteTodayRecord ? (selectedSiteTodayRecord.artisanCount ?? selectedSiteTodayRecord.artisanTotal ?? 0) : siteTotalArtisan}
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span>M: {selectedSiteTodayRecord ? selectedSiteTodayRecord.artisanMale : "—"}</span>
+                  <span className="text-amber-700 font-bold">Direct Count</span>
                   <span>&bull;</span>
-                  <span>F: {selectedSiteTodayRecord ? selectedSiteTodayRecord.artisanFemale : "—"}</span>
+                  <span>Skilled Trades</span>
                 </div>
               </div>
 
@@ -520,12 +507,12 @@ export default function WorkforcePage() {
                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                 </div>
                 <div className="text-xl font-black text-slate-900 mt-1 tabular-nums">
-                  {selectedSiteTodayRecord ? selectedSiteTodayRecord.craftsmanTotal : siteTotalCraftsman}
+                  {selectedSiteTodayRecord ? (selectedSiteTodayRecord.craftsmanCount ?? selectedSiteTodayRecord.craftsmanTotal ?? 0) : siteTotalCraftsman}
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span>M: {selectedSiteTodayRecord ? selectedSiteTodayRecord.craftsmanMale : "—"}</span>
+                  <span className="text-blue-700 font-bold">Direct Count</span>
                   <span>&bull;</span>
-                  <span>F: {selectedSiteTodayRecord ? selectedSiteTodayRecord.craftsmanFemale : "—"}</span>
+                  <span>Trade Technicians</span>
                 </div>
               </div>
 
@@ -541,22 +528,22 @@ export default function WorkforcePage() {
                   {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerTotal : siteTotalLaborer}
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span>M: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerMale : "—"}</span>
+                  <span>M: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerMale : siteLaborerMale}</span>
                   <span>&bull;</span>
-                  <span>F: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerFemale : "—"}</span>
+                  <span>F: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerFemale : siteLaborerFemale}</span>
                 </div>
               </div>
 
-              {/* Gender Ratio Card */}
+              {/* Laborer Gender Split Card */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Gender Ratio
+                  Laborer Gender Split
                 </span>
                 <div className="text-xl font-black text-purple-700 mt-1 tabular-nums">
-                  {malePercent}% M / {femalePercent}% F
+                  {laborerMalePercent}% M / {laborerFemalePercent}% F
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1">
-                  Male: {selectedSiteTodayRecord ? selectedSiteTodayRecord.totalMale : siteTotalMale} &bull; Female: {selectedSiteTodayRecord ? selectedSiteTodayRecord.totalFemale : siteTotalFemale}
+                  Male: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerMale : siteLaborerMale} &bull; Female: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerFemale : siteLaborerFemale}
                 </div>
               </div>
             </div>
@@ -615,10 +602,10 @@ export default function WorkforcePage() {
                     <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                       <tr>
                         <th className="py-3 px-4">Date & Shift</th>
-                        <th className="py-3 px-4">Artisan (M / F / Total)</th>
-                        <th className="py-3 px-4">Craftsman (M / F / Total)</th>
+                        <th className="py-3 px-4">Artisan (Direct Count)</th>
+                        <th className="py-3 px-4">Craftsman (Direct Count)</th>
                         <th className="py-3 px-4">Laborer (M / F / Total)</th>
-                        <th className="py-3 px-4">Grand Total</th>
+                        <th className="py-3 px-4">Total Workforce</th>
                         <th className="py-3 px-4">Contractor / Agency</th>
                         <th className="py-3 px-4">Logged By</th>
                         {canWrite && <th className="py-3 px-4 text-right">Actions</th>}
@@ -638,17 +625,21 @@ export default function WorkforcePage() {
 
                           {/* Artisan */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <div className="font-bold text-slate-800">{r.artisanTotal} total</div>
+                            <div className="font-bold text-slate-900 tabular-nums">
+                              {r.artisanCount ?? r.artisanTotal ?? 0}
+                            </div>
                             <div className="text-[10px] text-slate-500">
-                              M: {r.artisanMale} &bull; F: {r.artisanFemale}
+                              Direct Count
                             </div>
                           </td>
 
                           {/* Craftsman */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <div className="font-bold text-slate-800">{r.craftsmanTotal} total</div>
+                            <div className="font-bold text-slate-900 tabular-nums">
+                              {r.craftsmanCount ?? r.craftsmanTotal ?? 0}
+                            </div>
                             <div className="text-[10px] text-slate-500">
-                              M: {r.craftsmanMale} &bull; F: {r.craftsmanFemale}
+                              Direct Count
                             </div>
                           </td>
 
@@ -660,13 +651,13 @@ export default function WorkforcePage() {
                             </div>
                           </td>
 
-                          {/* Grand Total */}
+                          {/* Total Workforce */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
                               {r.grandTotal} Workers
                             </span>
-                            <div className="text-[10px] text-slate-500 mt-1 font-mono">
-                              M: {r.totalMale} &bull; F: {r.totalFemale}
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              A:{r.artisanCount ?? r.artisanTotal ?? 0} &bull; C:{r.craftsmanCount ?? r.craftsmanTotal ?? 0} &bull; L:{r.laborerTotal}
                             </div>
                           </td>
 
@@ -854,51 +845,36 @@ export default function WorkforcePage() {
                   </div>
                 </div>
 
-                {/* The 3 Categories (Artisan, Craftsman, Laborer) */}
+                {/* The 3 Categories (Artisan: Direct, Craftsman: Direct, Laborer: Male & Female) */}
                 <div className="space-y-3">
-                  {/* Category 1: Artisan */}
+                  {/* Category 1: Artisan (Direct Count) */}
                   <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5 font-black text-xs text-amber-950">
                         <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                        <span>1. Artisan (कुशल शिल्पी / कारीगर)</span>
+                        <span>1. Artisan (कारीगर / कुशल शिल्पी)</span>
                       </div>
                       <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
-                        Subtotal: {modalArtisanTotal}
+                        Direct Count: {artisanCount}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Male Count:
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={artisanMale || ""}
-                          placeholder="0"
-                          onChange={(e) => setArtisanMale(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full bg-white border border-amber-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Female Count:
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={artisanFemale || ""}
-                          placeholder="0"
-                          onChange={(e) => setArtisanFemale(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full bg-white border border-amber-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                        />
-                      </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
+                        Artisan Headcount (Direct Count):
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={artisanCount || ""}
+                        placeholder="0"
+                        onChange={(e) => setArtisanCount(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full bg-white border border-amber-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      />
                     </div>
                   </div>
 
-                  {/* Category 2: Craftsman */}
+                  {/* Category 2: Craftsman (Direct Count) */}
                   <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200/80">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5 font-black text-xs text-blue-950">
@@ -906,41 +882,26 @@ export default function WorkforcePage() {
                         <span>2. Craftsman (शिल्पकार / मिस्त्री / ट्रेडमैन)</span>
                       </div>
                       <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-blue-200 text-blue-900">
-                        Subtotal: {modalCraftsmanTotal}
+                        Direct Count: {craftsmanCount}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Male Count:
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={craftsmanMale || ""}
-                          placeholder="0"
-                          onChange={(e) => setCraftsmanMale(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full bg-white border border-blue-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Female Count:
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={craftsmanFemale || ""}
-                          placeholder="0"
-                          onChange={(e) => setCraftsmanFemale(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full bg-white border border-blue-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        />
-                      </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
+                        Craftsman Headcount (Direct Count):
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={craftsmanCount || ""}
+                        placeholder="0"
+                        onChange={(e) => setCraftsmanCount(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full bg-white border border-blue-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
                     </div>
                   </div>
 
-                  {/* Category 3: Laborer */}
+                  {/* Category 3: Laborer (Male & Female) */}
                   <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200/80">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5 font-black text-xs text-emerald-950">
@@ -955,7 +916,7 @@ export default function WorkforcePage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Male Count:
+                          Male Laborer (पुरुष):
                         </label>
                         <input
                           type="number"
@@ -963,12 +924,12 @@ export default function WorkforcePage() {
                           value={laborerMale || ""}
                           placeholder="0"
                           onChange={(e) => setLaborerMale(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full bg-white border border-emerald-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          className="w-full bg-white border border-emerald-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                         />
                       </div>
                       <div>
                         <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Female Count:
+                          Female Laborer (महिला):
                         </label>
                         <input
                           type="number"
@@ -976,7 +937,7 @@ export default function WorkforcePage() {
                           value={laborerFemale || ""}
                           placeholder="0"
                           onChange={(e) => setLaborerFemale(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full bg-white border border-emerald-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          className="w-full bg-white border border-emerald-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                         />
                       </div>
                     </div>
@@ -990,7 +951,7 @@ export default function WorkforcePage() {
                       Total Calculated Site Workforce:
                     </div>
                     <div className="text-xs text-slate-300 mt-0.5">
-                      Total Male: <strong className="text-white">{modalTotalMale}</strong> &bull; Total Female: <strong className="text-white">{modalTotalFemale}</strong>
+                      Artisan: <strong className="text-white">{artisanCount}</strong> &bull; Craftsman: <strong className="text-white">{craftsmanCount}</strong> &bull; Laborer: <strong className="text-white">{modalLaborerTotal}</strong> ({laborerMale}M / {laborerFemale}F)
                     </div>
                   </div>
                   <div className="text-2xl font-black font-mono text-emerald-400">
