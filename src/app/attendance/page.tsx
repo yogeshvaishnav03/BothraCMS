@@ -1,174 +1,139 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatDateTime, formatDate } from "@/lib/formatters";
 import {
-  HardHat,
-  UserCheck,
-  UserX,
   Clock,
   MapPin,
-  Edit3,
   CheckCircle2,
   AlertTriangle,
-  X,
-  Plus,
-  Users,
-  UserPlus,
-  Trash2,
+  UserCheck,
+  Calendar,
+  CalendarDays,
+  FileSpreadsheet,
+  Building2,
+  RefreshCw,
+  Search,
+  Filter,
+  Check,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
-import { canUser } from "@/lib/permissions";
+
+interface AttendanceRecord {
+  id: string;
+  workDate: string;
+  status: string;
+  checkInAt: string;
+  checkInLat?: number | null;
+  checkInLng?: number | null;
+  checkOutAt?: string | null;
+  checkOutLat?: number | null;
+  checkOutLng?: number | null;
+  durationMinutes: number;
+  durationFormatted: string;
+  durationHours: number;
+  site?: { id: string; name: string; code: string } | null;
+  project?: { id: string; name: string; code: string } | null;
+  notes?: string | null;
+  correctionReason?: string | null;
+  isToday: boolean;
+}
+
+interface MonthBreakdown {
+  monthKey: string;
+  label: string;
+  count: number;
+  totalMinutes: number;
+  totalHours: number;
+}
 
 export default function AttendancePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [workers, setWorkers] = useState<any[]>([]);
-
-  // Role & Permission Checks
-  const canWriteAttendance = canUser(currentUser, "attendance:write");
-  const canCorrectAttendance = canUser(currentUser, "attendance:correct");
-  const [sessions, setSessions] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
-  const [workDate, setWorkDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedSiteId, setSelectedSiteId] = useState("");
+
   const [loading, setLoading] = useState(true);
-
-  // Register Worker modal
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [workerName, setWorkerName] = useState("");
-  const [employeeCode, setEmployeeCode] = useState("");
-  const [workerType, setWorkerType] = useState("MASON");
-  const [phone, setPhone] = useState("");
-  const [defaultSiteId, setDefaultSiteId] = useState("");
-  const [dailyWageRate, setDailyWageRate] = useState("");
-
-  // Correction modal
-  const [showCorrectionModal, setShowCorrectionModal] = useState(false);
-  const [sessionToCorrect, setSessionToCorrect] = useState<any>(null);
-  const [correctionStatus, setCorrectionStatus] = useState("PRESENT");
-  const [correctionReason, setCorrectionReason] = useState("");
-
-  // Feedback states
+  const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  const loadData = () => {
-    setLoading(true);
-    Promise.all([
-      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
-      fetch("/api/workforce").then((r) => r.json()),
-      fetch(`/api/attendance?workDate=${workDate}`).then((r) => r.json()),
-      fetch("/api/sites").then((r) => r.json()),
-    ])
-      .then(([authRes, workerRes, attRes, sitesRes]) => {
-        if (authRes?.success && authRes.data?.user) {
-          setCurrentUser(authRes.data.user);
-        }
-        if (workerRes.success) {
-          setWorkers(workerRes.data || []);
-        }
-        if (attRes.success) {
-          setSessions(attRes.data || []);
-        }
-        if (sitesRes.success && sitesRes.data) {
-          const rawSites = sitesRes.data || [];
-          setSites(rawSites);
-          if (rawSites.length > 0) {
-            setDefaultSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
-          }
-        }
-      })
-      .catch((err) => {
-        console.error("Authoritative attendance load failed:", err);
-      })
-      .finally(() => setLoading(false));
-  };
+  // 3-Month attendance history data
+  const [todaySession, setTodaySession] = useState<AttendanceRecord | null>(null);
+  const [sessions, setSessions] = useState<AttendanceRecord[]>([]);
+  const [monthsBreakdown, setMonthsBreakdown] = useState<MonthBreakdown[]>([]);
+  const [metrics, setMetrics] = useState({
+    targetMonths: 3,
+    totalDaysPresent: 0,
+    completedShifts: 0,
+    totalHoursLogged: 0,
+    averageDailyHours: 0,
+  });
+
+  // Filter controls
+  const [selectedMonthTab, setSelectedMonthTab] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Live clock
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    if (sites.length > 0) {
-      setDefaultSiteId((prev) => (sites.some((s) => s.id === prev) ? prev : sites[0].id));
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const [authRes, sitesRes, historyRes] = await Promise.all([
+        fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/sites").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/attendance/history?months=3").then((r) => r.json()).catch(() => ({})),
+      ]);
+
+      if (authRes?.success && authRes.data?.user) {
+        setCurrentUser(authRes.data.user);
+      }
+
+      if (sitesRes?.success && sitesRes.data) {
+        const rawSites = sitesRes.data || [];
+        setSites(rawSites);
+        if (rawSites.length > 0) {
+          setSelectedSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
+        }
+      }
+
+      if (historyRes?.success && historyRes.data) {
+        setTodaySession(historyRes.data.todaySession || null);
+        setSessions(historyRes.data.sessions || []);
+        setMonthsBreakdown(historyRes.data.monthsBreakdown || []);
+        if (historyRes.data.metrics) {
+          setMetrics(historyRes.data.metrics);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to load attendance history:", err);
+      setErrorMessage("Failed to load attendance records");
+    } finally {
+      setLoading(false);
     }
-  }, [sites]);
+  };
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workDate]);
-
-  const handleDeleteWorker = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete worker "${name}"?`)) return;
-    setErrorMessage(null);
-    setStatusMessage(null);
-    try {
-      const res = await fetch(`/api/workforce?id=${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to delete worker");
-        return;
-      }
-      setStatusMessage(`Worker "${name}" deleted.`);
-      loadData();
-    } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to delete worker"}`);
-    }
-  };
-
-  const handleRegisterWorkerSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!workerName.trim()) {
-      setErrorMessage("Worker name is required");
-      return;
-    }
-    if (!employeeCode.trim()) {
-      setErrorMessage("Employee code is required");
-      return;
-    }
-
-    setSubmitting(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const res = await fetch("/api/workforce", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: workerName.trim(),
-          employeeCode: employeeCode.trim(),
-          workerType,
-          phone: phone.trim() || undefined,
-          defaultSiteId: defaultSiteId || undefined,
-          dailyWageRate: dailyWageRate ? parseFloat(dailyWageRate) : undefined,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to register worker");
-      } else {
-        setStatusMessage(
-          `Worker ${data.data.name} (${data.data.employeeCode}) registered successfully!`
-        );
-        setShowRegisterModal(false);
-        setWorkerName("");
-        setEmployeeCode("");
-        setPhone("");
-        setDailyWageRate("");
-        loadData();
-      }
-    } catch {
-      setErrorMessage("Network error during worker registration");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  }, []);
 
   const getGpsCoords = async (): Promise<{ lat?: number; lng?: number; acc?: number }> => {
     if (typeof window === "undefined" || !navigator.geolocation) return {};
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 4000,
+          timeout: 5000,
           enableHighAccuracy: true,
         });
       });
@@ -182,7 +147,7 @@ export default function AttendancePage() {
     }
   };
 
-  const handleSelfCheckIn = async () => {
+  const handleCheckIn = async () => {
     setSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
@@ -193,8 +158,7 @@ export default function AttendancePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          workDate,
-          siteId: sites.length > 0 ? sites[0].id : undefined,
+          siteId: selectedSiteId || (sites.length > 0 ? sites[0].id : undefined),
           latitude: gps.lat,
           longitude: gps.lng,
           accuracyM: gps.acc,
@@ -207,8 +171,8 @@ export default function AttendancePage() {
       } else {
         const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
-        setStatusMessage(`Checked in successfully at ${timeStr}${gpsStr}!`);
-        loadData();
+        setStatusMessage(`Checked in successfully at ${timeStr}${gpsStr}! Shift attendance recorded.`);
+        await loadData();
       }
     } catch {
       setErrorMessage("Network error during check-in");
@@ -217,42 +181,7 @@ export default function AttendancePage() {
     }
   };
 
-  const handleWorkerCheckIn = async (workerId: string) => {
-    setSubmitting(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const gps = await getGpsCoords();
-      const res = await fetch("/api/attendance/check-in", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workforceMemberId: workerId,
-          siteId: sites.length > 0 ? sites[0].id : undefined,
-          workDate,
-          latitude: gps.lat,
-          longitude: gps.lng,
-          accuracyM: gps.acc,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to check in worker");
-      } else {
-        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
-        setStatusMessage(`Worker checked in successfully${gpsStr}!`);
-        loadData();
-      }
-    } catch {
-      setErrorMessage("Network error during worker check-in");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCheckOut = async (sessionId?: string) => {
+  const handleCheckOut = async () => {
     setSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
@@ -263,7 +192,7 @@ export default function AttendancePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId,
+          sessionId: todaySession?.id,
           latitude: gps.lat,
           longitude: gps.lng,
           accuracyM: gps.acc,
@@ -276,8 +205,8 @@ export default function AttendancePage() {
       } else {
         const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
-        setStatusMessage(`Checked out successfully at ${timeStr}${gpsStr}!`);
-        loadData();
+        setStatusMessage(`Checked out successfully at ${timeStr}${gpsStr}! Today's shift completed.`);
+        await loadData();
       }
     } catch {
       setErrorMessage("Network error during check-out");
@@ -286,298 +215,530 @@ export default function AttendancePage() {
     }
   };
 
-  const handleCorrectionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!sessionToCorrect) return;
-    setSubmitting(true);
-    setErrorMessage(null);
-
-    try {
-      const res = await fetch(`/api/attendance/${sessionToCorrect.id}/correct`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: correctionStatus,
-          reason: correctionReason,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to submit correction");
-      } else {
-        setStatusMessage("Attendance record corrected and audit trail logged.");
-        setShowCorrectionModal(false);
-        setSessionToCorrect(null);
-        setCorrectionReason("");
-        loadData();
+  // Filtered sessions
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((s) => {
+      // Month tab filter
+      if (selectedMonthTab !== "ALL") {
+        if (!s.workDate.startsWith(selectedMonthTab)) return false;
       }
-    } catch {
-      setErrorMessage("Network error during correction");
-    } finally {
-      setSubmitting(false);
-    }
+
+      // Status filter
+      if (statusFilter !== "ALL") {
+        if (statusFilter === "COMPLETED" && !s.checkOutAt) return false;
+        if (statusFilter === "IN_PROGRESS" && s.checkOutAt) return false;
+        if (statusFilter === "HALF_DAY" && s.status !== "HALF_DAY") return false;
+      }
+
+      // Search filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const dateMatch = s.workDate.toLowerCase().includes(q);
+        const siteMatch = s.site?.name?.toLowerCase().includes(q) || false;
+        const notesMatch = s.notes?.toLowerCase().includes(q) || false;
+        return dateMatch || siteMatch || notesMatch;
+      }
+
+      return true;
+    });
+  }, [sessions, selectedMonthTab, statusFilter, searchQuery]);
+
+  // Export 3-Month Attendance to CSV
+  const handleExportCsv = () => {
+    if (sessions.length === 0) return;
+
+    const headers = [
+      "Date",
+      "Day",
+      "Status",
+      "Check-In Time",
+      "Check-In GPS",
+      "Check-Out Time",
+      "Check-Out GPS",
+      "Duration (Hours)",
+      "Site",
+      "Notes",
+    ];
+
+    const rows = filteredSessions.map((s) => {
+      const dateObj = new Date(s.workDate);
+      const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+      const checkInTime = s.checkInAt ? new Date(s.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+      const checkInGps = s.checkInLat ? `${s.checkInLat.toFixed(4)}, ${s.checkInLng?.toFixed(4)}` : "";
+      const checkOutTime = s.checkOutAt ? new Date(s.checkOutAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+      const checkOutGps = s.checkOutLat ? `${s.checkOutLat.toFixed(4)}, ${s.checkOutLng?.toFixed(4)}` : "";
+
+      return [
+        `"${s.workDate}"`,
+        `"${dayName}"`,
+        `"${s.checkOutAt ? "COMPLETED" : "IN PROGRESS"}"`,
+        `"${checkInTime}"`,
+        `"${checkInGps}"`,
+        `"${checkOutTime}"`,
+        `"${checkOutGps}"`,
+        `"${s.durationHours}"`,
+        `"${s.site?.name || "Main Site"}"`,
+        `"${s.notes || ""}"`,
+      ].join(",");
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `attendance_3_months_${currentUser?.name || "employee"}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  // Map attendance status to worker
-  const activeSessionMap = new Map();
-  sessions.forEach((s) => activeSessionMap.set(s.workforceMemberId, s));
-
-  // Find current user's session for today
-  const currentUserSession = sessions.find((s) => {
-    const userEmpCode = currentUser?.id ? `USR-${currentUser.id.slice(-6).toUpperCase()}` : "";
-    if (userEmpCode && s.workforceMember?.employeeCode === userEmpCode) return true;
-    if (currentUser?.name && s.workforceMember?.name?.trim().toLowerCase() === currentUser.name?.trim().toLowerCase()) return true;
-    return false;
-  });
-  const isUserCheckedIn = !!currentUserSession;
-  const isUserCheckedOut = !!currentUserSession?.checkOutAt;
+  const isCheckedIn = Boolean(todaySession);
+  const isCheckedOut = Boolean(todaySession?.checkOutAt);
 
   return (
     <Shell>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+        {/* Top Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <HardHat className="w-6 h-6 text-amber-500" />
-              <span>Workforce Attendance & Shifts</span>
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Shift check-in/out with event-based geolocation, shift validation, and supervisor correction logs.
-            </p>
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center font-bold shadow-xs">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>My Attendance & Shift Ledger</span>
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Mark daily attendance with verified GPS and inspect your complete 3-month shift history.
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <input
-              type="date"
-              value={workDate}
-              onChange={(e) => setWorkDate(e.target.value)}
-              className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm"
-            />
-            {canWriteAttendance && (
-              <button
-                onClick={() => {
-                  if (sites.length > 0) setDefaultSiteId(sites[0].id);
-                  setEmployeeCode(`EMP-${Date.now().toString().slice(-4)}`);
-                  setShowRegisterModal(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4 text-amber-400" />
-                <span>+ Register Worker</span>
-              </button>
-            )}
-            {!isUserCheckedIn ? (
-              <button
-                onClick={handleSelfCheckIn}
-                disabled={submitting}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50"
-              >
-                <UserCheck className="w-4 h-4" />
-                <span>{submitting ? "Checking In..." : "Check In"}</span>
-              </button>
-            ) : !isUserCheckedOut ? (
-              <button
-                onClick={() => handleCheckOut(currentUserSession.id)}
-                disabled={submitting}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50"
-              >
-                <Clock className="w-4 h-4" />
-                <span>{submitting ? "Checking Out..." : "Check Out"}</span>
-              </button>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Shift Completed</span>
-              </div>
-            )}
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition shadow-2xs"
+              title="Refresh attendance records"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-amber-500" : ""}`} />
+            </button>
+            <button
+              onClick={handleExportCsv}
+              disabled={sessions.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition shadow-2xs disabled:opacity-50"
+              title="Download 3-Month Attendance Statement (CSV)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Export Statement</span>
+            </button>
           </div>
         </div>
 
-        {/* Feedback alerts */}
+        {/* Feedback Alerts */}
         {statusMessage && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{statusMessage}</span>
           </div>
         )}
         {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
 
-        {/* Attendance Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Roster Crew
-            </span>
-            <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-              {workers.length}
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">Registered trade workers</div>
-          </div>
+        {/* Hero Card: Today's Shift Check In / Check Out */}
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl p-5 sm:p-6 shadow-md border border-slate-800 relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Checked In Today
-            </span>
-            <div className="text-2xl font-black text-emerald-600 mt-1 tabular-nums">
-              {sessions.length}
-            </div>
-            <div className="text-[11px] text-emerald-600 font-semibold mt-1">Present on site</div>
-          </div>
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            {/* Left: Employee Info & Live Clock */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black uppercase tracking-wider">
+                  {currentUser?.role || "EMPLOYEE"}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {currentUser?.name || "Staff Member"} &bull; {currentUser?.email}
+                </span>
+              </div>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Shift In Progress
-            </span>
-            <div className="text-2xl font-black text-blue-600 mt-1 tabular-nums">
-              {sessions.filter((s) => !s.checkOutAt).length}
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">Awaiting checkout</div>
-          </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+                  <span>{currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                  <span className="text-xs font-medium text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+                    {currentTime.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}
+                  </span>
+                </div>
+              </div>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Completed Shifts
-            </span>
-            <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-              {sessions.filter((s) => s.checkOutAt).length}
+              {/* Status Banner */}
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                {!isCheckedIn ? (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-300 bg-slate-800/90 border border-slate-700 px-3 py-1.5 rounded-xl">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span>Ready to check in for today&apos;s shift</span>
+                  </div>
+                ) : !isCheckedOut ? (
+                  <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-xl font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>
+                      Checked in at {new Date(todaySession!.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <span className="text-slate-400">&bull;</span>
+                    <span className="font-mono text-emerald-200">
+                      Duration: {todaySession!.durationFormatted}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-blue-200 bg-blue-950/60 border border-blue-800/60 px-3 py-1.5 rounded-xl font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+                    <span>
+                      Shift Completed: {new Date(todaySession!.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} to{" "}
+                      {new Date(todaySession!.checkOutAt!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ({todaySession!.durationFormatted})
+                    </span>
+                  </div>
+                )}
+
+                {todaySession?.checkInLat && (
+                  <div className="flex items-center gap-1 text-[11px] text-slate-300 bg-slate-800/70 border border-slate-700/80 px-2.5 py-1 rounded-lg font-mono">
+                    <MapPin className="w-3 h-3 text-amber-400" />
+                    <span>
+                      GPS: {todaySession.checkInLat.toFixed(4)}, {todaySession.checkInLng?.toFixed(4)}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Shift verified</div>
+
+            {/* Right: Site Selector & Primary Check In / Check Out Button */}
+            <div className="flex flex-col sm:flex-row md:flex-col lg:flex-row items-stretch sm:items-center gap-3">
+              {!isCheckedIn && sites.length > 0 && (
+                <div className="min-w-[180px]">
+                  <label className="text-[10px] text-slate-400 block mb-1 font-semibold uppercase tracking-wider">
+                    Site Location:
+                  </label>
+                  <select
+                    value={selectedSiteId}
+                    onChange={(e) => setSelectedSiteId(e.target.value)}
+                    className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  >
+                    {sites.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Action Button */}
+              <div>
+                {!isCheckedIn ? (
+                  <button
+                    onClick={handleCheckIn}
+                    disabled={submitting}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-102 active:scale-98 disabled:opacity-50 cursor-pointer"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Checking In...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="w-5 h-5 text-slate-950" />
+                        <span>Check In Today</span>
+                      </>
+                    )}
+                  </button>
+                ) : !isCheckedOut ? (
+                  <button
+                    onClick={handleCheckOut}
+                    disabled={submitting}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-black text-sm shadow-lg shadow-rose-500/20 transition-all transform hover:scale-102 active:scale-98 disabled:opacity-50 cursor-pointer"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Checking Out...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-5 h-5 text-white" />
+                        <span>Check Out</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-800/90 border border-slate-700 text-emerald-400 text-xs font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Shift Closed for Today</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Workforce Attendance Roster Table */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <Users className="w-4 h-4 text-amber-500" />
-              <span>Site Crew Roster & Shift Status ({formatDate(workDate)})</span>
-            </h2>
-            <span className="text-xs font-mono font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded">
-              Skyline Heights Sector 62
-            </span>
+        {/* 3-Month Summary Metric Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                Days Present (3 Mos)
+              </div>
+              <div className="text-xl font-black text-slate-900 mt-0.5 tabular-nums">
+                {metrics.totalDaysPresent} <span className="text-xs font-normal text-slate-400">days</span>
+              </div>
+            </div>
           </div>
 
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                Completed Shifts
+              </div>
+              <div className="text-xl font-black text-emerald-600 mt-0.5 tabular-nums">
+                {metrics.completedShifts} <span className="text-xs font-normal text-slate-400">shifts</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                Total Hours Logged
+              </div>
+              <div className="text-xl font-black text-blue-600 mt-0.5 tabular-nums">
+                {metrics.totalHoursLogged} <span className="text-xs font-normal text-slate-400">hrs</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                Avg Daily Hours
+              </div>
+              <div className="text-xl font-black text-purple-600 mt-0.5 tabular-nums">
+                {metrics.averageDailyHours} <span className="text-xs font-normal text-slate-400">hrs/day</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3-Month Attendance Statement Section */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Header & Filter Controls */}
+          <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-amber-500" />
+                <h2 className="font-black text-sm text-slate-900 tracking-tight">
+                  3-Month Attendance Statement (Last 90 Days)
+                </h2>
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold">
+                  {filteredSessions.length} records
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Complete shift records with check-in, check-out, working hours, and verified GPS coordinates.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search Bar */}
+              <div className="relative min-w-[180px]">
+                <input
+                  type="text"
+                  placeholder="Search date, site..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+              </div>
+
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+              >
+                <option value="ALL">All Status</option>
+                <option value="COMPLETED">Shift Completed</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="HALF_DAY">Half Day</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Month Tabs */}
+          <div className="px-4 py-2.5 border-b border-slate-200 bg-white flex items-center gap-1.5 overflow-x-auto text-xs font-bold text-slate-600">
+            <button
+              onClick={() => setSelectedMonthTab("ALL")}
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
+                selectedMonthTab === "ALL"
+                  ? "bg-slate-900 text-amber-400 shadow-xs"
+                  : "hover:bg-slate-100 text-slate-600"
+              }`}
+            >
+              All 3 Months ({sessions.length})
+            </button>
+            {monthsBreakdown.map((m) => (
+              <button
+                key={m.monthKey}
+                onClick={() => setSelectedMonthTab(m.monthKey)}
+                className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
+                  selectedMonthTab === m.monthKey
+                    ? "bg-slate-900 text-amber-400 shadow-xs"
+                    : "hover:bg-slate-100 text-slate-600"
+                }`}
+              >
+                <span>{m.label}</span>
+                <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
+                  {m.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Records Table */}
           {loading ? (
-            <div className="p-8 text-center text-slate-400 text-xs">Loading attendance...</div>
-          ) : workers.length === 0 ? (
-            <div className="p-12 text-center text-slate-400 text-xs">No workers registered.</div>
+            <div className="p-12 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+              <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+              <span>Loading attendance history...</span>
+            </div>
+          ) : filteredSessions.length === 0 ? (
+            <div className="p-16 text-center max-w-sm mx-auto space-y-2">
+              <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div className="text-sm font-bold text-slate-800">No Attendance Records Found</div>
+              <div className="text-xs text-slate-500 leading-relaxed">
+                {selectedMonthTab !== "ALL"
+                  ? "No shifts logged for this selected month. Click \"Check In Today\" above to mark today's attendance."
+                  : "No attendance shifts found in the past 3 months. Click \"Check In Today\" above to record your first shift."}
+              </div>
+            </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Worker / Code</th>
-                    <th className="py-3 px-4">Trade</th>
+                    <th className="py-3 px-4">Date & Day</th>
+                    <th className="py-3 px-4">Shift Status</th>
                     <th className="py-3 px-4">Check-In Time</th>
                     <th className="py-3 px-4">Check-Out Time</th>
-                    <th className="py-3 px-4">GPS Location</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    <th className="py-3 px-4">Hours Logged</th>
+                    <th className="py-3 px-4">Site / Project</th>
+                    <th className="py-3 px-4">GPS Verification</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {workers.map((w) => {
-                    const session = activeSessionMap.get(w.id);
-                    const isCheckedIn = !!session;
-                    const isCheckedOut = !!session?.checkOutAt;
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {filteredSessions.map((s) => {
+                    const dateObj = new Date(s.workDate);
+                    const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                    const isCompleted = Boolean(s.checkOutAt);
 
                     return (
-                      <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900">{w.name}</div>
-                          <div className="text-xs text-slate-400 font-mono">{w.employeeCode}</div>
+                      <tr
+                        key={s.id}
+                        className={`hover:bg-slate-50/80 transition-colors ${
+                          s.isToday ? "bg-amber-50/40" : ""
+                        }`}
+                      >
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{formatDate(s.workDate)}</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-bold uppercase">
+                              {dayName}
+                            </span>
+                            {s.isToday && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 uppercase">
+                                Today
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                            {w.workerType}
+
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {isCompleted ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Shift Completed</span>
+                            </span>
+                          ) : s.isToday ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 inline-flex items-center gap-1 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              <span>In Progress</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                              Present (Open)
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 whitespace-nowrap font-mono text-slate-700">
+                          {s.checkInAt ? formatDateTime(s.checkInAt) : "—"}
+                        </td>
+
+                        <td className="py-3 px-4 whitespace-nowrap font-mono text-slate-700">
+                          {s.checkOutAt ? formatDateTime(s.checkOutAt) : "—"}
+                        </td>
+
+                        <td className="py-3 px-4 whitespace-nowrap font-mono font-bold text-slate-900">
+                          <span
+                            className={`px-2 py-0.5 rounded ${
+                              s.durationMinutes >= 480
+                                ? "bg-emerald-50 text-emerald-800"
+                                : s.durationMinutes > 0
+                                ? "bg-blue-50 text-blue-800"
+                                : "text-slate-400"
+                            }`}
+                          >
+                            {s.durationFormatted}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-xs font-mono text-slate-600">
-                          {session ? formatDateTime(session.checkInAt) : "—"}
+
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-700">
+                          <div className="flex items-center gap-1 font-semibold">
+                            <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span className="truncate max-w-[140px]">
+                              {s.site?.name || s.project?.name || "Main Site"}
+                            </span>
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4 text-xs font-mono text-slate-600">
-                          {isCheckedOut ? formatDateTime(session.checkOutAt) : "—"}
-                        </td>
-                        <td className="py-3.5 px-4 text-xs text-slate-500">
-                          {session?.checkInLat ? (
-                            <div className="flex items-center gap-1 font-mono text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded w-max">
+
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-500">
+                          {s.checkInLat ? (
+                            <div className="inline-flex items-center gap-1 font-mono text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
                               <MapPin className="w-3 h-3 text-emerald-600" />
                               <span>
-                                {session.checkInLat.toFixed(4)}, {session.checkInLng?.toFixed(4)}
+                                {s.checkInLat.toFixed(4)}, {s.checkInLng?.toFixed(4)}
                               </span>
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic">No GPS</span>
+                            <span className="text-slate-400 italic">No GPS data</span>
                           )}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          {!isCheckedIn ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500">
-                              ABSENT / NOT IN
-                            </span>
-                          ) : isCheckedOut ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
-                              SHIFT CLOSED
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 animate-pulse">
-                              ● WORKING ON SITE
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {!isCheckedIn && (
-                              <button
-                                onClick={() => handleWorkerCheckIn(w.id)}
-                                disabled={submitting}
-                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
-                              >
-                                Check In
-                              </button>
-                            )}
-
-                            {isCheckedIn && !isCheckedOut && (
-                              <button
-                                onClick={() => handleCheckOut(session.id)}
-                                disabled={submitting}
-                                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
-                              >
-                                Check Out
-                              </button>
-                            )}
-
-                            {isCheckedIn && canCorrectAttendance && (
-                              <button
-                                onClick={() => {
-                                  setSessionToCorrect(session);
-                                  setCorrectionStatus(session.status);
-                                  setShowCorrectionModal(true);
-                                }}
-                                title="Supervisor Correction"
-                                className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                            )}
-
-                            {canWriteAttendance && (
-                              <button
-                                onClick={() => handleDeleteWorker(w.id, w.name)}
-                                title="Delete Worker"
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
                         </td>
                       </tr>
                     );
@@ -587,216 +748,6 @@ export default function AttendancePage() {
             </div>
           )}
         </div>
-
-        {/* Modal: Attendance Correction */}
-        {showCorrectionModal && sessionToCorrect && canCorrectAttendance && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <Edit3 className="w-5 h-5 text-amber-600" />
-                  <span>Supervisor Attendance Correction</span>
-                </div>
-                <button
-                  onClick={() => setShowCorrectionModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs mb-4">
-                Worker: <span className="font-bold">{sessionToCorrect.workforceMember?.name}</span> (
-                {sessionToCorrect.workforceMember?.employeeCode})
-              </div>
-
-              <form onSubmit={handleCorrectionSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Shift Status
-                  </label>
-                  <select
-                    value={correctionStatus}
-                    onChange={(e) => setCorrectionStatus(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    <option value="PRESENT">Full Day Present</option>
-                    <option value="HALF_DAY">Half Day</option>
-                    <option value="OVERTIME">Overtime</option>
-                    <option value="CORRECTED">Correction Override</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Mandatory Audit Justification Reason
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="e.g. Worker was present on 5th floor casting but device was unavailable for gate scan"
-                    value={correctionReason}
-                    onChange={(e) => setCorrectionReason(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCorrectionModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
-                  >
-                    {submitting ? "Saving..." : "Save Correction"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Register Worker */}
-        {showRegisterModal && canWriteAttendance && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-amber-500" />
-                  <span>Register Workforce Personnel</span>
-                </div>
-                <button
-                  onClick={() => setShowRegisterModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleRegisterWorkerSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Sunil Sharma"
-                      value={workerName}
-                      onChange={(e) => setWorkerName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Employee Code *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. EMP-1044"
-                      value={employeeCode}
-                      onChange={(e) => setEmployeeCode(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Trade / Designation *
-                    </label>
-                    <select
-                      value={workerType}
-                      onChange={(e) => setWorkerType(e.target.value)}
-                      required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      <option value="MASON">Mason (Mistri)</option>
-                      <option value="CARPENTER">Carpenter</option>
-                      <option value="ELECTRICIAN">Electrician</option>
-                      <option value="PLUMBER">Plumber</option>
-                      <option value="HELPER">General Helper (Beldar)</option>
-                      <option value="FOREMAN">Site Foreman (Mukadam)</option>
-                      <option value="SITE_ENGINEER">Site Engineer</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Contact Phone
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="e.g. +91 98765 43210"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Primary Assigned Site
-                    </label>
-                    <select
-                      value={defaultSiteId}
-                      onChange={(e) => setDefaultSiteId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                    >
-                      <option value="">No fixed site (Floating)</option>
-                      {sites.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Daily Wage Rate (₹)
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="e.g. 750"
-                      value={dailyWageRate}
-                      onChange={(e) => setDailyWageRate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowRegisterModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
-                  >
-                    {submitting ? "Registering..." : "Register Worker"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </Shell>
   );
