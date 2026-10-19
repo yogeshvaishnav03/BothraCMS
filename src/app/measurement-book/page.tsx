@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, rupeesToPaise } from "@/lib/formatters";
+import { canUser } from "@/lib/permissions";
 import {
   BookOpen,
   Plus,
@@ -46,6 +47,10 @@ interface MeasurementRecord {
 }
 
 export default function MeasurementBookPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const canWriteProjects = canUser(currentUser, "projects:write");
+  const canWriteFinance = canUser(currentUser, "finance:write");
+
   const [entries, setEntries] = useState<MeasurementRecord[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
@@ -88,15 +93,20 @@ export default function MeasurementBookPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [mbRes, projRes, partyRes] = await Promise.all([
+      const [mbRes, projRes, partyRes, meRes] = await Promise.all([
         fetch("/api/measurement-book"),
         fetch("/api/projects"),
         fetch("/api/parties"),
+        fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
       ]);
 
       const mbData = await mbRes.json();
       const projData = await projRes.json();
       const partyData = await partyRes.json();
+
+      if (meRes.success && meRes.data) {
+        setCurrentUser(meRes.data.user);
+      }
 
       if (mbData.success && Array.isArray(mbData.data)) {
         setEntries(mbData.data);
@@ -439,17 +449,19 @@ export default function MeasurementBookPage() {
               <Download className="w-4 h-4 text-slate-500" />
               Export CSV
             </button>
-            <button
-              onClick={() => {
-                setErrorMessage(null);
-                setStatusMessage(null);
-                setShowCreateModal(true);
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-sm shadow transition"
-            >
-              <Plus className="w-4 h-4" />
-              Record Measurement
-            </button>
+            {canWriteProjects && (
+              <button
+                onClick={() => {
+                  setErrorMessage(null);
+                  setStatusMessage(null);
+                  setShowCreateModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-sm shadow transition"
+              >
+                <Plus className="w-4 h-4" />
+                Record Measurement
+              </button>
+            )}
           </div>
         </div>
 
@@ -667,7 +679,7 @@ export default function MeasurementBookPage() {
                               <Eye className="w-4 h-4" />
                             </button>
 
-                            {entry.status === "SUBMITTED" && (
+                            {entry.status === "SUBMITTED" && canWriteProjects && (
                               <>
                                 <button
                                   disabled={actionLoading}
@@ -688,7 +700,7 @@ export default function MeasurementBookPage() {
                               </>
                             )}
 
-                            {entry.status === "VERIFIED" && (
+                            {entry.status === "VERIFIED" && canWriteFinance && (
                               <>
                                 <button
                                   disabled={actionLoading}
@@ -709,7 +721,7 @@ export default function MeasurementBookPage() {
                               </>
                             )}
 
-                            {entry.status === "APPROVED" && (
+                            {entry.status === "APPROVED" && canWriteFinance && (
                               <button
                                 disabled={actionLoading}
                                 onClick={() => {
@@ -742,7 +754,7 @@ export default function MeasurementBookPage() {
         </div>
 
         {/* Modal: Record Measurement */}
-        {showCreateModal && (
+        {showCreateModal && canWriteProjects && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
             <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -951,7 +963,7 @@ export default function MeasurementBookPage() {
         )}
 
         {/* Modal: Convert to Bill */}
-        {showBillModal && billTargetEntry && (
+        {showBillModal && billTargetEntry && canWriteFinance && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">

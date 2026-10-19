@@ -30,11 +30,13 @@ import {
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
+import { canUser } from "@/lib/permissions";
 
 export default function PartyStatementPage() {
   const params = useParams();
   const partyId = params.id as string;
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [statementData, setStatementData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
@@ -71,6 +73,14 @@ export default function PartyStatementPage() {
   };
 
   useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data) {
+          setCurrentUser(res.data.user);
+        }
+      })
+      .catch(() => {});
     loadStatementAndOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyId]);
@@ -132,6 +142,13 @@ export default function PartyStatementPage() {
   const paidPct = contractVal > 0 ? Math.min(100, Math.round((totalPaid / contractVal) * 100)) : 0;
   const remainingContract = Math.max(0, contractVal - totalBilled);
 
+  const canWriteFinance = canUser(currentUser, "finance:write");
+  const canPlaceOrder =
+    canUser(currentUser, "inventory:receipt") ||
+    canUser(currentUser, "inventory:adjust") ||
+    canUser(currentUser, "projects:write") ||
+    ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "STOREKEEPER"].includes(currentUser?.role);
+
   return (
     <Shell>
       <div className="space-y-6">
@@ -166,7 +183,7 @@ export default function PartyStatementPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 print:hidden self-start sm:self-auto">
-            {isVendor && (
+            {isVendor && canPlaceOrder && (
               <button
                 onClick={() => setShowPlaceOrderModal(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-sm transition cursor-pointer"
@@ -594,7 +611,7 @@ export default function PartyStatementPage() {
             entityType="PARTY"
             entityId={party.id}
             title={`${party.name} Files`}
-            allowUpload={true}
+            allowUpload={canWriteFinance}
             categoryDefault="INVOICE"
             highlightMissing={false}
           />
@@ -612,11 +629,13 @@ export default function PartyStatementPage() {
       </div>
 
       {/* Place Order Modal */}
-      <PlaceOrderModal
-        isOpen={showPlaceOrderModal}
-        onClose={() => setShowPlaceOrderModal(false)}
-        onOrderPlaced={() => loadStatementAndOrders()}
-      />
+      {showPlaceOrderModal && canPlaceOrder && (
+        <PlaceOrderModal
+          isOpen={showPlaceOrderModal}
+          onClose={() => setShowPlaceOrderModal(false)}
+          onOrderPlaced={() => loadStatementAndOrders()}
+        />
+      )}
     </Shell>
   );
 }

@@ -18,10 +18,15 @@ import {
   UserPlus,
   Trash2,
 } from "lucide-react";
+import { canUser } from "@/lib/permissions";
 
 export default function AttendancePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [workers, setWorkers] = useState<any[]>([]);
+
+  // Role & Permission Checks
+  const canWriteAttendance = canUser(currentUser, "attendance:write");
+  const canCorrectAttendance = canUser(currentUser, "attendance:correct");
   const [sessions, setSessions] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
   const [workDate, setWorkDate] = useState(new Date().toISOString().split("T")[0]);
@@ -350,17 +355,19 @@ export default function AttendancePage() {
               onChange={(e) => setWorkDate(e.target.value)}
               className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm"
             />
-            <button
-              onClick={() => {
-                if (sites.length > 0) setDefaultSiteId(sites[0].id);
-                setEmployeeCode(`EMP-${Date.now().toString().slice(-4)}`);
-                setShowRegisterModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
-            >
-              <UserPlus className="w-4 h-4 text-amber-400" />
-              <span>+ Register Worker</span>
-            </button>
+            {canWriteAttendance && (
+              <button
+                onClick={() => {
+                  if (sites.length > 0) setDefaultSiteId(sites[0].id);
+                  setEmployeeCode(`EMP-${Date.now().toString().slice(-4)}`);
+                  setShowRegisterModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4 text-amber-400" />
+                <span>+ Register Worker</span>
+              </button>
+            )}
             {!isUserCheckedIn ? (
               <button
                 onClick={handleSelfCheckIn}
@@ -547,7 +554,7 @@ export default function AttendancePage() {
                               </button>
                             )}
 
-                            {isCheckedIn && (
+                            {isCheckedIn && canCorrectAttendance && (
                               <button
                                 onClick={() => {
                                   setSessionToCorrect(session);
@@ -555,19 +562,21 @@ export default function AttendancePage() {
                                   setShowCorrectionModal(true);
                                 }}
                                 title="Supervisor Correction"
-                                className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
                               >
                                 <Edit3 className="w-4 h-4" />
                               </button>
                             )}
 
-                            <button
-                              onClick={() => handleDeleteWorker(w.id, w.name)}
-                              title="Delete Worker"
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {canWriteAttendance && (
+                              <button
+                                onClick={() => handleDeleteWorker(w.id, w.name)}
+                                title="Delete Worker"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -580,7 +589,7 @@ export default function AttendancePage() {
         </div>
 
         {/* Modal: Attendance Correction */}
-        {showCorrectionModal && sessionToCorrect && (
+        {showCorrectionModal && sessionToCorrect && canCorrectAttendance && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -654,7 +663,7 @@ export default function AttendancePage() {
         )}
 
         {/* Modal: Register Worker */}
-        {showRegisterModal && (
+        {showRegisterModal && canWriteAttendance && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">

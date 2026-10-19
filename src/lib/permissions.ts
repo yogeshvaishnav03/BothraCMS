@@ -149,3 +149,18 @@ export function assertPermission(role: Role, permission: Permission): void {
     throw new Error(`Forbidden: Role ${role} lacks required permission '${permission}'`);
   }
 }
+
+export function canUser(
+  user: { role?: Role | string; permissions?: Permission[] | string[] } | null | undefined,
+  permission: Permission
+): boolean {
+  if (!user) return false;
+  if (user.permissions && Array.isArray(user.permissions)) {
+    return (user.permissions as Permission[]).includes(permission);
+  }
+  if (user.role) {
+    return hasPermission(user.role as Role, permission);
+  }
+  return false;
+}
+

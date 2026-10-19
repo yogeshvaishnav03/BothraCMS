@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
+import { canUser } from "@/lib/permissions";
 
 // Safely fetch and parse JSON, never throwing SyntaxError on HTML (e.g. 500 error pages)
 async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
@@ -44,10 +45,13 @@ async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
 }
 
 export default function TasksPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const canWriteTasks = canUser(currentUser, "tasks:write");
 
   // Filters
   const [filterTab, setFilterTab] = useState("all"); // all, pending, overdue, completed, verified, my_tasks, assigned_by_me, requests
@@ -121,8 +125,12 @@ export default function TasksPage() {
       safeFetchJson(url),
       safeFetchJson("/api/projects"),
       safeFetchJson("/api/chat/employees"),
+      safeFetchJson("/api/auth/me"),
     ])
-      .then(([tasksRes, projRes, empRes]) => {
+      .then(([tasksRes, projRes, empRes, authRes]) => {
+        if (authRes && authRes.success && authRes.data?.user) {
+          setCurrentUser(authRes.data.user);
+        }
         if (tasksRes && tasksRes.success) {
           const rawTasks = Array.isArray(tasksRes.data)
             ? tasksRes.data
@@ -385,21 +393,23 @@ export default function TasksPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              setProjectId((prev) => {
-                if (prev && (prev === "OTHER" || projects.some((p) => p.id === prev))) {
-                  return prev;
-                }
-                return projects.length > 0 ? projects[0].id : "OTHER";
-              });
-              setShowCreateModal(true);
-            }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Create / Assign Task</span>
-          </button>
+          {canWriteTasks && (
+            <button
+              onClick={() => {
+                setProjectId((prev) => {
+                  if (prev && (prev === "OTHER" || projects.some((p) => p.id === prev))) {
+                    return prev;
+                  }
+                  return projects.length > 0 ? projects[0].id : "OTHER";
+                });
+                setShowCreateModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Create / Assign Task</span>
+            </button>
+          )}
         </div>
 
         {/* Feedback alerts */}
@@ -619,24 +629,26 @@ export default function TasksPage() {
                   {/* Actions Right Side */}
                   <div className="shrink-0 flex flex-wrap items-center gap-2 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
                     {/* Status Update Button */}
-                    <button
-                      onClick={() => {
-                        setStatusTask(t);
-                        setNewStatus(
-                          t.status === "TODO"
-                            ? "IN_PROGRESS"
-                            : t.status === "IN_PROGRESS"
-                            ? "COMPLETED"
-                            : t.status === "COMPLETED"
-                            ? "VERIFIED"
-                            : "COMPLETED"
-                        );
-                        setShowStatusModal(true);
-                      }}
-                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-sm transition"
-                    >
-                      Status
-                    </button>
+                    {canWriteTasks && (
+                      <button
+                        onClick={() => {
+                          setStatusTask(t);
+                          setNewStatus(
+                            t.status === "TODO"
+                              ? "IN_PROGRESS"
+                              : t.status === "IN_PROGRESS"
+                              ? "COMPLETED"
+                              : t.status === "COMPLETED"
+                              ? "VERIFIED"
+                              : "COMPLETED"
+                          );
+                          setShowStatusModal(true);
+                        }}
+                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-sm transition"
+                      >
+                        Status
+                      </button>
+                    )}
 
                     {/* Discussion / Comments Button */}
                     <button
@@ -661,13 +673,15 @@ export default function TasksPage() {
                     </button>
 
                     {/* Edit Task */}
-                    <button
-                      onClick={() => handleOpenEdit(t)}
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
-                      title="Edit Task Details"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
+                    {canWriteTasks && (
+                      <button
+                        onClick={() => handleOpenEdit(t)}
+                        className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
+                        title="Edit Task Details"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    )}
 
                     {/* Audit History */}
                     <button
@@ -679,13 +693,15 @@ export default function TasksPage() {
                     </button>
 
                     {/* Delete Task */}
-                    <button
-                      onClick={() => handleDeleteTask(t.id, t.title)}
-                      title="Delete Task"
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canWriteTasks && (
+                      <button
+                        onClick={() => handleDeleteTask(t.id, t.title)}
+                        title="Delete Task"
+                        className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -694,7 +710,7 @@ export default function TasksPage() {
         )}
 
         {/* Modal: Create Task */}
-        {showCreateModal && (
+        {showCreateModal && canWriteTasks && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -872,7 +888,7 @@ export default function TasksPage() {
         )}
 
         {/* Modal: Edit Task */}
-        {showEditModal && editingTask && (
+        {showEditModal && editingTask && canWriteTasks && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -1011,7 +1027,7 @@ export default function TasksPage() {
         )}
 
         {/* Modal: Update Status */}
-        {showStatusModal && statusTask && (
+        {showStatusModal && statusTask && canWriteTasks && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">

@@ -22,6 +22,7 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
+import { canUser } from "@/lib/permissions";
 
 interface StandardMaterialPreset {
   name: string;
@@ -127,10 +128,26 @@ const STANDARD_CONSTRUCTION_MATERIALS: StandardMaterialCategory[] = [
 ];
 
 export default function MaterialsPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Role & Permission Checks
+  const canAddMaterial = canUser(currentUser, "inventory:adjust");
+  const canReceiveGoods = canUser(currentUser, "inventory:receipt");
+  const canIssueStock = canUser(currentUser, "inventory:issue");
+  const canTransferStock = canUser(currentUser, "inventory:transfer");
+  const canDeleteMaterial = canUser(currentUser, "inventory:adjust");
+  const canPlaceOrder =
+    canUser(currentUser, "inventory:receipt") ||
+    canUser(currentUser, "inventory:adjust") ||
+    canUser(currentUser, "projects:write") ||
+    (currentUser?.role &&
+      ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "STOREKEEPER"].includes(
+        currentUser.role
+      ));
 
   // Place Order Modal state
   const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
@@ -321,6 +338,14 @@ export default function MaterialsPage() {
   };
 
   useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data?.user) {
+          setCurrentUser(res.data.user);
+        }
+      })
+      .catch(() => {});
     loadMaterials();
     loadStores();
     fetch("/api/parties?type=VENDOR")
@@ -579,67 +604,77 @@ export default function MaterialsPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => {
-                setOrderModalMaterial(null);
-                setShowPlaceOrderModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-sm transition-all cursor-pointer"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              <span>Place Order</span>
-            </button>
-            <button
-              onClick={() => {
-                setNewMatName("");
-                setNewMatSku("");
-                setNewMatMinStock("");
-                setNewMatReorder("");
-                setSelectedMaterialPreset("");
-                setIsCustomMaterialName(false);
-                setIsMaterialDropdownOpen(false);
-                setShowCreateMaterialModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-amber-400" />
-              <span>+ Add Material</span>
-            </button>
-            <button
-              onClick={() => {
-                loadStores();
-                if (materials.length > 0) setSelectedMaterialId(materials[0].id);
-                setShowReceiveModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all"
-            >
-              <PackagePlus className="w-4 h-4" />
-              <span>+ Goods Receipt</span>
-            </button>
-            <button
-              onClick={() => {
-                loadStores();
-                if (materials.length > 0) setSelectedMaterialId(materials[0].id);
-                setShowIssueModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
-            >
-              <PackageMinus className="w-4 h-4" />
-              <span>- Issue Stock</span>
-            </button>
-            <button
-              onClick={() => {
-                loadStores();
-                if (materials.length > 0) setTransferMaterialId(materials[0].id);
-                if (stores.length > 0) setTransferSourceStoreId(stores[0].id);
-                if (stores.length > 1) setTransferTargetStoreId(stores[1].id);
-                setShowTransferModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition-all"
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              <span>⇄ Transfer Stock</span>
-            </button>
+            {canPlaceOrder && (
+              <button
+                onClick={() => {
+                  setOrderModalMaterial(null);
+                  setShowPlaceOrderModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-sm transition-all cursor-pointer"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>Place Order</span>
+              </button>
+            )}
+            {canAddMaterial && (
+              <button
+                onClick={() => {
+                  setNewMatName("");
+                  setNewMatSku("");
+                  setNewMatMinStock("");
+                  setNewMatReorder("");
+                  setSelectedMaterialPreset("");
+                  setIsCustomMaterialName(false);
+                  setIsMaterialDropdownOpen(false);
+                  setShowCreateMaterialModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4 text-amber-400" />
+                <span>+ Add Material</span>
+              </button>
+            )}
+            {canReceiveGoods && (
+              <button
+                onClick={() => {
+                  loadStores();
+                  if (materials.length > 0) setSelectedMaterialId(materials[0].id);
+                  setShowReceiveModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+              >
+                <PackagePlus className="w-4 h-4" />
+                <span>+ Goods Receipt</span>
+              </button>
+            )}
+            {canIssueStock && (
+              <button
+                onClick={() => {
+                  loadStores();
+                  if (materials.length > 0) setSelectedMaterialId(materials[0].id);
+                  setShowIssueModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
+              >
+                <PackageMinus className="w-4 h-4" />
+                <span>- Issue Stock</span>
+              </button>
+            )}
+            {canTransferStock && (
+              <button
+                onClick={() => {
+                  loadStores();
+                  if (materials.length > 0) setTransferMaterialId(materials[0].id);
+                  if (stores.length > 0) setTransferSourceStoreId(stores[0].id);
+                  if (stores.length > 1) setTransferTargetStoreId(stores[1].id);
+                  setShowTransferModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                <span>⇄ Transfer Stock</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -749,30 +784,32 @@ export default function MaterialsPage() {
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-2.5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOrderModalMaterial({
-                                id: m.id,
-                                name: m.name,
-                                sku: m.sku,
-                                unitCode: m.unitCode,
-                                minStockQty: m.minStockQty,
-                                reorderQty: m.reorderQty,
-                                currentStock: m.totalStock,
-                              });
-                              setShowPlaceOrderModal(true);
-                            }}
-                            className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                              m.isLowStock
-                                ? "bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-xs"
-                                : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                            }`}
-                            title="Place Order to Vendor"
-                          >
-                            <ShoppingCart className="w-3.5 h-3.5" />
-                            <span>Order</span>
-                          </button>
+                          {canPlaceOrder && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOrderModalMaterial({
+                                  id: m.id,
+                                  name: m.name,
+                                  sku: m.sku,
+                                  unitCode: m.unitCode,
+                                  minStockQty: m.minStockQty,
+                                  reorderQty: m.reorderQty,
+                                  currentStock: m.totalStock,
+                                });
+                                setShowPlaceOrderModal(true);
+                              }}
+                              className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                                m.isLowStock
+                                  ? "bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-xs"
+                                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                              }`}
+                              title="Place Order to Vendor"
+                            >
+                              <ShoppingCart className="w-3.5 h-3.5" />
+                              <span>Order</span>
+                            </button>
+                          )}
                           <Link
                             href={`/materials/${m.id}`}
                             className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
@@ -780,16 +817,18 @@ export default function MaterialsPage() {
                             <span>Ledger</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </Link>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteMaterial(m.id);
-                            }}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition"
-                            title="Delete Material"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {canDeleteMaterial && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMaterial(m.id);
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                              title="Delete Material"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -801,7 +840,7 @@ export default function MaterialsPage() {
         )}
 
         {/* Modal: Goods Receipt */}
-        {showReceiveModal && (
+        {showReceiveModal && canReceiveGoods && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -979,7 +1018,7 @@ export default function MaterialsPage() {
         )}
 
         {/* Modal: Issue Material */}
-        {showIssueModal && (
+        {showIssueModal && canIssueStock && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -1129,7 +1168,7 @@ export default function MaterialsPage() {
         )}
 
         {/* Modal: Transfer Material */}
-        {showTransferModal && (
+        {showTransferModal && canTransferStock && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -1284,7 +1323,7 @@ export default function MaterialsPage() {
         )}
 
         {/* Modal: Create Material */}
-        {showCreateMaterialModal && (
+        {showCreateMaterialModal && canAddMaterial && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -1551,7 +1590,7 @@ export default function MaterialsPage() {
 
       {/* Place Order to Vendor Modal */}
       <PlaceOrderModal
-        isOpen={showPlaceOrderModal}
+        isOpen={showPlaceOrderModal && canPlaceOrder}
         onClose={() => setShowPlaceOrderModal(false)}
         onOrderPlaced={() => loadMaterials()}
         initialMaterial={orderModalMaterial}

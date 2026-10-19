@@ -22,9 +22,12 @@ import {
   Paperclip,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
+import { canUser } from "@/lib/permissions";
 
 export default function FinancePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const canWriteFinance = canUser(currentUser, "finance:write");
+  const canReverseFinance = canUser(currentUser, "finance:reverse");
   const [bills, setBills] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
@@ -416,26 +419,30 @@ export default function FinancePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (parties.length > 0) setBillPartyId(parties[0].id);
-                setShowBillModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
-            >
-              <Receipt className="w-4 h-4" />
-              <span>+ Record Bill</span>
-            </button>
-            <button
-              onClick={() => {
-                if (parties.length > 0) setSelectedPartyId(parties[0].id);
-                setShowPaymentModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all"
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>+ Record Payment</span>
-            </button>
+            {canWriteFinance && (
+              <button
+                onClick={() => {
+                  if (parties.length > 0) setBillPartyId(parties[0].id);
+                  setShowBillModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
+              >
+                <Receipt className="w-4 h-4" />
+                <span>+ Record Bill</span>
+              </button>
+            )}
+            {canWriteFinance && (
+              <button
+                onClick={() => {
+                  if (parties.length > 0) setSelectedPartyId(parties[0].id);
+                  setShowPaymentModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>+ Record Payment</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -682,7 +689,7 @@ export default function FinancePage() {
                               </>
                             ) : isPending ? (
                               <span className="text-[11px] text-amber-700 font-medium italic">Awaiting Admin</span>
-                            ) : p.status === "POSTED" && !isReversed ? (
+                            ) : p.status === "POSTED" && !isReversed && canReverseFinance ? (
                               <button
                                 onClick={() => {
                                   setPaymentToReverse(p);
@@ -782,7 +789,7 @@ export default function FinancePage() {
         )}
 
         {/* Modal: Record Payment */}
-        {showPaymentModal && (
+        {showPaymentModal && canWriteFinance && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90vh]">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -1045,7 +1052,7 @@ export default function FinancePage() {
         )}
 
         {/* Modal: Reverse Payment */}
-        {showReverseModal && paymentToReverse && (
+        {showReverseModal && paymentToReverse && canReverseFinance && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -1106,7 +1113,7 @@ export default function FinancePage() {
         )}
 
         {/* Modal: Create Bill */}
-        {showBillModal && (
+        {showBillModal && canWriteFinance && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">

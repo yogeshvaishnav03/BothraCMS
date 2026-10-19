@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import { canUser } from "@/lib/permissions";
 
 export default function MaterialDetailPage() {
   const params = useParams();
@@ -41,6 +42,15 @@ export default function MaterialDetailPage() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
+
+  const canPlaceOrder =
+    canUser(currentUser, "inventory:receipt") ||
+    canUser(currentUser, "inventory:adjust") ||
+    canUser(currentUser, "projects:write") ||
+    (currentUser?.role &&
+      ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "STOREKEEPER"].includes(
+        currentUser.role
+      ));
 
   const loadLedger = useCallback(() => {
     if (!materialId) return;
@@ -199,13 +209,15 @@ export default function MaterialDetailPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowPlaceOrderModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition self-start sm:self-auto cursor-pointer"
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>{t("order.placeOrderToVendor", "Place Order to Vendor")}</span>
-          </button>
+          {canPlaceOrder && (
+            <button
+              onClick={() => setShowPlaceOrderModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition self-start sm:self-auto cursor-pointer"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>{t("order.placeOrderToVendor", "Place Order to Vendor")}</span>
+            </button>
+          )}
         </div>
 
         {/* Low Stock Warning Banner */}
@@ -223,17 +235,19 @@ export default function MaterialDetailPage() {
                   </span>
                 </div>
                 <div className="text-xs text-amber-900/80 mt-0.5">
-                  Current stock ({formatQuantity(currentBalance, material.unitCode)}) is below the required reserve ({formatQuantity(material.minStockQty, material.unitCode)}). Place a supply order with an authorized vendor.
+                  Current stock ({formatQuantity(currentBalance, material.unitCode)}) is below the required reserve ({formatQuantity(material.minStockQty, material.unitCode)}).
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setShowPlaceOrderModal(true)}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              <span>{t("order.placeOrder", "Place Order Now")} &rarr;</span>
-            </button>
+            {canPlaceOrder && (
+              <button
+                onClick={() => setShowPlaceOrderModal(true)}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                <span>{t("order.placeOrder", "Place Order Now")} &rarr;</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -568,7 +582,7 @@ export default function MaterialDetailPage() {
 
       {/* Interactive Place Order to Vendor Modal */}
       <PlaceOrderModal
-        isOpen={showPlaceOrderModal}
+        isOpen={showPlaceOrderModal && canPlaceOrder}
         onClose={() => setShowPlaceOrderModal(false)}
         onOrderPlaced={() => {
           loadLedger();

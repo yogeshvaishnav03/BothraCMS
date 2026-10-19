@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Shell from "@/components/layout/Shell";
 import { useLanguage, LanguageCode } from "@/lib/i18n";
+import { canUser } from "@/lib/permissions";
 import {
   Building2,
   Users,
@@ -84,6 +85,9 @@ interface OrgData {
 
 export default function SettingsPage() {
   const { language, setLanguage, t } = useLanguage();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const canManageSettings = canUser(currentUser, "org:settings");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -107,7 +111,13 @@ export default function SettingsPage() {
   async function fetchOrg() {
     setLoading(true);
     try {
-      const res = await fetch("/api/organization");
+      const [res, meRes] = await Promise.all([
+        fetch("/api/organization"),
+        fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
+      ]);
+      if (meRes.success && meRes.data) {
+        setCurrentUser(meRes.data.user);
+      }
       const json = await res.json();
       if (json.success) {
         const data: OrgData = json.data;
@@ -444,16 +454,18 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="pt-2 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-md shadow-amber-600/20 transition disabled:opacity-50"
-                  >
-                    <Save className="w-4 h-4" />
-                    {saving ? t("action.saving", "Saving Changes...") : t("action.save", "Save Settings")}
-                  </button>
-                </div>
+                {canManageSettings && (
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-md shadow-amber-600/20 transition disabled:opacity-50"
+                    >
+                      <Save className="w-4 h-4" />
+                      {saving ? t("action.saving", "Saving Changes...") : t("action.save", "Save Settings")}
+                    </button>
+                  </div>
+                )}
               </form>
 
               {/* Team Members Table */}

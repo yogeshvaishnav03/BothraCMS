@@ -15,13 +15,21 @@ import {
   ClipboardList,
   Trash2,
 } from "lucide-react";
+import { canUser } from "@/lib/permissions";
 
 export default function ProjectsPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
   const [dailyReports, setDailyReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"PROJECTS" | "REPORTS">("PROJECTS");
+
+  // Role & Permission Checks
+  const canManageSites = canUser(currentUser, "sites:manage");
+  const canWriteProjects = canUser(currentUser, "projects:write");
+  const canSubmitDailyReport =
+    canUser(currentUser, "projects:write") || canUser(currentUser, "tasks:write");
 
   // Project modal & form states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -57,8 +65,12 @@ export default function ProjectsPage() {
       fetch("/api/projects").then((r) => r.json()),
       fetch("/api/sites").then((r) => r.json()),
       fetch("/api/daily-reports").then((r) => r.json()),
+      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
     ])
-      .then(([projRes, sitesRes, repRes]) => {
+      .then(([projRes, sitesRes, repRes, authRes]) => {
+        if (authRes?.success && authRes.data?.user) {
+          setCurrentUser(authRes.data.user);
+        }
         if (projRes.success) {
           const rawProj = projRes.data || [];
           setProjects(rawProj);
@@ -251,33 +263,39 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowCreateSiteModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 shadow-sm transition-all"
-            >
-              <Building2 className="w-4 h-4 text-amber-600" />
-              <span>+ Add Site</span>
-            </button>
-            <button
-              onClick={() => {
-                if (projects.length > 0) setReportProjectId(projects[0].id);
-                setShowDailyReportModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
-            >
-              <ClipboardList className="w-4 h-4 text-amber-400" />
-              <span>+ Submit Daily Report</span>
-            </button>
-            <button
-              onClick={() => {
-                if (sites.length > 0) setSelectedSiteId(sites[0].id);
-                setShowCreateModal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Create Project</span>
-            </button>
+            {canManageSites && (
+              <button
+                onClick={() => setShowCreateSiteModal(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 shadow-sm transition-all"
+              >
+                <Building2 className="w-4 h-4 text-amber-600" />
+                <span>+ Add Site</span>
+              </button>
+            )}
+            {canSubmitDailyReport && (
+              <button
+                onClick={() => {
+                  if (projects.length > 0) setReportProjectId(projects[0].id);
+                  setShowDailyReportModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
+              >
+                <ClipboardList className="w-4 h-4 text-amber-400" />
+                <span>+ Submit Daily Report</span>
+              </button>
+            )}
+            {canWriteProjects && (
+              <button
+                onClick={() => {
+                  if (sites.length > 0) setSelectedSiteId(sites[0].id);
+                  setShowCreateModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Create Project</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -387,13 +405,15 @@ export default function ProjectsPage() {
                     >
                       View Project Details &rarr;
                     </Link>
-                    <button
-                      onClick={() => handleDeleteProject(p.id, p.name)}
-                      title="Delete Project"
-                      className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canWriteProjects && (
+                      <button
+                        onClick={() => handleDeleteProject(p.id, p.name)}
+                        title="Delete Project"
+                        className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -474,7 +494,7 @@ export default function ProjectsPage() {
         )}
 
         {/* Modal: Create Site */}
-        {showCreateSiteModal && (
+        {showCreateSiteModal && canManageSites && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -556,7 +576,7 @@ export default function ProjectsPage() {
         )}
 
         {/* Modal: Create Project */}
-        {showCreateModal && (
+        {showCreateModal && canWriteProjects && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -693,7 +713,7 @@ export default function ProjectsPage() {
         )}
 
         {/* Modal: Submit Daily Site Report */}
-        {showDailyReportModal && (
+        {showDailyReportModal && canSubmitDailyReport && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">

@@ -24,8 +24,11 @@ import {
   FileText,
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
+import { canUser } from "@/lib/permissions";
 
 export default function PartiesPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const canWriteFinance = canUser(currentUser, "finance:write");
   const [parties, setParties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -69,6 +72,14 @@ export default function PartiesPage() {
   };
 
   useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data) {
+          setCurrentUser(res.data.user);
+        }
+      })
+      .catch(() => {});
     loadParties();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeFilter]);
@@ -208,13 +219,15 @@ export default function PartiesPage() {
             </p>
           </div>
 
-          <button
-            onClick={handleOpenCreate}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Register Partner</span>
-          </button>
+          {canWriteFinance && (
+            <button
+              onClick={handleOpenCreate}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Register Partner</span>
+            </button>
+          )}
         </div>
 
         {/* Feedback alerts */}
@@ -393,13 +406,15 @@ export default function PartiesPage() {
                               Statement
                             </Link>
 
-                            <button
-                              onClick={() => handleOpenEdit(p)}
-                              title="Edit Party Details"
-                              className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
+                            {canWriteFinance && (
+                              <button
+                                onClick={() => handleOpenEdit(p)}
+                                title="Edit Party Details"
+                                className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
                             <button
                               onClick={() => setAuditParty({ id: p.id, name: p.name })}
@@ -409,13 +424,15 @@ export default function PartiesPage() {
                               <History className="w-3.5 h-3.5" />
                             </button>
 
-                            <button
-                              onClick={() => handleDeleteParty(p.id, p.name)}
-                              title="Delete Party"
-                              className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {canWriteFinance && (
+                              <button
+                                onClick={() => handleDeleteParty(p.id, p.name)}
+                                title="Delete Party"
+                                className="p-1 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -428,7 +445,7 @@ export default function PartiesPage() {
         )}
 
         {/* Modal: Register / Edit Partner */}
-        {showModal && (
+        {showModal && canWriteFinance && (
           <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
