@@ -3,6 +3,7 @@ import { roundPaise } from "@/lib/financial-math";
 import { UserContext } from "@/lib/auth";
 import { canReadFinance, isOrgOwnerOrAdmin, getUserAccessibleProjectIds } from "@/lib/server-auth";
 import { InventoryService } from "@/services/inventory-service";
+import { WorkforceHeadcountService } from "@/services/workforce-headcount-service";
 
 export class DashboardService {
   static async getKpiMetrics(organizationId: string, siteId?: string, userContext?: UserContext) {
@@ -88,7 +89,19 @@ export class DashboardService {
       }),
     ]);
 
-    // 4. Workers Present Today
+    // 4. Site Workforce Headcount & Checked-in Attendance on Site Today
+    const [headcountSummary, headcountRecords] = await Promise.all([
+      WorkforceHeadcountService.getSummary(organizationId, siteId, todayStr).catch(() => ({
+        totalArtisan: 0,
+        totalCraftsman: 0,
+        totalLaborer: 0,
+        totalLaborerMale: 0,
+        totalLaborerFemale: 0,
+        grandTotal: 0,
+      })),
+      WorkforceHeadcountService.listRecords(organizationId, { siteId, date: todayStr }).catch(() => []),
+    ]);
+
     const attendanceWhere: any = {
       organizationId,
       workDate: todayStr,
@@ -103,18 +116,22 @@ export class DashboardService {
       ];
     }
 
-    const [workersPresentTodayCount, attendanceList] = await Promise.all([
-      prisma.attendanceSession.count({ where: attendanceWhere }),
+    const [staffAttendanceCount, attendanceList] = await Promise.all([
+      prisma.attendanceSession.count({ where: attendanceWhere }).catch(() => 0),
       prisma.attendanceSession.findMany({
         where: attendanceWhere,
         include: {
           workforceMember: { select: { name: true, workerType: true } },
+          creator: { select: { name: true, role: true } },
           site: { select: { name: true } },
         },
         orderBy: { checkInAt: "desc" },
-        take: 10,
-      }),
+        take: 15,
+      }).catch(() => []),
     ]);
+
+    const workforceCount = headcountSummary.grandTotal;
+    const totalWorkersPresentCount = workforceCount > 0 ? workforceCount : staffAttendanceCount;
 
     // 5. Authoritative Low Stock Items from Inventory Ledger
     const stockSummaries = await InventoryService.getAuthoritativeStockSummary(organizationId, siteId);
@@ -207,7 +224,34 @@ export class DashboardService {
       activeProjectsCount,
       tasksDueTodayCount,
       tasksOverdueCount,
-      workersPresentTodayCount,
+      workersPresentTodayCount: totalWorkersPresentCount,
+      workforceCount,
+      staffAttendanceCount,
+      totalOnSiteCount: workforceCount + staffAttendanceCount,
+      workforceHeadcount: {
+        grandTotal: headcountSummary.grandTotal,
+        totalArtisan: headcountSummary.totalArtisan,
+        totalCraftsman: headcountSummary.totalCraftsman,
+        totalLaborer: headcountSummary.totalLaborer,
+        totalLaborerMale: headcountSummary.totalLaborerMale,
+        totalLaborerFemale: headcountSummary.totalLaborerFemale,
+        records: (headcountRecords || []).map((r) => ({
+          id: r.id,
+          siteId: r.siteId,
+          siteName: r.siteName,
+          shift: r.shift,
+          artisanCount: r.artisanCount ?? r.artisanTotal ?? 0,
+          craftsmanCount: r.craftsmanCount ?? r.craftsmanTotal ?? 0,
+          laborerMale: r.laborerMale,
+          laborerFemale: r.laborerFemale,
+          laborerTotal: r.laborerTotal,
+          grandTotal: r.grandTotal,
+          contractorName: r.contractorName,
+          notes: r.notes,
+          supervisorName: r.supervisorName,
+          createdAt: r.createdAt,
+        })),
+      },
       lowStockItemsCount,
       paymentsMadeTodayAmount,
       totalOutstandingPayablesAmount,
@@ -238,8 +282,8 @@ export class DashboardService {
       })),
       workersPresentToday: (attendanceList as any[]).map((a) => ({
         id: a.id,
-        workerName: a.workforceMember?.name || "Worker",
-        trade: a.workforceMember?.workerType || "General",
+        workerName: a.creator?.name || a.workforceMember?.name || "Staff Member",
+        trade: a.creator?.role || a.workforceMember?.workerType || "Staff",
         siteName: a.site?.name,
         checkInAt: a.checkInAt ? a.checkInAt.toISOString() : null,
         status: a.status,

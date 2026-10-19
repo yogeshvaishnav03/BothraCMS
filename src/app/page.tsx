@@ -30,6 +30,7 @@ import {
   Image as ImageIcon,
   ShieldCheck,
   Calendar,
+  Users,
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
@@ -373,51 +374,170 @@ export default function DashboardPage() {
       }
       case "workersPresentToday": {
         const list = kpi?.workersPresentToday || [];
+        const headcount = kpi?.workforceHeadcount;
+        const headcountRecords = headcount?.records || [];
+        const totalHeadcount = headcount?.grandTotal || 0;
+        const totalStaff = kpi?.staffAttendanceCount ?? list.length;
+        const displayTotal = totalHeadcount > 0 ? totalHeadcount : totalStaff;
+
+        const hasAnyData = totalHeadcount > 0 || list.length > 0;
+
         return {
           icon: <HardHat className="w-5 h-5 text-emerald-600" />,
-          title: t("kpi.workersOnSite", "Workers on Site"),
-          badge: `${kpi?.workersPresentTodayCount ?? 0} Present Today`,
+          title: "Workforce & Workers on Site",
+          badge: `${displayTotal} on Site Today`,
           badgeColor: "bg-emerald-100 text-emerald-800",
-          subtitle: "Crew members and workforce who have checked in today",
-          actionUrl: "/attendance",
-          actionLabel: "Go to Attendance",
-          emptyTitle: "No crew checked in today",
-          emptyDesc: "No attendance sessions logged for today yet. Use Quick Crew Check-In or the Attendance page.",
-          content: list.length > 0 ? (
-            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
-              {list.map((w: any) => (
-                <div
-                  key={w.id}
-                  className="p-3.5 bg-slate-50 hover:bg-emerald-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-900 text-sm">{w.workerName}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
-                        {w.status}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
-                      <span>
-                        Trade: <strong className="text-slate-700">{w.trade}</strong>
-                      </span>
-                      {w.siteName && (
-                        <span>
-                          Site: <strong className="text-slate-700">{w.siteName}</strong>
-                        </span>
-                      )}
-                    </div>
+          subtitle: "Daily site workforce headcount (Artisans, Craftsmen, Laborers) and checked-in personnel",
+          actionUrl: "/workforce",
+          actionLabel: "Go to Workforce",
+          emptyTitle: "No workforce or crew logged today",
+          emptyDesc: "No site workforce headcount or attendance sessions logged for today yet. Use the Workforce page to upload site counts.",
+          content: hasAnyData ? (
+            <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+              {/* Top Trade Headcount Summary */}
+              {totalHeadcount > 0 && (
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-emerald-600" />
+                      <span>Today&apos;s Total Workforce Headcount</span>
+                    </span>
+                    <span className="text-xs font-mono font-black text-emerald-900 bg-emerald-200/80 px-2.5 py-0.5 rounded-full">
+                      {totalHeadcount} Workers
+                    </span>
                   </div>
-                  <div className="text-left sm:text-right shrink-0">
-                    <div className="text-[11px] text-slate-500 font-medium">Check-In Time</div>
-                    <div className="text-sm font-bold text-emerald-700">
-                      {w.checkInAt
-                        ? new Date(w.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                        : "Today"}
+
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs">
+                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Artisans</div>
+                      <div className="text-base font-black text-slate-900 mt-0.5">
+                        {headcount?.totalArtisan || 0}
+                      </div>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs">
+                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Craftsmen</div>
+                      <div className="text-base font-black text-slate-900 mt-0.5">
+                        {headcount?.totalCraftsman || 0}
+                      </div>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs">
+                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Laborers</div>
+                      <div className="text-base font-black text-slate-900 mt-0.5">
+                        {headcount?.totalLaborer || 0}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-medium">
+                        ({headcount?.totalLaborerMale || 0}M / {headcount?.totalLaborerFemale || 0}F)
+                      </div>
                     </div>
                   </div>
                 </div>
-              ))}
+              )}
+
+              {/* Site-by-Site Headcount Records */}
+              {headcountRecords.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Site Workforce Headcount Records ({headcountRecords.length})</span>
+                  </div>
+                  {headcountRecords.map((r: any) => (
+                    <div
+                      key={r.id}
+                      className="p-3.5 bg-white hover:bg-slate-50/80 rounded-xl border border-slate-200 transition-colors shadow-2xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">{r.siteName}</span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold uppercase">
+                              {r.shift} Shift
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span>
+                              Supervisor: <strong className="text-slate-700">{r.supervisorName}</strong>
+                            </span>
+                            {r.contractorName && (
+                              <span>
+                                Contractor: <strong className="text-slate-700">{r.contractorName}</strong>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg tabular-nums">
+                            {r.grandTotal} Workers
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-3 gap-2 text-[11px] text-slate-600">
+                        <div>
+                          Artisans: <strong className="text-slate-900">{r.artisanCount}</strong>
+                        </div>
+                        <div>
+                          Craftsmen: <strong className="text-slate-900">{r.craftsmanCount}</strong>
+                        </div>
+                        <div>
+                          Laborers: <strong className="text-slate-900">{r.laborerTotal}</strong>
+                          <span className="text-[10px] text-slate-400 ml-1">
+                            ({r.laborerMale}M / {r.laborerFemale}F)
+                          </span>
+                        </div>
+                      </div>
+
+                      {r.notes && (
+                        <div className="mt-2 text-[11px] text-slate-500 italic bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          Note: {r.notes}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Checked-In Staff & Supervisors */}
+              {list.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Checked-In Staff &amp; Supervisors ({list.length})</span>
+                    </span>
+                    <Link
+                      href="/attendance"
+                      className="text-[11px] font-semibold text-blue-600 hover:underline"
+                    >
+                      Attendance Page &rarr;
+                    </Link>
+                  </div>
+                  <div className="space-y-2">
+                    {list.map((w: any) => (
+                      <div
+                        key={w.id}
+                        className="p-3 bg-slate-50 hover:bg-slate-100/60 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div>
+                          <span className="font-bold text-slate-900">{w.workerName}</span>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {w.trade} &bull; {w.siteName || "Main Site"}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase">
+                            {w.status}
+                          </span>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {w.checkInAt
+                              ? new Date(w.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                              : "Today"}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : null,
         };
@@ -1068,24 +1188,37 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Workers Present Today */}
+            {/* Workforce on Site Today */}
             <div
               onClick={() => setActiveKpiModal("workersPresentToday")}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
-              title="Click to view Crew Attendance details"
+              title="Click to view full Workforce & Crew details"
             >
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.workersOnSite", "Workers on Site")}</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.workersOnSite", "Workforce on Site")}</span>
                 <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                   <HardHat className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-slate-900">
-                {kpi?.workersPresentTodayCount ?? 0}
+              <div className="text-2xl font-black text-slate-900 flex items-baseline gap-2">
+                <span>
+                  {(kpi?.workforceHeadcount?.grandTotal || 0) > 0
+                    ? kpi.workforceHeadcount.grandTotal
+                    : kpi?.workersPresentTodayCount ?? 0}
+                </span>
+                {(kpi?.workforceHeadcount?.grandTotal || 0) > 0 && (kpi?.staffAttendanceCount || 0) > 0 && (
+                  <span className="text-xs font-bold text-slate-400">
+                    (+{kpi.staffAttendanceCount} staff)
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center justify-between">
-                <span>Checked in today</span>
-                <span className="text-emerald-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span className="truncate max-w-[190px]">
+                  {(kpi?.workforceHeadcount?.grandTotal || 0) > 0
+                    ? `${kpi.workforceHeadcount.grandTotal} on site (${kpi.workforceHeadcount.totalArtisan || 0} Art, ${kpi.workforceHeadcount.totalLaborer || 0} Lab)`
+                    : `${kpi?.workersPresentTodayCount ?? 0} checked in today`}
+                </span>
+                <span className="text-emerald-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0">
                   Details <ExternalLink className="w-3 h-3" />
                 </span>
               </div>
@@ -1361,7 +1494,11 @@ export default function DashboardPage() {
               const isSelected = activeSiteId === site.id;
               const totalSiteBudget = siteProjs.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
               const siteWorkers = workers.filter((w) => w.defaultSiteId === site.id);
+              const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+                (r: any) => r.siteId === site.id || r.siteName?.toLowerCase() === site.name?.toLowerCase()
+              );
               const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
+              const siteOnSiteCount = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
 
               return (
                 <div
@@ -1404,7 +1541,7 @@ export default function DashboardPage() {
                       <div>
                         <div className="text-[10px] text-slate-500 font-medium">On-Site Today</div>
                         <div className="text-sm font-black text-emerald-600">
-                          {siteWorkersPresent.length}
+                          {siteOnSiteCount}
                         </div>
                       </div>
                       <div>
