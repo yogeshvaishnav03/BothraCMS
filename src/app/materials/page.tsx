@@ -20,6 +20,109 @@ import {
   ShoppingCart,
 } from "lucide-react";
 
+interface StandardMaterialPreset {
+  name: string;
+  unit: string;
+  sku: string;
+  min: number;
+  reorder: number;
+}
+
+interface StandardMaterialCategory {
+  category: string;
+  items: StandardMaterialPreset[];
+}
+
+const STANDARD_CONSTRUCTION_MATERIALS: StandardMaterialCategory[] = [
+  {
+    category: "Cement & Binders",
+    items: [
+      { name: "UltraTech Super Cement OPC 53 Grade", unit: "BAG", sku: "CEM-OPC-53", min: 50, reorder: 200 },
+      { name: "UltraTech Cement PPC (50kg)", unit: "BAG", sku: "CEM-PPC-50", min: 100, reorder: 250 },
+      { name: "Ambuja Cement PPC (50kg)", unit: "BAG", sku: "CEM-AMB-50", min: 50, reorder: 200 },
+      { name: "ACC Gold Water Shield Cement", unit: "BAG", sku: "CEM-ACC-50", min: 50, reorder: 200 },
+      { name: "Shree Cement OPC 43 Grade", unit: "BAG", sku: "CEM-SHR-43", min: 50, reorder: 200 },
+      { name: "Birla White Portland Cement (50kg)", unit: "BAG", sku: "CEM-WHT-50", min: 20, reorder: 50 },
+      { name: "JK Super Cement PPC (50kg)", unit: "BAG", sku: "CEM-JKS-50", min: 50, reorder: 200 },
+    ],
+  },
+  {
+    category: "Aggregates, Sand & Concrete",
+    items: [
+      { name: "Coarse Washed River Sand", unit: "TONNE", sku: "AGG-SND-CRS", min: 20, reorder: 50 },
+      { name: "M-Sand (Manufactured Sand)", unit: "TONNE", sku: "AGG-MSAND", min: 25, reorder: 60 },
+      { name: "Crushed Stone Aggregate 10mm (Gitti)", unit: "TONNE", sku: "AGG-10MM", min: 15, reorder: 40 },
+      { name: "Crushed Stone Aggregate 20mm (Gitti)", unit: "TONNE", sku: "AGG-20MM", min: 20, reorder: 50 },
+      { name: "Crushed Stone Aggregate 40mm", unit: "TONNE", sku: "AGG-40MM", min: 15, reorder: 30 },
+      { name: "Quarry Dust / Stone Dust", unit: "TONNE", sku: "AGG-DUST", min: 10, reorder: 30 },
+      { name: "Ready Mix Concrete (RMC) M25", unit: "TONNE", sku: "RMC-M25", min: 10, reorder: 25 },
+      { name: "Ready Mix Concrete (RMC) M30", unit: "TONNE", sku: "RMC-M30", min: 10, reorder: 25 },
+    ],
+  },
+  {
+    category: "Steel & Structural Metal",
+    items: [
+      { name: "Tata Tiscon Fe550D TMT Rebar 8mm", unit: "TONNE", sku: "STL-TMT-8", min: 5, reorder: 15 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 10mm", unit: "TONNE", sku: "STL-TMT-10", min: 8, reorder: 20 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 12mm", unit: "TONNE", sku: "STL-TMT-12", min: 10, reorder: 25 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 16mm", unit: "TONNE", sku: "STL-TMT-16", min: 10, reorder: 25 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 20mm", unit: "TONNE", sku: "STL-TMT-20", min: 8, reorder: 20 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 25mm", unit: "TONNE", sku: "STL-TMT-25", min: 5, reorder: 15 },
+      { name: "Jindal Panther Fe550D TMT Rebar 12mm", unit: "TONNE", sku: "STL-JND-12", min: 10, reorder: 25 },
+      { name: "Binding Wire (18 Gauge Galvanized)", unit: "KG", sku: "STL-BND-18", min: 50, reorder: 100 },
+      { name: "MS Structural Angle 50x50x6mm", unit: "KG", sku: "STL-ANG-50", min: 100, reorder: 300 },
+      { name: "MS Channel 100x50mm", unit: "KG", sku: "STL-CHN-100", min: 100, reorder: 300 },
+    ],
+  },
+  {
+    category: "Bricks, Blocks & Masonry",
+    items: [
+      { name: "Red Clay Kiln Bricks (Standard 9x4x3)", unit: "PIECE", sku: "BRK-RED-STD", min: 2000, reorder: 5000 },
+      { name: "Fly Ash Bricks Class 1", unit: "PIECE", sku: "BRK-FLY-ASH", min: 1500, reorder: 4000 },
+      { name: "AAC Lightweight Blocks (600x200x150mm)", unit: "PIECE", sku: "BLK-AAC-150", min: 300, reorder: 800 },
+      { name: "AAC Lightweight Blocks (600x200x200mm)", unit: "PIECE", sku: "BLK-AAC-200", min: 300, reorder: 800 },
+      { name: "Block Jointing Chemical Mortar (40kg)", unit: "BAG", sku: "MOR-AAC-40", min: 25, reorder: 60 },
+    ],
+  },
+  {
+    category: "Paints, Putty & Waterproofing",
+    items: [
+      { name: "Asian Paints Apex Ultima White (20L)", unit: "LITRE", sku: "PNT-APX-WHT", min: 20, reorder: 50 },
+      { name: "Asian Paints Tractor Emulsion (20L)", unit: "LITRE", sku: "PNT-TRC-20L", min: 15, reorder: 40 },
+      { name: "Dr. Fixit 101 LW+ Waterproofing (20L)", unit: "LITRE", sku: "CHM-DFX-101", min: 10, reorder: 30 },
+      { name: "Dr. Fixit Fastflex 2K Waterproofing (12kg)", unit: "KG", sku: "CHM-DFX-FFX", min: 10, reorder: 25 },
+      { name: "Birla White Wall Care Putty (40kg)", unit: "BAG", sku: "PTY-WCR-40", min: 30, reorder: 75 },
+      { name: "Exterior Acrylic Wall Primer (20L)", unit: "LITRE", sku: "PRM-EXT-20L", min: 15, reorder: 30 },
+    ],
+  },
+  {
+    category: "Plumbing & Drainage",
+    items: [
+      { name: "Astral CPVC Pro Pipe 1 inch (3m SDR 11)", unit: "PIECE", sku: "PLB-CPVC-1IN", min: 30, reorder: 80 },
+      { name: "Astral CPVC Pro Pipe 3/4 inch (3m SDR 11)", unit: "PIECE", sku: "PLB-CPVC-34IN", min: 40, reorder: 100 },
+      { name: "Supreme PVC SWR Drainage Pipe 110mm (4 inch)", unit: "PIECE", sku: "PLB-SWR-110", min: 20, reorder: 50 },
+      { name: "CPVC Heavy Duty Solvent Cement (500ml)", unit: "PIECE", sku: "PLB-SLV-500", min: 10, reorder: 25 },
+    ],
+  },
+  {
+    category: "Electrical & Wiring",
+    items: [
+      { name: "Finolex 1.5 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-15", min: 10, reorder: 25 },
+      { name: "Finolex 2.5 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-25", min: 15, reorder: 35 },
+      { name: "Finolex 4.0 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-40", min: 10, reorder: 20 },
+      { name: "PVC Electrical Conduit Pipe 25mm (3m)", unit: "PIECE", sku: "ELC-CND-25", min: 50, reorder: 150 },
+    ],
+  },
+  {
+    category: "Tiles, Granite & Adhesive",
+    items: [
+      { name: "Vitrified Floor Tiles 600x600mm Double Charged", unit: "BOX", sku: "TLS-VIT-600", min: 40, reorder: 100 },
+      { name: "Granite Slab Black Galaxy (18mm)", unit: "PIECE", sku: "STN-GRN-BLK", min: 10, reorder: 25 },
+      { name: "Polymer Modified Tile Adhesive (20kg)", unit: "BAG", sku: "ADH-TLS-20K", min: 20, reorder: 50 },
+    ],
+  },
+];
+
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
@@ -37,6 +140,60 @@ export default function MaterialsPage() {
   const [newMatUnit, setNewMatUnit] = useState("BAG");
   const [newMatMinStock, setNewMatMinStock] = useState("");
   const [newMatReorder, setNewMatReorder] = useState("");
+  const [selectedMaterialPreset, setSelectedMaterialPreset] = useState("");
+  const [isCustomMaterialName, setIsCustomMaterialName] = useState(false);
+
+  const handleSelectMaterialPreset = (val: string) => {
+    setSelectedMaterialPreset(val);
+    if (val === "__CUSTOM__") {
+      setIsCustomMaterialName(true);
+      setNewMatName("");
+      return;
+    }
+    setIsCustomMaterialName(false);
+    let foundItem: any = null;
+    for (const group of STANDARD_CONSTRUCTION_MATERIALS) {
+      const match = group.items.find((i) => i.name === val);
+      if (match) {
+        foundItem = match;
+        break;
+      }
+    }
+    if (foundItem) {
+      setNewMatName(foundItem.name);
+      setNewMatUnit(foundItem.unit);
+      setNewMatMinStock(foundItem.min ? String(foundItem.min) : "");
+      setNewMatReorder(foundItem.reorder ? String(foundItem.reorder) : "");
+      setNewMatSku(`${foundItem.sku}-${Math.floor(100 + Math.random() * 900)}`);
+    } else {
+      setNewMatName(val);
+    }
+  };
+
+  const handleToggleCustomName = () => {
+    const nextState = !isCustomMaterialName;
+    setIsCustomMaterialName(nextState);
+    if (nextState) {
+      setSelectedMaterialPreset("__CUSTOM__");
+    } else {
+      setSelectedMaterialPreset("");
+      setNewMatName("");
+    }
+  };
+
+  const handleCustomNameChange = (val: string) => {
+    setNewMatName(val);
+    const cleaned = val
+      .toUpperCase()
+      .replace(/[^A-Z0-9\s]/g, "")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 3)
+      .join("-");
+    if (cleaned) {
+      setNewMatSku(`MAT-${cleaned}-${Math.floor(100 + Math.random() * 900)}`);
+    }
+  };
 
   // Modal states
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -168,6 +325,8 @@ export default function MaterialsPage() {
         setNewMatSku("");
         setNewMatMinStock("");
         setNewMatReorder("");
+        setSelectedMaterialPreset("");
+        setIsCustomMaterialName(false);
         loadMaterials();
       }
     } catch {
@@ -372,7 +531,15 @@ export default function MaterialsPage() {
               <span>Place Order</span>
             </button>
             <button
-              onClick={() => setShowCreateMaterialModal(true)}
+              onClick={() => {
+                setNewMatName("");
+                setNewMatSku("");
+                setNewMatMinStock("");
+                setNewMatReorder("");
+                setSelectedMaterialPreset("");
+                setIsCustomMaterialName(false);
+                setShowCreateMaterialModal(true);
+              }}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4 text-amber-400" />
@@ -1075,17 +1242,59 @@ export default function MaterialsPage() {
 
               <form onSubmit={handleCreateMaterial} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Material Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. UltraTech Super Cement 53"
-                    value={newMatName}
-                    onChange={(e) => setNewMatName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase">
+                      Material Name *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleToggleCustomName}
+                      className="text-[11px] font-bold text-amber-600 hover:text-amber-700 underline flex items-center gap-1 cursor-pointer"
+                    >
+                      {isCustomMaterialName ? "📋 Select from Dropdown" : "➕ + Add New Material Name"}
+                    </button>
+                  </div>
+
+                  {!isCustomMaterialName ? (
+                    <div>
+                      <select
+                        value={selectedMaterialPreset}
+                        onChange={(e) => handleSelectMaterialPreset(e.target.value)}
+                        required
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                      >
+                        <option value="">-- Select Material from Dropdown --</option>
+                        <option value="__CUSTOM__">➕ + Add New / Custom Material Name (Type Below)...</option>
+                        {STANDARD_CONSTRUCTION_MATERIALS.map((group) => (
+                          <optgroup key={group.category} label={`── ${group.category} ──`}>
+                            {group.items.map((item) => (
+                              <option key={item.name} value={item.name}>
+                                {item.name} ({item.unit})
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Select a standard material to auto-fill unit &amp; inventory reorder levels, or click &quot;+ Add New Material Name&quot; to type a custom name.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Type new material name (e.g. UltraTech Super Cement 53 / Gyproc Sheet)"
+                        value={newMatName}
+                        onChange={(e) => handleCustomNameChange(e.target.value)}
+                        autoFocus
+                        className="w-full bg-slate-50 border border-amber-300 ring-2 ring-amber-500/10 rounded-lg p-2.5 text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Entering custom material name. SKU code &amp; unit can be configured below.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
