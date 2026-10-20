@@ -142,6 +142,36 @@ export default function DashboardPage() {
     }
   };
 
+  const handleCopyHeadcountToToday = async (recordsToCopy: any[]) => {
+    if (!recordsToCopy || recordsToCopy.length === 0) return;
+    const todayStr = new Date().toISOString().split("T")[0];
+    setLoading(true);
+    try {
+      for (const rec of recordsToCopy) {
+        await fetch("/api/workforce/headcount", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            siteId: rec.siteId,
+            date: todayStr,
+            shift: rec.shift || "GENERAL",
+            artisanCount: rec.artisanCount ?? rec.artisanTotal ?? 0,
+            craftsmanCount: rec.craftsmanCount ?? rec.craftsmanTotal ?? 0,
+            laborerMale: rec.laborerMale || 0,
+            laborerFemale: rec.laborerFemale || 0,
+            contractorName: rec.contractorName,
+            notes: `Copied from ${rec.date ? formatDate(rec.date) : "previous count"}`,
+          }),
+        });
+      }
+      loadDashboard(activeSiteId);
+    } catch {
+      alert("Failed to copy headcount to today");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDashboardPhotoDelete = async (photoId: string, fileName: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
@@ -495,32 +525,61 @@ export default function DashboardPage() {
       case "workersPresentToday": {
         const list = kpi?.workersPresentToday || [];
         const headcount = kpi?.workforceHeadcount;
-        const headcountRecords = headcount?.records || [];
+        const headcountRecords =
+          (headcount?.records && headcount.records.length > 0)
+            ? headcount.records
+            : (headcount?.allRecentRecords || []);
         const totalHeadcount = headcount?.grandTotal || 0;
         const totalStaff = kpi?.staffAttendanceCount ?? list.length;
         const displayTotal = totalHeadcount > 0 ? totalHeadcount : totalStaff;
+        const isLatestFallback = headcount?.isLatestFallback;
+        const activeDate = headcount?.activeDate;
 
-        const hasAnyData = totalHeadcount > 0 || list.length > 0;
+        const hasAnyData = totalHeadcount > 0 || list.length > 0 || headcountRecords.length > 0;
+        const badgeText = isLatestFallback
+          ? `${displayTotal} on Site (${activeDate ? formatDate(activeDate) : 'Latest'})`
+          : `${displayTotal} on Site Today`;
 
         return {
           icon: <HardHat className="w-5 h-5 text-emerald-600" />,
           title: "Workforce & Workers on Site",
-          badge: `${displayTotal} on Site Today`,
-          badgeColor: "bg-emerald-100 text-emerald-800",
+          badge: badgeText,
+          badgeColor: isLatestFallback ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-800",
           subtitle: "Daily site workforce headcount (Artisans, Craftsmen, Laborers) and checked-in personnel",
           actionUrl: "/workforce",
           actionLabel: "Go to Workforce",
-          emptyTitle: "No workforce or crew logged today",
-          emptyDesc: "No site workforce headcount or attendance sessions logged for today yet. Use the Workforce page to upload site counts.",
+          emptyTitle: "No workforce logged yet",
+          emptyDesc: "No site workforce headcount or attendance sessions logged yet. Click below to enter site counts.",
           content: hasAnyData ? (
             <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+              {/* Fallback Notice Banner if showing previous day's count */}
+              {isLatestFallback && (
+                <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900 gap-2 shadow-2xs">
+                  <div className="space-y-0.5">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Showing latest logged count from ${activeDate ? formatDate(activeDate) : "earlier"}</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800">
+                      Today&apos;s site headcount has not been submitted yet.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleCopyHeadcountToToday(headcountRecords)}
+                    className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1"
+                  >
+                    <span>Copy to Today</span>
+                  </button>
+                </div>
+              )}
+
               {/* Top Trade Headcount Summary */}
               {totalHeadcount > 0 && (
                 <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
                       <Users className="w-4 h-4 text-emerald-600" />
-                      <span>Today&apos;s Total Workforce Headcount</span>
+                      <span>{isLatestFallback ? `Workforce Headcount (${activeDate ? formatDate(activeDate) : 'Latest'})` : `Today's Total Workforce Headcount`}</span>
                     </span>
                     <span className="text-xs font-mono font-black text-emerald-900 bg-emerald-200/80 px-2.5 py-0.5 rounded-full">
                       {totalHeadcount} Workers
@@ -572,6 +631,11 @@ export default function DashboardPage() {
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold uppercase">
                               {r.shift} Shift
                             </span>
+                            {r.date && (
+                              <span className="text-[10px] font-mono text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded">
+                                {formatDate(r.date)}
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                             <span>
@@ -1329,6 +1393,11 @@ export default function DashboardPage() {
                 {(kpi?.workforceHeadcount?.grandTotal || 0) > 0 && (kpi?.staffAttendanceCount || 0) > 0 && (
                   <span className="text-xs font-bold text-slate-400">
                     (+{kpi.staffAttendanceCount} staff)
+                  </span>
+                )}
+                {kpi?.workforceHeadcount?.isLatestFallback && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                    Latest: {kpi.workforceHeadcount.activeDate ? formatDate(kpi.workforceHeadcount.activeDate) : "Recent"}
                   </span>
                 )}
               </div>

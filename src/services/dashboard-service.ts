@@ -89,8 +89,8 @@ export class DashboardService {
       }),
     ]);
 
-    // 4. Site Workforce Headcount & Checked-in Attendance on Site Today
-    const [headcountSummary, headcountRecords] = await Promise.all([
+    // 4. Site Workforce Headcount & Checked-in Attendance on Site Today (with fallback to latest logged count)
+    const [todaySummary, todayRecords, allRecentRecords] = await Promise.all([
       WorkforceHeadcountService.getSummary(organizationId, siteId, todayStr).catch(() => ({
         totalArtisan: 0,
         totalCraftsman: 0,
@@ -100,7 +100,29 @@ export class DashboardService {
         grandTotal: 0,
       })),
       WorkforceHeadcountService.listRecords(organizationId, { siteId, date: todayStr }).catch(() => []),
+      WorkforceHeadcountService.listRecords(organizationId, { siteId }).catch(() => []),
     ]);
+
+    const hasTodayData = (todaySummary?.grandTotal || 0) > 0 || (todayRecords?.length || 0) > 0;
+    const latestDate = allRecentRecords.length > 0 ? allRecentRecords[0].date : todayStr;
+    const latestDateRecords = allRecentRecords.filter((r) => r.date === latestDate);
+
+    const latestTotal = latestDateRecords.reduce((s, r) => s + (r.grandTotal || 0), 0);
+    const latestArtisans = latestDateRecords.reduce((s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
+    const latestCraftsmen = latestDateRecords.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
+    const latestLaborers = latestDateRecords.reduce((s, r) => s + (r.laborerTotal || 0), 0);
+    const latestLaborerMale = latestDateRecords.reduce((s, r) => s + (r.laborerMale || 0), 0);
+    const latestLaborerFemale = latestDateRecords.reduce((s, r) => s + (r.laborerFemale || 0), 0);
+
+    const isLatestFallback = !hasTodayData && latestDateRecords.length > 0;
+    const activeDate = hasTodayData ? todayStr : latestDate;
+    const effectiveGrandTotal = hasTodayData ? todaySummary.grandTotal : latestTotal;
+    const effectiveArtisans = hasTodayData ? todaySummary.totalArtisan : latestArtisans;
+    const effectiveCraftsmen = hasTodayData ? todaySummary.totalCraftsman : latestCraftsmen;
+    const effectiveLaborers = hasTodayData ? todaySummary.totalLaborer : latestLaborers;
+    const effectiveLaborerMale = hasTodayData ? todaySummary.totalLaborerMale : latestLaborerMale;
+    const effectiveLaborerFemale = hasTodayData ? todaySummary.totalLaborerFemale : latestLaborerFemale;
+    const effectiveRecords = hasTodayData ? todayRecords : latestDateRecords;
 
     const attendanceWhere: any = {
       organizationId,
@@ -130,7 +152,7 @@ export class DashboardService {
       }).catch(() => []),
     ]);
 
-    const workforceCount = headcountSummary.grandTotal;
+    const workforceCount = effectiveGrandTotal;
     const totalWorkersPresentCount = workforceCount > 0 ? workforceCount : staffAttendanceCount;
 
     // 5. Authoritative Low Stock Items from Inventory Ledger
@@ -229,16 +251,37 @@ export class DashboardService {
       staffAttendanceCount,
       totalOnSiteCount: workforceCount + staffAttendanceCount,
       workforceHeadcount: {
-        grandTotal: headcountSummary.grandTotal,
-        totalArtisan: headcountSummary.totalArtisan,
-        totalCraftsman: headcountSummary.totalCraftsman,
-        totalLaborer: headcountSummary.totalLaborer,
-        totalLaborerMale: headcountSummary.totalLaborerMale,
-        totalLaborerFemale: headcountSummary.totalLaborerFemale,
-        records: (headcountRecords || []).map((r) => ({
+        grandTotal: effectiveGrandTotal,
+        totalArtisan: effectiveArtisans,
+        totalCraftsman: effectiveCraftsmen,
+        totalLaborer: effectiveLaborers,
+        totalLaborerMale: effectiveLaborerMale,
+        totalLaborerFemale: effectiveLaborerFemale,
+        isLatestFallback,
+        activeDate,
+        todayGrandTotal: todaySummary.grandTotal,
+        records: (effectiveRecords || []).map((r) => ({
           id: r.id,
           siteId: r.siteId,
           siteName: r.siteName,
+          date: r.date,
+          shift: r.shift,
+          artisanCount: r.artisanCount ?? r.artisanTotal ?? 0,
+          craftsmanCount: r.craftsmanCount ?? r.craftsmanTotal ?? 0,
+          laborerMale: r.laborerMale,
+          laborerFemale: r.laborerFemale,
+          laborerTotal: r.laborerTotal,
+          grandTotal: r.grandTotal,
+          contractorName: r.contractorName,
+          notes: r.notes,
+          supervisorName: r.supervisorName,
+          createdAt: r.createdAt,
+        })),
+        allRecentRecords: (allRecentRecords || []).slice(0, 15).map((r) => ({
+          id: r.id,
+          siteId: r.siteId,
+          siteName: r.siteName,
+          date: r.date,
           shift: r.shift,
           artisanCount: r.artisanCount ?? r.artisanTotal ?? 0,
           craftsmanCount: r.craftsmanCount ?? r.craftsmanTotal ?? 0,

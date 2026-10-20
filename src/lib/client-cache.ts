@@ -180,6 +180,10 @@ export const clientCache = {
       tasksDueTodayCount: serverKpis?.tasksDueTodayCount ?? 0,
       tasksOverdueCount: serverKpis?.tasksOverdueCount ?? 0,
       workersPresentTodayCount: serverKpis?.workersPresentTodayCount ?? 0,
+      workforceCount: serverKpis?.workforceCount ?? 0,
+      staffAttendanceCount: serverKpis?.staffAttendanceCount ?? 0,
+      totalOnSiteCount: serverKpis?.totalOnSiteCount ?? 0,
+      workforceHeadcount: serverKpis?.workforceHeadcount ?? null,
       lowStockItemsCount: serverKpis?.lowStockItemsCount ?? 0,
       paymentsMadeTodayAmount: serverKpis?.paymentsMadeTodayAmount ?? 0,
       totalOutstandingPayablesAmount: serverKpis?.totalOutstandingPayablesAmount ?? 0,
@@ -192,12 +196,14 @@ export const clientCache = {
       serverKpis?.workersPresentToday !== undefined ||
       serverKpis?.lowStockItems !== undefined ||
       serverKpis?.paymentsMadeToday !== undefined ||
-      serverKpis?.outstandingPayables !== undefined
+      serverKpis?.outstandingPayables !== undefined ||
+      serverKpis?.workforceHeadcount !== undefined
     ) {
       base.activeProjects = serverKpis?.activeProjects ?? [];
       base.tasksDueToday = serverKpis?.tasksDueToday ?? [];
       base.tasksOverdue = serverKpis?.tasksOverdue ?? [];
       base.workersPresentToday = serverKpis?.workersPresentToday ?? [];
+      base.workforceHeadcount = serverKpis?.workforceHeadcount ?? null;
       base.lowStockItems = serverKpis?.lowStockItems ?? [];
       base.paymentsMadeToday = serverKpis?.paymentsMadeToday ?? [];
       base.outstandingPayables = serverKpis?.outstandingPayables ?? [];
