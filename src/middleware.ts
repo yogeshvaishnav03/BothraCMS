@@ -11,6 +11,95 @@ const PUBLIC_PATHS = [
   "/api/health",
 ];
 
+// Trusted origins for CORS and CSRF (configure in environment)
+function getTrustedOrigins(): string[] {
+  const envOrigins = process.env.TRUSTED_ORIGINS || "";
+  const parsed = envOrigins
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  // Always trust current host in development
+  if (process.env.NODE_ENV === "development") {
+    parsed.push("localhost:3000", "localhost:3001", "127.0.0.1:3000", "127.0.0.1:3001");
+  }
+
+  return parsed;
+}
+
+/**
+ * Validate that origin/referer match trusted origins for unsafe methods.
+ *
+ * SECURITY INVARIANT:
+ * - Missing Origin AND missing Referer on unsafe methods → REJECTED
+ * - Malformed origins → REJECTED
+ * - Untrusted origins → REJECTED
+ * - Bearer token authentication provides alternative CSRF-safe path
+ */
+function validateRequestOrigin(req: NextRequest): { valid: boolean; reason?: string } {
+  const origin = req.headers.get("origin");
+  const referer = req.headers.get("referer");
+  const host = req.headers.get("host") || "";
+  const authorization = req.headers.get("authorization");
+
+  // 1. Bearer token (non-browser, API-authenticated) → CSRF-safe
+  if (authorization && authorization.startsWith("Bearer ")) {
+    // No origin/referer validation needed for bearer-authenticated requests
+    // (attacker cannot make bearer requests from another origin)
+    return { valid: true };
+  }
+
+  // 2. Cookie-authenticated request MUST have valid Origin or Referer
+
+  // Case A: Origin header present
+  if (origin) {
+    try {
+      const originUrl = new URL(origin);
+      const trusted = getTrustedOrigins();
+
+      // Check against trusted origins
+      if (trusted.some((t) => originUrl.host === t)) {
+        return { valid: true };
+      }
+
+      // Check against current host
+      if (originUrl.host === host) {
+        return { valid: true };
+      }
+
+      return { valid: false, reason: "Origin not trusted" };
+    } catch {
+      return { valid: false, reason: "Malformed Origin header" };
+    }
+  }
+
+  // Case B: Referer header present (Origin missing)
+  if (referer) {
+    try {
+      const refererUrl = new URL(referer);
+      const trusted = getTrustedOrigins();
+
+      // Check against trusted origins
+      if (trusted.some((t) => refererUrl.host === t)) {
+        return { valid: true };
+      }
+
+      // Check against current host
+      if (refererUrl.host === host) {
+        return { valid: true };
+      }
+
+      return { valid: false, reason: "Referer not trusted" };
+    } catch {
+      return { valid: false, reason: "Malformed Referer header" };
+    }
+  }
+
+  // Case C: Both Origin and Referer missing → REJECT
+  // Cookies present but no origin verification possible
+  return { valid: false, reason: "Missing Origin and Referer headers" };
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -36,45 +125,23 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. CSRF Defense-in-Depth for mutative API calls
+  // 2. CSRF Defense: Validate origin/referer for unsafe API methods
   if (
     pathname.startsWith("/api/") &&
     ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)
   ) {
-    const origin = req.headers.get("origin");
-    const referer = req.headers.get("referer");
-    const host = req.headers.get("host");
-
-    if (origin && host) {
-      try {
-        const originHost = new URL(origin).host;
-        if (originHost !== host) {
-          return NextResponse.json(
-            { success: false, error: { code: "FORBIDDEN", message: "Cross-site request forgery blocked" } },
-            { status: 403 }
-          );
-        }
-      } catch {
-        return NextResponse.json(
-          { success: false, error: { code: "FORBIDDEN", message: "Invalid request origin" } },
-          { status: 403 }
-        );
-      }
-    } else if (referer && host) {
-      try {
-        const refererHost = new URL(referer).host;
-        if (refererHost !== host) {
-          return NextResponse.json(
-            { success: false, error: { code: "FORBIDDEN", message: "Cross-site request forgery blocked" } },
-            { status: 403 }
-          );
-        }
-      } catch {
-        return NextResponse.json(
-          { success: false, error: { code: "FORBIDDEN", message: "Invalid request referer" } },
-          { status: 403 }
-        );
-      }
+    const originValidation = validateRequestOrigin(req);
+    if (!originValidation.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Cross-site request forgery protection: invalid or missing origin",
+          },
+        },
+        { status: 403 }
+      );
     }
   }
 
