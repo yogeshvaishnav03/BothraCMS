@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { WorkforceHeadcountService } from "@/services/workforce-headcount-service";
 
 export const dynamic = "force-dynamic";
 
@@ -13,61 +14,116 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const todayStr = new Date().toISOString().split("T")[0];
     const date = searchParams.get("date") || todayStr;
-    const siteId = searchParams.get("siteId");
+    const siteId = searchParams.get("siteId") || undefined;
 
     const startOfDay = new Date(`${date}T00:00:00.000Z`);
     const endOfDay = new Date(`${date}T23:59:59.999Z`);
+    // Buffer for timezone differences (+/- 14 hours)
+    const broadStart = new Date(startOfDay.getTime() - 14 * 3600 * 1000);
+    const broadEnd = new Date(endOfDay.getTime() + 14 * 3600 * 1000);
 
     const orgId = user.organizationId;
 
-    // 1. Payments made on this date
-    const rawPayments = await prisma.payment.findMany({
-      where: {
-        organizationId: orgId,
-        paymentDate: {
-          gte: startOfDay,
-          lte: endOfDay,
+    // 1. Payments made on this date (include both POSTED and PENDING_APPROVAL)
+    const paymentWhere: any = {
+      organizationId: orgId,
+      status: { not: "REVERSED" },
+      OR: [
+        {
+          paymentDate: {
+            gte: broadStart,
+            lte: broadEnd,
+          },
         },
-        status: "POSTED",
-      },
+        {
+          createdAt: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+        },
+      ],
+    };
+
+    if (siteId) {
+      paymentWhere.project = { siteId };
+    }
+
+    const rawPayments = await prisma.payment.findMany({
+      where: paymentWhere,
       include: {
         party: { select: { id: true, name: true, partyType: true } },
+        project: { select: { id: true, name: true, code: true, siteId: true } },
         allocations: { include: { bill: { select: { id: true, billNumber: true, totalAmount: true } } } },
         creator: { select: { id: true, name: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { paymentDate: "desc" },
     });
 
-    const payments = rawPayments.map((p) => ({
+    // Filter strictly by target date (match YYYY-MM-DD from paymentDate or createdAt)
+    const filteredPayments = rawPayments.filter((p) => {
+      const pDateStr = p.paymentDate ? new Date(p.paymentDate).toISOString().slice(0, 10) : "";
+      const cDateStr = p.createdAt ? new Date(p.createdAt).toISOString().slice(0, 10) : "";
+      return pDateStr === date || cDateStr === date;
+    });
+
+    const payments = filteredPayments.map((p) => ({
       ...p,
       paymentMethod: p.method,
     }));
 
     // 2. Bills recorded on this date
-    const bills = await prisma.bill.findMany({
-      where: {
-        organizationId: orgId,
-        billDate: {
-          gte: startOfDay,
-          lte: endOfDay,
+    const billWhere: any = {
+      organizationId: orgId,
+      isArchived: false,
+      OR: [
+        {
+          billDate: {
+            gte: broadStart,
+            lte: broadEnd,
+          },
         },
-      },
+        {
+          createdAt: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+        },
+      ],
+    };
+
+    if (siteId) {
+      billWhere.project = { siteId };
+    }
+
+    const rawBills = await prisma.bill.findMany({
+      where: billWhere,
       include: {
         party: { select: { id: true, name: true, partyType: true } },
         project: { select: { id: true, code: true, name: true, siteId: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { billDate: "desc" },
+    });
+
+    const bills = rawBills.filter((b) => {
+      const bDateStr = b.billDate ? new Date(b.billDate).toISOString().slice(0, 10) : "";
+      const cDateStr = b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 10) : "";
+      return bDateStr === date || cDateStr === date;
     });
 
     // 3. Stock movements (Receipts and Issues) on this date
-    const movements = await prisma.stockMovement.findMany({
-      where: {
-        organizationId: orgId,
-        createdAt: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
+    const stockWhere: any = {
+      organizationId: orgId,
+      createdAt: {
+        gte: startOfDay,
+        lte: endOfDay,
       },
+    };
+    if (siteId) {
+      stockWhere.store = { siteId };
+    }
+
+    const movements = await prisma.stockMovement.findMany({
+      where: stockWhere,
       include: {
         material: { select: { id: true, sku: true, name: true, unitCode: true } },
         store: { select: { id: true, name: true, siteId: true } },
@@ -79,22 +135,28 @@ export async function GET(req: NextRequest) {
     const receipts = movements.filter((m) => m.movementType === "RECEIPT");
     const issues = movements.filter((m) => m.movementType === "ISSUE");
 
-    // 4. Workforce attendance on this date
+    // 4. Workforce: BOTH Attendance Sessions AND Site Workforce Headcount
     const attendanceWhere: any = {
       organizationId: orgId,
       workDate: date,
+      isArchived: false,
     };
     if (siteId) {
       attendanceWhere.siteId = siteId;
     }
-    const attendance = await prisma.attendanceSession.findMany({
-      where: attendanceWhere,
-      include: {
-        workforceMember: { select: { id: true, employeeCode: true, name: true, workerType: true } },
-        site: { select: { id: true, name: true, code: true } },
-      },
-      orderBy: { checkInAt: "desc" },
-    });
+
+    const [attendance, headcountRecords, allRecentHeadcount] = await Promise.all([
+      prisma.attendanceSession.findMany({
+        where: attendanceWhere,
+        include: {
+          workforceMember: { select: { id: true, employeeCode: true, name: true, workerType: true } },
+          site: { select: { id: true, name: true, code: true } },
+        },
+        orderBy: { checkInAt: "desc" },
+      }).catch(() => []),
+      WorkforceHeadcountService.listRecords(orgId, { siteId, date }).catch(() => []),
+      WorkforceHeadcountService.listRecords(orgId, { siteId }).catch(() => []),
+    ]);
 
     // 5. Daily Site Reports (DSR) on this date
     const reportWhere: any = {
@@ -120,12 +182,29 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Summary metrics
+    // Summary calculations
     const totalPaymentsAmount = payments.reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
     const totalBillsAmount = bills.reduce((acc: number, b: any) => acc + (b.totalAmount || 0), 0);
-    const workersPresentCount = attendance.filter((a) =>
+
+    const totalHeadcount = headcountRecords.reduce((s, r) => s + (r.grandTotal || 0), 0);
+    const totalArtisans = headcountRecords.reduce((s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
+    const totalCraftsmen = headcountRecords.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
+    const totalLaborers = headcountRecords.reduce((s, r) => s + (r.laborerTotal || 0), 0);
+
+    const staffPresentCount = attendance.filter((a) =>
       ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)
     ).length;
+
+    const workersPresentCount = totalHeadcount > 0 ? totalHeadcount : staffPresentCount;
+
+    // Detect nearby dates with data for smart jumping
+    const recentActivityDates = Array.from(
+      new Set(
+        allRecentHeadcount
+          .map((r) => r.date)
+          .filter((d): d is string => Boolean(d) && d !== date)
+      )
+    ).slice(0, 3);
 
     return jsonSuccess({
       date,
@@ -137,6 +216,11 @@ export async function GET(req: NextRequest) {
         receiptsCount: receipts.length,
         issuesCount: issues.length,
         workersPresentCount,
+        headcountTotal: totalHeadcount,
+        headcountArtisans: totalArtisans,
+        headcountCraftsmen: totalCraftsmen,
+        headcountLaborers: totalLaborers,
+        staffPresentCount,
         reportsCount: dailyReports.length,
       },
       payments,
@@ -144,7 +228,9 @@ export async function GET(req: NextRequest) {
       receipts,
       issues,
       attendance,
+      headcount: headcountRecords,
       dailyReports,
+      recentActivityDates,
     });
   } catch (error) {
     return handleApiError(error);
