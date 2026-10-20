@@ -201,7 +201,7 @@ export default function DayBookPage() {
           method: paymentMethod,
           payingAccount: "Primary Operating Account",
           idempotencyKey: `DB-PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-          paymentDate: new Date(selectedDate).toISOString(),
+          paymentDate: `${selectedDate}T12:00:00.000Z`,
           referenceNumber: paymentRef || `DB-EXP-${Date.now().toString().slice(-6)}`,
           notes: paymentNotes || "Day Book Direct Expense / Cash Outflow",
           autoApprove: true,
@@ -241,7 +241,7 @@ export default function DayBookPage() {
           partyId: billPartyId,
           projectId: billProjectId || undefined,
           billNumber: generatedBillNo,
-          billDate: new Date(selectedDate).toISOString(),
+          billDate: `${selectedDate}T12:00:00.000Z`,
           notes: billNotes || "Direct Day Book Bill Incurred",
           lines: [
             {

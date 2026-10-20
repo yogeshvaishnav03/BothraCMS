@@ -30,8 +30,9 @@ async function runHardenedIsolatedTest() {
   }
   console.log("Step 1b: Verified authentic SQLite header on disposable test database.");
 
+  const dbPrismaUrl = "file:./disposable-hardened-test.db";
   const prismaTest = new PrismaClient({
-    datasources: { db: { url: "file:./disposable-hardened-test.db" } },
+    datasources: { db: { url: dbPrismaUrl } },
   });
 
   let backupResult;
@@ -66,7 +67,7 @@ async function runHardenedIsolatedTest() {
 
     // 5. Corrupt the disposable database to simulate disaster
     const prismaCorrupt = new PrismaClient({
-      datasources: { db: { url: "file:./disposable-hardened-test.db" } },
+      datasources: { db: { url: dbPrismaUrl } },
     });
     await prismaCorrupt.organization.update({
       where: { id: firstOrg.id },
@@ -90,7 +91,7 @@ async function runHardenedIsolatedTest() {
 
     // 8. Reconnect and verify data fidelity
     const prismaVerify = new PrismaClient({
-      datasources: { db: { url: "file:./disposable-hardened-test.db" } },
+      datasources: { db: { url: dbPrismaUrl } },
     });
 
     const restoredOrg = await prismaVerify.organization.findUnique({ where: { id: firstOrg.id } });

@@ -59,11 +59,21 @@ export async function GET(req: NextRequest) {
       orderBy: { paymentDate: "desc" },
     });
 
+    function matchesDate(val: Date | string | null | undefined, targetDate: string): boolean {
+      if (!val) return false;
+      if (typeof val === "string" && val.startsWith(targetDate)) return true;
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return false;
+      // 1. Exact UTC date match
+      if (d.toISOString().slice(0, 10) === targetDate) return true;
+      // 2. IST (+05:30) date match
+      const ist = new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+      return ist === targetDate;
+    }
+
     // Filter strictly by target date (match YYYY-MM-DD from paymentDate or createdAt)
     const filteredPayments = rawPayments.filter((p) => {
-      const pDateStr = p.paymentDate ? new Date(p.paymentDate).toISOString().slice(0, 10) : "";
-      const cDateStr = p.createdAt ? new Date(p.createdAt).toISOString().slice(0, 10) : "";
-      return pDateStr === date || cDateStr === date;
+      return matchesDate(p.paymentDate, date) || matchesDate(p.createdAt, date);
     });
 
     const payments = filteredPayments.map((p) => ({
@@ -105,9 +115,7 @@ export async function GET(req: NextRequest) {
     });
 
     const bills = rawBills.filter((b) => {
-      const bDateStr = b.billDate ? new Date(b.billDate).toISOString().slice(0, 10) : "";
-      const cDateStr = b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 10) : "";
-      return bDateStr === date || cDateStr === date;
+      return matchesDate(b.billDate, date) || matchesDate(b.createdAt, date);
     });
 
     // 3. Stock movements (Receipts and Issues) on this date

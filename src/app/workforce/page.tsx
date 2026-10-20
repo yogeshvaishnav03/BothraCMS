@@ -126,8 +126,7 @@ export default function WorkforcePage() {
       if (sitesRes?.success && sitesRes.data) {
         const rawSites = sitesRes.data || [];
         setSites(rawSites);
-        if (rawSites.length > 0 && !selectedSiteId) {
-          setSelectedSiteId(rawSites[0].id);
+        if (rawSites.length > 0 && !modalSiteId) {
           setModalSiteId(rawSites[0].id);
         }
       }
@@ -412,6 +411,7 @@ export default function WorkforcePage() {
                   onChange={(e) => setSelectedSiteId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 >
+                  <option value="">All Sites (All Deployments)</option>
                   {sites.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.code || "Site"})
