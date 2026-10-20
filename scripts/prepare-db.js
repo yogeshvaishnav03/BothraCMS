@@ -1,8 +1,9 @@
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
-// Load .env file into process.env if present
+// Load .env file into process.env if present, or create with secure defaults
 const envPath = path.resolve(__dirname, "..", ".env");
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, "utf-8");
@@ -20,6 +21,34 @@ if (fs.existsSync(envPath)) {
       }
     }
   }
+} else {
+  // Generate a cryptographically secure 64-char SESSION_SECRET on fresh environments
+  const autoSecret = crypto.randomBytes(32).toString("hex");
+  const defaultEnv = `# BothraCMS (BuildTrack Pro) — Production & Local Environment Configuration
+DATABASE_URL="file:./prisma/dev.db"
+SESSION_SECRET="${autoSecret}"
+NODE_ENV="production"
+PORT=3000
+DEFAULT_TIMEZONE="Asia/Kolkata"
+DEFAULT_CURRENCY="INR"
+TRUSTED_ORIGINS="localhost:3000,localhost:3001,127.0.0.1:3000"
+`;
+  try {
+    fs.writeFileSync(envPath, defaultEnv, "utf-8");
+    process.env.SESSION_SECRET = autoSecret;
+    console.log("⚡ Auto-created .env with cryptographically secure SESSION_SECRET.");
+  } catch (err) {}
+}
+
+// Ensure SESSION_SECRET is guaranteed in process.env
+if (!process.env.SESSION_SECRET) {
+  const generatedSecret = crypto.randomBytes(32).toString("hex");
+  process.env.SESSION_SECRET = generatedSecret;
+  try {
+    if (fs.existsSync(envPath)) {
+      fs.appendFileSync(envPath, `\nSESSION_SECRET="${generatedSecret}"\n`, "utf-8");
+    }
+  } catch (err) {}
 }
 
 const dbUrl =
