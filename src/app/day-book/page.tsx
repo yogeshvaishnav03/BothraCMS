@@ -186,7 +186,14 @@ export default function DayBookPage() {
 
   const handleCreateQuickPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!paymentAmount || Number(paymentAmount) <= 0 || !paymentPartyId) return;
+    if (!paymentAmount || Number(paymentAmount) <= 0) {
+      setStatusMessage("❌ Please enter a valid payment amount");
+      return;
+    }
+    if (!paymentPartyId) {
+      setStatusMessage("❌ Please select a recipient / party for this payment");
+      return;
+    }
 
     setActionLoading(true);
     setStatusMessage(null);
@@ -228,7 +235,14 @@ export default function DayBookPage() {
 
   const handleCreateQuickBill = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!billAmount || Number(billAmount) <= 0 || !billPartyId) return;
+    if (!billAmount || Number(billAmount) <= 0) {
+      setStatusMessage("❌ Please enter a valid bill amount");
+      return;
+    }
+    if (!billPartyId) {
+      setStatusMessage("❌ Please select a vendor / contractor for this bill");
+      return;
+    }
 
     setActionLoading(true);
     setStatusMessage(null);
@@ -1258,11 +1272,15 @@ export default function DayBookPage() {
                           required
                           className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
                         >
-                          {parties.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.partyType || p.type || "Vendor"})
-                            </option>
-                          ))}
+                          {parties.length === 0 ? (
+                            <option value="">No vendors found (create one under Parties)</option>
+                          ) : (
+                            parties.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.partyType || p.type || "Vendor"})
+                              </option>
+                            ))
+                          )}
                         </select>
                       </div>
 
@@ -1377,11 +1395,15 @@ export default function DayBookPage() {
                           required
                           className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
                         >
-                          {parties.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.partyType || p.type || "Vendor"})
-                            </option>
-                          ))}
+                          {parties.length === 0 ? (
+                            <option value="">No vendors found (create one under Parties)</option>
+                          ) : (
+                            parties.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.partyType || p.type || "Vendor"})
+                              </option>
+                            ))
+                          )}
                         </select>
                       </div>
 
