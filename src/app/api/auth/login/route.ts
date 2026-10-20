@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { verifyPassword, createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { Role } from "@/lib/permissions";
-import { checkRateLimit, resetRateLimit } from "@/lib/rate-limiter";
+import { checkRateLimitAsync, resetRateLimitAsync, getClientIp } from "@/lib/rate-limiter";
 
 export const dynamic = "force-dynamic";
 
@@ -18,14 +18,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, password } = loginSchema.parse(body);
 
-    const clientIp =
-      req.headers.get("x-real-ip") ||
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "127.0.0.1";
+    const clientIp = getClientIp(req);
 
     // 1. IP-level rate limiting against distributed password spraying (max 30 attempts per minute per IP)
     const ipRateLimitKey = `login-ip:${clientIp}`;
-    const ipLimit = checkRateLimit(ipRateLimitKey, 30, 60000);
+    const ipLimit = await checkRateLimitAsync(ipRateLimitKey, 30, 60000);
     if (!ipLimit.allowed) {
       return jsonError(
         `Too many login attempts from this network. Please wait ${ipLimit.retryAfterSeconds} seconds before trying again.`,
@@ -37,7 +34,7 @@ export async function POST(req: NextRequest) {
     // 2. Targeted account rate limiting (max 5 attempts per minute per account)
     const normalizedEmail = email.toLowerCase().trim();
     const acctRateLimitKey = `login-acct:${clientIp}:${normalizedEmail}`;
-    const acctLimit = checkRateLimit(acctRateLimitKey, 5, 60000);
+    const acctLimit = await checkRateLimitAsync(acctRateLimitKey, 5, 60000);
     if (!acctLimit.allowed) {
       return jsonError(
         `Too many failed login attempts for this account. Please wait ${acctLimit.retryAfterSeconds} seconds before trying again.`,
@@ -52,18 +49,16 @@ export async function POST(req: NextRequest) {
         where: { email: normalizedEmail },
         include: { organization: true },
       });
-
     } catch (dbErr: any) {
-      console.error("[AUTH] Authoritative database connection error during login:", dbErr);
-      const isLocalhostOnCloud =
-        Boolean(process.env.VERCEL || process.env.NEXT_PUBLIC_VERCEL_ENV) &&
-        (process.env.DATABASE_URL || "").includes("localhost");
+      // Diagnostic logged securely to protected server stdout/stderr (secrets redacted)
+      console.error("[AUTH] Authoritative database connection error during login:", dbErr?.message || dbErr);
 
-      const message = isLocalhostOnCloud
-        ? "Database configuration error: DATABASE_URL on Vercel is set to 'localhost:5432'. Cloud hosting requires a cloud PostgreSQL database (e.g. Neon, Supabase, or Vercel Postgres) instead of localhost."
-        : "Database service unavailable. Please check persistent database connectivity.";
-
-      return jsonError(message, "DATABASE_ERROR", 503);
+      // Generic client-facing error never leaks DATABASE_URL, localhost, port, or cloud provider details
+      return jsonError(
+        "Database service unavailable. Please check persistent database connectivity.",
+        "DATABASE_ERROR",
+        503
+      );
     }
 
     if (!user || user.status !== "ACTIVE" || !user.organization || user.organization.status !== "ACTIVE") {
@@ -76,8 +71,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Reset rate limiters on successful authentication
-    resetRateLimit(acctRateLimitKey);
-    resetRateLimit(ipRateLimitKey);
+    await resetRateLimitAsync(acctRateLimitKey);
+    await resetRateLimitAsync(ipRateLimitKey);
 
     // Update last login timestamp in database
     await prisma.user.update({

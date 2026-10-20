@@ -544,6 +544,16 @@ model AuditEvent {
   @@index([createdAt])
 }
 
+model RateLimitRecord {
+  key       String   @id
+  points    Int      @default(1)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}
+
 model IdempotencyRecord {
   id               String   @id @default(uuid())
   organizationId   String
