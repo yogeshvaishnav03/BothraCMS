@@ -31,6 +31,9 @@ import {
   ShieldCheck,
   Calendar,
   Users,
+  Upload,
+  Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
@@ -41,6 +44,123 @@ export default function DashboardPage() {
   const [dashboardMode, setDashboardMode] = useState<"EXECUTIVE" | "EMPLOYEE">("EXECUTIVE");
   const [recentPhotos, setRecentPhotos] = useState<any[]>([]);
   const [lightboxPhoto, setLightboxPhoto] = useState<any>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState<string | null>(null);
+
+  const refreshRecentPhotos = async () => {
+    try {
+      const res = await fetch("/api/attachments?category=PHOTO&limit=8");
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRecentPhotos(data.data || []);
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleDashboardPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingPhoto(true);
+    setPhotoMsg(null);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("category", "PHOTO");
+        formData.append("entityType", "SITE_PHOTO");
+        formData.append("entityId", activeSiteId || "SITE");
+        if (activeSiteId) formData.append("projectId", activeSiteId);
+
+        const res = await fetch("/api/attachments", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error?.message || "Failed to upload site photo");
+        }
+      }
+      setPhotoMsg("Site photograph(s) uploaded and saved successfully!");
+      await refreshRecentPhotos();
+    } catch (err: any) {
+      alert(err.message || "Failed to upload photo");
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDashboardPhotoReplace = async (photoId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPhoto(true);
+    setPhotoMsg(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`/api/attachments/${photoId}`, {
+        method: "PUT",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        // Fallback: POST new and DELETE old
+        const postData = new FormData();
+        postData.append("file", file);
+        postData.append("category", "PHOTO");
+        postData.append("entityType", "SITE_PHOTO");
+        postData.append("entityId", activeSiteId || "SITE");
+        const postRes = await fetch("/api/attachments", { method: "POST", body: postData });
+        const postJson = await postRes.json();
+        if (!postRes.ok || !postJson.success) {
+          throw new Error(data.error?.message || postJson.error?.message || "Failed to replace photo");
+        }
+        await fetch(`/api/attachments/${photoId}`, { method: "DELETE" });
+      }
+
+      setPhotoMsg("Photo replaced successfully!");
+      await refreshRecentPhotos();
+      if (lightboxPhoto?.id === photoId) {
+        setLightboxPhoto((prev: any) => ({
+          ...prev,
+          url: `/api/uploads/${prev.fileId}?t=${Date.now()}`,
+          fileName: file.name,
+        }));
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to replace photo");
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDashboardPhotoDelete = async (photoId: string, fileName: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/attachments/${photoId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to delete photo");
+      }
+      setRecentPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      if (lightboxPhoto?.id === photoId) {
+        setLightboxPhoto(null);
+      }
+      setPhotoMsg("Photo deleted successfully!");
+    } catch (err: any) {
+      alert(err.message || "Failed to delete photo");
+    }
+  };
 
   const [kpi, setKpi] = useState<any>(null);
   const [activeKpiModal, setActiveKpiModal] = useState<string | null>(null);
@@ -1731,7 +1851,7 @@ export default function DashboardPage() {
 
         {/* Recent Site Photographs & Quality Inspection Gallery */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
                 <Camera className="w-5 h-5" />
@@ -1741,33 +1861,99 @@ export default function DashboardPage() {
                 <p className="text-xs text-slate-500">Live field images, delivery challans, and progress updates from site teams</p>
               </div>
             </div>
-            {recentPhotos.length > 0 && (
-              <span className="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                {recentPhotos.length} Photos
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {recentPhotos.length > 0 && (
+                <span className="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                  {recentPhotos.length} Photos
+                </span>
+              )}
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
+                <Upload className="w-3.5 h-3.5 text-amber-400" />
+                <span>{uploadingPhoto ? "Uploading..." : "+ Upload Photo"}</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleDashboardPhotoUpload}
+                  disabled={uploadingPhoto}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
 
+          {photoMsg && (
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{photoMsg}</span>
+              </div>
+              <button onClick={() => setPhotoMsg(null)} className="text-emerald-600 hover:text-emerald-800 p-0.5">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {recentPhotos.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs">
+            <div className="p-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
               <Camera className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <div className="font-bold text-slate-700">No site photographs uploaded yet</div>
-              <p className="mt-0.5">Supervisors and engineers can capture photos during task execution and material inwards.</p>
+              <p className="mt-0.5 mb-3">Supervisors and engineers can capture photos during task execution and material inwards.</p>
+              <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Upload First Site Photo</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleDashboardPhotoUpload}
+                  disabled={uploadingPhoto}
+                  className="hidden"
+                />
+              </label>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {recentPhotos.map((photo: any) => (
                 <div
                   key={photo.id}
-                  onClick={() => setLightboxPhoto(photo)}
-                  className="group relative aspect-video bg-slate-100 rounded-xl overflow-hidden border border-slate-200 cursor-pointer shadow-xs hover:border-amber-400 transition"
+                  className="group relative aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:border-amber-400 transition"
                 >
                   <img
                     src={photo.url}
                     alt={photo.fileName}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    onClick={() => setLightboxPhoto(photo)}
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300 cursor-pointer"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90 p-2.5 flex flex-col justify-end text-white">
+
+                  {/* Card Action Controls: Replace and Delete */}
+                  <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-xs p-1 rounded-lg">
+                    <label
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-1 text-slate-300 hover:text-amber-400 cursor-pointer transition"
+                      title="Replace / Re-upload this photo"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
+                        disabled={uploadingPhoto}
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      onClick={(e) => handleDashboardPhotoDelete(photo.id, photo.fileName, e)}
+                      className="p-1 text-slate-300 hover:text-rose-400 transition"
+                      title="Delete photo"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div
+                    onClick={() => setLightboxPhoto(photo)}
+                    className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex flex-col justify-end text-white cursor-pointer pointer-events-none"
+                  >
                     <div className="text-[11px] font-bold truncate">{photo.fileName}</div>
                     <div className="text-[10px] text-slate-300 flex items-center justify-between mt-0.5">
                       <span>{photo.uploadedBy || "Site Team"}</span>
@@ -1976,7 +2162,7 @@ export default function DashboardPage() {
             onClick={() => setLightboxPhoto(null)}
           >
             <div
-              className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col"
+              className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col w-full"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-3.5 bg-slate-950 flex items-center justify-between text-white border-b border-slate-800">
@@ -1986,18 +2172,41 @@ export default function DashboardPage() {
                     Uploaded by {lightboxPhoto.uploadedBy} on {formatDate(lightboxPhoto.createdAt)}
                   </div>
                 </div>
-                <button
-                  onClick={() => setLightboxPhoto(null)}
-                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <label
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition shadow-xs"
+                    title="Replace with an image from your device"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Replace Photo</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => handleDashboardPhotoReplace(lightboxPhoto.id, e)}
+                      disabled={uploadingPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    onClick={() => handleDashboardPhotoDelete(lightboxPhoto.id, lightboxPhoto.fileName)}
+                    className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 hover:text-rose-300 transition"
+                    title="Delete photo"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setLightboxPhoto(null)}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <div className="flex-1 flex items-center justify-center p-2 bg-black/60 overflow-hidden">
+              <div className="flex-1 flex items-center justify-center p-3 bg-black/70 overflow-hidden">
                 <img
                   src={lightboxPhoto.url}
                   alt={lightboxPhoto.fileName}
-                  className="max-h-[75vh] max-w-full object-contain rounded-lg"
+                  className="max-h-[75vh] max-w-full object-contain rounded-lg shadow-lg"
                 />
               </div>
             </div>

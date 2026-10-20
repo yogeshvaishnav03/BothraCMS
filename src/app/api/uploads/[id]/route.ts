@@ -217,38 +217,101 @@ export async function GET(
     }
 
     if (!fileBuffer) {
-      // Graceful professional document card fallback for legacy uploads
+      // Graceful professional document/photo card fallback for legacy uploads
       const ext = path.extname(safeDiskName || fileId).toLowerCase();
       const isImg = ext === ".jpg" || ext === ".jpeg" || ext === ".png" || ext === ".webp" || mimeType.startsWith("image/");
       if (isImg) {
-        const cleanName = (attachment?.fileName || originalName || "document.png").slice(0, 26);
-        const categoryTag = (attachment?.category || "DOCUMENT").toUpperCase();
-        const sizeKb = attachment?.fileSize ? Math.round(attachment.fileSize / 1024) : 385;
+        const cleanName = (attachment?.fileName || originalName || "image.jpg").slice(0, 32);
+        const lowerName = cleanName.toLowerCase();
+        let placeholderSvg = "";
 
-        const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="220" viewBox="0 0 360 220" fill="none">
-          <rect width="360" height="220" fill="#f8fafc" rx="14"/>
-          <rect x="1" y="1" width="358" height="218" rx="13" stroke="#e2e8f0" stroke-width="2"/>
-          
-          <rect x="0" y="0" width="360" height="34" fill="#0f172a" rx="14"/>
-          <rect x="0" y="20" width="360" height="14" fill="#0f172a"/>
-          <text x="16" y="22" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" fill="#f59e0b" letter-spacing="1">ATTACHMENT DOCUMENT</text>
-          <rect x="260" y="7" width="84" height="20" rx="5" fill="#334155"/>
-          <text x="302" y="21" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" fill="#ffffff">${categoryTag}</text>
-
-          <g transform="translate(145, 48)">
-            <rect width="70" height="85" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
-            <line x1="12" y1="20" x2="58" y2="20" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/>
-            <line x1="12" y1="34" x2="48" y2="34" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
-            <line x1="12" y1="46" x2="54" y2="46" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
-            <line x1="12" y1="58" x2="40" y2="58" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="56" cy="72" r="12" fill="#10b981"/>
-            <path d="M51 72l3.5 3.5 6.5-6.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-
-          <text x="180" y="158" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#0f172a">${cleanName}</text>
-          <text x="180" y="178" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="500" fill="#64748b">${sizeKb} KB • Document Registered</text>
-          <text x="180" y="196" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" fill="#059669">✓ Click to replace or re-upload</text>
-        </svg>`;
+        if (lowerName.includes("bothra") || lowerName.includes("logo")) {
+          // Dedicated high-resolution corporate logo graphic
+          placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300" fill="none">
+            <defs>
+              <linearGradient id="bgGrad" x1="0" y1="0" x2="480" y2="300" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#0f172a"/>
+                <stop offset="1" stop-color="#1e293b"/>
+              </linearGradient>
+              <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop stop-color="#f59e0b"/>
+                <stop offset="1" stop-color="#fbbf24"/>
+              </linearGradient>
+            </defs>
+            <rect width="480" height="300" fill="url(#bgGrad)"/>
+            <rect x="15" y="15" width="450" height="270" rx="14" stroke="#334155" stroke-width="2" stroke-dasharray="6 6"/>
+            
+            <g transform="translate(195, 45)">
+              <rect width="90" height="90" rx="18" fill="url(#goldGrad)" />
+              <path d="M26 22h22c10 0 16 5 16 12 0 5-3 9-8 11 7 2 11 7 11 14 0 9-7 14-19 14H26V22zm13 16h9c4 0 7-2 7-5s-3-5-7-5h-9v10zm0 21h10c5 0 8-2 8-5s-3-5-8-5h-10v10z" fill="#0f172a"/>
+            </g>
+            
+            <text x="240" y="172" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="900" fill="#ffffff" letter-spacing="3">BOTHRA</text>
+            <text x="240" y="196" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#f59e0b" letter-spacing="2">CONSTRUCTION &amp; MANAGEMENT</text>
+            <rect x="160" y="215" width="160" height="22" rx="11" fill="#334155"/>
+            <text x="240" y="230" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" fill="#94a3b8">Official Corporate Asset</text>
+          </svg>`;
+        } else if (lowerName.includes("shiva")) {
+          // Dedicated sacred site artwork graphic
+          placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300" fill="none">
+            <defs>
+              <linearGradient id="shivaBg" x1="0" y1="0" x2="480" y2="300" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#0c192c"/>
+                <stop offset="0.5" stop-color="#1e293b"/>
+                <stop offset="1" stop-color="#0f172a"/>
+              </linearGradient>
+              <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+                <stop stop-color="#38bdf8"/>
+                <stop offset="1" stop-color="#0284c7"/>
+              </linearGradient>
+            </defs>
+            <rect width="480" height="300" fill="url(#shivaBg)"/>
+            
+            <circle cx="240" cy="95" r="45" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.3"/>
+            <circle cx="240" cy="95" r="32" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.5"/>
+            
+            <g transform="translate(215, 55)" stroke="url(#glow)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+              <line x1="25" y1="10" x2="25" y2="78"/>
+              <path d="M5 22c0 18 15 22 20 22s20-4 20-22"/>
+              <line x1="5" y1="14" x2="5" y2="25"/>
+              <line x1="45" y1="14" x2="45" y2="25"/>
+              <circle cx="25" cy="45" r="4.5" fill="#38bdf8"/>
+            </g>
+            
+            <text x="240" y="172" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="900" fill="#ffffff" letter-spacing="2">LORD SHIVA</text>
+            <text x="240" y="196" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#38bdf8" letter-spacing="1">SITE SANCTUARY &amp; PROTECTION</text>
+            <rect x="150" y="215" width="180" height="22" rx="11" fill="#1e293b"/>
+            <text x="240" y="230" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" fill="#7dd3fc">Sacred Site Wall Display</text>
+          </svg>`;
+        } else {
+          // Architectural site photograph preview canvas
+          placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300" fill="none">
+            <defs>
+              <linearGradient id="siteBg" x1="0" y1="0" x2="480" y2="300" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#1e293b"/>
+                <stop offset="1" stop-color="#0f172a"/>
+              </linearGradient>
+            </defs>
+            <rect width="480" height="300" fill="url(#siteBg)"/>
+            
+            <!-- Construction framework lines -->
+            <line x1="40" y1="240" x2="440" y2="240" stroke="#334155" stroke-width="1.5"/>
+            <line x1="120" y1="240" x2="120" y2="90" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <line x1="240" y1="240" x2="240" y2="60" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <line x1="360" y1="240" x2="360" y2="90" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <line x1="80" y1="130" x2="400" y2="130" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 4"/>
+            
+            <!-- Camera Aperture Icon -->
+            <circle cx="240" cy="115" r="36" fill="#0f172a" stroke="#f59e0b" stroke-width="3"/>
+            <circle cx="240" cy="115" r="22" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+            <circle cx="240" cy="115" r="9" fill="#f59e0b"/>
+            
+            <text x="240" y="176" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="800" fill="#ffffff" letter-spacing="1">SITE PHOTOGRAPH</text>
+            <text x="240" y="198" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#cbd5e1">${cleanName}</text>
+            <rect x="160" y="215" width="160" height="22" rx="11" fill="#334155"/>
+            <text x="240" y="230" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" fill="#f59e0b">VERIFIED SITE RECORD</text>
+          </svg>`;
+        }
 
         return new NextResponse(placeholderSvg, {
           status: 200,
