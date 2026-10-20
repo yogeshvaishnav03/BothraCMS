@@ -39,7 +39,7 @@ export async function GET(
     let mimeType: string = "application/octet-stream";
 
     if (attachment) {
-      if (attachment.organizationId !== user.organizationId && !isOrgOwnerOrAdmin(user)) {
+      if (attachment.organizationId !== user.organizationId && user.role !== "SUPER_ADMIN") {
         // Allow access if the user is a participant in any chat conversation that references this image
         const isChatParticipant = await prisma.conversationParticipant.findFirst({
           where: {
@@ -62,7 +62,7 @@ export async function GET(
         }
       }
 
-      if (attachment.isArchived && !isOrgOwnerOrAdmin(user)) {
+      if (attachment.isArchived && user.role !== "SUPER_ADMIN" && !isOrgOwnerOrAdmin(user)) {
         return jsonError("Document not found or outside organization scope", "NOT_FOUND", 404);
       }
 
@@ -97,6 +97,10 @@ export async function GET(
       });
 
       if (auditRecord) {
+        if (auditRecord.organizationId !== user.organizationId && user.role !== "SUPER_ADMIN") {
+          return jsonError("Document not found or outside organization scope", "NOT_FOUND", 404);
+        }
+
         let meta: any = {};
         try {
           meta = JSON.parse(auditRecord.afterJson || "{}");
@@ -321,7 +325,7 @@ export async function GET(
           },
         });
       }
-      return jsonError("File not found on storage backend", "FILE_NOT_FOUND", 404);
+      return jsonError("File not found on storage backend", "NOT_FOUND", 404);
     }
 
     const headers: Record<string, string> = {

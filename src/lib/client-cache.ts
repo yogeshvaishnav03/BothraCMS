@@ -180,14 +180,15 @@ export const clientCache = {
       tasksDueTodayCount: serverKpis?.tasksDueTodayCount ?? 0,
       tasksOverdueCount: serverKpis?.tasksOverdueCount ?? 0,
       workersPresentTodayCount: serverKpis?.workersPresentTodayCount ?? 0,
-      workforceCount: serverKpis?.workforceCount ?? 0,
-      staffAttendanceCount: serverKpis?.staffAttendanceCount ?? 0,
-      totalOnSiteCount: serverKpis?.totalOnSiteCount ?? 0,
-      workforceHeadcount: serverKpis?.workforceHeadcount ?? null,
       lowStockItemsCount: serverKpis?.lowStockItemsCount ?? 0,
       paymentsMadeTodayAmount: serverKpis?.paymentsMadeTodayAmount ?? 0,
       totalOutstandingPayablesAmount: serverKpis?.totalOutstandingPayablesAmount ?? 0,
     };
+
+    if (serverKpis?.workforceCount !== undefined) base.workforceCount = serverKpis.workforceCount;
+    if (serverKpis?.staffAttendanceCount !== undefined) base.staffAttendanceCount = serverKpis.staffAttendanceCount;
+    if (serverKpis?.totalOnSiteCount !== undefined) base.totalOnSiteCount = serverKpis.totalOnSiteCount;
+    if (serverKpis?.workforceHeadcount !== undefined) base.workforceHeadcount = serverKpis.workforceHeadcount;
 
     if (
       serverKpis?.activeProjects !== undefined ||

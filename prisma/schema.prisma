@@ -40,6 +40,8 @@ model Organization {
   projectAssignments ProjectAssignment[]
   notifications      Notification[]
   folderPermissions  FolderPermission[]
+  measurementBookEntries MeasurementBookEntry[]
+  workforceHeadcounts     WorkforceHeadcount[]
 }
 
 model User {
@@ -101,6 +103,7 @@ model Site {
   workforceMembers   WorkforceMember[]
   attendanceSessions AttendanceSession[]
   purchaseOrders     PurchaseOrder[]
+  workforceHeadcounts WorkforceHeadcount[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -138,6 +141,7 @@ model Project {
   attachments        Attachment[]
   documentFolders    DocumentFolder[]
   assignments        ProjectAssignment[]
+  measurementBookEntries MeasurementBookEntry[]
 
   @@unique([organizationId, code])
   @@index([organizationId, siteId])
@@ -347,6 +351,7 @@ model Party {
   bills          Bill[]
   payments       Payment[]
   purchaseOrders PurchaseOrder[]
+  measurementBookEntries MeasurementBookEntry[]
 
   @@index([organizationId, partyType])
 }
@@ -377,6 +382,7 @@ model Bill {
   creator        User         @relation(fields: [createdBy], references: [id])
   lines          BillLine[]
   allocations    PaymentAllocation[]
+  measurements   MeasurementBookEntry[] @relation("MeasurementToBill")
 
   @@unique([organizationId, partyId, billNumber])
   @@index([organizationId, partyId])
@@ -797,4 +803,70 @@ model FolderPermission {
   @@index([organizationId, folderId])
   @@index([folderId, userId])
   @@index([folderId, role])
+}
+
+model MeasurementBookEntry {
+  id              String    @id @default(uuid())
+  organizationId  String
+  projectId       String
+  partyId         String
+  itemDescription String
+  unit            String    // SQM, CUM, RMT, NOS, TONNE
+  count           Int       @default(1)
+  length          Float     @default(1.0)
+  breadth         Float?
+  depth           Float?
+  quantity        Float     @default(1.0)
+  unitRate        Int       @default(0) // paise
+  totalAmount     Int       @default(0) // paise
+  status          String    @default("SUBMITTED") // DRAFT, SUBMITTED, VERIFIED, APPROVED, REJECTED, BILLED
+  billId          String?
+  notes           String?
+  createdBy       String
+  createdByName   String?
+  approvedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  party           Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  bill            Bill?        @relation("MeasurementToBill", fields: [billId], references: [id])
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([partyId])
+  @@index([status])
+  @@index([billId])
+  @@index([createdAt])
+}
+
+model WorkforceHeadcount {
+  id             String    @id @default(uuid())
+  organizationId String
+  siteId         String
+  siteName       String
+  date           String    // YYYY-MM-DD
+  shift          String    @default("GENERAL") // GENERAL, DAY, NIGHT
+  artisanCount   Int       @default(0)
+  craftsmanCount Int       @default(0)
+  laborerMale    Int       @default(0)
+  laborerFemale  Int       @default(0)
+  laborerTotal   Int       @default(0)
+  grandTotal     Int       @default(0)
+  contractorName String?
+  notes          String?
+  supervisorId   String
+  supervisorName String
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([siteId])
+  @@index([date])
+  @@index([organizationId, siteId, date, shift])
 }

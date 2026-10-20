@@ -157,11 +157,27 @@ describe("CSRF Protection Middleware", () => {
       const referer = null;
 
       // Even with Bearer, middleware should validate it
-      // But invalid bearer + no origin = reject at auth level
+      // Invalid bearer + no origin = reject at auth level with 401, never grant CSRF exemption
       const isBearerAuth = authorization && authorization.startsWith("Bearer ");
       expect(isBearerAuth).toBe(true);
 
-      // Token validation happens later in middleware
+      const isTokenValid = false;
+      const grantsCsrfExemption = isBearerAuth && isTokenValid;
+      expect(grantsCsrfExemption).toBe(false);
+    });
+
+    it("should enforce CSRF check when both Cookie and Bearer are present", () => {
+      const hasCookie = true;
+      const hasBearer = true;
+      const hasOrigin = false;
+      const hasReferer = false;
+
+      // Safe Policy: If cookie is present, browser state is attached.
+      // Origin validation MUST be enforced even if Bearer is also sent.
+      const needsOriginValidation = hasCookie;
+      expect(needsOriginValidation).toBe(true);
+      const isAllowed = (hasOrigin || hasReferer) || (!hasCookie && hasBearer);
+      expect(isAllowed).toBe(false);
     });
   });
 

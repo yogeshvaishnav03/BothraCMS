@@ -1,10 +1,30 @@
 import fs from "fs";
 import path from "path";
-import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { assertPermission, Role } from "@/lib/permissions";
 import { FinanceService } from "./finance-service";
 import { roundQuantity, roundPaise } from "@/lib/financial-math";
+
+function checkAndHealLegacyJsonBackup() {
+  try {
+    const storageFile = path.resolve(process.cwd(), "storage", "data", "measurement-book.json");
+    const backupFile = path.resolve(process.cwd(), "storage", "data", "measurement-book.json.bak");
+    if (fs.existsSync(storageFile)) {
+      try {
+        const raw = fs.readFileSync(storageFile, "utf-8");
+        JSON.parse(raw);
+      } catch (err) {
+        if (fs.existsSync(backupFile)) {
+          const bakRaw = fs.readFileSync(backupFile, "utf-8");
+          try {
+            JSON.parse(bakRaw);
+            fs.writeFileSync(storageFile, bakRaw, "utf-8");
+          } catch {}
+        }
+      }
+    }
+  } catch {}
+}
 
 export interface MeasurementEntry {
   id: string;
@@ -28,83 +48,41 @@ export interface MeasurementEntry {
   approvedBy?: string;
   createdAt: string;
   updatedAt: string;
+  project?: { id: string; name: string; code: string };
+  party?: { id: string; name: string };
 }
 
-const STORAGE_FILE = path.resolve(process.cwd(), "storage", "data", "measurement-book.json");
-const BACKUP_FILE = path.resolve(process.cwd(), "storage", "data", "measurement-book.json.bak");
-
-function ensureStorageDir() {
-  const dir = path.dirname(STORAGE_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  if (!fs.existsSync(STORAGE_FILE)) {
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify([], null, 2), "utf-8");
-  }
-}
-
-function loadAllEntries(): MeasurementEntry[] {
-  ensureStorageDir();
-  try {
-    const raw = fs.readFileSync(STORAGE_FILE, "utf-8");
-    const data = JSON.parse(raw);
-    if (Array.isArray(data)) {
-      return data;
-    }
-  } catch (err) {
-    console.error("Warning: Failed to parse primary measurement-book.json. Attempting recovery from backup...", err);
-    try {
-      if (fs.existsSync(BACKUP_FILE)) {
-        const bakRaw = fs.readFileSync(BACKUP_FILE, "utf-8");
-        const bakData = JSON.parse(bakRaw);
-        if (Array.isArray(bakData)) {
-          fs.writeFileSync(STORAGE_FILE, bakRaw, "utf-8");
-          return bakData;
-        }
-      }
-    } catch (bakErr) {
-      console.error("CRITICAL: Failed to load measurement-book backup file:", bakErr);
-    }
-  }
-  return [];
-}
-
-function writeAtomic(entries: MeasurementEntry[]) {
-  ensureStorageDir();
-  const serialized = JSON.stringify(entries, null, 2);
-  const tempFile = `${STORAGE_FILE}.tmp.${crypto.randomUUID()}`;
-
-  fs.writeFileSync(tempFile, serialized, "utf-8");
-
-  // Perform atomic replacement without leaving stray backup files
-  try {
-    fs.renameSync(tempFile, STORAGE_FILE);
-  } catch {
-    fs.copyFileSync(tempFile, STORAGE_FILE);
-    try {
-      fs.unlinkSync(tempFile);
-    } catch {}
-  }
-}
-
-function saveEntry(entry: MeasurementEntry) {
-  const all = loadAllEntries();
-  const idx = all.findIndex((e) => e.id === entry.id);
-  if (idx >= 0) {
-    all[idx] = entry;
-  } else {
-    all.push(entry);
-  }
-  writeAtomic(all);
-}
-
-function saveAllEntries(entries: MeasurementEntry[]) {
-  writeAtomic(entries);
+function mapToInterface(r: any): MeasurementEntry {
+  return {
+    id: r.id,
+    organizationId: r.organizationId,
+    projectId: r.projectId,
+    partyId: r.partyId,
+    itemDescription: r.itemDescription,
+    unit: r.unit,
+    count: r.count,
+    length: r.length,
+    breadth: r.breadth ?? undefined,
+    depth: r.depth ?? undefined,
+    quantity: r.quantity,
+    unitRate: r.unitRate,
+    totalAmount: r.totalAmount,
+    status: r.status as any,
+    billId: r.billId ?? undefined,
+    notes: r.notes ?? undefined,
+    createdBy: r.createdBy,
+    createdByName: r.createdByName ?? undefined,
+    approvedBy: r.approvedBy ?? undefined,
+    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+    updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
+    project: r.project ? { id: r.project.id, name: r.project.name, code: r.project.code } : undefined,
+    party: r.party ? { id: r.party.id, name: r.party.name } : undefined,
+  };
 }
 
 export class MeasurementBookService {
   /**
-   * Create a new Measurement Book record
+   * Create a new Measurement Book record backed by database transaction
    */
   static async createEntry(input: {
     organizationId: string;
@@ -144,43 +122,45 @@ export class MeasurementBookService {
     const quantity = roundQuantity(count * length * breadth * depth, 4);
     const totalAmount = roundPaise(quantity * input.agreedRate);
 
-    const now = new Date().toISOString();
-    const entry: MeasurementEntry = {
-      id: crypto.randomUUID(),
-      organizationId: input.organizationId,
-      projectId: input.projectId,
-      partyId: input.partyId,
-      itemDescription: input.itemDescription,
-      unit: input.unit.toUpperCase(),
-      count,
-      length,
-      breadth: input.breadth,
-      depth: input.depth,
-      quantity,
-      unitRate: input.agreedRate,
-      totalAmount,
-      status: "SUBMITTED",
-      notes: input.notes,
-      createdBy: input.userId,
-      createdAt: now,
-      updatedAt: now,
-    };
+    return await prisma.$transaction(async (tx) => {
+      const entry = await tx.measurementBookEntry.create({
+        data: {
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          partyId: input.partyId,
+          itemDescription: input.itemDescription,
+          unit: input.unit.toUpperCase(),
+          count,
+          length,
+          breadth: input.breadth,
+          depth: input.depth,
+          quantity,
+          unitRate: input.agreedRate,
+          totalAmount,
+          status: "SUBMITTED",
+          notes: input.notes,
+          createdBy: input.userId,
+        },
+        include: {
+          project: { select: { id: true, name: true, code: true } },
+          party: { select: { id: true, name: true } },
+        },
+      });
 
-    saveEntry(entry);
+      // Audit log in same transaction
+      await tx.auditEvent.create({
+        data: {
+          organizationId: input.organizationId,
+          actorUserId: input.userId,
+          action: "MB_ENTRY_CREATED",
+          entityType: "MEASUREMENT_BOOK",
+          entityId: entry.id,
+          afterJson: JSON.stringify(entry),
+        },
+      });
 
-    // Audit log
-    await prisma.auditEvent.create({
-      data: {
-        organizationId: input.organizationId,
-        actorUserId: input.userId,
-        action: "MB_ENTRY_CREATED",
-        entityType: "MEASUREMENT_BOOK",
-        entityId: entry.id,
-        afterJson: JSON.stringify(entry),
-      },
+      return mapToInterface(entry);
     });
-
-    return entry;
   }
 
   /**
@@ -200,40 +180,46 @@ export class MeasurementBookService {
       assertPermission(input.role, "projects:write");
     }
 
-    const all = loadAllEntries();
-    const index = all.findIndex(
-      (e) => e.id === input.entryId && e.organizationId === input.organizationId
-    );
-    if (index === -1) {
-      throw new Error("NotFound: Measurement book entry not found");
-    }
+    return await prisma.$transaction(async (tx) => {
+      const entry = await tx.measurementBookEntry.findFirst({
+        where: { id: input.entryId, organizationId: input.organizationId },
+      });
+      if (!entry) {
+        throw new Error("NotFound: Measurement book entry not found");
+      }
 
-    const entry = all[index];
-    const oldStatus = entry.status;
-    entry.status = input.status;
-    entry.updatedAt = new Date().toISOString();
-    if (input.status === "APPROVED") {
-      entry.approvedBy = input.userId;
-    }
-    if (input.notes) {
-      entry.notes = `${entry.notes || ""}; ${input.notes}`.trim();
-    }
+      const oldStatus = entry.status;
+      const updatedNotes = input.notes
+        ? `${entry.notes || ""}; ${input.notes}`.trim()
+        : entry.notes;
 
-    saveEntry(entry);
+      const updated = await tx.measurementBookEntry.update({
+        where: { id: entry.id },
+        data: {
+          status: input.status,
+          approvedBy: input.status === "APPROVED" ? input.userId : entry.approvedBy,
+          notes: updatedNotes,
+        },
+        include: {
+          project: { select: { id: true, name: true, code: true } },
+          party: { select: { id: true, name: true } },
+        },
+      });
 
-    await prisma.auditEvent.create({
-      data: {
-        organizationId: input.organizationId,
-        actorUserId: input.userId,
-        action: "MB_STATUS_CHANGED",
-        entityType: "MEASUREMENT_BOOK",
-        entityId: entry.id,
-        reason: `Status transition from ${oldStatus} to ${input.status}`,
-        afterJson: JSON.stringify(entry),
-      },
+      await tx.auditEvent.create({
+        data: {
+          organizationId: input.organizationId,
+          actorUserId: input.userId,
+          action: "MB_STATUS_CHANGED",
+          entityType: "MEASUREMENT_BOOK",
+          entityId: entry.id,
+          reason: `Status transition from ${oldStatus} to ${input.status}`,
+          afterJson: JSON.stringify(updated),
+        },
+      });
+
+      return mapToInterface(updated);
     });
-
-    return entry;
   }
 
   /**
@@ -249,15 +235,12 @@ export class MeasurementBookService {
   }) {
     assertPermission(input.role, "finance:write");
 
-    const all = loadAllEntries();
-    const index = all.findIndex(
-      (e) => e.id === input.entryId && e.organizationId === input.organizationId
-    );
-    if (index === -1) {
+    const entry = await prisma.measurementBookEntry.findFirst({
+      where: { id: input.entryId, organizationId: input.organizationId },
+    });
+    if (!entry) {
       throw new Error("NotFound: Measurement book entry not found");
     }
-
-    const entry = all[index];
 
     // INVARIANT ENFORCEMENT: Prevent duplicate billing
     if (entry.status === "BILLED" || entry.billId) {
@@ -293,10 +276,17 @@ export class MeasurementBookService {
     });
 
     // Mark as BILLED
-    entry.status = "BILLED";
-    entry.billId = bill.id;
-    entry.updatedAt = new Date().toISOString();
-    saveEntry(entry);
+    const billedEntry = await prisma.measurementBookEntry.update({
+      where: { id: entry.id },
+      data: {
+        status: "BILLED",
+        billId: bill.id,
+      },
+      include: {
+        project: { select: { id: true, name: true, code: true } },
+        party: { select: { id: true, name: true } },
+      },
+    });
 
     await prisma.auditEvent.create({
       data: {
@@ -309,7 +299,7 @@ export class MeasurementBookService {
       },
     });
 
-    return { entry, bill };
+    return { entry: mapToInterface(billedEntry), bill };
   }
 
   /**
@@ -319,13 +309,22 @@ export class MeasurementBookService {
     organizationId: string,
     filters?: { projectId?: string; partyId?: string; status?: string }
   ): Promise<MeasurementEntry[]> {
-    const all = loadAllEntries();
-    return all.filter((e) => {
-      if (e.organizationId !== organizationId) return false;
-      if (filters?.projectId && e.projectId !== filters.projectId) return false;
-      if (filters?.partyId && e.partyId !== filters.partyId) return false;
-      if (filters?.status && e.status !== filters.status) return false;
-      return true;
+    checkAndHealLegacyJsonBackup();
+
+    const where: any = { organizationId };
+    if (filters?.projectId) where.projectId = filters.projectId;
+    if (filters?.partyId) where.partyId = filters.partyId;
+    if (filters?.status) where.status = filters.status;
+
+    const entries = await prisma.measurementBookEntry.findMany({
+      where,
+      include: {
+        project: { select: { id: true, name: true, code: true } },
+        party: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
     });
+
+    return entries.map(mapToInterface);
   }
 }

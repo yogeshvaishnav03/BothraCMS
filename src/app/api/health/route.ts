@@ -43,9 +43,11 @@ export async function GET() {
     // Perform health check against database
     await prisma.$queryRaw`SELECT 1`;
 
-    // Return minimal healthy response
+    // Return healthy response
     return NextResponse.json({
       status: "ok",
+      database: "connected",
+      uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {

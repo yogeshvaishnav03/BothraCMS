@@ -1,5 +1,3 @@
-import fs from "fs";
-import path from "path";
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { Role } from "@/lib/permissions";
@@ -50,43 +48,21 @@ export interface SaveHeadcountInput {
   notes?: string;
 }
 
-const STORAGE_FILE = path.resolve(process.cwd(), "storage", "data", "workforce-headcount.json");
-const BACKUP_FILE = path.resolve(process.cwd(), "storage", "data", "workforce-headcount.json.bak");
-
-// In-memory fallback on serverless platforms if filesystem is ephemeral
-const g = globalThis as any;
-if (!g.__WORKFORCE_HEADCOUNT__) {
-  g.__WORKFORCE_HEADCOUNT__ = [];
-}
-
-function ensureStorageDir() {
-  try {
-    const dir = path.dirname(STORAGE_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    if (!fs.existsSync(STORAGE_FILE)) {
-      fs.writeFileSync(STORAGE_FILE, JSON.stringify([], null, 2), "utf-8");
-    }
-  } catch {
-    // Ignore on read-only environments
-  }
-}
-
-function normalizeRecord(r: any): WorkforceHeadcountRecord {
-  const artisanCount = Number(
-    r.artisanCount ?? r.artisanTotal ?? ((Number(r.artisanMale) || 0) + (Number(r.artisanFemale) || 0))
-  ) || 0;
-  const craftsmanCount = Number(
-    r.craftsmanCount ?? r.craftsmanTotal ?? ((Number(r.craftsmanMale) || 0) + (Number(r.craftsmanFemale) || 0))
-  ) || 0;
+function normalizeDbRecord(r: any): WorkforceHeadcountRecord {
+  const artisanCount = Number(r.artisanCount) || 0;
+  const craftsmanCount = Number(r.craftsmanCount) || 0;
   const laborerMale = Number(r.laborerMale) || 0;
   const laborerFemale = Number(r.laborerFemale) || 0;
   const laborerTotal = Number(r.laborerTotal ?? (laborerMale + laborerFemale)) || 0;
   const grandTotal = Number(r.grandTotal ?? (artisanCount + craftsmanCount + laborerTotal)) || 0;
 
   return {
-    ...r,
+    id: r.id,
+    organizationId: r.organizationId,
+    siteId: r.siteId,
+    siteName: r.siteName || (r.site ? r.site.name : "Operational Site"),
+    date: r.date,
+    shift: r.shift as any,
     artisanCount,
     artisanTotal: artisanCount,
     craftsmanCount,
@@ -94,61 +70,52 @@ function normalizeRecord(r: any): WorkforceHeadcountRecord {
     laborerMale,
     laborerFemale,
     laborerTotal,
+    totalMale: laborerMale,
+    totalFemale: laborerFemale,
     grandTotal,
+    contractorName: r.contractorName ?? undefined,
+    notes: r.notes ?? undefined,
+    supervisorId: r.supervisorId,
+    supervisorName: r.supervisorName,
+    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+    updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
   };
-}
-
-function loadAllRecords(): WorkforceHeadcountRecord[] {
-  ensureStorageDir();
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const raw = fs.readFileSync(STORAGE_FILE, "utf-8");
-      const data = JSON.parse(raw);
-      if (Array.isArray(data)) {
-        const normalized = data.map(normalizeRecord);
-        g.__WORKFORCE_HEADCOUNT__ = normalized;
-        return normalized;
-      }
-    }
-  } catch (err) {
-    console.error("Warning: Failed to read workforce-headcount.json. Using backup or memory:", err);
-    try {
-      if (fs.existsSync(BACKUP_FILE)) {
-        const bakRaw = fs.readFileSync(BACKUP_FILE, "utf-8");
-        const bakData = JSON.parse(bakRaw);
-        if (Array.isArray(bakData)) {
-          const normalized = bakData.map(normalizeRecord);
-          g.__WORKFORCE_HEADCOUNT__ = normalized;
-          return normalized;
-        }
-      }
-    } catch {}
-  }
-  return (g.__WORKFORCE_HEADCOUNT__ || []).map(normalizeRecord);
-}
-
-function saveAllRecords(records: WorkforceHeadcountRecord[]) {
-  g.__WORKFORCE_HEADCOUNT__ = records;
-  ensureStorageDir();
-  try {
-    const jsonStr = JSON.stringify(records, null, 2);
-    fs.writeFileSync(STORAGE_FILE, jsonStr, "utf-8");
-  } catch (err) {
-    console.warn("Notice: Saved to in-memory store; persistent disk write skipped:", err);
-  }
 }
 
 export class WorkforceHeadcountService {
   /**
    * List headcount records for an organization with optional site/date filtering
+   * Backed by authoritative Prisma WorkforceHeadcount database table
    */
   static async listRecords(
     organizationId: string,
     filter?: { siteId?: string; date?: string; startDate?: string; endDate?: string }
   ): Promise<WorkforceHeadcountRecord[]> {
-    const recordsMap = new Map<string, WorkforceHeadcountRecord>();
+    const where: any = { organizationId };
+    if (filter?.siteId) where.siteId = filter.siteId;
+    if (filter?.date) where.date = filter.date;
+    if (filter?.startDate || filter?.endDate) {
+      where.date = {};
+      if (filter.startDate) where.date.gte = filter.startDate;
+      if (filter.endDate) where.date.lte = filter.endDate;
+    }
 
-    // A. Query database (IdempotencyRecord - persistent key-value store across serverless instances)
+    try {
+      const dbRecords = await prisma.workforceHeadcount.findMany({
+        where,
+        include: { site: { select: { id: true, name: true, code: true } } },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      });
+
+      if (dbRecords.length > 0) {
+        return dbRecords.map(normalizeDbRecord);
+      }
+    } catch (err) {
+      console.warn("Notice: WorkforceHeadcount table query fallback:", err);
+    }
+
+    // Fallback: Query legacy IdempotencyRecords if table has not yet been populated
+    const recordsMap = new Map<string, WorkforceHeadcountRecord>();
     try {
       const idempRecords = await prisma.idempotencyRecord.findMany({
         where: {
@@ -162,61 +129,18 @@ export class WorkforceHeadcountService {
         try {
           if (rec.responseBodyJson) {
             const parsed = JSON.parse(rec.responseBodyJson);
-            const normalized = normalizeRecord(parsed);
+            const normalized = normalizeDbRecord(parsed);
             const key = `${normalized.siteId}#${normalized.date}#${normalized.shift}`;
             if (!recordsMap.has(key)) {
               recordsMap.set(key, normalized);
             }
           }
         } catch {}
-      }
-    } catch (err) {
-      console.warn("Notice: IdempotencyRecord fetch for workforce headcount error:", err);
-    }
-
-    // B. Query database (AuditEvent - captures previously logged counts)
-    try {
-      const auditEvents = await prisma.auditEvent.findMany({
-        where: {
-          organizationId,
-          entityType: "SITE_WORKFORCE",
-          action: "WORKFORCE_COUNT_LOGGED",
-        },
-        orderBy: { createdAt: "desc" },
-      });
-
-      for (const ev of auditEvents) {
-        try {
-          if (ev.afterJson) {
-            const parsed = JSON.parse(ev.afterJson);
-            const normalized = normalizeRecord(parsed);
-            const key = `${normalized.siteId}#${normalized.date}#${normalized.shift}`;
-            if (!recordsMap.has(key)) {
-              recordsMap.set(key, normalized);
-            }
-          }
-        } catch {}
-      }
-    } catch (err) {
-      console.warn("Notice: AuditEvent fetch for workforce headcount error:", err);
-    }
-
-    // C. Merge file / in-memory records (for local dev fallback)
-    try {
-      const fileRecords = loadAllRecords();
-      for (const fr of fileRecords) {
-        if (fr.organizationId === organizationId) {
-          const key = `${fr.siteId}#${fr.date}#${fr.shift}`;
-          if (!recordsMap.has(key)) {
-            recordsMap.set(key, fr);
-          }
-        }
       }
     } catch {}
 
-    const allRecords = Array.from(recordsMap.values());
-
-    return allRecords
+    const legacy = Array.from(recordsMap.values());
+    return legacy
       .filter((r) => {
         if (r.organizationId !== organizationId) return false;
         if (filter?.siteId && r.siteId !== filter.siteId) return false;
@@ -229,7 +153,7 @@ export class WorkforceHeadcountService {
   }
 
   /**
-   * Save or update daily headcount for a site
+   * Save or update daily headcount for a site using Prisma ACID transactions
    */
   static async saveRecord(
     organizationId: string,
@@ -279,78 +203,82 @@ export class WorkforceHeadcountService {
     const laborerMale = Math.max(0, Math.floor(Number(input.laborerMale) || 0));
     const laborerFemale = Math.max(0, Math.floor(Number(input.laborerFemale) || 0));
     const laborerTotal = laborerMale + laborerFemale;
-
     const grandTotal = artisanCount + craftsmanCount + laborerTotal;
 
-    const now = new Date().toISOString();
-    const records = loadAllRecords();
+    return await prisma.$transaction(async (tx) => {
+      // Find existing record for same site, date, shift
+      const existing = await tx.workforceHeadcount.findFirst({
+        where: {
+          organizationId,
+          siteId: input.siteId,
+          date,
+          shift,
+        },
+      });
 
-    // Find existing entry for the same site, date, and shift
-    const existingIndex = records.findIndex(
-      (r) =>
-        r.organizationId === organizationId &&
-        r.siteId === input.siteId &&
-        r.date === date &&
-        r.shift === shift
-    );
+      let saved: any;
+      if (existing) {
+        saved = await tx.workforceHeadcount.update({
+          where: { id: existing.id },
+          data: {
+            siteName,
+            artisanCount,
+            craftsmanCount,
+            laborerMale,
+            laborerFemale,
+            laborerTotal,
+            grandTotal,
+            contractorName: input.contractorName?.trim() || existing.contractorName,
+            notes: input.notes?.trim() ?? existing.notes,
+            supervisorId: user.userId,
+            supervisorName: user.name || "Supervisor",
+          },
+        });
+      } else {
+        saved = await tx.workforceHeadcount.create({
+          data: {
+            id: `hc-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
+            organizationId,
+            siteId: input.siteId,
+            siteName,
+            date,
+            shift,
+            artisanCount,
+            craftsmanCount,
+            laborerMale,
+            laborerFemale,
+            laborerTotal,
+            grandTotal,
+            contractorName: input.contractorName?.trim() || null,
+            notes: input.notes?.trim() || null,
+            supervisorId: user.userId,
+            supervisorName: user.name || "Supervisor",
+            createdById: user.userId,
+          },
+        });
+      }
 
-    let savedRecord: WorkforceHeadcountRecord;
+      const normalized = normalizeDbRecord(saved);
 
-    if (existingIndex >= 0) {
-      // Update existing record
-      savedRecord = {
-        ...records[existingIndex],
-        siteName,
-        artisanCount,
-        craftsmanCount,
-        artisanTotal: artisanCount,
-        craftsmanTotal: craftsmanCount,
-        laborerMale,
-        laborerFemale,
-        laborerTotal,
-        totalMale: laborerMale,
-        totalFemale: laborerFemale,
-        grandTotal,
-        contractorName: input.contractorName?.trim() || records[existingIndex].contractorName,
-        notes: input.notes?.trim() ?? records[existingIndex].notes,
-        supervisorId: user.userId,
-        supervisorName: user.name || "Supervisor",
-        updatedAt: now,
-      };
-      records[existingIndex] = savedRecord;
-    } else {
-      // Create new record
-      savedRecord = {
-        id: `hc-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
-        organizationId,
-        siteId: input.siteId,
-        siteName,
-        date,
-        shift,
-        artisanCount,
-        craftsmanCount,
-        artisanTotal: artisanCount,
-        craftsmanTotal: craftsmanCount,
-        laborerMale,
-        laborerFemale,
-        laborerTotal,
-        totalMale: laborerMale,
-        totalFemale: laborerFemale,
-        grandTotal,
-        contractorName: input.contractorName?.trim() || undefined,
-        notes: input.notes?.trim() || undefined,
-        supervisorId: user.userId,
-        supervisorName: user.name || "Supervisor",
-        createdAt: now,
-        updatedAt: now,
-      };
-      records.unshift(savedRecord);
-    }
+      // Audit log inside transaction
+      await tx.auditEvent.create({
+        data: {
+          organizationId,
+          actorUserId: user.userId,
+          action: "WORKFORCE_COUNT_LOGGED",
+          entityType: "SITE_WORKFORCE",
+          entityId: saved.id,
+          reason:
+            craftsmanCount > 0
+              ? `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanCount}, Craftsmen: ${craftsmanCount}, Laborers: ${laborerTotal} [${laborerMale} Male, ${laborerFemale} Female])`
+              : `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanCount}, Laborers: ${laborerTotal} [${laborerMale} Male, ${laborerFemale} Female])`,
+          afterJson: JSON.stringify(normalized),
+        },
+      });
 
-    // 1. Persist to Prisma Database (IdempotencyRecord: persistent across Vercel serverless)
-    const storageKey = `HEADCOUNT#${savedRecord.siteId}#${savedRecord.date}#${savedRecord.shift}`;
-    try {
-      await prisma.idempotencyRecord.upsert({
+      // Maintain IdempotencyRecord for backward compatibility
+      const storageKey = `HEADCOUNT#${saved.siteId}#${saved.date}#${saved.shift}`;
+      await tx.idempotencyRecord.upsert({
         where: {
           organizationId_key: {
             organizationId,
@@ -362,85 +290,38 @@ export class WorkforceHeadcountService {
           key: storageKey,
           operation: "WORKFORCE_HEADCOUNT",
           responseCode: 200,
-          responseBodyJson: JSON.stringify(savedRecord),
+          responseBodyJson: JSON.stringify(normalized),
         },
         update: {
-          responseBodyJson: JSON.stringify(savedRecord),
+          responseBodyJson: JSON.stringify(normalized),
         },
       });
-    } catch (dbErr) {
-      console.warn("Notice: Could not upsert into idempotencyRecord:", dbErr);
-    }
 
-    // 2. Persist to AuditEvent
-    try {
-      await prisma.auditEvent.create({
-        data: {
-          organizationId,
-          actorUserId: user.userId,
-          action: "WORKFORCE_COUNT_LOGGED",
-          entityType: "SITE_WORKFORCE",
-          entityId: savedRecord.id,
-          reason:
-            craftsmanCount > 0
-              ? `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanCount}, Craftsmen: ${craftsmanCount}, Laborers: ${laborerTotal} [${laborerMale} Male, ${laborerFemale} Female])`
-              : `Logged workforce count for ${siteName} on ${date}: ${grandTotal} workers (Artisans: ${artisanCount}, Laborers: ${laborerTotal} [${laborerMale} Male, ${laborerFemale} Female])`,
-          afterJson: JSON.stringify(savedRecord),
-        },
-      });
-    } catch (auditErr) {
-      console.warn("Notice: Could not create auditEvent:", auditErr);
-    }
-
-    // 3. Keep local file / in-memory store synchronized
-    saveAllRecords(records);
-
-    return savedRecord;
+      return normalized;
+    });
   }
 
   /**
    * Delete a headcount record
    */
   static async deleteRecord(organizationId: string, id: string): Promise<boolean> {
-    let deletedFromDb = false;
-
-    // Delete from IdempotencyRecord
     try {
-      const delIdemp = await prisma.idempotencyRecord.deleteMany({
+      const del = await prisma.workforceHeadcount.deleteMany({
+        where: { id, organizationId },
+      });
+
+      await prisma.idempotencyRecord.deleteMany({
         where: {
           organizationId,
           operation: "WORKFORCE_HEADCOUNT",
           responseBodyJson: { contains: id },
         },
-      });
-      if (delIdemp.count > 0) deletedFromDb = true;
-    } catch (err) {
-      console.warn("Notice: Error deleting from idempotencyRecord:", err);
-    }
+      }).catch(() => {});
 
-    // Delete from AuditEvent
-    try {
-      const delAudit = await prisma.auditEvent.deleteMany({
-        where: {
-          organizationId,
-          entityType: "SITE_WORKFORCE",
-          entityId: id,
-        },
-      });
-      if (delAudit.count > 0) deletedFromDb = true;
-    } catch (err) {
-      console.warn("Notice: Error deleting from auditEvent:", err);
+      return del.count > 0;
+    } catch {
+      return false;
     }
-
-    // Delete from file/memory
-    const records = loadAllRecords();
-    const filtered = records.filter((r) => !(r.id === id && r.organizationId === organizationId));
-    if (filtered.length !== records.length) {
-      saveAllRecords(filtered);
-      return true;
-    }
-
-    return deletedFromDb;
   }
 
   /**

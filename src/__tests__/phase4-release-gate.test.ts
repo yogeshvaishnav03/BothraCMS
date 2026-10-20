@@ -234,6 +234,8 @@ describe("Build Track Pro — Phase 4 Release Gate & Comprehensive Workflow Veri
     await prisma.site.deleteMany({ where: { organizationId: { in: [org1Id, org2Id] } } }).catch(() => {});
     await prisma.material.deleteMany({ where: { organizationId: { in: [org1Id, org2Id] } } }).catch(() => {});
     await prisma.party.deleteMany({ where: { organizationId: { in: [org1Id, org2Id] } } }).catch(() => {});
+    await prisma.measurementBookEntry.deleteMany({ where: { organizationId: { in: [org1Id, org2Id] } } }).catch(() => {});
+    await prisma.workforceHeadcount.deleteMany({ where: { organizationId: { in: [org1Id, org2Id] } } }).catch(() => {});
     await prisma.auditEvent.deleteMany({ where: { organizationId: { in: [org1Id, org2Id] } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { organizationId: { in: [org1Id, org2Id] } } }).catch(() => {});
     await prisma.organization.deleteMany({ where: { id: { in: [org1Id, org2Id] } } }).catch(() => {});

@@ -28,45 +28,22 @@ function getTrustedOrigins(): string[] {
 }
 
 /**
- * Validate that origin/referer match trusted origins for unsafe methods.
- *
- * SECURITY INVARIANT:
- * - Missing Origin AND missing Referer on unsafe methods → REJECTED
- * - Malformed origins → REJECTED
- * - Untrusted origins → REJECTED
- * - Bearer token authentication provides alternative CSRF-safe path
+ * Validate that origin/referer matches host or trusted origins.
  */
-function validateRequestOrigin(req: NextRequest): { valid: boolean; reason?: string } {
-  const origin = req.headers.get("origin");
-  const referer = req.headers.get("referer");
-  const host = req.headers.get("host") || "";
-  const authorization = req.headers.get("authorization");
-
-  // 1. Bearer token (non-browser, API-authenticated) → CSRF-safe
-  if (authorization && authorization.startsWith("Bearer ")) {
-    // No origin/referer validation needed for bearer-authenticated requests
-    // (attacker cannot make bearer requests from another origin)
-    return { valid: true };
-  }
-
-  // 2. Cookie-authenticated request MUST have valid Origin or Referer
+function isValidOriginOrReferer(
+  origin: string | null,
+  referer: string | null,
+  host: string
+): { valid: boolean; reason?: string } {
+  const trusted = getTrustedOrigins();
 
   // Case A: Origin header present
   if (origin) {
     try {
       const originUrl = new URL(origin);
-      const trusted = getTrustedOrigins();
-
-      // Check against trusted origins
-      if (trusted.some((t) => originUrl.host === t)) {
+      if (originUrl.host === host || trusted.some((t) => originUrl.host === t)) {
         return { valid: true };
       }
-
-      // Check against current host
-      if (originUrl.host === host) {
-        return { valid: true };
-      }
-
       return { valid: false, reason: "Origin not trusted" };
     } catch {
       return { valid: false, reason: "Malformed Origin header" };
@@ -77,26 +54,16 @@ function validateRequestOrigin(req: NextRequest): { valid: boolean; reason?: str
   if (referer) {
     try {
       const refererUrl = new URL(referer);
-      const trusted = getTrustedOrigins();
-
-      // Check against trusted origins
-      if (trusted.some((t) => refererUrl.host === t)) {
+      if (refererUrl.host === host || trusted.some((t) => refererUrl.host === t)) {
         return { valid: true };
       }
-
-      // Check against current host
-      if (refererUrl.host === host) {
-        return { valid: true };
-      }
-
       return { valid: false, reason: "Referer not trusted" };
     } catch {
       return { valid: false, reason: "Malformed Referer header" };
     }
   }
 
-  // Case C: Both Origin and Referer missing → REJECT
-  // Cookies present but no origin verification possible
+  // Case C: Both Origin and Referer missing
   return { valid: false, reason: "Missing Origin and Referer headers" };
 }
 
@@ -125,77 +92,126 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. CSRF Defense: Validate origin/referer for unsafe API methods
-  if (
-    pathname.startsWith("/api/") &&
-    ["POST", "PUT", "PATCH", "DELETE"].includes(req.method)
-  ) {
-    const originValidation = validateRequestOrigin(req);
-    if (!originValidation.valid) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "FORBIDDEN",
-            message: "Cross-site request forgery protection: invalid or missing origin",
-          },
-        },
-        { status: 403 }
-      );
-    }
-  }
-
-  // 3. Extract session token
-  const token =
-    req.cookies.get(SESSION_COOKIE_NAME)?.value ||
-    req.headers.get("Authorization")?.replace("Bearer ", "");
-
   // Always sanitize inbound request headers against client-forged identity headers
   const sanitizedHeaders = new Headers(req.headers);
   sanitizedHeaders.delete("x-user-id");
   sanitizedHeaders.delete("x-user-role");
   sanitizedHeaders.delete("x-organization-id");
 
-  if (!token) {
-    if (pathname.startsWith("/api/")) {
+  // Extract authentication tokens
+  const cookieToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+  const hasBearer = Boolean(authHeader && authHeader.startsWith("Bearer "));
+  const bearerToken = hasBearer ? authHeader!.replace(/^Bearer\s+/i, "").trim() : null;
+
+  const isMutativeApiMethod =
+    pathname.startsWith("/api/") &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+
+  let verifiedPayload: any = null;
+
+  // 2. CSRF Defense and Stateless Exemption Strategy
+  if (isMutativeApiMethod) {
+    const host = req.headers.get("host") || "";
+    const origin = req.headers.get("origin");
+    const referer = req.headers.get("referer");
+
+    // Case 1: Cookie is present (Browser request)
+    // POLICY: If cookies are present, browser state is attached.
+    // Origin/Referer MUST be validated regardless of whether a Bearer header was also injected.
+    if (cookieToken) {
+      const originValidation = isValidOriginOrReferer(origin, referer, host);
+      if (!originValidation.valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "FORBIDDEN",
+              message: "Cross-site request forgery protection: invalid or missing origin",
+            },
+          },
+          { status: 403 }
+        );
+      }
+      // CSRF passed, verify cookie token
+      try {
+        const { payload } = await jwtVerify(cookieToken, getJwtSecret(), { algorithms: ["HS256"] });
+        verifiedPayload = payload;
+      } catch {
+        return NextResponse.json(
+          { success: false, error: { code: "UNAUTHORIZED", message: "Session expired or invalid" } },
+          { status: 401 }
+        );
+      }
+    }
+    // Case 2: Pure Bearer token (Stateless API request, NO cookie present)
+    // POLICY: Valid Bearer tokens are exempt from CSRF because cross-origin browsers cannot forge custom headers.
+    // CRITICAL: Unauthenticated / invalid Bearer tokens MUST NEVER receive CSRF exemption.
+    else if (bearerToken) {
+      try {
+        const { payload } = await jwtVerify(bearerToken, getJwtSecret(), { algorithms: ["HS256"] });
+        verifiedPayload = payload;
+        // Valid Bearer authenticated -> CSRF exemption granted
+      } catch {
+        return NextResponse.json(
+          { success: false, error: { code: "UNAUTHORIZED", message: "Invalid or expired Bearer token" } },
+          { status: 401 }
+        );
+      }
+    }
+    // Case 3: Neither cookie nor Bearer token present
+    else {
       return NextResponse.json(
         { success: false, error: { code: "UNAUTHORIZED", message: "Authentication required" } },
         { status: 401 }
       );
     }
-    const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("from", pathname);
-    return NextResponse.redirect(loginUrl);
   }
 
-  // 4. Verify session token
-  try {
-    const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
+  // 3. For Non-mutative API requests (GET, HEAD, OPTIONS) or Page routes, verify token if not already verified
+  if (!verifiedPayload) {
+    const token = cookieToken || bearerToken;
 
-    // Forward strictly verified authenticated user context via request headers
-    sanitizedHeaders.set("x-user-id", (payload.userId as string) || "");
-    sanitizedHeaders.set("x-user-role", (payload.role as string) || "");
-    sanitizedHeaders.set("x-organization-id", (payload.organizationId as string) || "");
-
-    return NextResponse.next({
-      request: {
-        headers: sanitizedHeaders,
-      },
-    });
-  } catch {
-    // Token expired or tampered
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json(
-        { success: false, error: { code: "UNAUTHORIZED", message: "Session expired or invalid" } },
-        { status: 401 }
-      );
+    if (!token) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { success: false, error: { code: "UNAUTHORIZED", message: "Authentication required" } },
+          { status: 401 }
+        );
+      }
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("from", pathname);
+      return NextResponse.redirect(loginUrl);
     }
-    const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("from", pathname);
-    const response = NextResponse.redirect(loginUrl);
-    response.cookies.delete(SESSION_COOKIE_NAME);
-    return response;
+
+    try {
+      const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
+      verifiedPayload = payload;
+    } catch {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { success: false, error: { code: "UNAUTHORIZED", message: "Session expired or invalid" } },
+          { status: 401 }
+        );
+      }
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("from", pathname);
+      const response = NextResponse.redirect(loginUrl);
+      response.cookies.delete(SESSION_COOKIE_NAME);
+      return response;
+    }
   }
+
+  // 4. Forward strictly verified authenticated user context via request headers
+  sanitizedHeaders.set("x-user-id", (verifiedPayload.userId as string) || "");
+  sanitizedHeaders.set("x-user-role", (verifiedPayload.role as string) || "");
+  sanitizedHeaders.set("x-organization-id", (verifiedPayload.organizationId as string) || "");
+
+  return NextResponse.next({
+    request: {
+      headers: sanitizedHeaders,
+    },
+  });
 }
 
 export const config = {
