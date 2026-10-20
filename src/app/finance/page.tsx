@@ -59,6 +59,8 @@ export default function FinancePage() {
   const [recipientType, setRecipientType] = useState<"VENDOR" | "CONTRACTOR" | "EMPLOYEE">("VENDOR");
   const [recipientName, setRecipientName] = useState("");
   const [selectedPartyId, setSelectedPartyId] = useState("");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [workforce, setWorkforce] = useState<any[]>([]);
   const [payingAccount, setPayingAccount] = useState("HDFC Bank Operating A/C (A/C: ...4421)");
   const [customPayingAccount, setCustomPayingAccount] = useState("");
   const [approvalQuery, setApprovalQuery] = useState("");
@@ -120,8 +122,9 @@ export default function FinancePage() {
       fetch("/api/parties").then((r) => r.json()),
       fetch("/api/projects").then((r) => r.json()),
       fetch("/api/materials").then((r) => r.json()),
+      fetch("/api/workforce").then((r) => r.json()).catch(() => ({})),
     ])
-      .then(([meRes, billsRes, paymentsRes, partiesRes, projRes, matRes]) => {
+      .then(([meRes, billsRes, paymentsRes, partiesRes, projRes, matRes, wfRes]) => {
         if (meRes.success && meRes.data) {
           setCurrentUser(meRes.data.user);
           if (meRes.data.user.role === "SUPER_ADMIN") {
@@ -133,6 +136,7 @@ export default function FinancePage() {
         if (partiesRes.success) setParties(partiesRes.data || []);
         if (projRes.success) setProjects(projRes.data || []);
         if (matRes.success) setMaterials(matRes.data || []);
+        if (wfRes && wfRes.success) setWorkforce(wfRes.data || []);
       })
       .catch((err) => {
         console.error("Authoritative finance data load failed:", err);
@@ -799,7 +803,14 @@ export default function FinancePage() {
             {canWriteFinance && (
               <button
                 onClick={() => {
-                  if (parties.length > 0) setSelectedPartyId(parties[0].id);
+                  if (parties.length > 0) {
+                    const firstVendor = parties.find((p) => {
+                      const pt = (p.partyType || p.type || "VENDOR").toUpperCase();
+                      return pt === "VENDOR" || pt === "BOTH";
+                    }) || parties[0];
+                    setSelectedPartyId(firstVendor.id);
+                    setRecipientName(firstVendor.name);
+                  }
                   setShowPaymentModal(true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all"
@@ -1892,6 +1903,7 @@ export default function FinancePage() {
                           setRecipientType(t);
                           setSelectedBillId("");
                           setSelectedPartyId("");
+                          setSelectedEmployeeId("");
                           setRecipientName("");
                         }}
                         className={`py-1.5 text-xs font-bold rounded-md transition ${
@@ -1912,10 +1924,35 @@ export default function FinancePage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Employee Name & Designation *
                     </label>
+                    <select
+                      value={selectedEmployeeId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedEmployeeId(val);
+                        if (val === "CUSTOM") {
+                          setRecipientName("");
+                        } else {
+                          const w = workforce.find((wk) => wk.id === val);
+                          if (w) {
+                            setRecipientName(`${w.name} (${w.workerType || "Staff"})`);
+                          }
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium mb-2"
+                    >
+                      <option value="">-- Choose Employee / Worker --</option>
+                      {workforce.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} — {w.workerType || "Staff"} (Code: {w.employeeCode || "N/A"})
+                        </option>
+                      ))}
+                      <option value="CUSTOM">+ Enter Custom Employee / Staff Name</option>
+                    </select>
+
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Ramesh Kumar (Site Supervisor)"
+                      placeholder="e.g. Ramesh Kumar (Site Supervisor) or Mahesh Thakur (Foreman)"
                       value={recipientName}
                       onChange={(e) => setRecipientName(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
@@ -1926,26 +1963,35 @@ export default function FinancePage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Select {recipientType === "VENDOR" ? "Vendor" : "Contractor"} *
                     </label>
-                    <select
-                      value={selectedPartyId}
-                      onChange={(e) => {
-                        setSelectedPartyId(e.target.value);
-                        setSelectedBillId("");
-                        const p = parties.find((pt) => pt.id === e.target.value);
-                        if (p) setRecipientName(p.name);
-                      }}
-                      required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      <option value="">-- Choose {recipientType} --</option>
-                      {parties
-                        .filter((p) => (recipientType === "CONTRACTOR" ? p.type === "CONTRACTOR" : p.type === "VENDOR"))
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} — Outstanding: {formatCurrency(p.outstandingBalance)}
-                          </option>
-                        ))}
-                    </select>
+                    {(() => {
+                      const isVendor = recipientType === "VENDOR";
+                      const typeFiltered = parties.filter((p) => {
+                        const pt = (p.partyType || p.type || "VENDOR").toUpperCase();
+                        return isVendor ? (pt === "VENDOR" || pt === "BOTH") : (pt === "CONTRACTOR" || pt === "BOTH");
+                      });
+                      const displayParties = typeFiltered.length > 0 ? typeFiltered : parties;
+
+                      return (
+                        <select
+                          value={selectedPartyId}
+                          onChange={(e) => {
+                            setSelectedPartyId(e.target.value);
+                            setSelectedBillId("");
+                            const p = parties.find((pt) => pt.id === e.target.value);
+                            if (p) setRecipientName(p.name);
+                          }}
+                          required
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                        >
+                          <option value="">-- Choose {recipientType} --</option>
+                          {displayParties.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} {p.partyType ? `(${p.partyType})` : ""} — Outstanding: {formatCurrency(p.outstandingBalance)}
+                            </option>
+                          ))}
+                        </select>
+                      );
+                    })()}
                   </div>
                 )}
 
