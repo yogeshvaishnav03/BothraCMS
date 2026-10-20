@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { DayBookSeedService } from "../src/services/day-book-seed-service";
 
 const prisma = new PrismaClient();
 
@@ -542,6 +543,9 @@ async function main() {
       createdBy: "usr-sup-1",
     },
   });
+
+  // 13. Seed Complete Realistic Day Book Demo Data
+  await DayBookSeedService.seedDemoDataForOrg(org.id);
 
   console.log("✅ Build Track Pro seeded successfully!");
   console.log("-----------------------------------------");

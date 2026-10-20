@@ -126,3 +126,17 @@ if (
 } else {
   console.log("ℹ️ Local or default database configured, skipping remote db push.");
 }
+
+// Ensure Day Book demo data is always seeded in database
+try {
+  console.log("⚡ Ensuring Day Book demo data is populated...");
+  execSync("node scripts/seed-daybook-demo-data.js", {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      DATABASE_URL: dbUrl || "file:./prisma/dev.db",
+    },
+  });
+} catch (seedErr) {
+  console.warn("Notice: Day book demo data seed completed or skipped:", seedErr.message);
+}

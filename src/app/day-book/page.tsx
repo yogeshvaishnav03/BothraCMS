@@ -25,6 +25,7 @@ import {
   Layers,
   Filter,
   Users,
+  Sparkles,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -380,6 +381,29 @@ export default function DayBookPage() {
     }
   };
 
+  const handleSeedDemoData = async () => {
+    setActionLoading(true);
+    setStatusMessage(null);
+    try {
+      const res = await fetch("/api/day-book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: selectedDate, siteId: selectedSiteId || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusMessage("✅ Demo records generated successfully for Day Book!");
+        loadDayBook(selectedDate, selectedSiteId);
+      } else {
+        setStatusMessage(`❌ Error: ${data.error?.message || "Could not load demo data"}`);
+      }
+    } catch {
+      setStatusMessage("❌ Server error while loading demo data.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const exportDayBookCSV = () => {
     if (!dayData) return;
     const rows = [
@@ -490,6 +514,17 @@ export default function DayBookPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Populate Demo Data Button */}
+            <button
+              onClick={handleSeedDemoData}
+              disabled={actionLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-800 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
+              title="Generate complete realistic demo records for Day Book"
+            >
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>{actionLoading ? "Loading..." : "Load Demo Data"}</span>
+            </button>
+
             {/* Quick Action Button */}
             {canLogDayEntry && (
               <button
@@ -597,8 +632,8 @@ export default function DayBookPage() {
           </div>
         )}
 
-        {/* Helpful Banner: When current date is empty but recent records exist */}
-        {!loading && totalActivityCount === 0 && dayData?.recentActivityDates && dayData.recentActivityDates.length > 0 && (
+        {/* Helpful Banner: When current date is empty */}
+        {!loading && totalActivityCount === 0 && (
           <div className="bg-amber-500/10 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900">
             <div className="flex items-center gap-2.5">
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
@@ -607,16 +642,24 @@ export default function DayBookPage() {
                   No Day Book entries logged for {formatDate(selectedDate)}.
                 </span>
                 <span className="text-xs text-amber-800 ml-0 sm:ml-1 font-medium">
-                  Recent activities are available on earlier dates:
+                  Click below to generate sample payments, vendor bills, inventory receipts/issues, labor muster, and site progress reports.
                 </span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {dayData.recentActivityDates.map((dt) => (
+              <button
+                onClick={handleSeedDemoData}
+                disabled={actionLoading}
+                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-lg transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{actionLoading ? "Generating..." : "Populate Demo Records"}</span>
+              </button>
+              {dayData?.recentActivityDates && dayData.recentActivityDates.map((dt) => (
                 <button
                   key={dt}
                   onClick={() => handleDateChange(dt)}
-                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-lg transition shadow-xs"
+                  className="px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition shadow-xs"
                 >
                   Jump to {formatDate(dt)}
                 </button>
