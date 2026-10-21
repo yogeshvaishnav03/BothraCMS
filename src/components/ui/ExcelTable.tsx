@@ -403,7 +403,7 @@ export function ExcelColumnHeader<T = any>({
 
   return (
     <th
-      className={`relative select-none p-3 text-xs font-semibold tracking-wider transition ${
+      className={`relative select-none px-3.5 py-3 text-xs font-semibold tracking-wider transition ${
         isDark ? "text-slate-200" : "text-slate-700"
       } ${column.headerClassName || ""} ${
         column.align === "right" ? "text-right" : column.align === "center" ? "text-center" : "text-left"
@@ -411,7 +411,7 @@ export function ExcelColumnHeader<T = any>({
       style={{ width: column.width }}
     >
       <div
-        className={`flex items-center gap-1.5 ${
+        className={`flex items-center gap-2.5 ${
           column.align === "right"
             ? "justify-end"
             : column.align === "center"
@@ -427,14 +427,14 @@ export function ExcelColumnHeader<T = any>({
               table.handleSort(column.key);
             }
           }}
-          className={`flex items-center gap-1 font-bold transition truncate text-left ${
+          className={`flex items-center gap-2 font-bold transition truncate text-left pr-1 cursor-pointer group/sort ${
             isDark ? "text-slate-200 hover:text-amber-400" : "text-slate-800 hover:text-amber-600"
           }`}
           title={column.sortable !== false ? `Click to sort by ${column.label}` : column.label}
         >
           <span className="truncate">{column.label}</span>
           {column.sortable !== false && (
-            <span className="shrink-0">
+            <span className="shrink-0 ml-1">
               {isSorted ? (
                 table.sortDirection === "asc" ? (
                   <ArrowUp className="w-3.5 h-3.5 text-amber-500 stroke-[2.5]" />
@@ -442,7 +442,7 @@ export function ExcelColumnHeader<T = any>({
                   <ArrowDown className="w-3.5 h-3.5 text-amber-500 stroke-[2.5]" />
                 )
               ) : (
-                <ArrowUpDown className={`w-3 h-3 ${isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"} opacity-70 transition`} />
+                <ArrowUpDown className={`w-3 h-3 ${isDark ? "text-slate-500 group-hover/sort:text-slate-300" : "text-slate-400 group-hover/sort:text-slate-600"} opacity-70 transition`} />
               )}
             </span>
           )}
@@ -456,7 +456,7 @@ export function ExcelColumnHeader<T = any>({
               e.stopPropagation();
               table.setOpenFilterKey(isOpen ? null : column.key);
             }}
-            className={`p-1 rounded-md transition relative flex items-center justify-center shrink-0 ${
+            className={`ml-2 p-1.5 rounded-lg transition relative flex items-center justify-center shrink-0 cursor-pointer ${
               isFiltered
                 ? "bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-xs"
                 : isOpen

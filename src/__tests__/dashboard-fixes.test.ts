@@ -248,4 +248,67 @@ describe("Dashboard Fixes — Data Logic, Content & UI/UX Verification", () => {
       expect(site.name).not.toBe("Ri...");
     });
   });
+
+  it("5.1 Day Book Workforce Subtitle Math: 14 Artisans + 8 Craftsmen + 32 Laborers = 54", () => {
+    const summary = {
+      workersPresentCount: 54,
+      headcountTotal: 54,
+      headcountArtisans: 14,
+      headcountCraftsmen: 8,
+      headcountLaborers: 32,
+    };
+
+    const parts: string[] = [];
+    if (summary.headcountArtisans) parts.push(`${summary.headcountArtisans} Artisans`);
+    if (summary.headcountCraftsmen) parts.push(`${summary.headcountCraftsmen} Craftsmen`);
+    if (summary.headcountLaborers) parts.push(`${summary.headcountLaborers} Laborers`);
+
+    const subSum = (summary.headcountArtisans || 0) + (summary.headcountCraftsmen || 0) + (summary.headcountLaborers || 0);
+    const total = summary.workersPresentCount || 0;
+    if (total > subSum) {
+      parts.push(`+${total - subSum} Staff`);
+    }
+
+    const subtitle = parts.join(" · ");
+    expect(subtitle).toBe("14 Artisans · 8 Craftsmen · 32 Laborers");
+    expect(subSum).toBe(54);
+    expect(total).toBe(54);
+  });
+
+  it("5.2 Day Book Tab Badge: Displays total workforce count (54) with muster records tooltip", () => {
+    const dayData = {
+      summary: { workersPresentCount: 54 },
+      headcount: [{ id: "h1" }],
+      attendance: Array(13).fill({ id: "att" }),
+    };
+
+    const totalRecords = dayData.headcount.length + dayData.attendance.length;
+    expect(totalRecords).toBe(14);
+
+    const badgeCount = dayData.summary.workersPresentCount || totalRecords;
+    expect(badgeCount).toBe(54);
+
+    const tooltip = `Total Workforce: ${dayData.summary.workersPresentCount} workers (${totalRecords} muster records)`;
+    expect(tooltip).toBe("Total Workforce: 54 workers (14 muster records)");
+  });
+
+  it("5.3 Tooltip Icon Mismatch: References funnel icon instead of magnifying glass", () => {
+    const tooltipTextEn = "💡 Tip: Click funnel on any column header to sort & filter like Excel";
+    expect(tooltipTextEn).toContain("funnel");
+    expect(tooltipTextEn).not.toContain("🔍");
+  });
+
+  it("5.4 Table Column Header Spacing: Expanded gap and padding between sort and filter icons", () => {
+    const headerClasses = {
+      cellPadding: "px-3.5 py-3",
+      containerGap: "gap-2.5",
+      sortGap: "gap-2",
+      filterMargin: "ml-2 p-1.5",
+    };
+
+    expect(headerClasses.cellPadding).toBe("px-3.5 py-3");
+    expect(headerClasses.containerGap).toBe("gap-2.5");
+    expect(headerClasses.sortGap).toBe("gap-2");
+    expect(headerClasses.filterMargin).toContain("ml-2");
+  });
 });

@@ -74,6 +74,7 @@ export default function DayBookPage() {
       {
         key: "party",
         label: "Party / Vendor",
+        width: "220px",
         accessor: (p) => p.party?.name || "Direct Expense",
         render: (p) => (
           <div>
@@ -85,6 +86,7 @@ export default function DayBookPage() {
       {
         key: "paymentMethod",
         label: "Method",
+        width: "120px",
         accessor: (p) => p.paymentMethod || "CASH",
         render: (p) => (
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
@@ -95,6 +97,7 @@ export default function DayBookPage() {
       {
         key: "referenceNumber",
         label: "Reference No",
+        width: "150px",
         accessor: (p) => p.referenceNumber || "—",
         render: (p) => <span className="font-mono text-slate-600">{p.referenceNumber || "—"}</span>,
       },
@@ -147,6 +150,7 @@ export default function DayBookPage() {
       {
         key: "party",
         label: "Party / Vendor",
+        width: "220px",
         accessor: (b) => b.party?.name || "N/A",
         render: (b) => <span className="font-bold text-slate-900">{b.party?.name || "N/A"}</span>,
       },
@@ -1004,9 +1008,19 @@ export default function DayBookPage() {
                 {dayData?.summary.workersPresentCount || 0}
               </div>
               <div className="text-[11px] text-slate-400 mt-1 font-medium">
-                {dayData?.summary.headcountTotal && dayData.summary.headcountTotal > 0
-                  ? `${dayData.summary.headcountArtisans || 0} Artisans · ${dayData.summary.headcountLaborers || 0} Laborers`
-                  : "Daily labor muster"}
+                {(() => {
+                  if (!dayData?.summary) return "Daily labor muster";
+                  const parts: string[] = [];
+                  if (dayData.summary.headcountArtisans) parts.push(`${dayData.summary.headcountArtisans} Artisans`);
+                  if (dayData.summary.headcountCraftsmen) parts.push(`${dayData.summary.headcountCraftsmen} Craftsmen`);
+                  if (dayData.summary.headcountLaborers) parts.push(`${dayData.summary.headcountLaborers} Laborers`);
+                  const subSum = (dayData.summary.headcountArtisans || 0) + (dayData.summary.headcountCraftsmen || 0) + (dayData.summary.headcountLaborers || 0);
+                  const total = dayData.summary.workersPresentCount || 0;
+                  if (total > subSum) {
+                    parts.push(`+${total - subSum} Staff`);
+                  }
+                  return parts.length > 0 ? parts.join(" · ") : "Daily labor muster";
+                })()}
               </div>
             </div>
             <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-emerald-600 transition">
@@ -1081,10 +1095,11 @@ export default function DayBookPage() {
             className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "ATTENDANCE" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
             }`}
+            title={`Total Workforce: ${dayData?.summary.workersPresentCount || 0} workers (${(dayData?.headcount?.length || 0) + (dayData?.attendance?.length || 0)} muster records)`}
           >
             <span>Workforce Muster</span>
-            <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[10px] rounded-full">
-              {(dayData?.headcount?.length || 0) + (dayData?.attendance?.length || 0)}
+            <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[10px] font-bold rounded-full">
+              {dayData?.summary.workersPresentCount || ((dayData?.headcount?.length || 0) + (dayData?.attendance?.length || 0))}
             </span>
           </button>
           <button
