@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     assertPermission(user.role, "audit:read");
 
     const { searchParams } = new URL(req.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "200"), 500);
     const entityType = searchParams.get("entityType");
     const entityId = searchParams.get("entityId");
 
