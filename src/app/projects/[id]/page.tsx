@@ -607,15 +607,28 @@ export default function ProjectDetailsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                           task.priority === "CRITICAL"
-                            ? "bg-rose-100 text-rose-800"
+                            ? "bg-rose-100 text-rose-800 border-rose-300"
                             : task.priority === "HIGH"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-blue-100 text-blue-800"
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : task.priority === "MEDIUM"
+                            ? "bg-blue-100 text-blue-800 border-blue-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
-                        {task.priority}
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            task.priority === "CRITICAL"
+                              ? "bg-rose-600"
+                              : task.priority === "HIGH"
+                              ? "bg-amber-600"
+                              : task.priority === "MEDIUM"
+                              ? "bg-blue-600"
+                              : "bg-slate-500"
+                          }`}
+                        />
+                        <span>{task.priority}</span>
                       </span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                         {task.status}

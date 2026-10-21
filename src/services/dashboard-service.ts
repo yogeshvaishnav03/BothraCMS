@@ -103,26 +103,32 @@ export class DashboardService {
       WorkforceHeadcountService.listRecords(organizationId, { siteId }).catch(() => []),
     ]);
 
-    const hasTodayData = (todaySummary?.grandTotal || 0) > 0 || (todayRecords?.length || 0) > 0;
+    // Authoritative per-site resolution:
+    // For each site, prefer today's record; if none submitted today, fallback to the site's most recent record.
+    const siteRecordsMap = new Map<string, any>();
+    for (const r of todayRecords) {
+      if (!siteRecordsMap.has(r.siteId)) {
+        siteRecordsMap.set(r.siteId, r);
+      }
+    }
+    for (const r of allRecentRecords) {
+      if (!siteRecordsMap.has(r.siteId)) {
+        siteRecordsMap.set(r.siteId, r);
+      }
+    }
+
+    const effectiveRecords = Array.from(siteRecordsMap.values());
+    const hasTodayData = todayRecords.length > 0 && effectiveRecords.every((r) => r.date === todayStr);
+    const isLatestFallback = effectiveRecords.some((r) => r.date !== todayStr);
     const latestDate = allRecentRecords.length > 0 ? allRecentRecords[0].date : todayStr;
-    const latestDateRecords = allRecentRecords.filter((r) => r.date === latestDate);
+    const activeDate = hasTodayData ? todayStr : (effectiveRecords[0]?.date || latestDate);
 
-    const latestTotal = latestDateRecords.reduce((s, r) => s + (r.grandTotal || 0), 0);
-    const latestArtisans = latestDateRecords.reduce((s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
-    const latestCraftsmen = latestDateRecords.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
-    const latestLaborers = latestDateRecords.reduce((s, r) => s + (r.laborerTotal || 0), 0);
-    const latestLaborerMale = latestDateRecords.reduce((s, r) => s + (r.laborerMale || 0), 0);
-    const latestLaborerFemale = latestDateRecords.reduce((s, r) => s + (r.laborerFemale || 0), 0);
-
-    const isLatestFallback = !hasTodayData && latestDateRecords.length > 0;
-    const activeDate = hasTodayData ? todayStr : latestDate;
-    const effectiveGrandTotal = hasTodayData ? todaySummary.grandTotal : latestTotal;
-    const effectiveArtisans = hasTodayData ? todaySummary.totalArtisan : latestArtisans;
-    const effectiveCraftsmen = hasTodayData ? todaySummary.totalCraftsman : latestCraftsmen;
-    const effectiveLaborers = hasTodayData ? todaySummary.totalLaborer : latestLaborers;
-    const effectiveLaborerMale = hasTodayData ? todaySummary.totalLaborerMale : latestLaborerMale;
-    const effectiveLaborerFemale = hasTodayData ? todaySummary.totalLaborerFemale : latestLaborerFemale;
-    const effectiveRecords = hasTodayData ? todayRecords : latestDateRecords;
+    const effectiveArtisans = effectiveRecords.reduce((s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
+    const effectiveCraftsmen = effectiveRecords.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
+    const effectiveLaborers = effectiveRecords.reduce((s, r) => s + (r.laborerTotal || 0), 0);
+    const effectiveLaborerMale = effectiveRecords.reduce((s, r) => s + (r.laborerMale || 0), 0);
+    const effectiveLaborerFemale = effectiveRecords.reduce((s, r) => s + (r.laborerFemale || 0), 0);
+    const effectiveGrandTotal = effectiveArtisans + effectiveCraftsmen + effectiveLaborers;
 
     const attendanceWhere: any = {
       organizationId,

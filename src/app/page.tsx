@@ -909,15 +909,28 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-slate-900 text-sm">{t.title}</span>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                           t.priority === "CRITICAL"
-                            ? "bg-rose-100 text-rose-800"
+                            ? "bg-rose-100 text-rose-800 border-rose-300"
                             : t.priority === "HIGH"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-slate-200 text-slate-700"
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : t.priority === "MEDIUM"
+                            ? "bg-blue-100 text-blue-800 border-blue-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
-                        {t.priority}
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            t.priority === "CRITICAL"
+                              ? "bg-rose-600"
+                              : t.priority === "HIGH"
+                              ? "bg-amber-600"
+                              : t.priority === "MEDIUM"
+                              ? "bg-blue-600"
+                              : "bg-slate-500"
+                          }`}
+                        />
+                        <span>{t.priority}</span>
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
@@ -968,15 +981,28 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-slate-900 text-sm">{t.title}</span>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                           t.priority === "CRITICAL"
-                            ? "bg-rose-100 text-rose-800"
+                            ? "bg-rose-100 text-rose-800 border-rose-300"
                             : t.priority === "HIGH"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-indigo-100 text-indigo-800"
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : t.priority === "MEDIUM"
+                            ? "bg-blue-100 text-blue-800 border-blue-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
-                        {t.priority}
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            t.priority === "CRITICAL"
+                              ? "bg-rose-600"
+                              : t.priority === "HIGH"
+                              ? "bg-amber-600"
+                              : t.priority === "MEDIUM"
+                              ? "bg-blue-600"
+                              : "bg-slate-500"
+                          }`}
+                        />
+                        <span>{t.priority}</span>
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
