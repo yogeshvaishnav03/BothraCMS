@@ -267,26 +267,6 @@ export default function QuickActionLauncher({ currentUser }: QuickActionLauncher
 
   return (
     <>
-      {/* Floating Action Button (FAB) at bottom-right */}
-      <div className="fixed bottom-20 lg:bottom-6 right-5 z-40 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="group relative flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border border-amber-300/40"
-          title={isHi ? "त्वरित कार्य (Alt + Q)" : "Quick Actions (Alt + Q)"}
-        >
-          {/* Subtle pulse ring */}
-          <span className="absolute -inset-1 rounded-full bg-amber-400/30 animate-pulse pointer-events-none" />
-          <Zap className="w-5 h-5 fill-slate-950 stroke-slate-950 animate-bounce" />
-          <span className="text-xs sm:text-sm tracking-wide">
-            {isHi ? "त्वरित कार्य" : "Quick Action"}
-          </span>
-          <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-slate-950/20 rounded text-slate-900 border border-slate-950/30">
-            Alt+Q
-          </kbd>
-        </button>
-      </div>
-
       {/* Quick Action Modal Overlay */}
       {isOpen && (
         <div

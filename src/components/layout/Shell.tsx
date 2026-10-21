@@ -554,17 +554,6 @@ export default function Shell({ children }: ShellProps) {
             <div className="flex items-center gap-2 shrink-0">
               {/* Interactive Page Guide Modal Button */}
               <InteractiveGuideModal />
-
-              {/* Quick Actions Trigger Button */}
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent("openQuickActionLauncher"))}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold transition shadow-xs cursor-pointer group"
-                title={language === "hi" ? "त्वरित कार्य (Alt + Q)" : "Quick Actions (Alt + Q)"}
-              >
-                <Zap className="w-3.5 h-3.5 fill-amber-400 stroke-amber-400 group-hover:scale-110 transition-transform" />
-                <span>{language === "hi" ? "त्वरित कार्य" : "Quick Actions"}</span>
-              </button>
             </div>
           </div>
 

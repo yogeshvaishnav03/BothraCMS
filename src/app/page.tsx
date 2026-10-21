@@ -1179,7 +1179,7 @@ export default function DashboardPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>{t("kpi.quickTask", "+ Quick Task")}</span>
+              <span>{t("kpi.quickTask", "Quick Task")}</span>
             </button>
             <Link
               href="/materials"
@@ -1218,14 +1218,6 @@ export default function DashboardPage() {
               <User className="w-3.5 h-3.5" />
               <span>Personalized Employee Workspace</span>
             </button>
-          </div>
-
-          <div className="text-xs text-slate-500 px-2 flex items-center gap-2">
-            {currentUser && (
-              <span>
-                Logged in as <strong className="text-slate-800">{currentUser.name}</strong> ({currentUser.role})
-              </span>
-            )}
           </div>
         </div>
 
@@ -2191,7 +2183,7 @@ export default function DashboardPage() {
               )}
               <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
                 <Upload className="w-3.5 h-3.5 text-amber-400" />
-                <span>{uploadingPhoto ? "Uploading..." : "+ Upload Photo"}</span>
+                <span>{uploadingPhoto ? "Uploading..." : "Upload Photo"}</span>
                 <input
                   type="file"
                   multiple
