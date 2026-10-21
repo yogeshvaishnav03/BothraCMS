@@ -397,6 +397,124 @@ async function seedOrg(orgId, orgName) {
     }
   }
 
+  const billCount = await prisma.bill.count({ where: { organizationId: orgId } });
+  if (billCount < 100) {
+    const need = 110 - billCount;
+    console.log(`Topping up Bills (${billCount}) with ${need} more entries...`);
+    for (let i = 0; i < need; i++) {
+      const party = pick(parties);
+      const proj = pick(allProjects);
+      const billSeq = billCount + i + 1;
+      const billNumber = `INV-${orgId.slice(0, 4)}-${String(billSeq).padStart(4, '0')}`;
+      const amount = randomInt(20, 350) * 10000;
+      const date = randomDate(45, 1);
+      await prisma.bill.create({
+        data: {
+          organizationId: orgId,
+          partyId: party.id,
+          projectId: proj.id,
+          billNumber,
+          billDate: date,
+          dueDate: new Date(date.getTime() + 30 * 86400000),
+          totalAmount: amount,
+          status: 'POSTED',
+          createdBy: adminId,
+          lines: {
+            create: [{
+              description: `Milestone Billing #${billSeq}`,
+              quantity: 1,
+              unitRate: amount,
+              lineTotal: amount,
+            }]
+          }
+        }
+      });
+    }
+  }
+
+  const payCount = await prisma.payment.count({ where: { organizationId: orgId } });
+  if (payCount < 100) {
+    const need = 110 - payCount;
+    console.log(`Topping up Payments (${payCount}) with ${need} more entries...`);
+    for (let i = 0; i < need; i++) {
+      const party = pick(parties);
+      const proj = pick(allProjects);
+      const paySeq = payCount + i + 1;
+      const amount = randomInt(15, 250) * 10000;
+      const date = randomDate(40, 1);
+      await prisma.payment.create({
+        data: {
+          organizationId: orgId,
+          partyId: party.id,
+          recipientType: party.partyType === 'CONTRACTOR' ? 'CONTRACTOR' : 'VENDOR',
+          recipientName: party.name,
+          payingAccount: 'HDFC Corporate Current A/C',
+          projectId: proj.id,
+          paymentDate: date,
+          amount,
+          currency: 'INR',
+          method: 'BANK_TRANSFER',
+          referenceNumber: `UTR-${paySeq}-${randomInt(10000, 99999)}`,
+          status: 'POSTED',
+          idempotencyKey: `PAY-${orgId.slice(0, 4)}-${paySeq}`,
+          createdBy: adminId,
+          createdAt: date,
+        }
+      });
+    }
+  }
+
+  const dsrCount = await prisma.dailySiteReport.count({ where: { organizationId: orgId } });
+  if (dsrCount < 100) {
+    const need = 110 - dsrCount;
+    console.log(`Topping up Daily Site Reports (${dsrCount}) with ${need} more entries...`);
+    for (let i = 0; i < need; i++) {
+      const proj = pick(allProjects);
+      const date = randomDate(60, 1);
+      await prisma.dailySiteReport.create({
+        data: {
+          organizationId: orgId,
+          projectId: proj.id,
+          reportDate: formatDateStr(date),
+          progress: `Site progress on ${proj.name}: Milestone inspection completed.`,
+          blockers: 'None.',
+          safetyNotes: 'Morning safety talk conducted. Zero incidents.',
+          createdBy: adminId,
+          createdAt: date,
+        }
+      });
+    }
+  }
+
+  const hcCount = await prisma.workforceHeadcount.count({ where: { organizationId: orgId } });
+  if (hcCount < 100) {
+    const need = 110 - hcCount;
+    console.log(`Topping up Workforce Headcount (${hcCount}) with ${need} more entries...`);
+    for (let i = 0; i < need; i++) {
+      const site = pick(sites);
+      const date = randomDate(50, 1);
+      await prisma.workforceHeadcount.create({
+        data: {
+          organizationId: orgId,
+          siteId: site.id,
+          siteName: site.name,
+          date: formatDateStr(date),
+          shift: i % 2 === 0 ? 'GENERAL' : 'DAY',
+          artisanCount: 15,
+          craftsmanCount: 10,
+          laborerMale: 30,
+          laborerFemale: 12,
+          laborerTotal: 42,
+          grandTotal: 67,
+          contractorName: 'Composite Gangs',
+          supervisorId: adminId,
+          supervisorName: 'Supervisor',
+          createdById: adminId,
+        }
+      });
+    }
+  }
+
   const finalCounts = {
     sites: await prisma.site.count({ where: { organizationId: orgId } }),
     projects: await prisma.project.count({ where: { organizationId: orgId } }),
