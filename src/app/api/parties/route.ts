@@ -3,10 +3,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission, canReadFinance } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { partyProfileSchema, pickProfileUpdates, publicPartyProfile } from "@/lib/party-profile";
 
 export const dynamic = "force-dynamic";
 
-const createPartySchema = z.object({
+const createPartySchema = partyProfileSchema.extend({
   name: z.string().min(2),
   partyType: z.enum(["VENDOR", "CONTRACTOR", "BOTH", "CLIENT", "OTHER"]).default("VENDOR"),
   phone: z.string().optional(),
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     const hasFinanceAccess = canReadFinance(user);
 
-    let parties = await prisma.party.findMany({
+    const parties = await prisma.party.findMany({
       where,
       include: hasFinanceAccess
         ? {
@@ -52,52 +53,6 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    if (parties.length === 0) {
-      const totalOrgParties = await prisma.party.count({
-        where: { organizationId: user.organizationId, isArchived: false },
-      });
-
-      if (totalOrgParties === 0) {
-        const defaultParties = [
-          { name: "Apex Cement & Building Supplies", partyType: "VENDOR", phone: "+91 98110 22334", email: "supplies@apexcement.com", address: "Plot 12, Industrial Area, Noida" },
-          { name: "Jindal Steel & Power Distributors", partyType: "VENDOR", phone: "+91 98220 55443", email: "orders@jindalsteel.com", address: "Steel Yard Complex, Ghaziabad" },
-          { name: "ACC Ready Mix Concrete Pvt Ltd", partyType: "VENDOR", phone: "+91 98330 66554", email: "rmc@acc.com", address: "Sector 63, Noida" },
-          { name: "Ramesh RCC & Masonry Works", partyType: "CONTRACTOR", phone: "+91 98990 11223", email: "ramesh.contractor@gmail.com", address: "Sector 18, Noida" },
-          { name: "Krishna Shuttering & Scaffolding Services", partyType: "CONTRACTOR", phone: "+91 98770 33445", email: "krishna.scaffolding@gmail.com", address: "Sector 128, Expressway, Noida" },
-        ];
-
-        for (const dp of defaultParties) {
-          await prisma.party.create({
-            data: {
-              organizationId: user.organizationId,
-              name: dp.name,
-              partyType: dp.partyType,
-              phone: dp.phone,
-              email: dp.email,
-              address: dp.address,
-              active: true,
-            },
-          });
-        }
-
-        parties = await prisma.party.findMany({
-          where,
-          include: hasFinanceAccess
-            ? {
-                bills: {
-                  where: { status: "POSTED", isArchived: false },
-                  include: { allocations: { where: { reversedAt: null } } },
-                },
-                payments: {
-                  where: { status: "POSTED", isArchived: false },
-                },
-              }
-            : undefined,
-          orderBy: { name: "asc" },
-        });
-      }
-    }
-
     const enriched = parties.map((p: any) => {
       if (!hasFinanceAccess) {
         return {
@@ -108,6 +63,7 @@ export async function GET(req: NextRequest) {
           email: p.email,
           address: p.address,
           taxIdentifier: p.taxIdentifier,
+          ...publicPartyProfile(p),
           notes: p.notes,
           active: p.active,
           createdAt: p.createdAt,
@@ -127,6 +83,7 @@ export async function GET(req: NextRequest) {
         email: p.email,
         address: p.address,
         taxIdentifier: p.taxIdentifier,
+        ...publicPartyProfile(p),
         contractValue: p.contractValue || 0,
         totalBilled,
         totalPaid,
@@ -163,6 +120,7 @@ export async function POST(req: NextRequest) {
         taxIdentifier: data.taxIdentifier?.trim() || null,
         contractValue: data.contractValue || 0,
         notes: data.notes?.trim() || null,
+        ...pickProfileUpdates(data),
       },
     });
 
@@ -182,7 +140,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return jsonSuccess(party, 201);
+    const { bankAccountNumber: _acc, ...safeParty } = party;
+    return jsonSuccess({ ...safeParty, ...publicPartyProfile(party) }, 201);
   } catch (error) {
     return handleApiError(error);
   }

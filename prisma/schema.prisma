@@ -52,6 +52,8 @@ model User {
   passwordHash   String
   role           String    @default("SITE_SUPERVISOR") // SUPER_ADMIN, ORG_ADMIN, PROJECT_MANAGER, SITE_SUPERVISOR, ACCOUNTANT, STOREKEEPER, HR_VIEWER, AUDITOR
   status         String    @default("ACTIVE") // ACTIVE, INACTIVE
+  phone          String?   // mobile, used for WhatsApp / call buttons
+  jobTitle       String?   // e.g. Site Engineer, Architect, Accounts Head
   lastLoginAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -343,6 +345,21 @@ model Party {
   archiveReason String?
   notes         String?
   contractValue Float?   @default(0)
+  // Business profile
+  contactPerson String?
+  whatsappNumber String?  // falls back to phone when empty
+  city          String?
+  category      String?  // trade or supply line, e.g. Cement, Steel, RCC work, Shuttering
+  rating        Int?     // 1-5, internal vendor rating
+  panNumber     String?
+  // Bank details for payments. Full account numbers are only returned by
+  // GET /api/parties/[id]/bank (finance:write, audited); lists show the last 4 digits.
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankIfsc          String?
+  bankName          String?
+  bankBranch        String?
+  upiId             String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

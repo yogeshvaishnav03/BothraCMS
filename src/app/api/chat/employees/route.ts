@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
         name: true,
         email: true,
         role: true,
+        phone: true,
+        jobTitle: true,
         lastLoginAt: true,
       },
       orderBy: [

@@ -33,6 +33,7 @@ import {
   MessageSquare,
   Zap,
   Search,
+  UserCog,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import InteractiveGuideModal from "@/components/ui/InteractiveGuideModal";
@@ -222,6 +223,9 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.admin",
       label: "Admin",
       items: [
+        ...(user?.role === "SUPER_ADMIN" || user?.role === "ORG_ADMIN"
+          ? [{ key: "nav.team", defaultLabel: "Team & Access", href: "/team", icon: UserCog }]
+          : []),
         { key: "nav.audit", defaultLabel: "Audit Logs", href: "/audit", icon: ShieldCheck },
         { key: "nav.settings", defaultLabel: "Settings", href: "/settings", icon: Settings },
         ...(user?.role === "SUPER_ADMIN"

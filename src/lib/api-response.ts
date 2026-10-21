@@ -17,21 +17,33 @@ const NO_CACHE_HEADERS: Record<string, string> = {
   Expires: "0",
 };
 
-export function jsonSuccess<T>(data: T, status = 200, headers?: HeadersInit) {
+/**
+ * Fields that never leave the server through a normal API response, wherever
+ * they are nested (e.g. a vendor's full bank account number inside a payment).
+ * Routes that must return them pass `{ allowSensitive: true }` and audit the read.
+ */
+const SENSITIVE_KEYS = new Set(["bankAccountNumber", "passwordHash"]);
+
+function stripSensitive(_key: string, value: unknown) {
+  return SENSITIVE_KEYS.has(_key) ? undefined : value;
+}
+
+export function jsonSuccess<T>(
+  data: T,
+  status = 200,
+  headers?: HeadersInit,
+  options?: { allowSensitive?: boolean }
+) {
   const mergedHeaders = new Headers(headers);
   for (const [k, v] of Object.entries(NO_CACHE_HEADERS)) {
     if (!mergedHeaders.has(k)) {
       mergedHeaders.set(k, v);
     }
   }
+  mergedHeaders.set("Content-Type", "application/json");
 
-  return NextResponse.json(
-    {
-      success: true,
-      data,
-    },
-    { status, headers: mergedHeaders }
-  );
+  const body = JSON.stringify({ success: true, data }, options?.allowSensitive ? undefined : stripSensitive);
+  return new NextResponse(body, { status, headers: mergedHeaders });
 }
 
 export function jsonError(

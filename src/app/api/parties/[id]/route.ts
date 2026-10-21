@@ -3,10 +3,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission, canReadFinance } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { maskAccountNumber, partyProfileSchema, pickProfileUpdates, publicPartyProfile } from "@/lib/party-profile";
 
 export const dynamic = "force-dynamic";
 
-const editPartySchema = z.object({
+const editPartySchema = partyProfileSchema.extend({
   name: z.string().min(2).optional(),
   partyType: z.enum(["VENDOR", "CONTRACTOR", "BOTH"]).optional(),
   phone: z.string().nullable().optional(),
@@ -53,8 +54,11 @@ export async function GET(
 
     if (!party) return jsonError("Party not found", "NOT_FOUND", 404);
 
+    const { bankAccountNumber: _acc, ...partyWithoutAccount } = party;
+    const profile = publicPartyProfile(party);
+
     if (!hasFinanceAccess) {
-      const sanitized: any = { ...party };
+      const sanitized: any = { ...partyWithoutAccount, ...profile };
       delete sanitized.contractValue;
       delete sanitized.bills;
       delete sanitized.payments;
@@ -67,7 +71,8 @@ export async function GET(
       .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
     return jsonSuccess({
-      ...party,
+      ...partyWithoutAccount,
+      ...profile,
       totalBilled,
       totalPaid,
       outstandingBalance: totalBilled - totalPaid,
@@ -103,6 +108,7 @@ export async function PATCH(
     if (data.contractValue !== undefined) updateData.contractValue = data.contractValue;
     if (data.notes !== undefined) updateData.notes = data.notes;
     if (data.active !== undefined) updateData.active = data.active;
+    Object.assign(updateData, pickProfileUpdates(data));
 
     const updated = await prisma.party.update({
       where: { id: party.id },
@@ -122,6 +128,9 @@ export async function PATCH(
           contractValue: party.contractValue,
           phone: party.phone,
           email: party.email,
+          bankAccount: maskAccountNumber(party.bankAccountNumber),
+          bankIfsc: party.bankIfsc,
+          upiId: party.upiId,
         }),
         afterJson: JSON.stringify({
           name: updated.name,
@@ -129,12 +138,16 @@ export async function PATCH(
           contractValue: updated.contractValue,
           phone: updated.phone,
           email: updated.email,
+          bankAccount: maskAccountNumber(updated.bankAccountNumber),
+          bankIfsc: updated.bankIfsc,
+          upiId: updated.upiId,
         }),
         reason: data.reason || "Updated party profile and contract configuration",
       },
     });
 
-    return jsonSuccess(updated);
+    const { bankAccountNumber: _updatedAcc, ...safeUpdated } = updated;
+    return jsonSuccess({ ...safeUpdated, ...publicPartyProfile(updated) });
   } catch (error) {
     return handleApiError(error);
   }

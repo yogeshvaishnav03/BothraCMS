@@ -3,6 +3,7 @@
 import { Alert } from "@/components/ui/Alert";
 import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
+import { ContactActions } from "@/components/ui/ContactActions";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import {
   Users,
@@ -848,7 +849,16 @@ export default function WorkforcePage() {
                           {w.workerType}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-600">{w.phone || "—"}</td>
+                      <td className="py-3 px-4">
+                        {w.phone ? (
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-slate-600 whitespace-nowrap">{w.phone}</span>
+                            <ContactActions phone={w.phone} message={`Namaste ${w.name},`} />
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 font-mono text-slate-800 font-bold">
                         {w.dailyWageRate ? `₹${w.dailyWageRate}/day` : "—"}
                       </td>

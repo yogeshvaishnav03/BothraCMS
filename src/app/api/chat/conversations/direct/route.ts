@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       include: {
         participants: {
           include: {
-            user: { select: { id: true, name: true, email: true, role: true } },
+            user: { select: { id: true, name: true, email: true, role: true, phone: true } },
           },
         },
       },
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       include: {
         participants: {
           include: {
-            user: { select: { id: true, name: true, email: true, role: true } },
+            user: { select: { id: true, name: true, email: true, role: true, phone: true } },
           },
         },
       },

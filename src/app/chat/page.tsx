@@ -3,6 +3,8 @@
 import { Alert } from "@/components/ui/Alert";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Shell from "@/components/layout/Shell";
+import { ContactActions, WhatsAppIcon } from "@/components/ui/ContactActions";
+import { whatsappLink } from "@/lib/contact-links";
 import { formatDateTime } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
 import {
@@ -36,6 +38,8 @@ interface Employee {
   name: string;
   email: string;
   role: string;
+  phone?: string | null;
+  jobTitle?: string | null;
   lastLoginAt?: string | null;
   isCurrentUser: boolean;
   existingConversationId?: string | null;
@@ -50,7 +54,7 @@ interface ConversationItem {
   creator?: { id: string; name: string; role: string } | null;
   createdAt: string;
   updatedAt: string;
-  otherUser?: { id: string; name: string; email: string; role: string } | null;
+  otherUser?: { id: string; name: string; email: string; role: string; phone?: string | null } | null;
   participantsCount: number;
   participants: Array<{ id: string; name: string; email: string; role: string }>;
   latestMessage?: {
@@ -264,6 +268,18 @@ export default function ChatPage() {
   useEffect(() => {
     loadChatData();
   }, [loadChatData]);
+
+  // Deep link from anywhere in the CMS: /chat?with=<userId> opens that person's chat.
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandledRef.current || loading || typeof window === "undefined") return;
+    const target = new URLSearchParams(window.location.search).get("with");
+    if (!target) return;
+    deepLinkHandledRef.current = true;
+    window.history.replaceState(null, "", "/chat");
+    handleStartDirectChat(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   // Load Messages for Active Conversation
   const loadMessages = useCallback(async (convId: string, background = false) => {
@@ -818,14 +834,28 @@ export default function ChatPage() {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => handleStartDirectChat(emp.id)}
-                        className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-lg text-xs transition shrink-0 flex items-center gap-1"
-                        title={`Chat with ${emp.name || "Employee"}`}
-                      >
-                        <MessageSquare className="w-3 h-3" />
-                        <span>Chat</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {whatsappLink(emp.phone) && (
+                          <a
+                            href={whatsappLink(emp.phone, `Namaste ${emp.name},`) || undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-500 hover:text-white transition"
+                            title={`WhatsApp ${emp.name}`}
+                            aria-label={`WhatsApp ${emp.name}`}
+                          >
+                            <WhatsAppIcon className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => handleStartDirectChat(emp.id)}
+                          className="px-2.5 py-1.5 bg-gradient-brand text-slate-950 font-bold rounded-lg text-xs transition shrink-0 flex items-center gap-1 hover:brightness-110"
+                          title={`Chat with ${emp.name || "Employee"}`}
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span>Chat</span>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -904,6 +934,13 @@ export default function ChatPage() {
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {activeConversation.type === "DIRECT" && activeConversation.otherUser?.phone && (
+                          <ContactActions
+                            phone={activeConversation.otherUser.phone}
+                            message={`Namaste ${activeConversation.otherUser.name},`}
+                            className="hidden sm:flex"
+                          />
+                        )}
                         <button
                           type="button"
                           onClick={() => loadMessages(activeConversationId)}
