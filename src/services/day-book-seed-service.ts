@@ -22,23 +22,16 @@ export class DayBookSeedService {
       d3.toISOString().split("T")[0],
     ];
 
-    // 1. Get or create admin user
-    let user = await prisma.user.findFirst({
+    // 1. Use an existing user as the author of the demo records
+    const user = await prisma.user.findFirst({
       where: { organizationId },
       orderBy: { createdAt: "asc" },
     });
 
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          organizationId,
-          name: "Vikram Malhotra",
-          email: `admin-${organizationId.slice(0, 6)}@buildtrack.pro`,
-          passwordHash: "$2a$10$abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqr",
-          role: "ORG_ADMIN",
-          status: "ACTIVE",
-        },
-      });
+      throw new Error(
+        "Cannot seed Day Book demo data: the organization has no users. Create a user first."
+      );
     }
 
     // 2. Ensure Sites exist

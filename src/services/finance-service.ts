@@ -226,32 +226,31 @@ export class FinanceService {
       }
     }
 
-    // Determine status & approval:
-    let status = input.status;
+    // Determine status & approval. Only SUPER_ADMIN / ORG_ADMIN may post a
+    // payment directly (autoApprove or status POSTED); every other role's
+    // payment always waits for approval, whatever the request asks for.
+    const canPostDirectly = input.role === "SUPER_ADMIN" || input.role === "ORG_ADMIN";
+    let status: string;
     let approvedBy: string | null = null;
     let approvedAt: Date | null = null;
 
-    if (isStaffQuery) {
+    if (!canPostDirectly || isStaffQuery) {
       status = "PENDING_APPROVAL";
-    } else if (!status) {
-      if (input.autoApprove === true) {
-        status = "POSTED";
-        approvedBy = `${input.role} (Auto-Approved)`;
-        approvedAt = new Date();
-      } else if (input.autoApprove === false) {
-        status = "PENDING_APPROVAL";
-      } else if (input.approvalQuery) {
-        // Query submitted explicitly to Super Admin
-        status = "PENDING_APPROVAL";
-      } else if (input.role === "SUPER_ADMIN" || input.role === "ORG_ADMIN") {
-        status = "POSTED";
-        approvedBy = `${input.role} (Direct)`;
-        approvedAt = new Date();
-      } else {
-        status = "PENDING_APPROVAL";
-      }
-    } else if (status === "POSTED") {
-      approvedBy = `${input.role} (Direct)`;
+    } else if (input.status === "POSTED" || input.status === "PENDING_APPROVAL") {
+      status = input.status;
+    } else if (input.autoApprove === true) {
+      status = "POSTED";
+    } else if (input.autoApprove === false || input.approvalQuery) {
+      // Admin chose to route the payment for review
+      status = "PENDING_APPROVAL";
+    } else {
+      status = "POSTED";
+    }
+
+    if (status === "POSTED") {
+      approvedBy = input.autoApprove === true
+        ? `${input.role} (Auto-Approved)`
+        : `${input.role} (Direct)`;
       approvedAt = new Date();
     }
 

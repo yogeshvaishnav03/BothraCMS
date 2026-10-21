@@ -29,6 +29,9 @@ export default function LoginPage() {
         if (msg.includes("admin@buildtrack.pro") || msg.includes("Password123") || msg.includes("instant demo access") || msg.includes("Database connecting")) {
           msg = "Authentication service is temporarily unavailable. Please try again shortly.";
         }
+        if (res.status === 401) {
+          msg = "The email or password is incorrect. Check both and try again.";
+        }
         setError(msg);
       } else {
         router.push("/");
@@ -66,20 +69,25 @@ export default function LoginPage() {
           </h2>
 
           {error && (
-            <div className="mb-5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium">
+            <div id="login-error" role="alert" className="mb-5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium">
               {error}
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="login-email" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Work Email
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
                 <input
+                  id="login-email"
                   type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  aria-invalid={Boolean(error) || undefined}
+                  aria-describedby={error ? "login-error" : undefined}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -90,13 +98,17 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="login-password" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Password
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3.5" />
                 <input
+                  id="login-password"
                   type="password"
+                  autoComplete="current-password"
+                  aria-invalid={Boolean(error) || undefined}
+                  aria-describedby={error ? "login-error" : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required

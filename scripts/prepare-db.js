@@ -40,8 +40,26 @@ TRUSTED_ORIGINS="localhost:3000,localhost:3001,127.0.0.1:3000"
   } catch (err) {}
 }
 
-// Ensure SESSION_SECRET is guaranteed in process.env
-if (!process.env.SESSION_SECRET) {
+const rawDbUrl =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_PRISMA_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_URL_NON_POOLING ||
+  "";
+// Production-like: never generate secrets or seed demo data silently here.
+const isProductionLike =
+  process.env.NODE_ENV === "production" ||
+  process.env.VERCEL_ENV === "production" ||
+  ((rawDbUrl.startsWith("postgres://") || rawDbUrl.startsWith("postgresql://")) &&
+    !rawDbUrl.includes("localhost"));
+const allowDemoSeed = !isProductionLike || process.env.ALLOW_DEMO_SEED === "true";
+
+// Ensure SESSION_SECRET is guaranteed in process.env (local development only)
+if (!process.env.SESSION_SECRET && isProductionLike) {
+  console.warn(
+    "⚠️ SESSION_SECRET is not set. It is NOT auto-generated for production; set it (>= 32 chars) in the deployment environment or the app will refuse authenticated requests."
+  );
+} else if (!process.env.SESSION_SECRET) {
   const generatedSecret = crypto.randomBytes(32).toString("hex");
   process.env.SESSION_SECRET = generatedSecret;
   try {
@@ -127,46 +145,51 @@ if (
   console.log("ℹ️ Local or default database configured, skipping remote db push.");
 }
 
-// Ensure Day Book demo data is always seeded in database
-try {
-  console.log("⚡ Ensuring Day Book demo data is populated...");
-  execSync("node scripts/seed-daybook-demo-data.js", {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: dbUrl || "file:./dev.db",
-    },
-  });
-} catch (seedErr) {
-  console.warn("Notice: Day book demo data seed completed or skipped:", seedErr.message);
-}
+// Demo data seeding: local development only, or when ALLOW_DEMO_SEED=true is set explicitly.
+if (!allowDemoSeed) {
+  console.log("ℹ️ Production-like environment: skipping demo data seeding (set ALLOW_DEMO_SEED=true to enable).");
+} else {
+  // Ensure Day Book demo data is always seeded in database
+  try {
+    console.log("⚡ Ensuring Day Book demo data is populated...");
+    execSync("node scripts/seed-daybook-demo-data.js", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: dbUrl || "file:./dev.db",
+      },
+    });
+  } catch (seedErr) {
+    console.warn("Notice: Day book demo data seed completed or skipped:", seedErr.message);
+  }
 
-// Ensure 100+ demo data across all modules is populated
-try {
-  console.log("⚡ Ensuring 100+ demo data across all modules is populated...");
-  execSync("node scripts/seed-100-demo-data.js", {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: dbUrl || "file:./dev.db",
-    },
-  });
-} catch (seed100Err) {
-  console.warn("Notice: 100+ demo data seed completed or skipped:", seed100Err.message);
-}
+  // Ensure 100+ demo data across all modules is populated
+  try {
+    console.log("⚡ Ensuring 100+ demo data across all modules is populated...");
+    execSync("node scripts/seed-100-demo-data.js", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: dbUrl || "file:./dev.db",
+      },
+    });
+  } catch (seed100Err) {
+    console.warn("Notice: 100+ demo data seed completed or skipped:", seed100Err.message);
+  }
 
-// Ensure 100+ Projects, Purchase Orders and cross-org datasets are populated
-try {
-  console.log("⚡ Ensuring 100+ Projects & Orders are populated...");
-  execSync("node scripts/seed-projects-and-orders.js", {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: dbUrl || "file:./dev.db",
-    },
-  });
-} catch (poErr) {
-  console.warn("Notice: Projects and orders seed completed or skipped:", poErr.message);
+  // Ensure 100+ Projects, Purchase Orders and cross-org datasets are populated
+  try {
+    console.log("⚡ Ensuring 100+ Projects & Orders are populated...");
+    execSync("node scripts/seed-projects-and-orders.js", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: dbUrl || "file:./dev.db",
+      },
+    });
+  } catch (poErr) {
+    console.warn("Notice: Projects and orders seed completed or skipped:", poErr.message);
+  }
 }
 
 // Synchronize prisma/dev.db to prisma/prisma/dev.db

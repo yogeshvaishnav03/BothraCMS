@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Shell from "@/components/layout/Shell";
@@ -344,20 +345,11 @@ export default function AuditPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <ShieldCheck className="w-6 h-6 text-amber-500" />
-              <span>Immutable System Audit Trail</span>
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Chronological log of sensitive operations: posted payments, reversals, stock adjustments, orders, and attendance overrides.
-            </p>
-          </div>
+        <PageHeader icon={ShieldCheck} title="Immutable System Audit Trail" subtitle="Chronological log of sensitive operations: posted payments, reversals, stock adjustments, orders, and attendance overrides.">
           <span className="text-xs font-mono font-bold bg-slate-900 text-amber-400 px-3 py-1.5 rounded-lg w-max">
             Audit Trail Active
           </span>
-        </div>
+        </PageHeader>
 
         {/* Search */}
         <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">

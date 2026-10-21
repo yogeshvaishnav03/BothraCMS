@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/ui/Alert";
 import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatDateTime, formatDate } from "@/lib/formatters";
@@ -604,18 +605,8 @@ export default function AttendancePage() {
         )}
 
         {/* Feedback Alerts */}
-        {statusMessage && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{statusMessage}</span>
-          </div>
-        )}
-        {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
+        {statusMessage && <Alert tone="success">{statusMessage}</Alert>}
+        {errorMessage && <Alert tone="error">{errorMessage}</Alert>}
 
         {/* SUPER ADMIN VIEW: Executive Overview Banner (NO CHECK IN CARD) */}
         {isSuperAdmin && (

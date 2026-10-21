@@ -4,6 +4,7 @@ import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { WorkforceHeadcountService } from "@/services/workforce-headcount-service";
 import { DayBookSeedService } from "@/services/day-book-seed-service";
+import { checkDemoSeedAllowed } from "@/lib/demo-seed-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -223,26 +224,9 @@ export async function GET(req: NextRequest) {
     const siteId = searchParams.get("siteId") || undefined;
     const orgId = user.organizationId;
 
-    let data = await fetchDayBookData(orgId, date, siteId);
-
-    // If day book has zero activity on this date, automatically seed realistic demo data for the organization
-    const hasAnyActivity =
-      data.payments.length > 0 ||
-      data.bills.length > 0 ||
-      data.receipts.length > 0 ||
-      data.issues.length > 0 ||
-      data.attendance.length > 0 ||
-      (data.headcount && data.headcount.length > 0) ||
-      data.dailyReports.length > 0;
-
-    if (!hasAnyActivity) {
-      try {
-        await DayBookSeedService.seedDemoDataForOrg(orgId, date);
-        data = await fetchDayBookData(orgId, date, siteId);
-      } catch (seedErr) {
-        console.warn("Notice: DayBook automatic demo seeding fallback:", seedErr);
-      }
-    }
+    // Days with no activity simply return empty data. Demo data is only
+    // ever created through the explicit Super Admin POST below.
+    const data = await fetchDayBookData(orgId, date, siteId);
 
     return jsonSuccess(data);
   } catch (error) {
@@ -254,6 +238,9 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    const denial = checkDemoSeedAllowed(user.role);
+    if (denial) return jsonError(denial.message, denial.code, denial.status);
 
     const body = await req.json().catch(() => ({}));
     const todayStr = new Date().toISOString().split("T")[0];

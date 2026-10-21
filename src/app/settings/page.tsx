@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/ui/Alert";
 import { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { useLanguage, LanguageCode } from "@/lib/i18n";
@@ -339,19 +340,9 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {successMsg && (
-          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>{successMsg}</span>
-          </div>
-        )}
+        {successMsg && <Alert tone="success">{successMsg}</Alert>}
 
-        {errorMsg && (
-          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
+        {errorMsg && <Alert tone="error">{errorMsg}</Alert>}
 
         {loading ? (
           <div className="h-96 bg-slate-100 rounded-2xl animate-pulse" />
@@ -601,19 +592,9 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                {pwdSuccessMsg && (
-                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>{pwdSuccessMsg}</span>
-                  </div>
-                )}
+                {pwdSuccessMsg && <Alert tone="success">{pwdSuccessMsg}</Alert>}
 
-                {pwdErrorMsg && (
-                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-                    <span>{pwdErrorMsg}</span>
-                  </div>
-                )}
+                {pwdErrorMsg && <Alert tone="error">{pwdErrorMsg}</Alert>}
 
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

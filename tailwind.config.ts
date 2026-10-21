@@ -8,6 +8,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      // Pages use the Tailwind v4 names shadow-xs / shadow-2xs; define them for Tailwind 3.
+      boxShadow: {
+        "2xs": "0 1px rgb(0 0 0 / 0.05)",
+        xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+      },
       colors: {
         brand: {
           50: "#f0f6fe",

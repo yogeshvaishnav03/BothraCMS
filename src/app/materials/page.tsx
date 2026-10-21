@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert } from "@/components/ui/Alert";
+import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
@@ -644,16 +646,7 @@ export default function MaterialsPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <Boxes className="w-6 h-6 text-amber-500" />
-              <span>Materials Master & Site Inventory</span>
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Authoritative stock ledger per store. Click any material to open its running balance ledger.
-            </p>
-          </div>
+        <PageHeader icon={Boxes} title="Materials Master & Site Inventory" subtitle="Authoritative stock ledger per store. Click any material to open its running balance ledger.">
 
           <div className="flex items-center gap-2 flex-wrap">
             {canPlaceOrder && (
@@ -728,21 +721,11 @@ export default function MaterialsPage() {
               </button>
             )}
           </div>
-        </div>
+        </PageHeader>
 
         {/* Feedback alerts */}
-        {statusMessage && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{statusMessage}</span>
-          </div>
-        )}
-        {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
+        {statusMessage && <Alert tone="success">{statusMessage}</Alert>}
+        {errorMessage && <Alert tone="error">{errorMessage}</Alert>}
 
         {/* Filter bar */}
         <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">

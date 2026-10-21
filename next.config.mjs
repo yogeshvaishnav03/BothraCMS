@@ -1,58 +1,18 @@
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
-
-// Ensure SESSION_SECRET is available in process.env and Next.js runtime
-let sessionSecret = process.env.SESSION_SECRET;
-
-if (!sessionSecret) {
-  const envFiles = [".env.production", ".env.local", ".env"];
-  for (const file of envFiles) {
-    try {
-      const fullPath = path.resolve(process.cwd(), file);
-      if (fs.existsSync(fullPath)) {
-        const content = fs.readFileSync(fullPath, "utf-8");
-        const match = content.match(/^SESSION_SECRET=["']?([^"'\r\n]+)["']?/m);
-        if (match && match[1] && match[1].trim().length >= 32) {
-          sessionSecret = match[1].trim();
-          process.env.SESSION_SECRET = sessionSecret;
-          break;
-        }
-      }
-    } catch {
-      // Continue to next env file
-    }
-  }
-}
-
-// If still missing and not running Vitest test suite, generate a cryptographically secure random secret
-if (!sessionSecret && process.env.VITEST !== "true") {
-  sessionSecret = crypto.randomBytes(32).toString("hex");
-  process.env.SESSION_SECRET = sessionSecret;
-  try {
-    const envPath = path.resolve(process.cwd(), ".env");
-    const appendLine = `\nSESSION_SECRET="${sessionSecret}"\n`;
-    if (fs.existsSync(envPath)) {
-      fs.appendFileSync(envPath, appendLine, "utf-8");
-    } else {
-      fs.writeFileSync(
-        envPath,
-        `# BothraCMS Environment Configuration\nDATABASE_URL="file:./prisma/dev.db"\nSESSION_SECRET="${sessionSecret}"\nNODE_ENV="production"\nPORT=3000\nDEFAULT_TIMEZONE="Asia/Kolkata"\nDEFAULT_CURRENCY="INR"\nTRUSTED_ORIGINS="localhost:3000,localhost:3001,127.0.0.1:3000"\n`,
-        "utf-8"
-      );
-    }
-  } catch {
-    // Read-only filesystem in serverless environments; in-memory process.env.SESSION_SECRET is still active
-  }
+// SESSION_SECRET is read at runtime from process.env (Next.js loads .env files
+// itself, and Edge middleware can read server env vars). It is deliberately NOT
+// generated here and NOT exposed through `nextConfig.env`, which would inline it
+// into compiled bundles. src/lib/jwt-secret.ts fails fast in production when the
+// secret is missing or weak, and uses a dev-only fallback locally.
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+if (process.env.NODE_ENV === "production" && !isBuildPhase && !process.env.SESSION_SECRET) {
+  console.warn(
+    "[config] SESSION_SECRET is not set. Authenticated requests will fail until it is configured (>= 32 chars)."
+  );
 }
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  env: {
-    // Injects SESSION_SECRET into Edge Middleware and Serverless execution context
-    ...(sessionSecret ? { SESSION_SECRET: sessionSecret } : {}),
-  },
   async headers() {
     return [
       {

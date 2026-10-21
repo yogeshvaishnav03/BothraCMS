@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Shell from "@/components/layout/Shell";
@@ -181,16 +182,7 @@ export default function ReportsPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <FileText className="w-6 h-6 text-amber-500" />
-              <span>Operational & Financial Reports</span>
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Verified database-backed summaries with date filtering and one-click CSV spreadsheet export.
-            </p>
-          </div>
+        <PageHeader icon={FileText} title="Operational & Financial Reports" subtitle="Verified database-backed summaries with date filtering and one-click CSV spreadsheet export.">
 
           <div className="flex items-center gap-2">
             {reportType === "STOCK" && (
@@ -223,7 +215,7 @@ export default function ReportsPage() {
               </button>
             )}
           </div>
-        </div>
+        </PageHeader>
 
         {/* Date Filter Bar */}
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
