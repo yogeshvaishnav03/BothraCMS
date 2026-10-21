@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
@@ -21,6 +22,7 @@ import {
   ChevronDown,
   Check,
   Sparkles,
+  Filter,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 
@@ -588,6 +590,56 @@ export default function MaterialsPage() {
       m.sku.toLowerCase().includes(search.toLowerCase())
   );
 
+  const materialColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Material / SKU",
+        accessor: (m) => `${m.name} ${m.sku}`,
+        type: "text",
+      },
+      {
+        key: "category",
+        label: "Category",
+        accessor: (m) => m.category?.name || "General",
+        type: "text",
+      },
+      {
+        key: "unitCode",
+        label: "Unit",
+        accessor: (m) => m.unitCode,
+        type: "text",
+      },
+      {
+        key: "totalStock",
+        label: "Current Stock",
+        accessor: (m) => Number(m.totalStock) || 0,
+        type: "number",
+        align: "right",
+      },
+      {
+        key: "minStockQty",
+        label: "Min Threshold",
+        accessor: (m) => Number(m.minStockQty) || 0,
+        type: "number",
+        align: "right",
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (m) => (m.isZeroStock ? "Out of Stock" : m.isLowStock ? "Low Stock" : "Adequate"),
+        type: "text",
+        align: "center",
+      },
+    ],
+    []
+  );
+
+  const excelMaterials = useExcelTable({
+    data: filteredMaterials,
+    columns: materialColumns,
+  });
+
   return (
     <Shell>
       <div className="space-y-6">
@@ -721,21 +773,48 @@ export default function MaterialsPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <ExcelTableToolbar
+              table={excelMaterials}
+              columns={materialColumns}
+              tableName="materials"
+              showSearch={true}
+              showExport={true}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Material / SKU</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Unit</th>
-                    <th className="py-3 px-4 text-right">Current Stock</th>
-                    <th className="py-3 px-4 text-right">Min Threshold</th>
-                    <th className="py-3 px-4 text-center">Status</th>
+                    {materialColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelMaterials}
+                        theme="darkHeader"
+                      />
+                    ))}
                     <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredMaterials.map((m) => (
+                  {excelMaterials.filteredData.length === 0 ? (
+                    <tr>
+                      <td colSpan={materialColumns.length + 1} className="py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Filter className="w-8 h-8 text-slate-300" />
+                          <p className="font-semibold text-slate-700">No materials match selected filters</p>
+                          <p className="text-xs text-slate-400">Try clearing or adjusting column filters.</p>
+                          <button
+                            type="button"
+                            onClick={excelMaterials.clearAllFilters}
+                            className="mt-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs"
+                          >
+                            Reset Filters
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    excelMaterials.filteredData.map((m) => (
                     <tr
                       key={m.id}
                       className="hover:bg-amber-50/40 transition-colors group cursor-pointer"
@@ -832,7 +911,8 @@ export default function MaterialsPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ))
+                  )}
                 </tbody>
               </table>
             </div>

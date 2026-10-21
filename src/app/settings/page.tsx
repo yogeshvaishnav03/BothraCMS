@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { useLanguage, LanguageCode } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   Building2,
   Users,
@@ -260,6 +261,55 @@ export default function SettingsPage() {
       setPwdSaving(false);
     }
   }
+
+  const usersList = useMemo(() => orgData?.users || [], [orgData]);
+
+  const userColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Name",
+        accessor: (u) => u.name,
+        type: "text",
+      },
+      {
+        key: "email",
+        label: "Email",
+        accessor: (u) => u.email,
+        type: "text",
+      },
+      {
+        key: "role",
+        label: "Role",
+        accessor: (u) => u.role,
+        type: "text",
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (u) => u.status,
+        type: "text",
+      },
+      {
+        key: "lastLoginAt",
+        label: "Last Login",
+        accessor: (u) =>
+          u.lastLoginAt
+            ? new Date(u.lastLoginAt).toLocaleString("en-IN", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })
+            : "Never",
+        type: "text",
+      },
+    ],
+    []
+  );
+
+  const excelUsers = useExcelTable({
+    data: usersList,
+    columns: userColumns,
+  });
 
   return (
     <Shell>
@@ -678,19 +728,29 @@ export default function SettingsPage() {
                     {orgData?.users.length || 0} active users
                   </span>
                 </div>
+                <ExcelTableToolbar
+                  table={excelUsers}
+                  columns={userColumns}
+                  tableName="members"
+                  showSearch={true}
+                  showExport={true}
+                />
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+                    <thead className="bg-slate-50 text-slate-700 text-xs uppercase font-semibold border-b border-slate-200">
                       <tr>
-                        <th className="py-2.5 px-4">Name</th>
-                        <th className="py-2.5 px-4">Email</th>
-                        <th className="py-2.5 px-4">Role</th>
-                        <th className="py-2.5 px-4">Status</th>
-                        <th className="py-2.5 px-4">Last Login</th>
+                        {userColumns.map((col) => (
+                          <ExcelColumnHeader
+                            key={col.key}
+                            column={col}
+                            table={excelUsers}
+                            theme="lightHeader"
+                          />
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {orgData?.users.map((u) => (
+                      {excelUsers.filteredData.map((u) => (
                         <tr key={u.id} className="hover:bg-slate-50/60">
                           <td className="py-3 px-4 font-bold text-slate-900">{u.name}</td>
                           <td className="py-3 px-4 text-slate-600 font-mono text-xs">{u.email}</td>

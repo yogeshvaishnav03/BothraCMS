@@ -32,6 +32,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import { canUser } from "@/lib/permissions";
 
 export default function FinancePage() {
@@ -771,6 +772,134 @@ export default function FinancePage() {
       return true;
     });
   }, [bills, billSearch, billStatus]);
+
+  const paymentColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "date",
+        label: "Date & Ref",
+        accessor: (p) => `${formatDate(p.paymentDate)} ${p.referenceNumber || ""}`,
+        type: "text",
+      },
+      {
+        key: "payee",
+        label: "Payee & Type",
+        accessor: (p) => p.recipientName || p.party?.name || "Recipient",
+        type: "text",
+      },
+      {
+        key: "payingAccount",
+        label: "Paying Account (Source)",
+        accessor: (p) => p.payingAccount || "Company Primary A/C",
+        type: "text",
+      },
+      {
+        key: "method",
+        label: "Method",
+        accessor: (p) => p.method || "—",
+        type: "text",
+      },
+      {
+        key: "reason",
+        label: "Reason / Query",
+        accessor: (p) => p.approvalQuery || p.notes || "—",
+        type: "text",
+      },
+      {
+        key: "allocatedTo",
+        label: "Allocated To",
+        accessor: (p) => {
+          if (p.allocations && p.allocations.length > 0) {
+            return p.allocations.map((a: any) => `Bill #${a.bill?.billNumber || a.billId}`).join(", ");
+          }
+          return "Unallocated";
+        },
+        type: "text",
+      },
+      {
+        key: "amount",
+        label: "Amount",
+        accessor: (p) => (Number(p.amount) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (p) => {
+          if (p.status === "PENDING_APPROVAL") return "Pending Super Admin";
+          if (p.status === "REJECTED") return "Rejected";
+          if (p.status === "REVERSED") return "Reversed";
+          return "Approved";
+        },
+        type: "text",
+        align: "center",
+      },
+    ],
+    []
+  );
+
+  const excelPayments = useExcelTable({
+    data: filteredPayments,
+    columns: paymentColumns,
+  });
+
+  const billColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "billNumber",
+        label: "Bill #",
+        accessor: (b) => b.billNumber,
+        type: "text",
+      },
+      {
+        key: "vendor",
+        label: "Vendor",
+        accessor: (b) => b.party?.name || "—",
+        type: "text",
+      },
+      {
+        key: "billDate",
+        label: "Bill Date",
+        accessor: (b) => formatDate(b.billDate),
+        type: "date",
+      },
+      {
+        key: "totalAmount",
+        label: "Total Amount",
+        accessor: (b) => (Number(b.totalAmount) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "paidAmount",
+        label: "Amount Paid",
+        accessor: (b) => (Number(b.paidAmount) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "outstandingAmount",
+        label: "Pending Balance",
+        accessor: (b) => (Number(b.outstandingAmount) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (b) => (b.outstandingAmount === 0 ? "PAID" : "PENDING"),
+        type: "text",
+        align: "center",
+      },
+    ],
+    []
+  );
+
+  const excelBills = useExcelTable({
+    data: filteredBills,
+    columns: billColumns,
+  });
 
   return (
     <Shell>
@@ -1521,23 +1650,30 @@ export default function FinancePage() {
 
             {/* Payments Table */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelPayments}
+                columns={paymentColumns}
+                tableName="payments"
+                showSearch={true}
+                showExport={true}
+              />
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
-                      <th className="py-3 px-4">Date & Ref</th>
-                      <th className="py-3 px-4">Payee & Type</th>
-                      <th className="py-3 px-4">Paying Account (Source)</th>
-                      <th className="py-3 px-4">Method</th>
-                      <th className="py-3 px-4">Reason / Query</th>
-                      <th className="py-3 px-4">Allocated To</th>
-                      <th className="py-3 px-4 text-right">Amount</th>
-                      <th className="py-3 px-4 text-center">Status</th>
+                      {paymentColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelPayments}
+                          theme="darkHeader"
+                        />
+                      ))}
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredPayments.map((p) => {
+                    {excelPayments.filteredData.map((p) => {
                       const isReversed = p.status === "REVERSED";
                       const isPending = p.status === "PENDING_APPROVAL";
                       const isRejected = p.status === "REJECTED";
@@ -1706,7 +1842,7 @@ export default function FinancePage() {
                         </tr>
                       );
                     })}
-                    {filteredPayments.length === 0 && (
+                    {excelPayments.filteredData.length === 0 && (
                       <tr>
                         <td colSpan={9} className="py-12 text-center text-slate-400">
                           <div className="flex flex-col items-center justify-center gap-2">
@@ -1786,22 +1922,30 @@ export default function FinancePage() {
 
             {/* Bills Table Container */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelBills}
+                columns={billColumns}
+                tableName="vendor bills"
+                showSearch={true}
+                showExport={true}
+              />
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
-                      <th className="py-3 px-4">Bill #</th>
-                      <th className="py-3 px-4">Vendor</th>
-                      <th className="py-3 px-4">Bill Date</th>
-                      <th className="py-3 px-4 text-right">Total Amount</th>
-                      <th className="py-3 px-4 text-right">Amount Paid</th>
-                      <th className="py-3 px-4 text-right">Pending Balance</th>
-                      <th className="py-3 px-4 text-center">Status</th>
+                      {billColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelBills}
+                          theme="darkHeader"
+                        />
+                      ))}
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredBills.map((b) => (
+                    {excelBills.filteredData.map((b) => (
                       <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-slate-900">
                           {b.billNumber}
@@ -1853,7 +1997,7 @@ export default function FinancePage() {
                         </td>
                       </tr>
                     ))}
-                    {filteredBills.length === 0 && (
+                    {excelBills.filteredData.length === 0 && (
                       <tr>
                         <td colSpan={8} className="py-12 text-center text-slate-400">
                           <div className="flex flex-col items-center justify-center gap-2">

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Shell from "@/components/layout/Shell";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import {
@@ -19,6 +20,7 @@ import {
   ChevronRight,
   Tag,
   Hash,
+  Filter,
 } from "lucide-react";
 
 function parseJsonSafe(jsonStr: string | null | undefined): Record<string, any> | null {
@@ -132,6 +134,53 @@ export default function AuditPage() {
       (e.afterJson && e.afterJson.toLowerCase().includes(query)) ||
       (e.beforeJson && e.beforeJson.toLowerCase().includes(query))
     );
+  });
+
+  const auditColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "createdAt",
+        label: "Timestamp",
+        accessor: (e) => formatDateTime(e.createdAt),
+        type: "date",
+      },
+      {
+        key: "action",
+        label: "Action",
+        accessor: (e) => e.action,
+        type: "text",
+      },
+      {
+        key: "actor",
+        label: "Actor",
+        accessor: (e) => `${e.actor?.name || "System"} (${e.actor?.role || "SYSTEM"})`,
+        type: "text",
+      },
+      {
+        key: "entityType",
+        label: "Target Entity",
+        accessor: (e) => `${e.entityType} ${e.entityId || ""}`,
+        type: "text",
+      },
+      {
+        key: "reason",
+        label: "Reason / Notes",
+        accessor: (e) => e.reason || "Standard transaction",
+        type: "text",
+      },
+      {
+        key: "metadata",
+        label: "Metadata & Details",
+        accessor: (e) => (e.metadata ? JSON.stringify(e.metadata) : "—"),
+        type: "text",
+      },
+    ],
+    []
+  );
+
+  const excelAudit = useExcelTable({
+    data: filteredEvents,
+    columns: auditColumns,
   });
 
   const renderMetadataCell = (event: any) => {
@@ -339,20 +388,47 @@ export default function AuditPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <ExcelTableToolbar
+              table={excelAudit}
+              columns={auditColumns}
+              tableName="audit events"
+              showSearch={true}
+              showExport={true}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Timestamp</th>
-                    <th className="py-3 px-4">Action</th>
-                    <th className="py-3 px-4">Actor</th>
-                    <th className="py-3 px-4">Target Entity</th>
-                    <th className="py-3 px-4">Reason / Notes</th>
-                    <th className="py-3 px-4">Metadata & Details</th>
+                    {auditColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelAudit}
+                        theme="darkHeader"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
-                  {filteredEvents.map((e) => (
+                  {excelAudit.filteredData.length === 0 ? (
+                    <tr>
+                      <td colSpan={auditColumns.length} className="py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Filter className="w-8 h-8 text-slate-300" />
+                          <p className="font-semibold text-slate-700">No audit events match selected filters</p>
+                          <p className="text-xs text-slate-400">Try clearing or adjusting column filters.</p>
+                          <button
+                            type="button"
+                            onClick={excelAudit.clearAllFilters}
+                            className="mt-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs"
+                          >
+                            Reset Filters
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    excelAudit.filteredData.map((e) => (
                     <tr key={e.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap font-mono">
                         {formatDateTime(e.createdAt)}
@@ -395,7 +471,8 @@ export default function AuditPage() {
                         {renderMetadataCell(e)}
                       </td>
                     </tr>
-                  ))}
+                  ))
+                  )}
                 </tbody>
               </table>
             </div>

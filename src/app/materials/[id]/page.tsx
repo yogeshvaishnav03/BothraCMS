@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
@@ -153,6 +154,47 @@ export default function MaterialDetailPage() {
     loadOrders();
   }, [loadLedger, loadOrders]);
 
+  const orderColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "orderNumber", label: "PO Number", accessor: (po) => po.orderNumber, type: "text" },
+      { key: "createdAt", label: "Date Placed", accessor: (po) => formatDateTime(po.createdAt), type: "date" },
+      { key: "vendor", label: "Vendor / Supplier", accessor: (po) => po.vendor?.name || "—", type: "text" },
+      { key: "quantity", label: "Quantity", accessor: (po) => Number(po.quantity) || 0, type: "number", align: "right" },
+      { key: "totalAmount", label: "Estimated Total", accessor: (po) => (Number(po.totalAmount) || 0) / 100, type: "currency", align: "right" },
+      { key: "expectedDate", label: "Expected Date", accessor: (po) => po.expectedDeliveryDate ? formatDate(po.expectedDeliveryDate) : "—", type: "date" },
+      { key: "status", label: "Status", accessor: (po) => po.status, type: "text" },
+    ],
+    []
+  );
+
+  const excelOrders = useExcelTable({
+    data: orders,
+    columns: orderColumns,
+  });
+
+  const entries = useMemo(() => ledgerData?.entries || [], [ledgerData]);
+
+  const ledgerColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "date", label: "Date / Time", accessor: (m) => formatDateTime(m.date), type: "date" },
+      { key: "type", label: "Type", accessor: (m) => m.type, type: "text" },
+      { key: "store", label: "Store", accessor: (m) => m.store?.name || "Site Store", type: "text" },
+      { key: "vendorRef", label: "Vendor / Ref", accessor: (m) => m.referenceNumber || m.party?.name || "—", type: "text" },
+      { key: "received", label: "Received", accessor: (m) => m.quantityDelta > 0 ? Number(m.quantityDelta) : 0, type: "number", align: "right" },
+      { key: "issued", label: "Issued", accessor: (m) => m.quantityDelta < 0 ? Math.abs(Number(m.quantityDelta)) : 0, type: "number", align: "right" },
+      { key: "unitRate", label: "Rate (₹)", accessor: (m) => (Number(m.unitCost) || 0) / 100, type: "currency", align: "right" },
+      { key: "runningBalance", label: "Running Balance", accessor: (m) => Number(m.runningBalance) || 0, type: "number", align: "right" },
+      { key: "project", label: "Project / Task", accessor: (m) => m.project?.name || "—", type: "text" },
+      { key: "creator", label: "Logged By", accessor: (m) => m.creator?.name || "Supervisor", type: "text" },
+    ],
+    []
+  );
+
+  const excelLedger = useExcelTable({
+    data: entries,
+    columns: ledgerColumns,
+  });
+
   if (loading) {
     return (
       <Shell>
@@ -182,7 +224,7 @@ export default function MaterialDetailPage() {
     );
   }
 
-  const { material, currentBalance, totalReceived, totalIssued, entries } = ledgerData;
+  const { material, currentBalance, totalReceived, totalIssued } = ledgerData;
 
   return (
     <Shell>
@@ -331,22 +373,31 @@ export default function MaterialDetailPage() {
               No purchase orders placed for this material yet. Click &ldquo;Place Order to Vendor&rdquo; above to dispatch an order with instant vendor WhatsApp/Email notification.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">PO Number</th>
-                    <th className="py-3 px-4">Date Placed</th>
-                    <th className="py-3 px-4">Vendor / Supplier</th>
-                    <th className="py-3 px-4 text-right">Quantity</th>
-                    <th className="py-3 px-4 text-right">Estimated Total</th>
-                    <th className="py-3 px-4">Expected Date</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Vendor Notification</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {orders.map((po: any) => (
+            <div className="overflow-hidden">
+              <ExcelTableToolbar
+                table={excelOrders}
+                columns={orderColumns}
+                tableName="purchase orders"
+                showSearch={true}
+                showExport={true}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      {orderColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelOrders}
+                          theme="darkHeader"
+                        />
+                      ))}
+                      <th className="py-3 px-4 text-right">Vendor Notification</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {excelOrders.filteredData.map((po: any) => (
                     <tr key={po.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-xs text-slate-900">
                         {po.orderNumber}
@@ -463,6 +514,7 @@ export default function MaterialDetailPage() {
                 </tbody>
               </table>
             </div>
+          </div>
           )}
         </div>
 
@@ -488,24 +540,30 @@ export default function MaterialDetailPage() {
               No stock movements recorded for this material yet.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">Date / Time</th>
-                    <th className="py-3 px-4">Type</th>
-                    <th className="py-3 px-4">Store</th>
-                    <th className="py-3 px-4">Vendor / Ref</th>
-                    <th className="py-3 px-4 text-right">Received</th>
-                    <th className="py-3 px-4 text-right">Issued</th>
-                    <th className="py-3 px-4 text-right">Rate (₹)</th>
-                    <th className="py-3 px-4 text-right">Running Balance</th>
-                    <th className="py-3 px-4">Project / Task</th>
-                    <th className="py-3 px-4">Logged By</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {entries.map((m: any) => {
+            <div className="overflow-hidden">
+              <ExcelTableToolbar
+                table={excelLedger}
+                columns={ledgerColumns}
+                tableName="stock movements"
+                showSearch={true}
+                showExport={true}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      {ledgerColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelLedger}
+                          theme="darkHeader"
+                        />
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {excelLedger.filteredData.map((m: any) => {
                     const isPositive = m.quantityDelta > 0;
                     return (
                       <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
@@ -576,6 +634,7 @@ export default function MaterialDetailPage() {
                 </tbody>
               </table>
             </div>
+          </div>
           )}
         </div>
       </div>

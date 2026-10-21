@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -14,6 +15,7 @@ import {
   FileText,
   ClipboardList,
   Trash2,
+  Filter,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 
@@ -28,6 +30,59 @@ export default function ProjectsPage() {
   // Role & Permission Checks
   const canManageSites = canUser(currentUser, "sites:manage");
   const canWriteProjects = canUser(currentUser, "projects:write");
+
+  const reportColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "reportDate",
+        label: "Date",
+        accessor: (r) => formatDate(r.reportDate),
+        type: "date",
+      },
+      {
+        key: "project",
+        label: "Project",
+        accessor: (r) => `${r.project?.name || ""} (${r.project?.code || ""})`,
+        type: "text",
+      },
+      {
+        key: "site",
+        label: "Site",
+        accessor: (r) => r.project?.site?.name || "—",
+        type: "text",
+      },
+      {
+        key: "progress",
+        label: "Progress Summary",
+        accessor: (r) => r.progress || "—",
+        type: "text",
+      },
+      {
+        key: "blockers",
+        label: "Blockers",
+        accessor: (r) => r.blockers || "None",
+        type: "text",
+      },
+      {
+        key: "safetyNotes",
+        label: "Safety Notes",
+        accessor: (r) => r.safetyNotes || "None",
+        type: "text",
+      },
+      {
+        key: "author",
+        label: "Supervisor",
+        accessor: (r) => r.author?.name || "Site Supervisor",
+        type: "text",
+      },
+    ],
+    []
+  );
+
+  const excelReports = useExcelTable({
+    data: dailyReports,
+    columns: reportColumns,
+  });
   const canSubmitDailyReport =
     canUser(currentUser, "projects:write") || canUser(currentUser, "tasks:write");
 
@@ -435,21 +490,29 @@ export default function ProjectsPage() {
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelReports}
+                columns={reportColumns}
+                tableName="daily site reports"
+                showSearch={true}
+                showExport={true}
+              />
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4">Project</th>
-                      <th className="py-3 px-4">Site</th>
-                      <th className="py-3 px-4">Progress Summary</th>
-                      <th className="py-3 px-4">Blockers</th>
-                      <th className="py-3 px-4">Safety Notes</th>
-                      <th className="py-3 px-4">Supervisor</th>
+                      {reportColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelReports}
+                          theme="darkHeader"
+                        />
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {dailyReports.map((r) => (
+                    {excelReports.filteredData.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
                           {formatDate(r.reportDate)}

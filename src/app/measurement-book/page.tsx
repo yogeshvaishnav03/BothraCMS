@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, rupeesToPaise } from "@/lib/formatters";
 import { canUser } from "@/lib/permissions";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   BookOpen,
   Plus,
@@ -165,6 +166,68 @@ export default function MeasurementBookPage() {
       return matchSearch && matchProj && matchParty && matchStatus;
     });
   }, [entries, search, selectedProject, selectedParty, selectedStatus]);
+
+  const measurementColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "itemDescription",
+        label: "Reference & Item",
+        accessor: (entry) => `${entry.itemDescription} ${entry.id.slice(0, 8)}`,
+        type: "text",
+      },
+      {
+        key: "projectParty",
+        label: "Project & Subcontractor",
+        accessor: (entry) => {
+          const proj = projects.find((p) => p.id === entry.projectId)?.name || "Project";
+          const party = parties.find((p) => p.id === entry.partyId)?.name || "Contractor";
+          return `${proj} ${party}`;
+        },
+        type: "text",
+      },
+      {
+        key: "dimensions",
+        label: "Dimensions (L × B × D × N)",
+        accessor: (entry) =>
+          `${entry.length}m × ${entry.breadth ?? 1}m × ${entry.depth ?? 1}m × ${entry.count}nos`,
+        type: "text",
+      },
+      {
+        key: "quantity",
+        label: "Total Qty",
+        accessor: (entry) => Number(entry.quantity) || 0,
+        type: "number",
+        align: "right",
+      },
+      {
+        key: "unitRate",
+        label: "Unit Rate",
+        accessor: (entry) => (Number(entry.unitRate) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "totalAmount",
+        label: "Amount (₹)",
+        accessor: (entry) => (Number(entry.totalAmount) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (entry) => entry.status || "DRAFT",
+        type: "text",
+        align: "center",
+      },
+    ],
+    [projects, parties]
+  );
+
+  const excelMeasurements = useExcelTable({
+    data: filteredEntries,
+    columns: measurementColumns,
+  });
 
   // Aggregate KPIs
   const kpis = useMemo(() => {
@@ -611,22 +674,31 @@ export default function MeasurementBookPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    <th className="p-4">Reference & Item</th>
-                    <th className="p-4">Project & Subcontractor</th>
-                    <th className="p-4">Dimensions (L × B × D × N)</th>
-                    <th className="p-4">Total Qty</th>
-                    <th className="p-4">Unit Rate</th>
-                    <th className="p-4">Amount (₹)</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {filteredEntries.map((entry) => {
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelMeasurements}
+                columns={measurementColumns}
+                tableName="measurement entries"
+                showSearch={true}
+                showExport={true}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      {measurementColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelMeasurements}
+                          theme="darkHeader"
+                        />
+                      ))}
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {excelMeasurements.filteredData.map((entry) => {
                     const proj = projects.find((p) => p.id === entry.projectId)?.name || "Project";
                     const party = parties.find((p) => p.id === entry.partyId)?.name || "Contractor";
                     return (
@@ -750,6 +822,7 @@ export default function MeasurementBookPage() {
                 </tbody>
               </table>
             </div>
+          </div>
           )}
         </div>
 

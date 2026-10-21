@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   FolderKanban,
   ArrowLeft,
@@ -248,6 +249,24 @@ export default function ProjectDetailsPage() {
       setSubmitting(false);
     }
   };
+
+  const stockMovements = useMemo(() => project?.stockMovements || [], [project]);
+
+  const movementColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "movementAt", label: "Date", accessor: (m) => formatDate(m.movementAt), type: "date" },
+      { key: "material", label: "Material", accessor: (m) => m.material?.name || "Material", type: "text" },
+      { key: "quantity", label: "Quantity Issued", accessor: (m) => `${Math.abs(m.quantityDelta)} ${m.unitCode || ""}`, type: "text", align: "right" },
+      { key: "store", label: "Store", accessor: (m) => m.store?.name || "Store", type: "text" },
+      { key: "notes", label: "Notes", accessor: (m) => m.notes || "—", type: "text" },
+    ],
+    []
+  );
+
+  const excelMovements = useExcelTable({
+    data: stockMovements,
+    columns: movementColumns,
+  });
 
   if (loading) {
     return (
@@ -612,24 +631,34 @@ export default function ProjectDetailsPage() {
         {/* Tab 3: Material Issues */}
         {activeTab === "MATERIALS" && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            {project.stockMovements?.length === 0 ? (
+            <ExcelTableToolbar
+              table={excelMovements}
+              columns={movementColumns}
+              tableName="material issues"
+              showSearch={true}
+              showExport={true}
+            />
+            {stockMovements.length === 0 ? (
               <div className="text-center py-12 text-slate-400 text-xs">
                 No stock issues recorded for this project yet.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-500 uppercase font-semibold">
+                  <thead className="bg-slate-50 text-slate-700 uppercase font-semibold border-b border-slate-200">
                     <tr>
-                      <th className="py-2.5 px-4">Date</th>
-                      <th className="py-2.5 px-4">Material</th>
-                      <th className="py-2.5 px-4">Quantity Issued</th>
-                      <th className="py-2.5 px-4">Store</th>
-                      <th className="py-2.5 px-4">Notes</th>
+                      {movementColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelMovements}
+                          theme="lightHeader"
+                        />
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {project.stockMovements.map((m: any) => (
+                    {excelMovements.filteredData.map((m: any) => (
                       <tr key={m.id} className="hover:bg-slate-50/60">
                         <td className="py-3 px-4 text-slate-600">{formatDate(m.movementAt)}</td>
                         <td className="py-3 px-4 font-bold text-slate-900">{m.material?.name}</td>

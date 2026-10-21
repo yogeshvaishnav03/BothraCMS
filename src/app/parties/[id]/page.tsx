@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
@@ -85,6 +86,95 @@ export default function PartyStatementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyId]);
 
+  const bills = useMemo(() => statementData?.bills || [], [statementData]);
+  const payments = useMemo(() => statementData?.payments || [], [statementData]);
+
+  const materialSummaries = useMemo(() => {
+    const map: Record<string, { description: string; qty: number; spend: number }> = {};
+    bills.forEach((b: any) => {
+      (b.lines || []).forEach((line: any) => {
+        const key = line.materialId || line.description || "General Supply";
+        if (!map[key]) {
+          map[key] = {
+            description: line.description || "General Material Supply",
+            qty: 0,
+            spend: 0,
+          };
+        }
+        map[key].qty += line.quantity || 0;
+        map[key].spend += line.lineTotal || 0;
+      });
+    });
+    return Object.values(map);
+  }, [bills]);
+
+  const materialSummaryColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "description", label: "Material / Item Description", accessor: (m) => m.description, type: "text" },
+      { key: "qty", label: "Cumulative Quantity", accessor: (m) => Number(m.qty) || 0, type: "number", align: "right" },
+      { key: "spend", label: "Total Spend", accessor: (m) => (Number(m.spend) || 0) / 100, type: "currency", align: "right" },
+    ],
+    []
+  );
+
+  const excelMaterialSummaries = useExcelTable({
+    data: materialSummaries,
+    columns: materialSummaryColumns,
+  });
+
+  const billColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "billNumber", label: "Bill #", accessor: (b) => b.billNumber, type: "text" },
+      { key: "billDate", label: "Bill Date", accessor: (b) => formatDate(b.billDate), type: "date" },
+      { key: "dueDate", label: "Due Date", accessor: (b) => b.dueDate ? formatDate(b.dueDate) : "—", type: "date" },
+      { key: "totalAmount", label: "Bill Total", accessor: (b) => (Number(b.totalAmount) || 0) / 100, type: "currency", align: "right" },
+      { key: "paidAmount", label: "Amount Paid", accessor: (b) => (Number(b.paidAmount) || 0) / 100, type: "currency", align: "right" },
+      { key: "outstandingAmount", label: "Pending Balance", accessor: (b) => (Number(b.outstandingAmount) || 0) / 100, type: "currency", align: "right" },
+      { key: "status", label: "Status", accessor: (b) => b.outstandingAmount === 0 ? "PAID" : "PENDING", type: "text", align: "center" },
+    ],
+    []
+  );
+
+  const excelBills = useExcelTable({
+    data: bills,
+    columns: billColumns,
+  });
+
+  const paymentColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "paymentDate", label: "Payment Date", accessor: (p) => formatDate(p.paymentDate), type: "date" },
+      { key: "methodRef", label: "Method / UTR #", accessor: (p) => `${p.method} ${p.referenceNumber || ""}`, type: "text" },
+      { key: "payingAccount", label: "Paying Account", accessor: (p) => p.payingAccount || "Primary Operating A/C", type: "text" },
+      { key: "allocatedTo", label: "Allocated To Bill", accessor: (p) => (p.allocations && p.allocations.length > 0) ? p.allocations.map((a: any) => `Bill #${a.bill?.billNumber || a.billId}`).join(", ") : "Unallocated", type: "text" },
+      { key: "amount", label: "Payment Amount", accessor: (p) => (Number(p.amount) || 0) / 100, type: "currency", align: "right" },
+      { key: "status", label: "Status", accessor: (p) => p.status, type: "text", align: "center" },
+    ],
+    []
+  );
+
+  const excelPayments = useExcelTable({
+    data: payments,
+    columns: paymentColumns,
+  });
+
+  const orderColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "orderNumber", label: "PO Number", accessor: (po) => po.orderNumber, type: "text" },
+      { key: "createdAt", label: "Date Placed", accessor: (po) => formatDateTime(po.createdAt), type: "date" },
+      { key: "material", label: "Material Item", accessor: (po) => po.material?.name || "Material", type: "text" },
+      { key: "quantity", label: "Quantity", accessor: (po) => Number(po.quantity) || 0, type: "number", align: "right" },
+      { key: "totalAmount", label: "Estimated Total", accessor: (po) => (Number(po.totalAmount) || 0) / 100, type: "currency", align: "right" },
+      { key: "expectedDate", label: "Expected Date", accessor: (po) => po.expectedDeliveryDate ? formatDate(po.expectedDeliveryDate) : "—", type: "date" },
+      { key: "status", label: "Status", accessor: (po) => po.status, type: "text" },
+    ],
+    []
+  );
+
+  const excelOrders = useExcelTable({
+    data: orders,
+    columns: orderColumns,
+  });
+
   if (loading) {
     return (
       <Shell>
@@ -114,27 +204,9 @@ export default function PartyStatementPage() {
     );
   }
 
-  const { party, totalBilled, totalPaid, outstandingBalance, bills, payments } = statementData;
+  const { party, totalBilled, totalPaid, outstandingBalance } = statementData;
   const isContractor = party.partyType === "CONTRACTOR" || party.partyType === "BOTH";
   const isVendor = party.partyType === "VENDOR" || party.partyType === "BOTH";
-
-  // Calculate material-wise breakdown from bill line items
-  const materialSummaryMap: Record<string, { description: string; qty: number; spend: number }> = {};
-  bills.forEach((b: any) => {
-    (b.lines || []).forEach((line: any) => {
-      const key = line.materialId || line.description || "General Supply";
-      if (!materialSummaryMap[key]) {
-        materialSummaryMap[key] = {
-          description: line.description || "General Material Supply",
-          qty: 0,
-          spend: 0,
-        };
-      }
-      materialSummaryMap[key].qty += line.quantity || 0;
-      materialSummaryMap[key].spend += line.lineTotal || 0;
-    });
-  });
-  const materialSummaries = Object.values(materialSummaryMap);
 
   // Contractor contract progress
   const contractVal = party.contractValue || 0;
@@ -306,17 +378,29 @@ export default function PartyStatementPage() {
                 {materialSummaries.length} Items
               </span>
             </div>
+            <ExcelTableToolbar
+              table={excelMaterialSummaries}
+              columns={materialSummaryColumns}
+              tableName="materials"
+              showSearch={true}
+              showExport={true}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Material / Item Description</th>
-                    <th className="py-3 px-4 text-right">Cumulative Quantity</th>
-                    <th className="py-3 px-4 text-right">Total Spend</th>
+                    {materialSummaryColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelMaterialSummaries}
+                        theme="darkHeader"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {materialSummaries.map((m, idx) => (
+                  {excelMaterialSummaries.filteredData.map((m, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/80">
                       <td className="py-3 px-4 font-bold text-slate-900">{m.description}</td>
                       <td className="py-3 px-4 text-right font-medium text-slate-700">
@@ -350,21 +434,30 @@ export default function PartyStatementPage() {
               No bills posted for this party yet.
             </div>
           ) : (
+            <>
+              <ExcelTableToolbar
+                table={excelBills}
+                columns={billColumns}
+                tableName="bills"
+                showSearch={true}
+                showExport={true}
+              />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Bill #</th>
-                    <th className="py-3 px-4">Bill Date</th>
-                    <th className="py-3 px-4">Due Date</th>
-                    <th className="py-3 px-4 text-right">Bill Total</th>
-                    <th className="py-3 px-4 text-right">Amount Paid</th>
-                    <th className="py-3 px-4 text-right">Pending Balance</th>
-                    <th className="py-3 px-4 text-center">Status</th>
+                    {billColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelBills}
+                        theme="darkHeader"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {bills.map((b: any) => (
+                  {excelBills.filteredData.map((b: any) => (
                     <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
                         {b.billNumber}
@@ -402,6 +495,7 @@ export default function PartyStatementPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -422,20 +516,30 @@ export default function PartyStatementPage() {
               No payments recorded for this party yet.
             </div>
           ) : (
+            <>
+              <ExcelTableToolbar
+                table={excelPayments}
+                columns={paymentColumns}
+                tableName="payments"
+                showSearch={true}
+                showExport={true}
+              />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Payment Date</th>
-                    <th className="py-3 px-4">Method / UTR #</th>
-                    <th className="py-3 px-4">Paying Account</th>
-                    <th className="py-3 px-4">Allocated To Bill</th>
-                    <th className="py-3 px-4 text-right">Payment Amount</th>
-                    <th className="py-3 px-4 text-center">Status</th>
+                    {paymentColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelPayments}
+                        theme="darkHeader"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {payments.map((p: any) => (
+                  {excelPayments.filteredData.map((p: any) => (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4 text-xs font-mono text-slate-600">
                         {formatDate(p.paymentDate)}
@@ -484,6 +588,7 @@ export default function PartyStatementPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -518,22 +623,31 @@ export default function PartyStatementPage() {
                 No purchase orders placed with this vendor yet. Click &ldquo;+ New Order&rdquo; to place an order.
               </div>
             ) : (
+              <>
+                <ExcelTableToolbar
+                  table={excelOrders}
+                  columns={orderColumns}
+                  tableName="purchase orders"
+                  showSearch={true}
+                  showExport={true}
+                />
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
-                      <th className="py-3 px-4">PO Number</th>
-                      <th className="py-3 px-4">Date Placed</th>
-                      <th className="py-3 px-4">Material Item</th>
-                      <th className="py-3 px-4 text-right">Quantity</th>
-                      <th className="py-3 px-4 text-right">Estimated Total</th>
-                      <th className="py-3 px-4">Expected Date</th>
-                      <th className="py-3 px-4">Status</th>
+                      {orderColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelOrders}
+                          theme="darkHeader"
+                        />
+                      ))}
                       <th className="py-3 px-4 text-right">Vendor Notification</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {orders.map((po: any) => (
+                    {excelOrders.filteredData.map((po: any) => (
                       <tr key={po.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-xs text-slate-900">
                           {po.orderNumber}
@@ -591,6 +705,7 @@ export default function PartyStatementPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         )}

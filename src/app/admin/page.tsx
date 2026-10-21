@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity } from "@/lib/formatters";
@@ -348,6 +349,176 @@ export default function SuperAdminDashboardPage() {
     }
   };
 
+  const orderColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "orderNumber",
+        label: "PO Number & Date",
+        accessor: (o) => `${o.orderNumber} ${new Date(o.createdAt).toLocaleDateString("en-IN")}`,
+        type: "text",
+      },
+      {
+        key: "requester",
+        label: "Requester",
+        accessor: (o) => `${o.creator?.name || "Site Supervisor"} (${o.creator?.role || "USER"})`,
+        type: "text",
+      },
+      {
+        key: "site",
+        label: "Site / Store",
+        accessor: (o) => `${o.site?.name || "General Site"} ${o.store?.name ? `(${o.store.name})` : ""}`,
+        type: "text",
+      },
+      {
+        key: "material",
+        label: "Material Details",
+        accessor: (o) => o.material?.name || "Material",
+        type: "text",
+      },
+      {
+        key: "quantity",
+        label: "Quantity",
+        accessor: (o) => Number(o.quantity) || 0,
+        type: "number",
+        align: "right",
+      },
+      {
+        key: "estimatedTotal",
+        label: "Estimated Total",
+        accessor: (o) => (Number(o.totalAmount || o.estimatedTotalCost) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "supplier",
+        label: "Supplier / Vendor",
+        accessor: (o) => o.vendor?.name || o.vendorName || "Market Vendor",
+        type: "text",
+      },
+      {
+        key: "query",
+        label: "Approval Query / Reason",
+        accessor: (o) => o.approvalQuery || o.notes || "—",
+        type: "text",
+      },
+    ],
+    []
+  );
+
+  const excelOrders = useExcelTable({
+    data: pendingOrders,
+    columns: orderColumns,
+  });
+
+  const paymentColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "referenceNumber",
+        label: "Ref & Date",
+        accessor: (p) => `${p.referenceNumber} ${new Date(p.paymentDate || p.createdAt).toLocaleDateString("en-IN")}`,
+        type: "text",
+      },
+      {
+        key: "recipient",
+        label: "Recipient / Payee",
+        accessor: (p) => p.recipientName || p.party?.name || "Recipient",
+        type: "text",
+      },
+      {
+        key: "amount",
+        label: "Amount",
+        accessor: (p) => (Number(p.amount) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "payingAccount",
+        label: "Paying Account (Source)",
+        accessor: (p) => p.payingAccount || "Company Primary A/C",
+        type: "text",
+      },
+      {
+        key: "method",
+        label: "Payment Method",
+        accessor: (p) => p.method || "—",
+        type: "text",
+      },
+      {
+        key: "purpose",
+        label: "Purpose / Reason Query",
+        accessor: (p) => p.approvalQuery || p.notes || "—",
+        type: "text",
+      },
+      {
+        key: "requester",
+        label: "Requester",
+        accessor: (p) => p.creator?.name || "Finance Clerk",
+        type: "text",
+      },
+    ],
+    []
+  );
+
+  const excelAdminPayments = useExcelTable({
+    data: pendingPayments,
+    columns: paymentColumns,
+  });
+
+  const filteredTenants = tenants.filter(
+    (t) =>
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      t.id.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const tenantColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Organization Name",
+        accessor: (t) => t.name,
+        type: "text",
+      },
+      {
+        key: "id",
+        label: "Tenant ID",
+        accessor: (t) => t.id,
+        type: "text",
+      },
+      {
+        key: "currency",
+        label: "Currency",
+        accessor: (t) => t.currency,
+        type: "text",
+      },
+      {
+        key: "usersCount",
+        label: "Users",
+        accessor: (t) => Number(t.stats.usersCount) || 0,
+        type: "number",
+        align: "right",
+      },
+      {
+        key: "sitesProjects",
+        label: "Sites & Projects",
+        accessor: (t) => `${t.stats.sitesCount} sites, ${t.stats.projectsCount} projects`,
+        type: "text",
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (t) => t.status,
+        type: "text",
+        align: "center",
+      },
+    ],
+    []
+  );
+
+  const excelTenants = useExcelTable({
+    data: filteredTenants,
+    columns: tenantColumns,
+  });
+
   if (loading) {
     return (
       <Shell>
@@ -393,12 +564,6 @@ export default function SuperAdminDashboardPage() {
       </Shell>
     );
   }
-
-  const filteredTenants = tenants.filter(
-    (t) =>
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.id.toLowerCase().includes(search.toLowerCase())
-  );
 
   return (
     <Shell>
@@ -521,23 +686,31 @@ export default function SuperAdminDashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">PO Number & Date</th>
-                    <th className="py-3 px-4">Requester</th>
-                    <th className="py-3 px-4">Site / Store</th>
-                    <th className="py-3 px-4">Material Details</th>
-                    <th className="py-3 px-4 text-right">Quantity</th>
-                    <th className="py-3 px-4 text-right">Estimated Total</th>
-                    <th className="py-3 px-4">Supplier / Vendor</th>
-                    <th className="py-3 px-4">Approval Query / Reason</th>
-                    <th className="py-3 px-4 text-right">Decision</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {pendingOrders.map((o) => (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelOrders}
+                columns={orderColumns}
+                tableName="purchase orders"
+                showSearch={true}
+                showExport={true}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
+                    <tr>
+                      {orderColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelOrders}
+                          theme="darkHeader"
+                        />
+                      ))}
+                      <th className="py-3 px-4 text-right">Decision</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {excelOrders.filteredData.map((o) => (
                     <tr key={o.id} className="hover:bg-amber-50/40 transition">
                       <td className="py-3.5 px-4">
                         <div className="font-mono font-bold text-slate-900">{o.orderNumber}</div>
@@ -621,6 +794,7 @@ export default function SuperAdminDashboardPage() {
                 </tbody>
               </table>
             </div>
+          </div>
           )}
         </div>
 
@@ -765,22 +939,31 @@ export default function SuperAdminDashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
-                  <tr>
-                    <th className="py-3 px-4">Ref & Date</th>
-                    <th className="py-3 px-4">Recipient / Payee</th>
-                    <th className="py-3 px-4 text-right">Amount</th>
-                    <th className="py-3 px-4">Paying Account (Source)</th>
-                    <th className="py-3 px-4">Payment Method</th>
-                    <th className="py-3 px-4">Purpose / Reason Query</th>
-                    <th className="py-3 px-4">Requester</th>
-                    <th className="py-3 px-4 text-right">Decision</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {pendingPayments.map((p) => {
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelAdminPayments}
+                columns={paymentColumns}
+                tableName="disbursements"
+                showSearch={true}
+                showExport={true}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
+                    <tr>
+                      {paymentColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelAdminPayments}
+                          theme="darkHeader"
+                        />
+                      ))}
+                      <th className="py-3 px-4 text-right">Decision</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {excelAdminPayments.filteredData.map((p) => {
                     const payee = p.recipientName || p.party?.name || "Recipient";
                     const rType = p.recipientType || (p.party?.type) || "VENDOR";
                     return (
@@ -868,6 +1051,7 @@ export default function SuperAdminDashboardPage() {
                 </tbody>
               </table>
             </div>
+          </div>
           )}
         </div>
 
@@ -983,28 +1167,37 @@ export default function SuperAdminDashboardPage() {
             </div>
           </div>
 
+          <ExcelTableToolbar
+            table={excelTenants}
+            columns={tenantColumns}
+            tableName="organizations"
+            showSearch={true}
+            showExport={true}
+          />
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                 <tr>
-                  <th className="py-3 px-4">Organization Name</th>
-                  <th className="py-3 px-4">Tenant ID</th>
-                  <th className="py-3 px-4">Currency</th>
-                  <th className="py-3 px-4">Users</th>
-                  <th className="py-3 px-4">Sites & Projects</th>
-                  <th className="py-3 px-4">Status</th>
+                  {tenantColumns.map((col) => (
+                    <ExcelColumnHeader
+                      key={col.key}
+                      column={col}
+                      table={excelTenants}
+                      theme="darkHeader"
+                    />
+                  ))}
                   <th className="py-3 px-4 text-right">Administrative Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredTenants.length === 0 ? (
+                {excelTenants.filteredData.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-slate-400">
                       No matching organizations found.
                     </td>
                   </tr>
                 ) : (
-                  filteredTenants.map((t) => (
+                  excelTenants.filteredData.map((t) => (
                     <tr key={t.id} className="hover:bg-slate-50/70">
                       <td className="py-3 px-4 font-bold text-slate-900">{t.name}</td>
                       <td className="py-3 px-4 font-mono text-[11px] text-slate-500">{t.id}</td>

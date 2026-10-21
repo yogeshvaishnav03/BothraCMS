@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, formatDate } from "@/lib/formatters";
 import {
@@ -45,6 +46,57 @@ export default function ReportsPage() {
     if (startDate && a.workDate < startDate) return false;
     if (endDate && a.workDate > endDate) return false;
     return true;
+  });
+
+  const stockColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "sku", label: "SKU", accessor: (m) => m.sku, type: "text" },
+      { key: "name", label: "Material Name", accessor: (m) => m.name, type: "text" },
+      { key: "category", label: "Category", accessor: (m) => m.category?.name || "General", type: "text" },
+      { key: "totalStock", label: "Stock On Hand", accessor: (m) => Number(m.totalStock) || 0, type: "number", align: "right" },
+      { key: "minStockQty", label: "Min Threshold", accessor: (m) => Number(m.minStockQty) || 0, type: "number", align: "right" },
+      { key: "status", label: "Status", accessor: (m) => (m.isLowStock ? "LOW STOCK" : "ADEQUATE"), type: "text", align: "center" },
+    ],
+    []
+  );
+
+  const excelStock = useExcelTable({
+    data: materials,
+    columns: stockColumns,
+  });
+
+  const payablesColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "name", label: "Party Name", accessor: (p) => p.name, type: "text" },
+      { key: "partyType", label: "Type", accessor: (p) => p.partyType, type: "text" },
+      { key: "taxIdentifier", label: "GSTIN", accessor: (p) => p.taxIdentifier || "—", type: "text" },
+      { key: "totalBilled", label: "Total Billed", accessor: (p) => (Number(p.totalBilled) || 0) / 100, type: "currency", align: "right" },
+      { key: "totalPaid", label: "Total Paid", accessor: (p) => (Number(p.totalPaid) || 0) / 100, type: "currency", align: "right" },
+      { key: "outstandingBalance", label: "Outstanding Liability", accessor: (p) => (Number(p.outstandingBalance) || 0) / 100, type: "currency", align: "right" },
+    ],
+    []
+  );
+
+  const excelPayables = useExcelTable({
+    data: parties,
+    columns: payablesColumns,
+  });
+
+  const attendanceReportColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "workDate", label: "Date", accessor: (a) => formatDate(a.workDate), type: "date" },
+      { key: "worker", label: "Worker / Trade", accessor: (a) => `${a.workforceMember?.name || ""} (${a.workforceMember?.workerType || ""})`, type: "text" },
+      { key: "site", label: "Site", accessor: (a) => a.site?.name || "—", type: "text" },
+      { key: "checkInAt", label: "Check-In", accessor: (a) => (a.checkInAt ? formatDate(a.checkInAt) : "—"), type: "date" },
+      { key: "checkOutAt", label: "Check-Out", accessor: (a) => (a.checkOutAt ? formatDate(a.checkOutAt) : "—"), type: "date" },
+      { key: "status", label: "Status", accessor: (a) => a.status || "PRESENT", type: "text", align: "center" },
+    ],
+    []
+  );
+
+  const excelAttendanceReport = useExcelTable({
+    data: filteredAttendance,
+    columns: attendanceReportColumns,
   });
 
   const exportStockCSV = () => {
@@ -260,20 +312,29 @@ export default function ReportsPage() {
           <div className="h-64 bg-slate-200/60 rounded-xl animate-pulse" />
         ) : reportType === "STOCK" ? (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <ExcelTableToolbar
+              table={excelStock}
+              columns={stockColumns}
+              tableName="stock inventory"
+              showSearch={true}
+              showExport={true}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">SKU</th>
-                    <th className="py-3 px-4">Material Name</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4 text-right">Stock On Hand</th>
-                    <th className="py-3 px-4 text-right">Min Threshold</th>
-                    <th className="py-3 px-4 text-center">Status</th>
+                    {stockColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelStock}
+                        theme="darkHeader"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {materials.map((m) => (
+                  {excelStock.filteredData.map((m) => (
                     <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4 font-mono text-xs font-bold text-slate-900">
                         {m.sku}
@@ -305,20 +366,29 @@ export default function ReportsPage() {
           </div>
         ) : reportType === "PAYABLES" ? (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <ExcelTableToolbar
+              table={excelPayables}
+              columns={payablesColumns}
+              tableName="payables"
+              showSearch={true}
+              showExport={true}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Party Name</th>
-                    <th className="py-3 px-4">Type</th>
-                    <th className="py-3 px-4">GSTIN</th>
-                    <th className="py-3 px-4 text-right">Total Billed</th>
-                    <th className="py-3 px-4 text-right">Total Paid</th>
-                    <th className="py-3 px-4 text-right">Outstanding Liability</th>
+                    {payablesColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelPayables}
+                        theme="darkHeader"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {parties.map((p) => (
+                  {excelPayables.filteredData.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4 font-bold text-slate-900">{p.name}</td>
                       <td className="py-3.5 px-4">
@@ -348,27 +418,36 @@ export default function ReportsPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <ExcelTableToolbar
+              table={excelAttendanceReport}
+              columns={attendanceReportColumns}
+              tableName="workforce attendance"
+              showSearch={true}
+              showExport={true}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Worker / Trade</th>
-                    <th className="py-3 px-4">Site</th>
-                    <th className="py-3 px-4">Check-In</th>
-                    <th className="py-3 px-4">Check-Out</th>
-                    <th className="py-3 px-4 text-center">Status</th>
+                    {attendanceReportColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelAttendanceReport}
+                        theme="darkHeader"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredAttendance.length === 0 ? (
+                  {excelAttendanceReport.filteredData.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-8 text-center text-xs text-slate-500">
-                        No attendance records match the selected date filter range.
+                        No attendance records match the selected filters.
                       </td>
                     </tr>
                   ) : (
-                    filteredAttendance.map((a) => (
+                    excelAttendanceReport.filteredData.map((a) => (
                       <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4 text-xs font-mono text-slate-600">
                           {formatDate(a.workDate)}

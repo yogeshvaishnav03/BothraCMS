@@ -22,6 +22,7 @@ import {
   Briefcase,
   ChevronRight,
 } from "lucide-react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 
 interface AttendanceRecord {
   id: string;
@@ -359,6 +360,72 @@ export default function AttendancePage() {
       return true;
     });
   }, [sessions, selectedMonthTab, siteFilter, roleFilter, statusFilter, searchQuery]);
+
+  const attendanceColumns: ExcelColumn<any>[] = useMemo(() => {
+    const cols: ExcelColumn<any>[] = [];
+
+    if (activeTab === "all" && isPrivileged) {
+      cols.push({
+        key: "employee",
+        label: "Staff Member & Role",
+        accessor: (s) => `${s.employeeName} (${s.employeeRole || ""})`,
+        type: "text",
+      });
+    }
+
+    cols.push(
+      {
+        key: "workDate",
+        label: "Date & Day",
+        accessor: (s) => formatDate(s.workDate),
+        type: "date",
+      },
+      {
+        key: "status",
+        label: "Shift Status",
+        accessor: (s) => (s.checkOutAt ? "Shift Completed" : "Active Shift"),
+        type: "text",
+      },
+      {
+        key: "checkInAt",
+        label: "Check-In Time",
+        accessor: (s) => (s.checkInAt ? formatDateTime(s.checkInAt) : "—"),
+        type: "date",
+      },
+      {
+        key: "checkOutAt",
+        label: "Check-Out Time",
+        accessor: (s) => (s.checkOutAt ? formatDateTime(s.checkOutAt) : "—"),
+        type: "date",
+      },
+      {
+        key: "durationHours",
+        label: "Hours Logged",
+        accessor: (s) => Number(s.durationHours) || 0,
+        type: "number",
+        align: "right",
+      },
+      {
+        key: "siteName",
+        label: "Site Location",
+        accessor: (s) => s.siteName || "Head Office",
+        type: "text",
+      },
+      {
+        key: "gpsVerified",
+        label: "GPS Verification",
+        accessor: (s) => (s.gpsVerified ? "Verified" : "Unverified"),
+        type: "text",
+      }
+    );
+
+    return cols;
+  }, [activeTab, isPrivileged]);
+
+  const excelAttendance = useExcelTable({
+    data: filteredSessions,
+    columns: attendanceColumns,
+  });
 
   // Export Attendance to CSV
   const handleExportCsv = () => {
@@ -1092,24 +1159,30 @@ export default function AttendancePage() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
-                  <tr>
-                    {activeTab === "all" && isPrivileged && (
-                      <th className="py-3 px-4">Staff Member & Role</th>
-                    )}
-                    <th className="py-3 px-4">Date & Day</th>
-                    <th className="py-3 px-4">Shift Status</th>
-                    <th className="py-3 px-4">Check-In Time</th>
-                    <th className="py-3 px-4">Check-Out Time</th>
-                    <th className="py-3 px-4">Hours Logged</th>
-                    <th className="py-3 px-4">Site Location</th>
-                    <th className="py-3 px-4">GPS Verification</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {filteredSessions.map((s) => {
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelAttendance}
+                columns={attendanceColumns}
+                tableName="attendance records"
+                showSearch={true}
+                showExport={true}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
+                    <tr>
+                      {attendanceColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelAttendance}
+                          theme="darkHeader"
+                        />
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {excelAttendance.filteredData.map((s) => {
                     const dateObj = new Date(s.workDate);
                     const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
                     const isCompleted = Boolean(s.checkOutAt);
@@ -1229,6 +1302,7 @@ export default function AttendancePage() {
                 </tbody>
               </table>
             </div>
+          </div>
           )}
         </div>
       </div>

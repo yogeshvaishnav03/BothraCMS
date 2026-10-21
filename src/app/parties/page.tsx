@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, rupeesToPaise, paiseToRupees } from "@/lib/formatters";
@@ -22,6 +23,7 @@ import {
   Truck,
   Briefcase,
   FileText,
+  Filter,
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
@@ -204,6 +206,70 @@ export default function PartiesPage() {
       (p.phone && p.phone.includes(search))
   );
 
+  const partyColumns: ExcelColumn<any>[] = useMemo(() => {
+    const cols: ExcelColumn<any>[] = [
+      {
+        key: "name",
+        label: "Partner Name / GSTIN",
+        accessor: (p) => `${p.name} ${p.taxIdentifier || ""}`,
+        type: "text",
+      },
+      {
+        key: "partyType",
+        label: "Type",
+        accessor: (p) => p.partyType,
+        type: "text",
+      },
+      {
+        key: "contact",
+        label: "Contact",
+        accessor: (p) => `${p.phone || ""} ${p.email || ""}`.trim() || "—",
+        type: "text",
+      },
+    ];
+
+    if (typeFilter === "CONTRACTOR") {
+      cols.push({
+        key: "contractValue",
+        label: "Contract Value",
+        accessor: (p) => (Number(p.contractValue) || 0) / 100,
+        type: "currency",
+        align: "right",
+      });
+    }
+
+    cols.push(
+      {
+        key: "totalBilled",
+        label: "Total Billed",
+        accessor: (p) => (Number(p.totalBilled) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "totalPaid",
+        label: "Total Paid",
+        accessor: (p) => (Number(p.totalPaid) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "outstandingBalance",
+        label: "Outstanding Balance",
+        accessor: (p) => (Number(p.outstandingBalance) || 0) / 100,
+        type: "currency",
+        align: "right",
+      }
+    );
+
+    return cols;
+  }, [typeFilter]);
+
+  const excelParties = useExcelTable({
+    data: filteredParties,
+    columns: partyColumns,
+  });
+
   return (
     <Shell>
       <div className="space-y-6">
@@ -308,24 +374,48 @@ export default function PartiesPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <ExcelTableToolbar
+              table={excelParties}
+              columns={partyColumns}
+              tableName="partners"
+              showSearch={true}
+              showExport={true}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Partner Name / GSTIN</th>
-                    <th className="py-3 px-4">Type</th>
-                    <th className="py-3 px-4">Contact</th>
-                    {typeFilter === "CONTRACTOR" && (
-                      <th className="py-3 px-4 text-right">Contract Value</th>
-                    )}
-                    <th className="py-3 px-4 text-right">Total Billed</th>
-                    <th className="py-3 px-4 text-right">Total Paid</th>
-                    <th className="py-3 px-4 text-right">Outstanding Balance</th>
+                    {partyColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelParties}
+                        theme="darkHeader"
+                      />
+                    ))}
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredParties.map((p) => {
+                  {excelParties.filteredData.length === 0 ? (
+                    <tr>
+                      <td colSpan={partyColumns.length + 1} className="py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Filter className="w-8 h-8 text-slate-300" />
+                          <p className="font-semibold text-slate-700">No partners match selected filters</p>
+                          <p className="text-xs text-slate-400">Try clearing or adjusting column filters.</p>
+                          <button
+                            type="button"
+                            onClick={excelParties.clearAllFilters}
+                            className="mt-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs"
+                          >
+                            Reset Filters
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    excelParties.filteredData.map((p) => {
                     const isContractor = p.partyType === "CONTRACTOR" || p.partyType === "BOTH";
 
                     return (
@@ -437,7 +527,8 @@ export default function PartiesPage() {
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  )}
                 </tbody>
               </table>
             </div>

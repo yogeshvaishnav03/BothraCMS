@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
+import ExcelTable, { ExcelColumn } from "@/components/ui/ExcelTable";
 
 interface DayBookData {
   date: string;
@@ -67,7 +68,252 @@ export default function DayBookPage() {
   const canWriteDsr = canWriteProjects || canWriteTasks;
   const canLogDayEntry = canWriteFinance || canWriteDsr || canWriteAttendance;
 
-  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+  // Excel Column Definitions
+  const paymentColumns: ExcelColumn[] = useMemo(
+    () => [
+      {
+        key: "party",
+        label: "Party / Vendor",
+        accessor: (p) => p.party?.name || "Direct Expense",
+        render: (p) => (
+          <div>
+            <div className="font-bold text-slate-900">{p.party?.name || "Direct Expense"}</div>
+            {p.notes && <div className="text-[11px] text-slate-400 italic truncate max-w-xs">{p.notes}</div>}
+          </div>
+        ),
+      },
+      {
+        key: "paymentMethod",
+        label: "Method",
+        accessor: (p) => p.paymentMethod || "CASH",
+        render: (p) => (
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+            {p.paymentMethod || "CASH"}
+          </span>
+        ),
+      },
+      {
+        key: "referenceNumber",
+        label: "Reference No",
+        accessor: (p) => p.referenceNumber || "—",
+        render: (p) => <span className="font-mono text-slate-600">{p.referenceNumber || "—"}</span>,
+      },
+      {
+        key: "project",
+        label: "Project / Site",
+        accessor: (p) => p.project?.name || "General / HQ",
+        render: (p) => <span className="text-slate-600">{p.project?.name || "General / HQ"}</span>,
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (p) => p.status || "POSTED",
+        render: (p) => (
+          <span
+            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+              p.status === "POSTED"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-amber-50 text-amber-700 border border-amber-200"
+            }`}
+          >
+            {p.status || "POSTED"}
+          </span>
+        ),
+      },
+      {
+        key: "amount",
+        label: "Amount (₹)",
+        type: "currency",
+        align: "right",
+        accessor: (p) => p.amount,
+        render: (p) => (
+          <span className="font-black text-rose-600">
+            {formatCurrency(p.amount)}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
+
+  const billColumns: ExcelColumn[] = useMemo(
+    () => [
+      {
+        key: "billNumber",
+        label: "Bill Number",
+        accessor: (b) => b.billNumber || "—",
+        render: (b) => <span className="font-mono font-bold text-amber-700">{b.billNumber || "—"}</span>,
+      },
+      {
+        key: "party",
+        label: "Party / Vendor",
+        accessor: (b) => b.party?.name || "N/A",
+        render: (b) => <span className="font-bold text-slate-900">{b.party?.name || "N/A"}</span>,
+      },
+      {
+        key: "project",
+        label: "Project",
+        accessor: (b) => b.project?.name || "General",
+        render: (b) => <span className="text-slate-600">{b.project?.name || "General"}</span>,
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (b) => b.status || "POSTED",
+        render: (b) => (
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            {b.status || "POSTED"}
+          </span>
+        ),
+      },
+      {
+        key: "totalAmount",
+        label: "Total (₹)",
+        type: "currency",
+        align: "right",
+        accessor: (b) => b.totalAmount,
+        render: (b) => (
+          <span className="font-black text-slate-900">
+            {formatCurrency(b.totalAmount)}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
+
+  const headcountColumns: ExcelColumn[] = useMemo(
+    () => [
+      {
+        key: "siteName",
+        label: "Site",
+        accessor: (h) => h.siteName || "Operational Site",
+        render: (h) => <span className="font-bold text-slate-900">{h.siteName || "Operational Site"}</span>,
+      },
+      {
+        key: "shift",
+        label: "Shift",
+        accessor: (h) => h.shift || "GENERAL",
+        render: (h) => (
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+            {h.shift}
+          </span>
+        ),
+      },
+      {
+        key: "artisanCount",
+        label: "Artisans",
+        type: "number",
+        align: "center",
+        accessor: (h) => h.artisanCount ?? h.artisanTotal ?? 0,
+        render: (h) => <span className="font-semibold text-slate-700">{h.artisanCount ?? h.artisanTotal ?? 0}</span>,
+      },
+      {
+        key: "craftsmanCount",
+        label: "Craftsmen",
+        type: "number",
+        align: "center",
+        accessor: (h) => h.craftsmanCount ?? h.craftsmanTotal ?? 0,
+        render: (h) => <span className="font-semibold text-slate-700">{h.craftsmanCount ?? h.craftsmanTotal ?? 0}</span>,
+      },
+      {
+        key: "laborers",
+        label: "Laborers",
+        type: "number",
+        align: "center",
+        accessor: (h) => h.laborerTotal || ((h.laborerMale || 0) + (h.laborerFemale || 0)) || 0,
+        render: (h) => (
+          <span>
+            <strong className="text-slate-900">{h.laborerTotal || ((h.laborerMale || 0) + (h.laborerFemale || 0)) || 0}</strong>
+            {((h.laborerMale || 0) > 0 || (h.laborerFemale || 0) > 0) && (
+              <span className="text-[10px] text-slate-400 ml-1">
+                ({h.laborerMale || 0}M / {h.laborerFemale || 0}F)
+              </span>
+            )}
+          </span>
+        ),
+      },
+      {
+        key: "grandTotal",
+        label: "Total Workers",
+        type: "number",
+        align: "center",
+        accessor: (h) => h.grandTotal || 0,
+        render: (h) => (
+          <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+            {h.grandTotal || 0} workers
+          </span>
+        ),
+      },
+      {
+        key: "contractorName",
+        label: "Contractor / Gang",
+        accessor: (h) => h.contractorName || "Direct Site Gang",
+        render: (h) => <span className="text-slate-600">{h.contractorName || "Direct Site Gang"}</span>,
+      },
+      {
+        key: "notes",
+        label: "Notes",
+        accessor: (h) => h.notes || "—",
+        render: (h) => <span className="text-slate-500 max-w-xs truncate block" title={h.notes || ""}>{h.notes || "—"}</span>,
+      },
+    ],
+    []
+  );
+
+  const attendanceColumns: ExcelColumn[] = useMemo(
+    () => [
+      {
+        key: "employeeCode",
+        label: "Emp Code",
+        accessor: (a) => a.workforceMember?.employeeCode || "—",
+        render: (a) => <span className="font-mono text-slate-600">{a.workforceMember?.employeeCode || "—"}</span>,
+      },
+      {
+        key: "workerName",
+        label: "Worker Name",
+        accessor: (a) => a.workforceMember?.name || "Worker",
+        render: (a) => <span className="font-bold text-slate-900">{a.workforceMember?.name || "Worker"}</span>,
+      },
+      {
+        key: "trade",
+        label: "Trade",
+        accessor: (a) => a.workforceMember?.workerType || a.workforceMember?.trade || "Staff",
+        render: (a) => (
+          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
+            {a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}
+          </span>
+        ),
+      },
+      {
+        key: "site",
+        label: "Site",
+        accessor: (a) => a.site?.name || "Operational Site",
+        render: (a) => <span className="text-slate-600">{a.site?.name || "Operational Site"}</span>,
+      },
+      {
+        key: "status",
+        label: "Status",
+        accessor: (a) => a.status || "PRESENT",
+        render: (a) => (
+          <span
+            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+              a.status === "PRESENT"
+                ? "bg-emerald-100 text-emerald-800"
+                : a.status === "HALF_DAY"
+                ? "bg-amber-100 text-amber-800"
+                : "bg-slate-200 text-slate-700"
+            }`}
+          >
+            {a.status}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
+
+    const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
@@ -910,48 +1156,14 @@ export default function DayBookPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
-                        <tr>
-                          <th className="p-3">Party / Vendor</th>
-                          <th className="p-3">Method</th>
-                          <th className="p-3">Reference No</th>
-                          <th className="p-3">Project / Site</th>
-                          <th className="p-3">Status</th>
-                          <th className="p-3 text-right">Amount (₹)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {dayData?.payments.map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50/70 transition">
-                            <td className="p-3 font-bold text-slate-900">
-                              {p.party?.name || "Direct Expense"}
-                            </td>
-                            <td className="p-3">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-                                {p.paymentMethod}
-                              </span>
-                            </td>
-                            <td className="p-3 font-mono text-slate-600">{p.referenceNumber || "—"}</td>
-                            <td className="p-3 text-slate-600">{p.project?.name || "General"}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                p.status === "POSTED"
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200"
-                              }`}>
-                                {p.status}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right font-black text-rose-600">
-                              {formatCurrency(p.amount)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ExcelTable
+                    data={dayData?.payments || []}
+                    columns={paymentColumns}
+                    tableName="Payments"
+                    showGlobalSearch={true}
+                    showExport={true}
+                    showToolbar={true}
+                  />
                 )}
               </div>
             )}
@@ -1004,36 +1216,14 @@ export default function DayBookPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
-                        <tr>
-                          <th className="p-3">Bill Number</th>
-                          <th className="p-3">Party</th>
-                          <th className="p-3">Project</th>
-                          <th className="p-3">Status</th>
-                          <th className="p-3 text-right">Total (₹)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {dayData?.bills.map((b) => (
-                          <tr key={b.id} className="hover:bg-slate-50/70 transition">
-                            <td className="p-3 font-bold text-slate-900">{b.billNumber}</td>
-                            <td className="p-3 text-slate-700">{b.party?.name || "N/A"}</td>
-                            <td className="p-3 text-slate-600">{b.project?.name || "General"}</td>
-                            <td className="p-3">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                {b.status}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right font-black text-slate-900">
-                              {formatCurrency(b.totalAmount)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ExcelTable
+                    data={dayData?.bills || []}
+                    columns={billColumns}
+                    tableName="Bills"
+                    showGlobalSearch={true}
+                    showExport={true}
+                    showToolbar={true}
+                  />
                 )}
               </div>
             )}
@@ -1104,57 +1294,14 @@ export default function DayBookPage() {
                             Total {dayData.headcount.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0)} Workers
                           </span>
                         </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs">
-                            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
-                              <tr>
-                                <th className="p-3">Site</th>
-                                <th className="p-3">Shift</th>
-                                <th className="p-3">Artisans</th>
-                                <th className="p-3">Craftsmen</th>
-                                <th className="p-3">Laborers</th>
-                                <th className="p-3">Total Workers</th>
-                                <th className="p-3">Contractor / Gang</th>
-                                <th className="p-3">Notes</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {dayData.headcount.map((h: any) => (
-                                <tr key={h.id} className="hover:bg-slate-50/70 transition">
-                                  <td className="p-3 font-bold text-slate-900">{h.siteName || "Operational Site"}</td>
-                                  <td className="p-3">
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-                                      {h.shift}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 font-semibold text-slate-700">
-                                    {h.artisanCount ?? h.artisanTotal ?? 0}
-                                  </td>
-                                  <td className="p-3 font-semibold text-slate-700">
-                                    {h.craftsmanCount ?? h.craftsmanTotal ?? 0}
-                                  </td>
-                                  <td className="p-3 text-slate-600">
-                                    <span className="font-semibold text-slate-900">{h.laborerTotal || ((h.laborerMale || 0) + (h.laborerFemale || 0)) || 0}</span>
-                                    {((h.laborerMale || 0) > 0 || (h.laborerFemale || 0) > 0) && (
-                                      <span className="text-[10px] text-slate-400 ml-1">
-                                        ({h.laborerMale || 0}M / {h.laborerFemale || 0}F)
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="p-3">
-                                    <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                      {h.grandTotal || 0} workers
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-slate-600">{h.contractorName || "Direct Site Gang"}</td>
-                                  <td className="p-3 text-slate-500 max-w-xs truncate" title={h.notes || ""}>
-                                    {h.notes || "—"}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                        <ExcelTable
+                          data={dayData.headcount}
+                          columns={headcountColumns}
+                          tableName="Headcount"
+                          showGlobalSearch={true}
+                          showExport={true}
+                          showToolbar={true}
+                        />
                       </div>
                     )}
 

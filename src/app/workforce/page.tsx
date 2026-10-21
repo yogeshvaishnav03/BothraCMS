@@ -25,6 +25,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 
 interface HeadcountRecord {
   id: string;
@@ -339,6 +340,97 @@ export default function WorkforcePage() {
   const laborerMalePercent = siteTotalLaborer > 0 ? Math.round((siteLaborerMale / siteTotalLaborer) * 100) : 0;
   const laborerFemalePercent = siteTotalLaborer > 0 ? Math.round((siteLaborerFemale / siteTotalLaborer) * 100) : 0;
 
+  const headcountColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "date",
+        label: "Date & Shift",
+        accessor: (r) => `${formatDate(r.date)} ${r.shift} SHIFT`,
+        type: "text",
+      },
+      {
+        key: "artisanCount",
+        label: "Artisan (Direct Count)",
+        accessor: (r) => Number(r.artisanCount ?? r.artisanTotal ?? 0),
+        type: "number",
+        align: "right",
+      },
+      {
+        key: "laborer",
+        label: "Laborer (M / F / Total)",
+        accessor: (r) => `${r.laborerTotal} (M:${r.laborerMale}, F:${r.laborerFemale})`,
+        type: "text",
+      },
+      {
+        key: "grandTotal",
+        label: "Total Workforce",
+        accessor: (r) => Number(r.grandTotal) || 0,
+        type: "number",
+        align: "right",
+      },
+      {
+        key: "contractor",
+        label: "Contractor / Agency",
+        accessor: (r) => r.contractorName || r.contractor?.name || "Direct Site",
+        type: "text",
+      },
+      {
+        key: "loggedBy",
+        label: "Logged By",
+        accessor: (r) => r.creator?.name || "Supervisor",
+        type: "text",
+      },
+    ],
+    []
+  );
+
+  const excelHeadcount = useExcelTable({
+    data: filteredRecords,
+    columns: headcountColumns,
+  });
+
+  const workerColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Name & Code",
+        accessor: (w) => `${w.name} ${w.employeeCode || ""}`,
+        type: "text",
+      },
+      {
+        key: "workerType",
+        label: "Trade",
+        accessor: (w) => w.workerType,
+        type: "text",
+      },
+      {
+        key: "phone",
+        label: "Phone",
+        accessor: (w) => w.phone || "—",
+        type: "text",
+      },
+      {
+        key: "dailyWageRate",
+        label: "Daily Wage Rate",
+        accessor: (w) => Number(w.dailyWageRate) || 0,
+        type: "currency",
+        align: "right",
+      },
+      {
+        key: "defaultSite",
+        label: "Default Site",
+        accessor: (w) => w.defaultSite?.name || "Main Site",
+        type: "text",
+      },
+    ],
+    []
+  );
+
+  const excelWorkers = useExcelTable({
+    data: workers,
+    columns: workerColumns,
+  });
+
   const currentSelectedSite = sites.find((s) => s.id === selectedSiteId);
 
   return (
@@ -592,21 +684,31 @@ export default function WorkforcePage() {
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
-                      <tr>
-                        <th className="py-3 px-4">Date & Shift</th>
-                        <th className="py-3 px-4">Artisan (Direct Count)</th>
-                        <th className="py-3 px-4">Laborer (M / F / Total)</th>
-                        <th className="py-3 px-4">Total Workforce</th>
-                        <th className="py-3 px-4">Contractor / Agency</th>
-                        <th className="py-3 px-4">Logged By</th>
-                        {canWrite && <th className="py-3 px-4 text-right">Actions</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium">
-                      {filteredRecords.map((r) => (
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <ExcelTableToolbar
+                    table={excelHeadcount}
+                    columns={headcountColumns}
+                    tableName="headcount records"
+                    showSearch={true}
+                    showExport={true}
+                  />
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
+                        <tr>
+                          {headcountColumns.map((col) => (
+                            <ExcelColumnHeader
+                              key={col.key}
+                              column={col}
+                              table={excelHeadcount}
+                              theme="darkHeader"
+                            />
+                          ))}
+                          {canWrite && <th className="py-3 px-4 text-right">Actions</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {excelHeadcount.filteredData.map((r) => (
                         <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="font-bold text-slate-900">{formatDate(r.date)}</div>
@@ -693,6 +795,7 @@ export default function WorkforcePage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
               )}
             </div>
           </>
@@ -721,19 +824,29 @@ export default function WorkforcePage() {
               )}
             </div>
 
+            <ExcelTableToolbar
+              table={excelWorkers}
+              columns={workerColumns}
+              tableName="workers"
+              showSearch={true}
+              showExport={true}
+            />
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                   <tr>
-                    <th className="py-3 px-4">Name & Code</th>
-                    <th className="py-3 px-4">Trade</th>
-                    <th className="py-3 px-4">Phone</th>
-                    <th className="py-3 px-4">Daily Wage Rate</th>
-                    <th className="py-3 px-4">Default Site</th>
+                    {workerColumns.map((col) => (
+                      <ExcelColumnHeader
+                        key={col.key}
+                        column={col}
+                        table={excelWorkers}
+                        theme="darkHeader"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {workers.map((w) => (
+                  {excelWorkers.filteredData.map((w) => (
                     <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{w.name}</div>
