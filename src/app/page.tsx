@@ -34,6 +34,10 @@ import {
   Upload,
   Trash2,
   RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  LayoutGrid,
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
@@ -242,6 +246,24 @@ export default function DashboardPage() {
   const [submittingTask, setSubmittingTask] = useState(false);
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
 
+  // Interactive Dashboard View & Section Navigation
+  type DashboardSectionTab = "ALL" | "SITES" | "TASKS" | "PROJECTS" | "PHOTOS";
+  const [activeSectionTab, setActiveSectionTab] = useState<DashboardSectionTab>("ALL");
+  const [dashboardFilterQuery, setDashboardFilterQuery] = useState("");
+
+  // Collapsible section states for custom workspace layout
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
+    quickDock: false,
+    sites: false,
+    tasks: false,
+    projects: false,
+    photos: false,
+  });
+
+  const toggleSectionCollapse = (sectionKey: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }));
+  };
+
   // 1. Site-by-site on-site workforce breakdown for 100% mathematical consistency (e.g. Chaupasni: 54, Skyline: 4 -> Total: 58)
   const siteOnSiteBreakdown = useMemo(() => {
     return sites.map((site) => {
@@ -329,12 +351,65 @@ export default function DashboardPage() {
     return pendingIncompleteTasks.filter(isTaskOverdue).length;
   }, [pendingIncompleteTasks]);
 
+  // Filtered collections responding to the live interactive search bar and active section tab
   const displayedPendingTasks = useMemo(() => {
+    let list = pendingIncompleteTasks;
     if (taskFilterOverdueOnly) {
-      return pendingIncompleteTasks.filter(isTaskOverdue);
+      list = list.filter(isTaskOverdue);
     }
-    return pendingIncompleteTasks.slice(0, 8);
-  }, [pendingIncompleteTasks, taskFilterOverdueOnly]);
+    if (dashboardFilterQuery.trim()) {
+      const q = dashboardFilterQuery.toLowerCase();
+      list = list.filter(
+        (t: any) =>
+          (t.title && t.title.toLowerCase().includes(q)) ||
+          (t.project?.name && t.project.name.toLowerCase().includes(q)) ||
+          (t.assignee?.name && t.assignee.name.toLowerCase().includes(q)) ||
+          (t.priority && t.priority.toLowerCase().includes(q))
+      );
+    }
+    return activeSectionTab === "TASKS" ? list : list.slice(0, 8);
+  }, [pendingIncompleteTasks, taskFilterOverdueOnly, dashboardFilterQuery, activeSectionTab]);
+
+  const displayedProjects = useMemo(() => {
+    let list = projects;
+    if (dashboardFilterQuery.trim()) {
+      const q = dashboardFilterQuery.toLowerCase();
+      list = list.filter(
+        (p: any) =>
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.code && p.code.toLowerCase().includes(q)) ||
+          (p.site?.name && p.site.name.toLowerCase().includes(q))
+      );
+    }
+    return activeSectionTab === "PROJECTS" ? list : list.slice(0, 6);
+  }, [projects, dashboardFilterQuery, activeSectionTab]);
+
+  const displayedSites = useMemo(() => {
+    let list = sites;
+    if (dashboardFilterQuery.trim()) {
+      const q = dashboardFilterQuery.toLowerCase();
+      list = list.filter(
+        (s: any) =>
+          (s.name && s.name.toLowerCase().includes(q)) ||
+          (s.code && s.code.toLowerCase().includes(q)) ||
+          (s.address && s.address.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [sites, dashboardFilterQuery]);
+
+  const displayedPhotos = useMemo(() => {
+    let list = recentPhotos;
+    if (dashboardFilterQuery.trim()) {
+      const q = dashboardFilterQuery.toLowerCase();
+      list = list.filter(
+        (p: any) =>
+          (p.fileName && p.fileName.toLowerCase().includes(q)) ||
+          (p.notes && p.notes.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [recentPhotos, dashboardFilterQuery]);
 
   const refreshKpis = (serverKpi?: any, siteId?: string) => {
     const computed = clientCache.calculateKpis(serverKpi, siteId);
@@ -1277,6 +1352,131 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Interactive Dashboard Section Navigator & Live Search Filter */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl overflow-x-auto max-w-full">
+            <button
+              type="button"
+              onClick={() => setActiveSectionTab("ALL")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSectionTab === "ALL"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-amber-400" />
+              <span>All Sections</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSectionTab("SITES")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSectionTab === "SITES"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Site Locations</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  activeSectionTab === "SITES" ? "bg-emerald-400 text-slate-950" : "bg-slate-200 text-slate-700"
+                }`}
+              >
+                {displayedSites.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSectionTab("TASKS")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSectionTab === "TASKS"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-blue-400" />
+              <span>Pending Tasks</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  activeSectionTab === "TASKS" ? "bg-blue-400 text-slate-950" : "bg-slate-200 text-slate-700"
+                }`}
+              >
+                {pendingIncompleteTasks.length}
+              </span>
+              {overdueTasksCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-600 text-white font-bold animate-pulse">
+                  {overdueTasksCount} Overdue
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSectionTab("PROJECTS")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSectionTab === "PROJECTS"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <FolderKanban className="w-3.5 h-3.5 text-purple-400" />
+              <span>Projects</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  activeSectionTab === "PROJECTS" ? "bg-purple-400 text-slate-950" : "bg-slate-200 text-slate-700"
+                }`}
+              >
+                {displayedProjects.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSectionTab("PHOTOS")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeSectionTab === "PHOTOS"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5 text-amber-400" />
+              <span>Site Photos</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  activeSectionTab === "PHOTOS" ? "bg-amber-400 text-slate-950" : "bg-slate-200 text-slate-700"
+                }`}
+              >
+                {displayedPhotos.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Quick Filter Search Input */}
+          <div className="relative flex-1 max-w-sm">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={dashboardFilterQuery}
+              onChange={(e) => setDashboardFilterQuery(e.target.value)}
+              placeholder="Search tasks, projects, sites..."
+              className="w-full pl-8 pr-7 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none transition-colors"
+            />
+            {dashboardFilterQuery && (
+              <button
+                type="button"
+                onClick={() => setDashboardFilterQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                title="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Status notification banner */}
         {statusMessage && (
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center justify-between gap-2 shadow-xs animate-in fade-in">
@@ -1502,9 +1702,9 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Active Projects */}
             <div
-              onClick={() => setActiveKpiModal("activeProjects")}
+              onClick={() => setActiveSectionTab("PROJECTS")}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
-              title="Click to view Active Projects details"
+              title="Click to view Active Projects"
             >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.activeProjects", "Active Projects")}</span>
@@ -1521,15 +1721,22 @@ export default function DashboardPage() {
                     ? `Across all ${sites.length} Active Sites`
                     : (sites.find((s) => s.id === activeSiteId)?.name || projects[0]?.name || "Active Site")}
                 </span>
-                <span className="text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveKpiModal("activeProjects");
+                  }}
+                  className="text-blue-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
+                >
                   Details <ExternalLink className="w-3 h-3" />
-                </span>
+                </button>
               </div>
             </div>
 
             {/* Workforce on Site Today */}
             <div
-              onClick={() => setActiveKpiModal("workersPresentToday")}
+              onClick={() => setActiveSectionTab("SITES")}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
               title="Click to view full Workforce & Crew details"
             >
@@ -1558,9 +1765,16 @@ export default function DashboardPage() {
                 <span className="truncate max-w-[280px]" title={workerSubCategoryFull}>
                   {workerSubCategorySummary}
                 </span>
-                <span className="text-emerald-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveKpiModal("workersPresentToday");
+                  }}
+                  className="text-emerald-700 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 cursor-pointer"
+                >
                   Details <ExternalLink className="w-3 h-3" />
-                </span>
+                </button>
               </div>
             </div>
 
@@ -1599,9 +1813,12 @@ export default function DashboardPage() {
 
             {/* Overdue Tasks */}
             <div
-              onClick={() => setActiveKpiModal("tasksOverdue")}
+              onClick={() => {
+                setActiveSectionTab("TASKS");
+                setTaskFilterOverdueOnly(true);
+              }}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-rose-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
-              title="Click to view Overdue Tasks details"
+              title="Click to view Overdue Tasks in page"
             >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Overdue Tasks</span>
@@ -1624,17 +1841,27 @@ export default function DashboardPage() {
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Needs supervisor action</span>
-                <span className="text-rose-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveKpiModal("tasksOverdue");
+                  }}
+                  className="text-rose-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
+                >
                   Details <ExternalLink className="w-3 h-3" />
-                </span>
+                </button>
               </div>
             </div>
 
             {/* Tasks Due Today */}
             <div
-              onClick={() => setActiveKpiModal("tasksDueToday")}
+              onClick={() => {
+                setActiveSectionTab("TASKS");
+                setTaskFilterOverdueOnly(false);
+              }}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
-              title="Click to view Tasks Due Today details"
+              title="Click to view Tasks in page"
             >
               <div className="flex items-center justify-between text-slate-500 mb-2">
                 <span className="text-xs font-semibold uppercase tracking-wider">Tasks Due Today</span>
@@ -1647,9 +1874,16 @@ export default function DashboardPage() {
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Scheduled completion today</span>
-                <span className="text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveKpiModal("tasksDueToday");
+                  }}
+                  className="text-indigo-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
+                >
                   Details <ExternalLink className="w-3 h-3" />
-                </span>
+                </button>
               </div>
             </div>
 
@@ -1702,457 +1936,298 @@ export default function DashboardPage() {
         ))}
 
         {/* Supervisor Mobile Quick Actions Dock */}
-        <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 shadow-md">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs uppercase tracking-wider font-bold text-amber-400">
-              Site Supervisor Quick Entry Dock
-            </span>
-            <span className="text-[11px] text-slate-400">Live field actions</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <Link
-              href="/materials"
-              className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all"
-            >
-              <PackagePlus className="w-5 h-5 text-emerald-400 shrink-0" />
-              <div className="text-left">
-                <div className="text-xs font-bold text-white">Receive Goods</div>
-                <div className="text-[10px] text-slate-400">Log vendor delivery</div>
+        {(activeSectionTab === "ALL" || activeSectionTab === "SITES") && (
+          <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-md transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wider font-bold text-amber-400">
+                  Site Supervisor Quick Entry Dock
+                </span>
+                <span className="text-[11px] text-slate-400 hidden sm:inline">• Live field actions</span>
               </div>
-            </Link>
-
-            <Link
-              href="/materials"
-              className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all"
-            >
-              <PackageMinus className="w-5 h-5 text-amber-400 shrink-0" />
-              <div className="text-left">
-                <div className="text-xs font-bold text-white">Issue Material</div>
-                <div className="text-[10px] text-slate-400">Consume to task</div>
-              </div>
-            </Link>
-
-            {!isUserCheckedIn ? (
-              <button
-                onClick={handleQuickCheckInOut}
-                disabled={submittingCheckIn}
-                className="p-3 bg-emerald-950/40 hover:bg-emerald-900/60 rounded-xl border border-emerald-600/50 flex items-center gap-2.5 transition-all text-left disabled:opacity-50"
-              >
-                <UserCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-white">
-                    {submittingCheckIn ? "Checking In..." : "Check In"}
-                  </div>
-                  <div className="text-[10px] text-emerald-300">Tap to record attendance</div>
-                </div>
-              </button>
-            ) : !isUserCheckedOut ? (
-              <button
-                onClick={handleQuickCheckInOut}
-                disabled={submittingCheckIn}
-                className="p-3 bg-rose-950/40 hover:bg-rose-900/60 rounded-xl border border-rose-600/50 flex items-center gap-2.5 transition-all text-left disabled:opacity-50"
-              >
-                <Clock className="w-5 h-5 text-rose-400 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-white">
-                    {submittingCheckIn ? "Checking Out..." : "Check Out"}
-                  </div>
-                  <div className="text-[10px] text-rose-300">Tap to end shift</div>
-                </div>
-              </button>
-            ) : (
-              <Link
-                href="/attendance"
-                className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all text-left"
-              >
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-white">Shift Done</div>
-                  <div className="text-[10px] text-slate-400">View attendance log</div>
-                </div>
-              </Link>
-            )}
-
-            <button
-              onClick={() => setShowQuickTaskModal(true)}
-              className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all text-left"
-            >
-              <CheckSquare className="w-5 h-5 text-purple-400 shrink-0" />
-              <div>
-                <div className="text-xs font-bold text-white">Quick Task</div>
-                <div className="text-[10px] text-slate-400">Create new site task</div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Every Active Site Dashboard Details */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <span>Every Active Site Dashboard Details</span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                    {sites.length} Active {sites.length === 1 ? "Location" : "Locations"}
-                  </span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Live operational breakdown and project status across every construction site
-                </p>
-              </div>
-            </div>
-            {!activeSiteId ? (
-              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 w-max flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>All Sites Unified</span>
-              </span>
-            ) : (
               <button
                 type="button"
-                onClick={() => {
-                  setActiveSiteId("");
-                  if (typeof window !== "undefined") {
-                    localStorage.setItem("buildtrack_active_site", "");
-                    document.cookie = "buildtrack_active_site=; path=/; max-age=31536000; SameSite=Lax";
-                    window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
-                  }
-                }}
-                className="text-amber-600 hover:text-amber-700 font-bold text-xs hover:underline flex items-center gap-1"
+                onClick={() => toggleSectionCollapse("quickDock")}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                title={collapsedSections.quickDock ? "Expand Dock" : "Minimize Dock"}
               >
-                <span>← Show All Sites Overview</span>
+                <span>{collapsedSections.quickDock ? "Expand Dock" : "Minimize"}</span>
+                {collapsedSections.quickDock ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
               </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sites.map((site) => {
-              const siteProjs = projects.filter((p) => p.siteId === site.id);
-              const isSelected = activeSiteId === site.id;
-              const totalSiteBudget = siteProjs.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
-              const siteWorkers = workers.filter((w) => w.defaultSiteId === site.id);
-              const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
-                (r: any) => r.siteId === site.id || r.siteName?.toLowerCase() === site.name?.toLowerCase()
-              );
-              const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
-              const siteOnSiteCount = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
-
-              return (
-                <div
-                  key={site.id}
-                  className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
-                    isSelected
-                      ? "bg-amber-50/50 border-amber-400 ring-2 ring-amber-300/70 shadow-sm"
-                      : "bg-slate-50/60 hover:bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 text-sm">{site.name}</span>
-                          {site.code && (
-                            <span className="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
-                              {site.code}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 line-clamp-1">
-                          <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                          <span>{site.address || "Active Site"}</span>
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider shrink-0">
-                        {site.status}
-                      </span>
-                    </div>
-
-                    {/* Site Statistics Bar */}
-                    <div className="grid grid-cols-3 gap-2 py-2.5 my-2 border-y border-slate-200/60 text-center bg-white/70 rounded-lg">
-                      <div>
-                        <div className="text-[10px] text-slate-500 font-medium">Projects</div>
-                        <div className="text-sm font-black text-slate-900">
-                          {siteProjs.length || site._count?.projects || 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-500 font-medium">On-Site Today</div>
-                        <div className="text-sm font-black text-emerald-600">
-                          {siteOnSiteCount}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-500 font-medium" title="Permanent in-house payroll staff & crew">
-                          Direct Crew
-                        </div>
-                        <div className="text-sm font-black text-slate-700">
-                          {siteWorkers.length || site._count?.workforceMembers || 0}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Breakdown clarification when on-site includes external subcontractor labor */}
-                    {siteOnSiteCount > (siteWorkers.length || site._count?.workforceMembers || 0) && (() => {
-                      const directCrew = siteWorkers.length || site._count?.workforceMembers || 0;
-                      const externalGang = siteOnSiteCount - directCrew;
-                      return (
-                        <div className="text-[10px] bg-amber-50/90 border border-amber-200/70 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-600 font-medium">Includes Subcontractor Labor:</span>
-                            <span className="font-bold text-amber-900">
-                              +{externalGang} External Gang
-                            </span>
-                          </div>
-                          <div className="text-[9.5px] text-amber-800 font-medium text-right">
-                            ({directCrew} Direct Crew + {externalGang} External = {siteOnSiteCount} On-Site)
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Site Projects List */}
-                    <div className="space-y-1.5 my-2">
-                      <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
-                        <span>Active Projects:</span>
-                        {totalSiteBudget > 0 && (
-                          <span className="text-slate-500 font-mono text-[10px] font-semibold">
-                            Budget: {formatCurrency(totalSiteBudget)}
-                          </span>
-                        )}
-                      </div>
-                      {siteProjs.length === 0 ? (
-                        <div className="text-[11px] text-slate-400 italic p-2 bg-white/60 rounded border border-slate-100">
-                          No active projects logged for this site.
-                        </div>
-                      ) : (
-                        siteProjs.map((p) => (
-                          <Link
-                            key={p.id}
-                            href={`/projects/${p.id}`}
-                            className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border border-slate-200/80 hover:border-amber-400 transition-colors block"
-                          >
-                            <span className="font-semibold text-slate-800 truncate max-w-[170px]">{p.name}</span>
-                            <span className="font-black text-slate-900 tabular-nums text-[11px]">
-                              {formatCurrency(p.budgetAmount || 0)}
-                            </span>
-                          </Link>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Filter action button */}
-                  <div className="pt-3 border-t border-slate-200/60 mt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextId = isSelected ? "" : site.id;
-                        setActiveSiteId(nextId);
-                        if (typeof window !== "undefined") {
-                          localStorage.setItem("buildtrack_active_site", nextId);
-                          document.cookie = `buildtrack_active_site=${nextId}; path=/; max-age=31536000; SameSite=Lax`;
-                          window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: nextId } }));
-                        }
-                      }}
-                      className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                        isSelected
-                          ? "bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-2xs"
-                          : "bg-slate-900 text-white hover:bg-slate-800 shadow-2xs"
-                      }`}
-                    >
-                      <span>{isSelected ? "✓ Filtering Active" : "Filter Dashboard to this Site →"}</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Active Projects and Tasks Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Active Projects List */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <FolderKanban className="w-4 h-4 text-amber-500" />
-                <span>
-                  {!activeSiteId
-                    ? "All Active Sites & Projects"
-                    : `Active Projects (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
-                </span>
-              </h2>
-              <Link href="/projects" className="text-xs font-semibold text-amber-600 hover:underline">
-                View All
-              </Link>
             </div>
+            {!collapsedSections.quickDock && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3.5 animate-in fade-in">
+                <Link
+                  href="/materials"
+                  className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all"
+                >
+                  <PackagePlus className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div className="text-left">
+                    <div className="text-xs font-bold text-white">Receive Goods</div>
+                    <div className="text-[10px] text-slate-400">Log vendor delivery</div>
+                  </div>
+                </Link>
 
-            {projects.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                No active projects found.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {projects.slice(0, 4).map((p) => (
-                  <Link
-                    key={p.id}
-                    href={`/projects/${p.id}`}
-                    className="p-3.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:shadow-xs bg-slate-50/50 flex flex-col gap-2 transition block"
+                <Link
+                  href="/materials"
+                  className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all"
+                >
+                  <PackageMinus className="w-5 h-5 text-amber-400 shrink-0" />
+                  <div className="text-left">
+                    <div className="text-xs font-bold text-white">Issue Material</div>
+                    <div className="text-[10px] text-slate-400">Consume to task</div>
+                  </div>
+                </Link>
+
+                {!isUserCheckedIn ? (
+                  <button
+                    onClick={handleQuickCheckInOut}
+                    disabled={submittingCheckIn}
+                    className="p-3 bg-emerald-950/40 hover:bg-emerald-900/60 rounded-xl border border-emerald-600/50 flex items-center gap-2.5 transition-all text-left disabled:opacity-50"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-slate-900 text-sm">{p.name}</div>
-                      <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">
-                        {p.code}
-                      </span>
+                    <UserCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <div>
+                      <div className="text-xs font-bold text-white">
+                        {submittingCheckIn ? "Checking In..." : "Check In"}
+                      </div>
+                      <div className="text-[10px] text-emerald-300">Tap to record attendance</div>
                     </div>
-                    <div className="text-xs text-slate-500 flex items-center justify-between">
-                      <span>Site: {p.site?.name || "Main Site"}</span>
-                      <span className="font-semibold text-slate-700 tabular-nums">
-                        Budget: {formatCurrency(p.budgetAmount)}
-                      </span>
+                  </button>
+                ) : !isUserCheckedOut ? (
+                  <button
+                    onClick={handleQuickCheckInOut}
+                    disabled={submittingCheckIn}
+                    className="p-3 bg-rose-950/40 hover:bg-rose-900/60 rounded-xl border border-rose-600/50 flex items-center gap-2.5 transition-all text-left disabled:opacity-50"
+                  >
+                    <Clock className="w-5 h-5 text-rose-400 shrink-0" />
+                    <div>
+                      <div className="text-xs font-bold text-white">
+                        {submittingCheckIn ? "Checking Out..." : "Check Out"}
+                      </div>
+                      <div className="text-[10px] text-rose-300">Tap to end shift</div>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
-                      <span>Tasks: {p._count?.tasks ?? 0}</span>
-                      <span>Daily Reports: {p._count?.dailyReports ?? 0}</span>
-                      <span className="ml-auto font-medium text-emerald-600">
-                        ● {p.status}
-                      </span>
+                  </button>
+                ) : (
+                  <Link
+                    href="/attendance"
+                    className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all text-left"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <div>
+                      <div className="text-xs font-bold text-white">Shift Done</div>
+                      <div className="text-[10px] text-slate-400">View attendance log</div>
                     </div>
                   </Link>
-                ))}
+                )}
+
+                <button
+                  onClick={() => setShowQuickTaskModal(true)}
+                  className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all text-left"
+                >
+                  <CheckSquare className="w-5 h-5 text-purple-400 shrink-0" />
+                  <div>
+                    <div className="text-xs font-bold text-white">Quick Task</div>
+                    <div className="text-[10px] text-slate-400">Create new site task</div>
+                  </div>
+                </button>
               </div>
             )}
           </div>
+        )}
 
-          {/* Pending Incomplete Tasks Quick List */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <CheckSquare className="w-4 h-4 text-blue-500" />
-                <h2 className="text-base font-bold text-slate-900">
-                  {!activeSiteId
-                    ? "Pending Incomplete Tasks"
-                    : `Pending Tasks (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
-                </h2>
-                <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
-                  {pendingIncompleteTasks.length}
-                </span>
+        {/* Every Active Site Dashboard Details */}
+        {(activeSectionTab === "ALL" || activeSectionTab === "SITES") && (
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span>Every Active Site Dashboard Details</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                      {displayedSites.length} Active {displayedSites.length === 1 ? "Location" : "Locations"}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Live operational breakdown and project status across every construction site
+                  </p>
+                </div>
               </div>
-
               <div className="flex items-center gap-2">
-                {/* 4 Overdue Tasks Flag / Quick Filter Toggle */}
-                {overdueTasksCount > 0 && (
+                {!activeSiteId ? (
+                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 w-max flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>All Sites Unified</span>
+                  </span>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setTaskFilterOverdueOnly(!taskFilterOverdueOnly)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                      taskFilterOverdueOnly
-                        ? "bg-rose-600 text-white shadow-xs"
-                        : "bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300"
-                    }`}
-                    title="Click to toggle overdue tasks only"
+                    onClick={() => {
+                      setActiveSiteId("");
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("buildtrack_active_site", "");
+                        document.cookie = "buildtrack_active_site=; path=/; max-age=31536000; SameSite=Lax";
+                        window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
+                      }
+                    }}
+                    className="text-amber-600 hover:text-amber-700 font-bold text-xs hover:underline flex items-center gap-1"
                   >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>{overdueTasksCount} Overdue</span>
+                    <span>← Show All Sites Overview</span>
                   </button>
                 )}
-                <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
-                  Open Kanban &rarr;
-                </Link>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionCollapse("sites")}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  title={collapsedSections.sites ? "Expand Sites Section" : "Collapse Sites Section"}
+                >
+                  <span>{collapsedSections.sites ? "Expand" : "Collapse"}</span>
+                  {collapsedSections.sites ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                </button>
               </div>
             </div>
 
-            {displayedPendingTasks.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                {taskFilterOverdueOnly
-                  ? "No overdue tasks found. All outstanding tasks are on schedule!"
-                  : "No pending tasks found. All caught up!"}
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {displayedPendingTasks.map((t: any) => {
-                  const isOverdue = isTaskOverdue(t);
+            {!collapsedSections.sites && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayedSites.map((site) => {
+                  const siteProjs = projects.filter((p) => p.siteId === site.id);
+                  const isSelected = activeSiteId === site.id;
+                  const totalSiteBudget = siteProjs.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
+                  const siteWorkers = workers.filter((w) => w.defaultSiteId === site.id);
+                  const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+                    (r: any) => r.siteId === site.id || r.siteName?.toLowerCase() === site.name?.toLowerCase()
+                  );
+                  const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
+                  const siteOnSiteCount = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
+
                   return (
                     <div
-                      key={t.id}
-                      className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                        isOverdue
-                          ? "bg-rose-50/70 border-rose-300 hover:border-rose-400 shadow-2xs"
-                          : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                      key={site.id}
+                      className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? "bg-amber-50/50 border-amber-400 ring-2 ring-amber-300/70 shadow-sm"
+                          : "bg-slate-50/60 hover:bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
                       }`}
                     >
-                      <div className="min-w-0 flex-1">
-                        {/* Task Title & Color-Coded UI Priority Badge Aligned Next to Title */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs sm:text-sm font-bold text-slate-900">
-                            {t.title}
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-sm">{site.name}</span>
+                              {site.code && (
+                                <span className="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
+                                  {site.code}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 line-clamp-1">
+                              <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                              <span>{site.address || "Active Site"}</span>
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider shrink-0">
+                            {site.status}
                           </span>
-                          <span
-                            className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                              t.priority === "CRITICAL"
-                                ? "bg-rose-100 text-rose-800 border-rose-300"
-                                : t.priority === "HIGH"
-                                ? "bg-amber-100 text-amber-800 border-amber-300"
-                                : t.priority === "MEDIUM"
-                                ? "bg-blue-100 text-blue-800 border-blue-200"
-                                : "bg-slate-100 text-slate-700 border-slate-200"
-                            }`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                t.priority === "CRITICAL"
-                                  ? "bg-rose-600"
-                                  : t.priority === "HIGH"
-                                  ? "bg-amber-600"
-                                  : t.priority === "MEDIUM"
-                                  ? "bg-blue-600"
-                                  : "bg-slate-500"
-                              }`}
-                            />
-                            <span>{t.priority}</span>
-                          </span>
-
-                          {isOverdue && (
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
-                              <AlertTriangle className="w-3 h-3 text-white" />
-                              <span>OVERDUE</span>
-                            </span>
-                          )}
                         </div>
 
-                        {/* Subtitle details: Project & Due Date */}
-                        <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2.5 flex-wrap">
-                          <span>{t.project?.name || "General Work"}</span>
-                          {t.dueAt && (
-                            <span
-                              className={
-                                isOverdue
-                                  ? "text-rose-600 font-bold flex items-center gap-1"
-                                  : "text-slate-500"
-                              }
-                            >
-                              • Due: <strong className={isOverdue ? "text-rose-600 font-bold" : "text-slate-700"}>{formatDate(t.dueAt)}</strong> {isOverdue && <span className="text-rose-600 font-bold">(Past Due)</span>}
-                            </span>
-                          )}
-                          {t.assignee?.name && (
-                            <span className="text-slate-400">• Assigned to: {t.assignee.name}</span>
+                        {/* Site Statistics Bar */}
+                        <div className="grid grid-cols-3 gap-2 py-2.5 my-2 border-y border-slate-200/60 text-center bg-white/70 rounded-lg">
+                          <div>
+                            <div className="text-[10px] text-slate-500 font-medium">Projects</div>
+                            <div className="text-sm font-black text-slate-900">
+                              {siteProjs.length || site._count?.projects || 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-slate-500 font-medium">On-Site Today</div>
+                            <div className="text-sm font-black text-emerald-600">
+                              {siteOnSiteCount}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-slate-500 font-medium" title="Permanent in-house payroll staff & crew">
+                              Direct Crew
+                            </div>
+                            <div className="text-sm font-black text-slate-700">
+                              {siteWorkers.length || site._count?.workforceMembers || 0}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Breakdown clarification when on-site includes external subcontractor labor */}
+                        {siteOnSiteCount > (siteWorkers.length || site._count?.workforceMembers || 0) && (() => {
+                          const directCrew = siteWorkers.length || site._count?.workforceMembers || 0;
+                          const externalGang = siteOnSiteCount - directCrew;
+                          return (
+                            <div className="text-[10px] bg-amber-50/90 border border-amber-200/70 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-600 font-medium">Includes Subcontractor Labor:</span>
+                                <span className="font-bold text-amber-900">
+                                  +{externalGang} External Gang
+                                </span>
+                              </div>
+                              <div className="text-[9.5px] text-amber-800 font-medium text-right">
+                                ({directCrew} Direct Crew + {externalGang} External = {siteOnSiteCount} On-Site)
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Site Projects List */}
+                        <div className="space-y-1.5 my-2">
+                          <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
+                            <span>Active Projects:</span>
+                            {totalSiteBudget > 0 && (
+                              <span className="text-slate-500 font-mono text-[10px] font-semibold">
+                                Budget: {formatCurrency(totalSiteBudget)}
+                              </span>
+                            )}
+                          </div>
+                          {siteProjs.length === 0 ? (
+                            <div className="text-[11px] text-slate-400 italic p-2 bg-white/60 rounded border border-slate-100">
+                              No active projects logged for this site.
+                            </div>
+                          ) : (
+                            <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                              {siteProjs.map((p) => (
+                                <Link
+                                  key={p.id}
+                                  href={`/projects/${p.id}`}
+                                  className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border border-slate-200/80 hover:border-amber-400 transition-colors block"
+                                >
+                                  <span className="font-semibold text-slate-800 truncate max-w-[170px]">{p.name}</span>
+                                  <span className="font-black text-slate-900 tabular-nums text-[11px]">
+                                    {formatCurrency(p.budgetAmount || 0)}
+                                  </span>
+                                </Link>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
 
-                      {/* Clear Action Button instead of confusing "[✓ Done]" status badge */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      {/* Filter action button */}
+                      <div className="pt-3 border-t border-slate-200/60 mt-2">
                         <button
                           type="button"
-                          onClick={() => handleQuickCompleteTask(t.id, t.title)}
-                          title="Mark task as completed"
-                          className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
+                          onClick={() => {
+                            const nextId = isSelected ? "" : site.id;
+                            setActiveSiteId(nextId);
+                            if (typeof window !== "undefined") {
+                              localStorage.setItem("buildtrack_active_site", nextId);
+                              document.cookie = `buildtrack_active_site=${nextId}; path=/; max-age=31536000; SameSite=Lax`;
+                              window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: nextId } }));
+                            }
+                          }}
+                          className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                            isSelected
+                              ? "bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-2xs"
+                              : "bg-slate-900 text-white hover:bg-slate-800 shadow-2xs"
+                          }`}
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
-                          <span>Complete</span>
+                          <span>{isSelected ? "✓ Filtering Active" : "Filter Dashboard to this Site →"}</span>
                         </button>
                       </div>
                     </div>
@@ -2161,124 +2236,363 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Recent Site Photographs & Quality Inspection Gallery */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                <Camera className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900">Recent Site Photographs & Quality Inspections</h2>
-                <p className="text-xs text-slate-500">Live field images, delivery challans, and progress updates from site teams</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {recentPhotos.length > 0 && (
-                <span className="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                  {recentPhotos.length} Photos
-                </span>
-              )}
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
-                <Upload className="w-3.5 h-3.5 text-amber-400" />
-                <span>{uploadingPhoto ? "Uploading..." : "Upload Photo"}</span>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleDashboardPhotoUpload}
-                  disabled={uploadingPhoto}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
-
-          {photoMsg && (
-            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{photoMsg}</span>
-              </div>
-              <button onClick={() => setPhotoMsg(null)} className="text-emerald-600 hover:text-emerald-800 p-0.5">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {recentPhotos.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-              <Camera className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <div className="font-bold text-slate-700">No site photographs uploaded yet</div>
-              <p className="mt-0.5 mb-3">Supervisors and engineers can capture photos during task execution and material inwards.</p>
-              <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
-                <Upload className="w-3.5 h-3.5" />
-                <span>Upload First Site Photo</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleDashboardPhotoUpload}
-                  disabled={uploadingPhoto}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {recentPhotos.map((photo: any) => (
-                <div
-                  key={photo.id}
-                  className="group relative aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:border-amber-400 transition"
-                >
-                  <img
-                    src={photo.url}
-                    alt={photo.fileName}
-                    onClick={() => setLightboxPhoto(photo)}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300 cursor-pointer"
-                  />
-
-                  {/* Card Action Controls: Replace and Delete */}
-                  <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-xs p-1 rounded-lg">
-                    <label
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-1 text-slate-300 hover:text-amber-400 cursor-pointer transition"
-                      title="Replace / Re-upload this photo"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
-                        disabled={uploadingPhoto}
-                        className="hidden"
-                      />
-                    </label>
+        {/* Active Projects and Tasks Section */}
+        {(activeSectionTab === "ALL" || activeSectionTab === "PROJECTS" || activeSectionTab === "TASKS") && (
+          <div className={activeSectionTab === "ALL" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : "w-full"}>
+            {/* Active Projects List */}
+            {(activeSectionTab === "ALL" || activeSectionTab === "PROJECTS") && (
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <FolderKanban className="w-4 h-4 text-amber-500" />
+                    <h2 className="text-base font-bold text-slate-900">
+                      {!activeSiteId
+                        ? "All Active Sites & Projects"
+                        : `Active Projects (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
+                    </h2>
+                    <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                      {displayedProjects.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link href="/projects" className="text-xs font-semibold text-amber-600 hover:underline">
+                      View All
+                    </Link>
                     <button
-                      onClick={(e) => handleDashboardPhotoDelete(photo.id, photo.fileName, e)}
-                      className="p-1 text-slate-300 hover:text-rose-400 transition"
-                      title="Delete photo"
+                      type="button"
+                      onClick={() => toggleSectionCollapse("projects")}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                      title={collapsedSections.projects ? "Expand Projects" : "Collapse Projects"}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{collapsedSections.projects ? "Expand" : "Collapse"}</span>
+                      {collapsedSections.projects ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
                     </button>
                   </div>
+                </div>
 
-                  <div
-                    onClick={() => setLightboxPhoto(photo)}
-                    className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex flex-col justify-end text-white cursor-pointer pointer-events-none"
-                  >
-                    <div className="text-[11px] font-bold truncate">{photo.fileName}</div>
-                    <div className="text-[10px] text-slate-300 flex items-center justify-between mt-0.5">
-                      <span>{photo.uploadedBy || "Site Team"}</span>
-                      <span>{formatDate(photo.createdAt)}</span>
+                {!collapsedSections.projects && (
+                  displayedProjects.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-xs">
+                      {dashboardFilterQuery ? `No projects match "${dashboardFilterQuery}"` : "No active projects found."}
                     </div>
+                  ) : (
+                    <div className={activeSectionTab === "PROJECTS" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5" : "space-y-3"}>
+                      {displayedProjects.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/projects/${p.id}`}
+                          className="p-3.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:shadow-xs bg-slate-50/50 flex flex-col gap-2 transition block"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold text-slate-900 text-sm truncate">{p.name}</div>
+                            <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded shrink-0">
+                              {p.code}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 flex items-center justify-between">
+                            <span>Site: {p.site?.name || "Main Site"}</span>
+                            <span className="font-semibold text-slate-700 tabular-nums">
+                              Budget: {formatCurrency(p.budgetAmount)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+                            <span>Tasks: {p._count?.tasks ?? 0}</span>
+                            <span>Daily Reports: {p._count?.dailyReports ?? 0}</span>
+                            <span className="ml-auto font-medium text-emerald-600">
+                              ● {p.status}
+                            </span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* Pending Incomplete Tasks Quick List */}
+            {(activeSectionTab === "ALL" || activeSectionTab === "TASKS") && (
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <CheckSquare className="w-4 h-4 text-blue-500" />
+                    <h2 className="text-base font-bold text-slate-900">
+                      {!activeSiteId
+                        ? "Pending Incomplete Tasks"
+                        : `Pending Tasks (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
+                    </h2>
+                    <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                      {displayedPendingTasks.length}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* 4 Overdue Tasks Flag / Quick Filter Toggle */}
+                    {overdueTasksCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setTaskFilterOverdueOnly(!taskFilterOverdueOnly)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                          taskFilterOverdueOnly
+                            ? "bg-rose-600 text-white shadow-xs"
+                            : "bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300"
+                        }`}
+                        title="Click to toggle overdue tasks only"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>{overdueTasksCount} Overdue</span>
+                      </button>
+                    )}
+                    <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
+                      Open Kanban &rarr;
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => toggleSectionCollapse("tasks")}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                      title={collapsedSections.tasks ? "Expand Tasks" : "Collapse Tasks"}
+                    >
+                      <span>{collapsedSections.tasks ? "Expand" : "Collapse"}</span>
+                      {collapsedSections.tasks ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
                 </div>
-              ))}
+
+                {!collapsedSections.tasks && (
+                  displayedPendingTasks.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-xs">
+                      {taskFilterOverdueOnly
+                        ? "No overdue tasks found. All outstanding tasks are on schedule!"
+                        : dashboardFilterQuery
+                        ? `No tasks match "${dashboardFilterQuery}"`
+                        : "No pending tasks found. All caught up!"}
+                    </div>
+                  ) : (
+                    <div className={activeSectionTab === "TASKS" ? "grid grid-cols-1 md:grid-cols-2 gap-3" : "space-y-2.5"}>
+                      {displayedPendingTasks.map((t: any) => {
+                        const isOverdue = isTaskOverdue(t);
+                        return (
+                          <div
+                            key={t.id}
+                            className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                              isOverdue
+                                ? "bg-rose-50/70 border-rose-300 hover:border-rose-400 shadow-2xs"
+                                : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              {/* Task Title & Color-Coded UI Priority Badge Aligned Next to Title */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs sm:text-sm font-bold text-slate-900">
+                                  {t.title}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
+                                    t.priority === "CRITICAL"
+                                      ? "bg-rose-100 text-rose-800 border-rose-300"
+                                      : t.priority === "HIGH"
+                                      ? "bg-amber-100 text-amber-800 border-amber-300"
+                                      : t.priority === "MEDIUM"
+                                      ? "bg-blue-100 text-blue-800 border-blue-200"
+                                      : "bg-slate-100 text-slate-700 border-slate-200"
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full ${
+                                      t.priority === "CRITICAL"
+                                        ? "bg-rose-600"
+                                        : t.priority === "HIGH"
+                                        ? "bg-amber-600"
+                                        : t.priority === "MEDIUM"
+                                        ? "bg-blue-600"
+                                        : "bg-slate-500"
+                                    }`}
+                                  />
+                                  <span>{t.priority}</span>
+                                </span>
+
+                                {isOverdue && (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
+                                    <AlertTriangle className="w-3 h-3 text-white" />
+                                    <span>OVERDUE</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Subtitle details: Project & Due Date */}
+                              <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2.5 flex-wrap">
+                                <span>{t.project?.name || "General Work"}</span>
+                                {t.dueAt && (
+                                  <span
+                                    className={
+                                      isOverdue
+                                        ? "text-rose-600 font-bold flex items-center gap-1"
+                                        : "text-slate-500"
+                                    }
+                                  >
+                                    • Due: <strong className={isOverdue ? "text-rose-600 font-bold" : "text-slate-700"}>{formatDate(t.dueAt)}</strong> {isOverdue && <span className="text-rose-600 font-bold">(Past Due)</span>}
+                                  </span>
+                                )}
+                                {t.assignee?.name && (
+                                  <span className="text-slate-400">• Assigned to: {t.assignee.name}</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Clear Action Button instead of confusing "[✓ Done]" status badge */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleQuickCompleteTask(t.id, t.title)}
+                                title="Mark task as completed"
+                                className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
+                                <span>Complete</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recent Site Photographs & Quality Inspection Gallery */}
+        {(activeSectionTab === "ALL" || activeSectionTab === "PHOTOS") && (
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Recent Site Photographs & Quality Inspections</h2>
+                  <p className="text-xs text-slate-500">Live field images, delivery challans, and progress updates from site teams</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {displayedPhotos.length > 0 && (
+                  <span className="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                    {displayedPhotos.length} Photos
+                  </span>
+                )}
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
+                  <Upload className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{uploadingPhoto ? "Uploading..." : "Upload Photo"}</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleDashboardPhotoUpload}
+                    disabled={uploadingPhoto}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionCollapse("photos")}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  title={collapsedSections.photos ? "Expand Photos" : "Collapse Photos"}
+                >
+                  <span>{collapsedSections.photos ? "Expand" : "Collapse"}</span>
+                  {collapsedSections.photos ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+
+            {photoMsg && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{photoMsg}</span>
+                </div>
+                <button onClick={() => setPhotoMsg(null)} className="text-emerald-600 hover:text-emerald-800 p-0.5">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {!collapsedSections.photos && (
+              displayedPhotos.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                  <Camera className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <div className="font-bold text-slate-700">No site photographs uploaded yet</div>
+                  <p className="mt-0.5 mb-3">Supervisors and engineers can capture photos during task execution and material inwards.</p>
+                  <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload First Site Photo</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleDashboardPhotoUpload}
+                      disabled={uploadingPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {displayedPhotos.map((photo: any) => (
+                    <div
+                      key={photo.id}
+                      className="group relative aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:border-amber-400 transition"
+                    >
+                      <img
+                        src={photo.url}
+                        alt={photo.fileName}
+                        onClick={() => setLightboxPhoto(photo)}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300 cursor-pointer"
+                      />
+
+                      {/* Card Action Controls: Replace and Delete */}
+                      <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-xs p-1 rounded-lg">
+                        <label
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1 text-slate-300 hover:text-amber-400 cursor-pointer transition"
+                          title="Replace / Re-upload this photo"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
+                            disabled={uploadingPhoto}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          onClick={(e) => handleDashboardPhotoDelete(photo.id, photo.fileName, e)}
+                          className="p-1 text-slate-300 hover:text-rose-400 transition"
+                          title="Delete photo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div
+                        onClick={() => setLightboxPhoto(photo)}
+                        className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex flex-col justify-end text-white cursor-pointer pointer-events-none"
+                      >
+                        <div className="text-[11px] font-bold truncate">{photo.fileName}</div>
+                        <div className="text-[10px] text-slate-300 flex items-center justify-between mt-0.5">
+                          <span>{photo.uploadedBy || "Site Team"}</span>
+                          <span>{formatDate(photo.createdAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        )}
 
         {/* Modal: Quick Task Creation */}
         {showQuickTaskModal && (
