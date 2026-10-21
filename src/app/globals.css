@@ -3,8 +3,24 @@
 @tailwind utilities;
 
 @layer base {
+  *, ::before, ::after {
+    border-color: #475569;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 antialiased font-sans;
+  }
+
+  /* Form controls with crisp dark borders */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    border-color: #475569;
+  }
+
+  /* Tables with clearly defined dark borders */
+  table, th, td {
+    border-color: #475569;
   }
 }
 
