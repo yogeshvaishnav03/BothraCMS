@@ -2,31 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  *, ::before, ::after {
-    border-color: #475569;
-  }
-
-  body {
-    @apply bg-slate-50 text-slate-900 antialiased font-sans;
-  }
-
-  /* Form controls with crisp dark borders */
-  input:not([type="checkbox"]):not([type="radio"]),
-  select,
-  textarea {
-    border-color: #475569;
-  }
-
-  /* Tables with clearly defined dark borders */
-  table, th, td {
-    border-color: #475569;
-  }
+/* ─────────────────────────────────────────────────────────────────────────────
+   Bothra CMS design tokens
+   Deep navy chrome, warm amber→orange accent, soft canvas, hairline borders.
+   ──────────────────────────────────────────────────────────────────────────── */
+:root {
+  --canvas: #f5f6fa;
+  --surface: #ffffff;
+  --hairline: #e3e7ef;
+  --hairline-strong: #cfd6e3;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --accent: #f59e0b;
+  --accent-deep: #ea580c;
+  --chrome: #0b1020;
+  --ring: rgb(245 158 11 / 0.35);
 }
 
 @layer base {
+  *, ::before, ::after {
+    border-color: var(--hairline);
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply text-slate-900 antialiased font-sans;
+    background-color: var(--canvas);
+    background-image:
+      radial-gradient(1200px 600px at 100% -10%, rgb(245 158 11 / 0.07), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgb(99 102 241 / 0.05), transparent 60%);
+    background-attachment: fixed;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1, h2, h3 {
+    @apply font-display;
+    letter-spacing: -0.015em;
+  }
+
+  /* Form controls: soft, roomy, with an amber focus ring */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    border-color: var(--hairline-strong);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):hover,
+  select:hover,
+  textarea:hover {
+    border-color: #b6c0d3;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--ring);
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--accent);
+  }
+
+  table, th, td {
+    border-color: var(--hairline);
+  }
+  thead th {
+    font-feature-settings: "tnum";
   }
 
   /* Visible keyboard focus everywhere, without changing mouse/touch styling */
@@ -34,7 +80,7 @@
   button:focus-visible,
   [role="button"]:focus-visible,
   summary:focus-visible {
-    outline: 2px solid #f59e0b;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 
@@ -46,6 +92,98 @@
   img, video, canvas, svg {
     max-width: 100%;
   }
+
+  ::selection {
+    background: rgb(245 158 11 / 0.25);
+  }
+
+  /* Slim, quiet scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #c7cede transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #c7cede;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Cards across all pages: hairline border, soft depth, gentle hover.
+     No transform here, so fixed-position modals inside cards keep working. */
+  .app-main .bg-white.rounded-2xl,
+  .app-main .bg-white.rounded-xl {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .app-main .bg-white.rounded-2xl:hover {
+    box-shadow: 0 6px 20px -8px rgb(15 23 42 / 0.12), 0 2px 6px -2px rgb(15 23 42 / 0.05);
+  }
+
+  /* Glass surfaces */
+  .glass {
+    background: rgb(255 255 255 / 0.72);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+  }
+  .glass-dark {
+    background: rgb(11 16 32 / 0.78);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+  }
+
+  /* Accent gradient text and fills */
+  .text-gradient-brand {
+    background-image: linear-gradient(135deg, #fbbf24 0%, #f97316 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-gradient-brand {
+    background-image: linear-gradient(135deg, #fbbf24 0%, #f59e0b 45%, #ea580c 100%);
+  }
+  .bg-gradient-chrome {
+    background-image:
+      radial-gradient(600px 300px at 0% 0%, rgb(245 158 11 / 0.12), transparent 60%),
+      radial-gradient(500px 400px at 100% 100%, rgb(99 102 241 / 0.12), transparent 60%),
+      linear-gradient(180deg, #0d1326 0%, #0a0f1f 100%);
+  }
+
+  /* Skeleton shimmer */
+  .skeleton {
+    background: linear-gradient(90deg, #eef1f6 25%, #f7f9fc 37%, #eef1f6 63%);
+    background-size: 400% 100%;
+    @apply animate-shimmer rounded-lg;
+  }
+
+  /* Page entrance: children rise in, staggered. `backwards` fill leaves no
+     transform behind once finished (a lingering transform would trap modals). */
+  .page-enter > * {
+    animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .page-enter > *:nth-child(2) { animation-delay: 40ms; }
+  .page-enter > *:nth-child(3) { animation-delay: 80ms; }
+  .page-enter > *:nth-child(4) { animation-delay: 120ms; }
+  .page-enter > *:nth-child(5) { animation-delay: 160ms; }
+  .page-enter > *:nth-child(n + 6) { animation-delay: 200ms; }
+
+  .stagger > * {
+    animation: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .stagger > *:nth-child(2) { animation-delay: 50ms; }
+  .stagger > *:nth-child(3) { animation-delay: 100ms; }
+  .stagger > *:nth-child(4) { animation-delay: 150ms; }
+  .stagger > *:nth-child(5) { animation-delay: 200ms; }
+  .stagger > *:nth-child(6) { animation-delay: 250ms; }
+  .stagger > *:nth-child(n + 7) { animation-delay: 300ms; }
 }
 
 @layer utilities {
@@ -55,8 +193,44 @@
     overscroll-behavior-x: contain;
     max-width: 100%;
   }
+
+  .backdrop-blur-xs {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+
+  /* Pages use tailwindcss-animate class names (animate-in, fade-in, slide-in-from-*,
+     zoom-in-95) without the plugin installed; give them a real entrance. */
+  .animate-in {
+    animation: fade-up 0.25s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .animate-in.zoom-in-95 {
+    animation-name: scale-in;
+  }
+  .animate-in.slide-in-from-bottom-5,
+  .animate-in.slide-in-from-bottom-4 {
+    animation-name: fade-up;
+  }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

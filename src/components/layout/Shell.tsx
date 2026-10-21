@@ -32,7 +32,7 @@ import {
   Check,
   MessageSquare,
   Zap,
-  Filter,
+  Search,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import InteractiveGuideModal from "@/components/ui/InteractiveGuideModal";
@@ -65,6 +65,20 @@ export default function Shell({ children }: ShellProps) {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
   const prevChatCountRef = useRef(0);
+
+  // Live date and clock for the top bar (India time, the company's timezone).
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const todayLabel = now.toLocaleDateString(language === "hi" ? "hi-IN" : "en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Kolkata",
+  });
+  const clock = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
 
   // Fetch operational alerts and unread chat message counts
   const fetchNotifications = useCallback(() => {
@@ -166,254 +180,264 @@ export default function Shell({ children }: ShellProps) {
     router.push("/login");
   };
 
-  const navItemsDef = [
-    { key: "nav.dashboard", defaultLabel: "Dashboard", href: "/", icon: LayoutDashboard },
-    { key: "nav.dayBook", defaultLabel: "Day Book", href: "/day-book", icon: CalendarDays },
-    { key: "nav.projects", defaultLabel: "Projects", href: "/projects", icon: FolderKanban },
-    { key: "nav.tasks", defaultLabel: "Tasks & Work", href: "/tasks", icon: CheckSquare },
-    { key: "nav.materials", defaultLabel: "Materials & Stock", href: "/materials", icon: Boxes },
-    { key: "nav.measurementBook", defaultLabel: "Measurement Book", href: "/measurement-book", icon: BookOpen },
-    { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
-    { key: "nav.finance", defaultLabel: "Finance & Bills", href: "/finance", icon: DollarSign },
-    { key: "nav.workforce", defaultLabel: "Workforce", href: "/workforce", icon: Users },
-    { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
-    { key: "nav.reports", defaultLabel: "Reports & Analytics", href: "/reports", icon: FileText },
-    { key: "nav.audit", defaultLabel: "Audit Logs", href: "/audit", icon: ShieldCheck },
-    { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
-    { key: "nav.settings", defaultLabel: "Settings", href: "/settings", icon: Settings },
-    ...(user?.role === "SUPER_ADMIN"
-      ? [{ key: "nav.superAdmin", defaultLabel: "Super Admin", href: "/admin", icon: ShieldAlert }]
-      : []),
+  type NavItem = { key: string; defaultLabel: string; href: string; icon: typeof LayoutDashboard };
+  const navGroups: { key: string; label: string; items: NavItem[] }[] = [
+    {
+      key: "nav.group.overview",
+      label: "Overview",
+      items: [
+        { key: "nav.dashboard", defaultLabel: "Dashboard", href: "/", icon: LayoutDashboard },
+        { key: "nav.dayBook", defaultLabel: "Day Book", href: "/day-book", icon: CalendarDays },
+        { key: "nav.reports", defaultLabel: "Reports & Analytics", href: "/reports", icon: FileText },
+      ],
+    },
+    {
+      key: "nav.group.siteWork",
+      label: "Site work",
+      items: [
+        { key: "nav.projects", defaultLabel: "Projects", href: "/projects", icon: FolderKanban },
+        { key: "nav.tasks", defaultLabel: "Tasks & Work", href: "/tasks", icon: CheckSquare },
+        { key: "nav.measurementBook", defaultLabel: "Measurement Book", href: "/measurement-book", icon: BookOpen },
+        { key: "nav.materials", defaultLabel: "Materials & Stock", href: "/materials", icon: Boxes },
+      ],
+    },
+    {
+      key: "nav.group.money",
+      label: "Money",
+      items: [
+        { key: "nav.finance", defaultLabel: "Finance & Bills", href: "/finance", icon: DollarSign },
+        { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
+      ],
+    },
+    {
+      key: "nav.group.people",
+      label: "People",
+      items: [
+        { key: "nav.workforce", defaultLabel: "Workforce", href: "/workforce", icon: Users },
+        { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
+        { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
+      ],
+    },
+    {
+      key: "nav.group.admin",
+      label: "Admin",
+      items: [
+        { key: "nav.audit", defaultLabel: "Audit Logs", href: "/audit", icon: ShieldCheck },
+        { key: "nav.settings", defaultLabel: "Settings", href: "/settings", icon: Settings },
+        ...(user?.role === "SUPER_ADMIN"
+          ? [{ key: "nav.superAdmin", defaultLabel: "Super Admin", href: "/admin", icon: ShieldAlert }]
+          : []),
+      ],
+    },
   ];
+  const navItemsDef = navGroups.flatMap((g) => g.items);
+  const isActiveHref = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href));
+  const currentNav = navItemsDef.find((i) => isActiveHref(i.href));
+  const roleLabel = (user?.role || "").toLowerCase().replace(/_/g, " ");
+  const userInitials =
+    (user?.name || "U")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p: string) => p[0]?.toUpperCase())
+      .join("") || "U";
+
+  const languageToggle = (size: "sm" | "md") => (
+    <div className="flex items-center rounded-lg p-0.5 bg-slate-100 ring-1 ring-slate-200">
+      {(["en", "hi"] as const).map((code) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => setLanguage(code)}
+          className={`${size === "sm" ? "px-1.5 text-[10px]" : "px-2 text-[11px]"} py-0.5 rounded-md font-bold transition ${
+            language === code ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+          }`}
+          title={code === "en" ? "Switch to English" : "हिन्दी में बदलें"}
+        >
+          {code === "en" ? "EN" : "हिन्दी"}
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderNavLink = (item: NavItem, onNavigate?: () => void) => {
+    const Icon = item.icon;
+    const isActive = isActiveHref(item.href);
+    const isMessages = item.href === "/chat";
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={isActive ? "page" : undefined}
+        className={`group relative flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
+          isActive
+            ? "bg-gradient-to-r from-amber-500/20 to-amber-500/5 text-white ring-1 ring-amber-400/25"
+            : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+        }`}
+      >
+        {isActive && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-gradient-to-b from-amber-300 to-orange-500" />
+        )}
+        <span className="flex items-center gap-3 min-w-0">
+          <Icon
+            className={`w-[18px] h-[18px] shrink-0 transition-colors ${
+              isActive ? "text-amber-400" : "text-slate-500 group-hover:text-slate-300"
+            }`}
+          />
+          <span className="truncate">{t(item.key, item.defaultLabel)}</span>
+        </span>
+        {isMessages && unreadChatCount > 0 && (
+          <span className="px-1.5 min-w-[20px] h-5 rounded-full text-[10px] font-bold shrink-0 flex items-center justify-center bg-gradient-brand text-slate-950 shadow-glow">
+            {unreadChatCount > 99 ? "99+" : unreadChatCount}
+          </span>
+        )}
+      </Link>
+    );
+  };
+
+  const siteSelect = (
+    <select
+      value={activeSiteId}
+      onChange={(e) => handleSiteChange(e.target.value)}
+      className="w-full bg-white/[0.06] text-slate-100 text-xs font-medium pl-2.5 pr-7 py-2 rounded-xl border border-white/10 hover:border-white/20 focus:outline-none focus:border-amber-400 transition-colors cursor-pointer"
+      aria-label={t("nav.activeSite", "Active Site")}
+    >
+      <option value="" className="bg-slate-900 text-amber-400 font-bold">
+        {t("nav.allSites", "All sites (overview)")}
+      </option>
+      {sites.map((s) => (
+        <option key={s.id} value={s.id} className="bg-slate-900 text-slate-100">
+          {s.name} ({s.code})
+        </option>
+      ))}
+    </select>
+  );
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-slate-300 font-medium">{t("nav.loading", "Loading Build Track Pro...")}</span>
+      <div className="min-h-screen bg-gradient-chrome flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 animate-fade-in">
+          <div className="relative w-14 h-14">
+            <div className="absolute inset-0 rounded-2xl bg-gradient-brand shadow-glow animate-pulse" />
+            <div className="absolute inset-0 flex items-center justify-center font-display font-extrabold text-2xl text-slate-950">
+              B
+            </div>
+          </div>
+          <span className="text-slate-400 text-sm font-medium">{t("nav.loading", "Loading Bothra CMS…")}</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50 overflow-x-clip">
+    <div className="min-h-screen flex flex-col lg:flex-row overflow-x-clip">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-slate-900 border-r border-slate-800 text-slate-200 shrink-0">
-        <div className="p-5 flex items-center justify-between border-b border-slate-800">
-          <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
-            <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center font-black text-slate-950 text-xl shadow-md shrink-0">
-              B
+      <aside className="hidden lg:flex lg:flex-col lg:w-[260px] bg-gradient-chrome text-slate-200 shrink-0 lg:sticky lg:top-0 lg:h-screen border-r border-white/5">
+        <div className="px-5 pt-5 pb-4 flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-brand flex items-center justify-center font-display font-extrabold text-slate-950 text-xl shadow-glow shrink-0">
+            B
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-display font-extrabold text-white tracking-tight text-[17px] leading-tight">
+              Bothra <span className="text-gradient-brand">CMS</span>
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="font-bold text-white tracking-tight flex items-center gap-1.5">
-                Bothra <span className="text-amber-400 font-black">CMS</span>
-              </div>
-              <div
-                className="text-xs text-slate-400 font-medium truncate"
-                title={user?.organizationName || "Bothra Infrastructure"}
-              >
-                {user?.organizationName || "Bothra Infrastructure"}
-              </div>
+            <div
+              className="text-[11px] text-slate-500 font-medium truncate"
+              title={user?.organizationName || "Bothra Infrastructure"}
+            >
+              {user?.organizationName || "Bothra Infrastructure"}
             </div>
           </div>
-          <button
-            onClick={() => setNotificationsOpen(!notificationsOpen)}
-            className="relative p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition"
-            title={t("nav.alerts", "Operational Alerts")}
-          >
-            <Bell className="w-4 h-4" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </button>
         </div>
 
-        <div className="p-4 border-b border-slate-800 bg-slate-950/40">
-          <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-1.5 flex items-center justify-between">
+        <div className="px-4 pb-3">
+          <div className="text-[10px] text-slate-500 uppercase tracking-[0.12em] font-semibold mb-1.5 flex items-center justify-between px-1">
             <span>{t("nav.activeSite", "Active Site")}</span>
             <span
-              className={`w-2 h-2 rounded-full shrink-0 ${
-                activeSiteId ? "bg-emerald-400" : "bg-amber-400 animate-pulse"
-              }`}
+              className={`w-2 h-2 rounded-full shrink-0 ${activeSiteId ? "bg-emerald-400 animate-pulse-ring" : "bg-amber-400"}`}
               title={activeSiteId ? "Specific Site Selected" : "All Active Sites (Overview)"}
             ></span>
           </div>
           {sites.length > 0 ? (
-            <select
-              value={activeSiteId}
-              onChange={(e) => handleSiteChange(e.target.value)}
-              className="w-full bg-slate-800/90 text-slate-100 text-xs font-semibold px-2.5 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400 transition-colors cursor-pointer"
-            >
-              <option value="" className="bg-slate-900 text-amber-400 font-bold">
-                🌐 All Active Sites (Overview)
-              </option>
-              {sites.map((s) => (
-                <option key={s.id} value={s.id} className="bg-slate-900 text-slate-100">
-                  {s.name} ({s.code})
-                </option>
-              ))}
-            </select>
+            siteSelect
           ) : (
-            <div className="text-xs text-slate-400 bg-slate-800/80 px-2.5 py-1.5 rounded border border-slate-700">
-              Skyline Heights Sector 62
+            <div className="text-xs text-slate-400 bg-white/[0.06] px-2.5 py-2 rounded-xl border border-white/10">
+              {t("nav.noSites", "No sites yet")}
             </div>
           )}
         </div>
 
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItemsDef.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-            const isMessages = item.href === "/chat";
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? "bg-amber-500 text-slate-950 font-semibold shadow-sm"
-                    : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-slate-950" : "text-slate-400"}`} />
-                  <span className="truncate">{t(item.key, item.defaultLabel)}</span>
-                </div>
-                {isMessages && unreadChatCount > 0 && (
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 flex items-center justify-center animate-pulse ${
-                      isActive
-                        ? "bg-slate-950 text-amber-400"
-                        : "bg-amber-500 text-slate-950"
-                    }`}
-                  >
-                    {unreadChatCount > 99 ? "99+" : unreadChatCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 px-3 pb-3 overflow-y-auto space-y-4 [scrollbar-color:rgb(255_255_255/0.15)_transparent]">
+          {navGroups.map((group) => (
+            <div key={group.key}>
+              <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-600">
+                {t(group.key, group.label)}
+              </div>
+              <div className="space-y-0.5">{group.items.map((item) => renderNavLink(item))}</div>
+            </div>
+          ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 truncate">
-            <div className="w-8 h-8 rounded-full bg-slate-700 text-amber-400 flex items-center justify-center font-bold text-xs uppercase border border-slate-600">
-              {user?.name?.slice(0, 2) || "US"}
+        <div className="m-3 p-3 rounded-2xl bg-white/[0.04] ring-1 ring-white/10 flex items-center justify-between gap-2">
+          <Link href="/settings" className="flex items-center gap-2.5 min-w-0 group">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-orange-600 text-slate-950 flex items-center justify-center font-bold text-xs shrink-0 ring-2 ring-white/10">
+              {userInitials}
             </div>
-            <div className="truncate text-left">
-              <div className="text-xs font-semibold text-white truncate">{user?.name}</div>
-              <div className="text-[11px] text-amber-400/90 font-mono tracking-tight capitalize">
-                {user?.role?.toLowerCase().replace("_", " ")}
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-white truncate group-hover:text-amber-300 transition-colors">
+                {user?.name}
               </div>
+              <div className="text-[11px] text-slate-500 truncate capitalize">{roleLabel}</div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* 1-Click 2-Language Toggle: EN | हिन्दी */}
-            <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
-              <button
-                type="button"
-                onClick={() => setLanguage("en")}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition ${
-                  language === "en"
-                    ? "bg-amber-500 text-slate-950 shadow-xs"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="Switch to English"
-              >
-                EN
-              </button>
-              <button
-                type="button"
-                onClick={() => setLanguage("hi")}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition ${
-                  language === "hi"
-                    ? "bg-amber-500 text-slate-950 shadow-xs"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="हिन्दी में बदलें"
-              >
-                हिन्दी
-              </button>
-            </div>
-            <button
-              onClick={handleLogout}
-              title={t("nav.logout", "Logout")}
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+          </Link>
+          <button
+            onClick={handleLogout}
+            title={t("nav.logout", "Logout")}
+            aria-label={t("nav.logout", "Logout")}
+            className="p-2 text-slate-500 hover:text-rose-400 hover:bg-white/[0.06] rounded-lg transition-colors shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </aside>
 
       {/* Mobile Top Header */}
-      <header className="lg:hidden bg-slate-900 border-b border-slate-800 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded bg-amber-500 flex items-center justify-center font-black text-slate-950 text-base">
+      <header className="lg:hidden glass-dark text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 border-b border-white/10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-brand flex items-center justify-center font-display font-extrabold text-slate-950 text-base shadow-glow shrink-0">
             B
           </div>
-          <span className="font-bold text-white text-base">
-            Bothra <span className="text-amber-400">CMS</span>
-          </span>
+          <div className="min-w-0">
+            <div className="font-display font-extrabold text-white text-[15px] leading-tight">
+              Bothra <span className="text-gradient-brand">CMS</span>
+            </div>
+            <div className="text-[10px] text-slate-400 truncate">{currentNav ? t(currentNav.key, currentNav.defaultLabel) : ""}</div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* 1-Click 2-Language Toggle: EN | हिन्दी */}
-          <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
-            <button
-              type="button"
-              onClick={() => setLanguage("en")}
-              className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
-                language === "en"
-                  ? "bg-amber-500 text-slate-950 shadow-xs"
-                  : "text-slate-400 hover:text-white"
-              }`}
-              title="Switch to English"
-            >
-              EN
-            </button>
-            <button
-              type="button"
-              onClick={() => setLanguage("hi")}
-              className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
-                language === "hi"
-                  ? "bg-amber-500 text-slate-950 shadow-xs"
-                  : "text-slate-400 hover:text-white"
-              }`}
-              title="हिन्दी में बदलें"
-            >
-              हिन्दी
-            </button>
-          </div>
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
-            className="relative p-1.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition"
+            className="relative p-2 text-slate-300 hover:text-amber-400 hover:bg-white/10 rounded-xl transition"
             title={t("nav.alerts", "Operational Alerts")}
+            aria-label={t("nav.alerts", "Operational Alerts")}
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+              <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </button>
-          <div className="text-right mr-1">
-            <div className="text-xs font-semibold text-slate-200">{user?.name}</div>
-            <div className="text-[10px] text-amber-400 font-mono">
-              {user?.role?.replace("_", " ")}
-            </div>
-          </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-slate-300 hover:bg-slate-800 rounded-lg relative"
+            className="p-2 text-slate-300 hover:bg-white/10 rounded-xl relative"
+            aria-label={t("nav.menu", "Menu Navigation")}
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             {!mobileMenuOpen && unreadChatCount > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
             )}
           </button>
         </div>
@@ -421,108 +445,60 @@ export default function Shell({ children }: ShellProps) {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col justify-end">
-          <div className="bg-slate-900 rounded-t-2xl p-5 border-t border-slate-700 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">
-                {t("nav.menu", "Menu Navigation")}
-              </span>
-              <div className="flex items-center gap-2">
-                {/* 1-Click 2-Language Toggle: EN | हिन्दी */}
-                <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => setLanguage("en")}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
-                      language === "en"
-                        ? "bg-amber-500 text-slate-950 shadow-xs"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                    title="Switch to English"
-                  >
-                    EN
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLanguage("hi")}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
-                      language === "hi"
-                        ? "bg-amber-500 text-slate-950 shadow-xs"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                    title="हिन्दी में बदलें"
-                  >
-                    हिन्दी
-                  </button>
+        <div
+          className="lg:hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex flex-col justify-end animate-fade-in"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            className="bg-gradient-chrome rounded-t-3xl p-5 border-t border-white/10 max-h-[85vh] overflow-y-auto animate-fade-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
+            <div className="flex items-center justify-between pb-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-orange-600 text-slate-950 flex items-center justify-center font-bold text-xs shrink-0">
+                  {userInitials}
                 </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{user?.name}</div>
+                  <div className="text-[11px] text-slate-400 capitalize">{roleLabel}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {languageToggle("md")}
                 <button
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-1.5 text-slate-400 hover:text-white"
+                  aria-label="Close menu"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
             {sites.length > 0 && (
-              <div className="py-2.5 px-1 border-b border-slate-800">
-                <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold mb-1">
+              <div className="py-2.5">
+                <div className="text-[10px] text-slate-500 uppercase tracking-[0.12em] font-semibold mb-1.5">
                   {t("nav.activeSite", "Active Site")}
                 </div>
-                <select
-                  value={activeSiteId}
-                  onChange={(e) => handleSiteChange(e.target.value)}
-                  className="w-full bg-slate-800 text-slate-100 text-xs font-semibold px-2.5 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400"
-                >
-                  <option value="" className="bg-slate-900 text-amber-400 font-bold">
-                    🌐 All Active Sites (Overview)
-                  </option>
-                  {sites.map((s) => (
-                    <option key={s.id} value={s.id} className="bg-slate-900 text-slate-100">
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
+                {siteSelect}
               </div>
             )}
-            <nav className="py-3 space-y-1">
-              {navItemsDef.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-                const isMessages = item.href === "/chat";
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center justify-between px-3 py-3 rounded-lg text-sm font-medium ${
-                      isActive
-                        ? "bg-amber-500 text-slate-950 font-semibold"
-                        : "text-slate-200 hover:bg-slate-800"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span className="truncate">{t(item.key, item.defaultLabel)}</span>
-                    </div>
-                    {isMessages && unreadChatCount > 0 && (
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 flex items-center justify-center ${
-                          isActive
-                            ? "bg-slate-950 text-amber-400"
-                            : "bg-amber-500 text-slate-950"
-                        }`}
-                      >
-                        {unreadChatCount > 99 ? "99+" : unreadChatCount}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+            <nav className="py-3 space-y-4">
+              {navGroups.map((group) => (
+                <div key={group.key}>
+                  <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-500">
+                    {t(group.key, group.label)}
+                  </div>
+                  <div className="grid grid-cols-1 gap-0.5">
+                    {group.items.map((item) => renderNavLink(item, () => setMobileMenuOpen(false)))}
+                  </div>
+                </div>
+              ))}
             </nav>
-            <div className="pt-3 border-t border-slate-800">
+            <div className="pt-3 border-t border-white/10">
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-rose-500/10 text-rose-400 text-sm font-semibold hover:bg-rose-500/20"
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-500/10 text-rose-300 text-sm font-semibold hover:bg-rose-500/20"
               >
                 <LogOut className="w-4 h-4" />
                 <span>{t("nav.logout", "Log Out")}</span>
@@ -533,58 +509,100 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
-        <div className="max-w-7xl mx-auto space-y-4">
-          {/* Top Interactive Helper & Site Bar for Non-Tech Users */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white border border-slate-200/90 px-3.5 py-2.5 rounded-xl shadow-xs">
-            <div className="flex items-center gap-2 min-w-0">
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${
-                  activeSiteId ? "bg-emerald-500 ring-2 ring-emerald-200" : "bg-amber-400 animate-pulse"
-                }`}
-              />
-              <span className="text-xs font-bold text-slate-800 truncate">
-                {sites.find((s) => s.id === activeSiteId)?.name ||
-                  (language === "hi" ? "सभी सक्रिय साइट्स (ऑल साइट्स)" : "All Active Sites (Overview)")}
-              </span>
-              {pathname !== "/" && (
-                <>
-                  <span className="hidden sm:inline-block text-[11px] text-slate-300">|</span>
-                  <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-slate-500 truncate">
-                    {language === "hi" ? (
-                      <>
-                        <span>💡 टिप: कॉलम हेडर पर</span>
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 bg-slate-100 border border-slate-200 rounded text-slate-700 font-semibold">
-                          <Filter className="w-2.5 h-2.5 text-amber-600" />
-                          <span>फ़नल</span>
-                        </span>
-                        <span>आइकन दबाकर एक्सेल जैसा फ़िल्टर व सॉर्ट करें</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>💡 Tip: Click</span>
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 bg-slate-100 border border-slate-200 rounded text-slate-700 font-semibold">
-                          <Filter className="w-2.5 h-2.5 text-amber-600" />
-                          <span>funnel</span>
-                        </span>
-                        <span>on any column header to sort & filter like Excel</span>
-                      </>
-                    )}
-                  </span>
-                </>
-              )}
+      <main className="app-main flex-1 min-w-0 pb-24 lg:pb-8">
+        {/* Desktop top bar */}
+        <div className="hidden lg:block sticky top-0 z-30 glass border-b border-slate-200/70">
+          <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                <span>{todayLabel}</span>
+                <span className="text-slate-300">•</span>
+                <span className="tabular-nums">{clock}</span>
+                <span className="text-slate-300">•</span>
+                <span className="flex items-center gap-1.5 truncate">
+                  <span className={`w-1.5 h-1.5 rounded-full ${activeSiteId ? "bg-emerald-500" : "bg-amber-500"}`} />
+                  {sites.find((s) => s.id === activeSiteId)?.name ||
+                    (language === "hi" ? "सभी सक्रिय साइट्स" : "All active sites")}
+                </span>
+              </div>
+              <div className="font-display text-[17px] font-bold text-slate-900 truncate">
+                {currentNav ? t(currentNav.key, currentNav.defaultLabel) : "Bothra CMS"}
+              </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* Interactive Page Guide Modal Button */}
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("openQuickActionLauncher"))}
+                className="hidden xl:flex items-center gap-2 w-64 px-3 py-2 rounded-xl bg-white ring-1 ring-slate-200 hover:ring-slate-300 text-slate-400 text-sm transition shadow-xs"
+              >
+                <Search className="w-4 h-4" />
+                <span className="flex-1 text-left">{language === "hi" ? "त्वरित कार्य…" : "Quick actions…"}</span>
+                <kbd className="text-[10px] font-semibold text-slate-500 bg-slate-100 rounded px-1.5 py-0.5">Alt Q</kbd>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("openQuickActionLauncher"))}
+                className="xl:hidden p-2 rounded-xl bg-white ring-1 ring-slate-200 hover:ring-slate-300 text-slate-600 shadow-xs"
+                title={language === "hi" ? "त्वरित कार्य (Alt + Q)" : "Quick Actions (Alt + Q)"}
+              >
+                <Zap className="w-4 h-4" />
+              </button>
+              <InteractiveGuideModal />
+              {languageToggle("md")}
+              <Link
+                href="/chat"
+                className="relative p-2 rounded-xl bg-white ring-1 ring-slate-200 hover:ring-slate-300 text-slate-600 hover:text-slate-900 shadow-xs transition"
+                title={t("nav.chat", "Messages")}
+                aria-label={t("nav.chat", "Messages")}
+              >
+                <MessageSquare className="w-4 h-4" />
+                {unreadChatCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gradient-brand text-slate-950 text-[10px] font-bold flex items-center justify-center">
+                    {unreadChatCount > 9 ? "9+" : unreadChatCount}
+                  </span>
+                )}
+              </Link>
+              <button
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="relative p-2 rounded-xl bg-white ring-1 ring-slate-200 hover:ring-slate-300 text-slate-600 hover:text-slate-900 shadow-xs transition"
+                title={t("nav.alerts", "Operational Alerts")}
+                aria-label={t("nav.alerts", "Operational Alerts")}
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:px-8 lg:py-6 space-y-4">
+          {/* Mobile helper bar: site, guide, language */}
+          <div className="lg:hidden flex items-center justify-between gap-2 bg-white/80 ring-1 ring-slate-200 px-3 py-2 rounded-2xl shadow-xs">
+            <span className="flex items-center gap-2 min-w-0 text-xs font-semibold text-slate-800">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${activeSiteId ? "bg-emerald-500" : "bg-amber-400"}`}
+              />
+              <span className="truncate">
+                {sites.find((s) => s.id === activeSiteId)?.name ||
+                  (language === "hi" ? "सभी सक्रिय साइट्स" : "All active sites")}
+              </span>
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {languageToggle("sm")}
               <InteractiveGuideModal />
             </div>
           </div>
 
-          <div>{children}</div>
+          <div className="page-enter">
+            {children}
+          </div>
         </div>
       </main>
-
       {/* Real-Time Operational Notifications Drawer */}
       {notificationsOpen && (
         <div
@@ -592,14 +610,14 @@ export default function Shell({ children }: ShellProps) {
           onClick={() => setNotificationsOpen(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden mt-12 animate-in fade-in slide-in-from-top-4 duration-200"
+            className="w-full max-w-sm bg-white rounded-2xl shadow-xl ring-1 ring-slate-200 overflow-hidden mt-14 animate-slide-in-right"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+            <div className="p-4 bg-gradient-chrome text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 text-amber-400" />
                 <span className="text-sm font-bold">{t("nav.alerts", "Operational Alerts")}</span>
-                <span className="text-xs bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded-full">
+                <span className="text-xs bg-gradient-brand text-slate-950 font-bold px-1.5 py-0.5 rounded-full">
                   {unreadCount}
                 </span>
               </div>
@@ -652,7 +670,7 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Mobile Supervisor Bottom Dock */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 px-3 py-1.5 flex items-center justify-around z-30 shadow-2xl">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around z-30 shadow-2xl">
         <Link
           href="/"
           className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${
@@ -679,7 +697,7 @@ export default function Shell({ children }: ShellProps) {
           className="flex flex-col items-center -mt-5 relative z-10 focus:outline-none group cursor-pointer"
           title={language === "hi" ? "त्वरित कार्य (Alt + Q)" : "Quick Actions (Alt + Q)"}
         >
-          <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 flex items-center justify-center shadow-lg border-2 border-slate-900 group-hover:scale-105 active:scale-95 transition-transform">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-brand text-slate-950 flex items-center justify-center shadow-glow ring-4 ring-slate-950/80 group-hover:scale-105 active:scale-95 transition-transform">
             <Zap className="w-6 h-6 fill-slate-950 stroke-slate-950" />
           </div>
           <span className="text-[10px] font-bold text-amber-400 mt-0.5">
@@ -792,7 +810,7 @@ export default function Shell({ children }: ShellProps) {
 
       {/* Real-Time Floating Chat Message Notification Toast */}
       {chatToast && (
-        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-slate-900 border border-amber-500/50 text-white p-4 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-5 fade-in duration-300">
+        <div className="fixed bottom-20 lg:bottom-5 right-4 lg:right-5 z-50 max-w-sm w-[calc(100%-2rem)] bg-gradient-chrome ring-1 ring-amber-500/30 text-white p-4 rounded-2xl shadow-xl animate-fade-up">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-9 h-9 rounded-full bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0 shadow-sm">

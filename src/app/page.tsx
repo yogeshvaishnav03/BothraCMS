@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
+import CommandCenter from "@/components/dashboard/CommandCenter";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
@@ -219,6 +220,7 @@ export default function DashboardPage() {
     }
   };
 
+  const isAdminUser = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
   const [kpi, setKpi] = useState<any>(null);
   const [activeKpiModal, setActiveKpiModal] = useState<string | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
@@ -1219,6 +1221,11 @@ export default function DashboardPage() {
   return (
     <Shell>
       <div className="space-y-4">
+        {/* Admin Command Center: the whole company's Day Book at a glance */}
+        {isAdminUser && dashboardMode === "EXECUTIVE" && (
+          <CommandCenter userName={currentUser?.name} siteId={activeSiteId || undefined} />
+        )}
+
         {/* Unified Dashboard Command Hub */}
         <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-xs space-y-3">
           {/* Top Row: Title, Site Indicator, Mode Toggle, and Actions */}

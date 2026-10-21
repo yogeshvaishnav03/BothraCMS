@@ -81,3 +81,15 @@ export function formatDateTime(
     return date.toISOString().replace("T", " ").slice(0, 16);
   }
 }
+
+/** Short Indian-style amount for dashboards: ₹950, ₹12.5K, ₹3.4L, ₹1.2Cr. */
+export function formatCompactINR(amountInPaise: number | null | undefined): string {
+  const rupees = (amountInPaise ?? 0) / 100;
+  const abs = Math.abs(rupees);
+  const sign = rupees < 0 ? "-" : "";
+  const trim = (n: number) => (n >= 100 ? Math.round(n).toString() : n.toFixed(1).replace(/\.0$/, ""));
+  if (abs >= 1e7) return `${sign}₹${trim(abs / 1e7)}Cr`;
+  if (abs >= 1e5) return `${sign}₹${trim(abs / 1e5)}L`;
+  if (abs >= 1e3) return `${sign}₹${trim(abs / 1e3)}K`;
+  return `${sign}₹${Math.round(abs)}`;
+}

@@ -9,7 +9,7 @@ export function Card({ padded = true, className, ...rest }: CardProps) {
   return (
     <div
       className={cn(
-        "bg-white rounded-2xl border border-slate-200 shadow-xs min-w-0",
+        "bg-white rounded-2xl border border-slate-200/80 shadow-xs min-w-0",
         padded && "p-4 sm:p-5",
         className
       )}
@@ -30,7 +30,7 @@ export function CardHeader({ title, subtitle, icon, actions, className }: CardHe
   return (
     <div className={cn("flex flex-wrap items-start justify-between gap-3 mb-4", className)}>
       <div className="min-w-0">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+        <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
           {icon}
           <span className="truncate">{title}</span>
         </h2>

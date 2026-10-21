@@ -33,6 +33,14 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
 export const translations: Record<LanguageCode, Record<string, string>> = {
   en: {
     // Navigation & Menus
+    "nav.group.overview": "Overview",
+    "nav.group.siteWork": "Site work",
+    "nav.group.money": "Money",
+    "nav.group.people": "People",
+    "nav.group.admin": "Admin",
+    "nav.allSites": "All sites (overview)",
+    "nav.noSites": "No sites yet",
+    "cc.title": "Command Center",
     "nav.dashboard": "Dashboard",
     "nav.dayBook": "Day Book",
     "nav.projects": "Projects",
@@ -53,7 +61,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.menu": "Menu Navigation",
     "nav.activeSite": "Active Site",
     "nav.alerts": "Operational Alerts",
-    "nav.loading": "Loading Build Track Pro...",
+    "nav.loading": "Loading Bothra CMS…",
     "nav.language": "Language",
     "nav.switchLanguage": "Switch Language",
     "nav.noAlerts": "No active operational alerts. All site systems normal!",
@@ -257,6 +265,14 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
   },
   hi: {
     // Navigation & Menus
+    "nav.group.overview": "ओवरव्यू",
+    "nav.group.siteWork": "साइट का काम",
+    "nav.group.money": "पैसा",
+    "nav.group.people": "लोग",
+    "nav.group.admin": "एडमिन",
+    "nav.allSites": "सभी साइट्स (ओवरव्यू)",
+    "nav.noSites": "अभी कोई साइट नहीं",
+    "cc.title": "कमांड सेंटर",
     "nav.dashboard": "डैशबोर्ड",
     "nav.dayBook": "डे बुक",
     "nav.projects": "प्रोजेक्ट्स",
@@ -277,7 +293,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.menu": "मेनू नेविगेशन",
     "nav.activeSite": "सक्रिय साइट",
     "nav.alerts": "साइट सूचनाएं",
-    "nav.loading": "बिल्ड ट्रैक प्रो लोड हो रहा है...",
+    "nav.loading": "बोथरा CMS लोड हो रहा है…",
     "nav.language": "भाषा",
     "nav.switchLanguage": "भाषा चुनें",
     "nav.noAlerts": "कोई सक्रिय अलर्ट नहीं है। सभी साइट सिस्टम सामान्य हैं!",
