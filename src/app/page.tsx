@@ -250,6 +250,7 @@ export default function DashboardPage() {
   type DashboardSectionTab = "ALL" | "SITES" | "TASKS" | "PROJECTS" | "PHOTOS";
   const [activeSectionTab, setActiveSectionTab] = useState<DashboardSectionTab>("ALL");
   const [dashboardFilterQuery, setDashboardFilterQuery] = useState("");
+  const [kpiDensity, setKpiDensity] = useState<"compact" | "cards">("compact");
 
   // Collapsible section states for custom workspace layout
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
@@ -1222,258 +1223,256 @@ export default function DashboardPage() {
 
   return (
     <Shell>
-      <div className="space-y-6">
-        {/* Welcome & Site Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-          <div>
+      <div className="space-y-4">
+        {/* Unified Dashboard Command Hub */}
+        <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-xs space-y-3">
+          {/* Top Row: Title, Site Indicator, Mode Toggle, and Actions */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 Site Operations Dashboard
               </h1>
               {!activeSiteId ? (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
-                  <span>🌐 All Active Sites Overview</span>
+                  <span>🌐 All Active Sites</span>
                   {sites.length > 0 && <span className="opacity-75 font-mono">({sites.length})</span>}
                 </span>
               ) : (
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-2xs">
-                  <span>📍 {sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"}</span>
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                    <span>📍 {sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveSiteId("");
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("buildtrack_active_site", "");
+                        document.cookie = "buildtrack_active_site=; path=/; max-age=31536000; SameSite=Lax";
+                        window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
+                      }
+                    }}
+                    className="text-[11px] text-amber-600 hover:text-amber-700 font-bold hover:underline"
+                    title="Clear filter and view all sites"
+                  >
+                    (✕ Reset)
+                  </button>
+                </div>
               )}
             </div>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {!activeSiteId
-                ? `Showing real-time operations, inventory, and finances across all ${sites.length} active construction sites`
-                : `Showing site operations for ${sites.find((s) => s.id === activeSiteId)?.name || "selected location"}`}
-            </p>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowQuickTaskModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>{t("kpi.quickTask", "Quick Task")}</span>
-            </button>
-            <Link
-              href="/materials"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-sm transition-all"
-            >
-              <PackagePlus className="w-4 h-4 text-amber-400" />
-              <span>{t("kpi.quickMaterialIn", "Receive Stock")}</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Dashboard Mode Selector: Executive / Owner vs Personalized Employee Workspace */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setDashboardMode("EXECUTIVE")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                dashboardMode === "EXECUTIVE"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5 text-amber-400" />
-              <span>Owner & Executive Overview</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setDashboardMode("EMPLOYEE")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                dashboardMode === "EMPLOYEE"
-                  ? "bg-amber-500 text-slate-950 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>Personalized Employee Workspace</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Site Switcher Bar */}
-        {sites.length > 0 && (
-          <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-xl overflow-x-auto max-w-full border border-slate-200/80">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveSiteId("");
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("buildtrack_active_site", "");
-                  document.cookie = "buildtrack_active_site=; path=/; max-age=31536000; SameSite=Lax";
-                  window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
-                }
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                !activeSiteId
-                  ? "bg-amber-500 text-slate-950 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-              }`}
-            >
-              <span>🌐 All Active Sites</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                  !activeSiteId ? "bg-slate-950 text-amber-400" : "bg-slate-200 text-slate-700"
-                }`}
-              >
-                {sites.length}
-              </span>
-            </button>
-            {sites.map((s) => {
-              const isSelected = activeSiteId === s.id;
-              return (
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Mode Toggle: Executive / Employee */}
+              <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
                 <button
-                  key={s.id}
                   type="button"
-                  onClick={() => {
-                    setActiveSiteId(s.id);
-                    if (typeof window !== "undefined") {
-                      localStorage.setItem("buildtrack_active_site", s.id);
-                      document.cookie = `buildtrack_active_site=${s.id}; path=/; max-age=31536000; SameSite=Lax`;
-                      window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: s.id } }));
-                    }
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
-                    isSelected
+                  onClick={() => setDashboardMode("EXECUTIVE")}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                    dashboardMode === "EXECUTIVE"
                       ? "bg-slate-900 text-white shadow-xs"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
+                  title="Owner & Executive Overview"
                 >
-                  <span>{s.name}</span>
-                  {s.code && <span className="text-[10px] opacity-75 font-mono">({s.code})</span>}
+                  <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Overview</span>
                 </button>
-              );
-            })}
-          </div>
-        )}
+                <button
+                  type="button"
+                  onClick={() => setDashboardMode("EMPLOYEE")}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                    dashboardMode === "EMPLOYEE"
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Personalized Employee Workspace"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>My Work</span>
+                </button>
+              </div>
 
-        {/* Interactive Dashboard Section Navigator & Live Search Filter */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl overflow-x-auto max-w-full">
-            <button
-              type="button"
-              onClick={() => setActiveSectionTab("ALL")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                activeSectionTab === "ALL"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5 text-amber-400" />
-              <span>All Sections</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSectionTab("SITES")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                activeSectionTab === "SITES"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Site Locations</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                  activeSectionTab === "SITES" ? "bg-emerald-400 text-slate-950" : "bg-slate-200 text-slate-700"
-                }`}
-              >
-                {displayedSites.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSectionTab("TASKS")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                activeSectionTab === "TASKS"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-              }`}
-            >
-              <CheckSquare className="w-3.5 h-3.5 text-blue-400" />
-              <span>Pending Tasks</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                  activeSectionTab === "TASKS" ? "bg-blue-400 text-slate-950" : "bg-slate-200 text-slate-700"
-                }`}
-              >
-                {pendingIncompleteTasks.length}
-              </span>
-              {overdueTasksCount > 0 && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-600 text-white font-bold animate-pulse">
-                  {overdueTasksCount} Overdue
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSectionTab("PROJECTS")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                activeSectionTab === "PROJECTS"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-              }`}
-            >
-              <FolderKanban className="w-3.5 h-3.5 text-purple-400" />
-              <span>Projects</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                  activeSectionTab === "PROJECTS" ? "bg-purple-400 text-slate-950" : "bg-slate-200 text-slate-700"
-                }`}
-              >
-                {displayedProjects.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSectionTab("PHOTOS")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                activeSectionTab === "PHOTOS"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-              }`}
-            >
-              <Camera className="w-3.5 h-3.5 text-amber-400" />
-              <span>Site Photos</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                  activeSectionTab === "PHOTOS" ? "bg-amber-400 text-slate-950" : "bg-slate-200 text-slate-700"
-                }`}
-              >
-                {displayedPhotos.length}
-              </span>
-            </button>
-          </div>
-
-          {/* Quick Filter Search Input */}
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={dashboardFilterQuery}
-              onChange={(e) => setDashboardFilterQuery(e.target.value)}
-              placeholder="Search tasks, projects, sites..."
-              className="w-full pl-8 pr-7 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none transition-colors"
-            />
-            {dashboardFilterQuery && (
+              {/* KPI Density Toggle */}
               <button
                 type="button"
-                onClick={() => setDashboardFilterQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                title="Clear search"
+                onClick={() => setKpiDensity(kpiDensity === "compact" ? "cards" : "compact")}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer"
+                title={kpiDensity === "compact" ? "Expand KPI Cards" : "Compact KPI Strip"}
               >
-                <X className="w-3 h-3" />
+                <LayoutGrid className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden sm:inline">{kpiDensity === "compact" ? "Compact" : "Expanded"}</span>
               </button>
-            )}
+
+              {/* Action Buttons */}
+              <button
+                type="button"
+                onClick={() => setShowQuickTaskModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Quick Task</span>
+              </button>
+              <Link
+                href="/materials"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all"
+              >
+                <PackagePlus className="w-3.5 h-3.5 text-amber-400" />
+                <span>Receive Stock</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Bottom Row: Site Selector Pills + Interactive Section Tabs + Live Search */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
+            {/* Site Selector Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 lg:pb-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSiteId("");
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("buildtrack_active_site", "");
+                    document.cookie = "buildtrack_active_site=; path=/; max-age=31536000; SameSite=Lax";
+                    window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                  !activeSiteId
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                <span>🌐 All Sites</span>
+                <span className="text-[10px] opacity-75 font-mono">({sites.length})</span>
+              </button>
+              {sites.map((s) => {
+                const isSelected = activeSiteId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveSiteId(s.id);
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("buildtrack_active_site", s.id);
+                        document.cookie = `buildtrack_active_site=${s.id}; path=/; max-age=31536000; SameSite=Lax`;
+                        window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: s.id } }));
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                      isSelected
+                        ? "bg-amber-500 text-slate-950 shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span>{s.name}</span>
+                    {s.code && <span className="text-[10px] opacity-75 font-mono">({s.code})</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Interactive Section Tabs + Live Search Filter */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setActiveSectionTab("ALL")}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                    activeSectionTab === "ALL"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
+                  <span>All-In-One</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectionTab("SITES")}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                    activeSectionTab === "SITES"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Sites</span>
+                  <span className="text-[10px] font-mono font-bold bg-slate-200 px-1 py-0.2 rounded">
+                    {displayedSites.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectionTab("TASKS")}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                    activeSectionTab === "TASKS"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <CheckSquare className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Tasks</span>
+                  <span className="text-[10px] font-mono font-bold bg-slate-200 px-1 py-0.2 rounded">
+                    {pendingIncompleteTasks.length}
+                  </span>
+                  {overdueTasksCount > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-600 text-white font-bold animate-pulse">
+                      {overdueTasksCount} Overdue
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectionTab("PROJECTS")}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                    activeSectionTab === "PROJECTS"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <FolderKanban className="w-3.5 h-3.5 text-purple-500" />
+                  <span>Projects</span>
+                  <span className="text-[10px] font-mono font-bold bg-slate-200 px-1 py-0.2 rounded">
+                    {displayedProjects.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectionTab("PHOTOS")}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                    activeSectionTab === "PHOTOS"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Camera className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Photos</span>
+                </button>
+              </div>
+
+              {/* Quick Filter Search Input */}
+              <div className="relative w-full sm:w-44">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Quick filter..."
+                  value={dashboardFilterQuery}
+                  onChange={(e) => setDashboardFilterQuery(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 pl-8 pr-6 py-1 rounded-lg focus:outline-none focus:border-amber-400 transition"
+                />
+                {dashboardFilterQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setDashboardFilterQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    title="Clear search"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1691,12 +1690,149 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Real KPI Cards Grid (Executive Mode) */}
+        {/* Real KPI Cards Strip (Executive Mode) */}
         {dashboardMode === "EXECUTIVE" && (loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-28 rounded-xl bg-slate-200/60 animate-pulse" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+            {[...Array(7)].map((_, i) => (
+              <div key={i} className="h-16 rounded-xl bg-slate-200/60 animate-pulse" />
             ))}
+          </div>
+        ) : kpiDensity === "compact" ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+            {/* Active Projects */}
+            <div
+              onClick={() => setActiveSectionTab("PROJECTS")}
+              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-blue-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+              title="Click to view Active Projects"
+            >
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">{t("kpi.activeProjects", "Projects")}</span>
+                <FolderKanban className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              </div>
+              <div className="text-xl font-black text-slate-900">
+                {kpi?.activeProjectsCount ?? 0}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                {!activeSiteId ? `${sites.length} Active Sites` : "This Site"}
+              </div>
+            </div>
+
+            {/* Workforce on Site Today */}
+            <div
+              onClick={() => setActiveSectionTab("SITES")}
+              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-emerald-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+              title={workerSubCategoryFull}
+            >
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">{t("kpi.workersOnSite", "On Site")}</span>
+                <HardHat className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              </div>
+              <div className="text-xl font-black text-slate-900 flex items-baseline gap-1">
+                <span>{displayTotalWorkersOnSite}</span>
+                {staffDifference > 0 && (
+                  <span className="text-[10px] font-bold text-slate-400">(+{staffDifference})</span>
+                )}
+              </div>
+              <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5" title={workerSubCategoryFull}>
+                {workerSubCategorySummary}
+              </div>
+            </div>
+
+            {/* Critical Materials */}
+            <div
+              onClick={() => setActiveKpiModal("lowStockItems")}
+              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+              title="Click to view Low Stock Inventory details"
+            >
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">{t("kpi.criticalMaterials", "Low Stock")}</span>
+                <Boxes className={`w-3.5 h-3.5 shrink-0 ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-400"}`} />
+              </div>
+              <div className={`text-xl font-black ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-900"}`}>
+                {kpi?.lowStockItemsCount ?? 0}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                Below reorder
+              </div>
+            </div>
+
+            {/* Overdue Tasks */}
+            <div
+              onClick={() => {
+                setActiveSectionTab("TASKS");
+                setTaskFilterOverdueOnly(true);
+              }}
+              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-rose-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+              title="Click to view Overdue Tasks"
+            >
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">Overdue</span>
+                <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${(kpi?.tasksOverdueCount || 0) > 0 ? "text-rose-600" : "text-slate-400"}`} />
+              </div>
+              <div className={`text-xl font-black ${(kpi?.tasksOverdueCount || 0) > 0 ? "text-rose-600" : "text-slate-900"}`}>
+                {kpi?.tasksOverdueCount ?? 0}
+              </div>
+              <div className="text-[10px] text-rose-600 font-bold truncate mt-0.5">
+                Past deadline
+              </div>
+            </div>
+
+            {/* Tasks Due Today */}
+            <div
+              onClick={() => {
+                setActiveSectionTab("TASKS");
+                setTaskFilterOverdueOnly(false);
+              }}
+              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-indigo-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+              title="Click to view Tasks due today"
+            >
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">Due Today</span>
+                <CheckSquare className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              </div>
+              <div className="text-xl font-black text-slate-900">
+                {kpi?.tasksDueTodayCount ?? 0}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                Today schedule
+              </div>
+            </div>
+
+            {/* Paid Today */}
+            <div
+              onClick={() => setActiveKpiModal("paymentsMadeToday")}
+              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-emerald-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+              title="Click to view payments made today"
+            >
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">Paid Today</span>
+                <DollarSign className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              </div>
+              <div className="text-sm font-black text-slate-900 tabular-nums truncate">
+                {formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}
+              </div>
+              <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">
+                Disbursed
+              </div>
+            </div>
+
+            {/* Total Outstanding Payables */}
+            <div
+              onClick={() => setActiveKpiModal("outstandingPayables")}
+              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+              title="Click to view payables breakdown"
+            >
+              <div className="flex items-center justify-between text-slate-500 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider truncate">Payables</span>
+                <TrendingDown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              </div>
+              <div className="text-sm font-black text-amber-600 tabular-nums truncate">
+                {formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}
+              </div>
+              <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                Vendor & contractor
+              </div>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -1935,108 +2071,421 @@ export default function DashboardPage() {
           </div>
         ))}
 
-        {/* Supervisor Mobile Quick Actions Dock */}
+        {/* Supervisor Quick Actions Toolbar */}
         {(activeSectionTab === "ALL" || activeSectionTab === "SITES") && (
-          <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-800 shadow-md transition-all">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wider font-bold text-amber-400">
-                  Site Supervisor Quick Entry Dock
-                </span>
-                <span className="text-[11px] text-slate-400 hidden sm:inline">• Live field actions</span>
-              </div>
+          <div className="bg-slate-900 text-white rounded-xl px-4 py-2.5 border border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3 transition-all">
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wider font-black text-amber-400 flex items-center gap-1.5">
+                <span>⚡ Field Actions:</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link
+                href="/materials"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+              >
+                <PackagePlus className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Receive Goods</span>
+              </Link>
+              <Link
+                href="/materials"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+              >
+                <PackageMinus className="w-3.5 h-3.5 text-amber-400" />
+                <span>Issue Material</span>
+              </Link>
+              {!isUserCheckedIn ? (
+                <button
+                  type="button"
+                  onClick={handleQuickCheckInOut}
+                  disabled={submittingCheckIn}
+                  className="px-3 py-1.5 bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-emerald-600/50 cursor-pointer disabled:opacity-50"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{submittingCheckIn ? "Checking In..." : "Check In"}</span>
+                </button>
+              ) : !isUserCheckedOut ? (
+                <button
+                  type="button"
+                  onClick={handleQuickCheckInOut}
+                  disabled={submittingCheckIn}
+                  className="px-3 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-rose-600/50 cursor-pointer disabled:opacity-50"
+                >
+                  <Clock className="w-3.5 h-3.5 text-rose-400" />
+                  <span>{submittingCheckIn ? "Checking Out..." : "Check Out"}</span>
+                </button>
+              ) : (
+                <Link
+                  href="/attendance"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Shift Done</span>
+                </Link>
+              )}
               <button
                 type="button"
-                onClick={() => toggleSectionCollapse("quickDock")}
-                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                title={collapsedSections.quickDock ? "Expand Dock" : "Minimize Dock"}
+                onClick={() => setShowQuickTaskModal(true)}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
               >
-                <span>{collapsedSections.quickDock ? "Expand Dock" : "Minimize"}</span>
-                {collapsedSections.quickDock ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Quick Task</span>
               </button>
             </div>
-            {!collapsedSections.quickDock && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3.5 animate-in fade-in">
-                <Link
-                  href="/materials"
-                  className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all"
-                >
-                  <PackagePlus className="w-5 h-5 text-emerald-400 shrink-0" />
-                  <div className="text-left">
-                    <div className="text-xs font-bold text-white">Receive Goods</div>
-                    <div className="text-[10px] text-slate-400">Log vendor delivery</div>
-                  </div>
-                </Link>
-
-                <Link
-                  href="/materials"
-                  className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all"
-                >
-                  <PackageMinus className="w-5 h-5 text-amber-400 shrink-0" />
-                  <div className="text-left">
-                    <div className="text-xs font-bold text-white">Issue Material</div>
-                    <div className="text-[10px] text-slate-400">Consume to task</div>
-                  </div>
-                </Link>
-
-                {!isUserCheckedIn ? (
-                  <button
-                    onClick={handleQuickCheckInOut}
-                    disabled={submittingCheckIn}
-                    className="p-3 bg-emerald-950/40 hover:bg-emerald-900/60 rounded-xl border border-emerald-600/50 flex items-center gap-2.5 transition-all text-left disabled:opacity-50"
-                  >
-                    <UserCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-                    <div>
-                      <div className="text-xs font-bold text-white">
-                        {submittingCheckIn ? "Checking In..." : "Check In"}
-                      </div>
-                      <div className="text-[10px] text-emerald-300">Tap to record attendance</div>
-                    </div>
-                  </button>
-                ) : !isUserCheckedOut ? (
-                  <button
-                    onClick={handleQuickCheckInOut}
-                    disabled={submittingCheckIn}
-                    className="p-3 bg-rose-950/40 hover:bg-rose-900/60 rounded-xl border border-rose-600/50 flex items-center gap-2.5 transition-all text-left disabled:opacity-50"
-                  >
-                    <Clock className="w-5 h-5 text-rose-400 shrink-0" />
-                    <div>
-                      <div className="text-xs font-bold text-white">
-                        {submittingCheckIn ? "Checking Out..." : "Check Out"}
-                      </div>
-                      <div className="text-[10px] text-rose-300">Tap to end shift</div>
-                    </div>
-                  </button>
-                ) : (
-                  <Link
-                    href="/attendance"
-                    className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all text-left"
-                  >
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                    <div>
-                      <div className="text-xs font-bold text-white">Shift Done</div>
-                      <div className="text-[10px] text-slate-400">View attendance log</div>
-                    </div>
-                  </Link>
-                )}
-
-                <button
-                  onClick={() => setShowQuickTaskModal(true)}
-                  className="p-3 bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center gap-2.5 transition-all text-left"
-                >
-                  <CheckSquare className="w-5 h-5 text-purple-400 shrink-0" />
-                  <div>
-                    <div className="text-xs font-bold text-white">Quick Task</div>
-                    <div className="text-[10px] text-slate-400">Create new site task</div>
-                  </div>
-                </button>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Every Active Site Dashboard Details */}
-        {(activeSectionTab === "ALL" || activeSectionTab === "SITES") && (
+        {/* ALL-IN-ONE VIEW: Balanced 2-Column Command Center */}
+        {activeSectionTab === "ALL" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            {/* Left Column: Active Site & Projects */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-emerald-600" />
+                  <h2 className="text-base font-bold text-slate-900">
+                    {!activeSiteId ? "Active Construction Sites" : "Selected Site Operations"}
+                  </h2>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                    {!activeSiteId ? `${displayedSites.length} Sites` : (sites.find((s) => s.id === activeSiteId)?.code || "Site")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSectionTab("SITES")}
+                    className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer"
+                  >
+                    View All Sites &rarr;
+                  </button>
+                </div>
+              </div>
+
+              {/* Site Display: if activeSiteId is set, show that site in focus; else show compact list of active sites */}
+              {activeSiteId ? (() => {
+                const site = sites.find((s) => s.id === activeSiteId) || sites[0];
+                const siteProjs = projects.filter((p) => p.siteId === site?.id);
+                const totalSiteBudget = siteProjs.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
+                const siteWorkers = workers.filter((w) => w.defaultSiteId === site?.id);
+                const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+                  (r: any) => r.siteId === site?.id || r.siteName?.toLowerCase() === site?.name?.toLowerCase()
+                );
+                const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site?.name);
+                const siteOnSiteCount = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
+                const directCrew = siteWorkers.length || site?._count?.workforceMembers || 0;
+                const externalGang = siteOnSiteCount > directCrew ? siteOnSiteCount - directCrew : 0;
+
+                return (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-300">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">{site?.name}</span>
+                            {site?.code && (
+                              <span className="text-[10px] font-mono font-bold bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                                {site.code}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{site?.address || "Active Site Location"}</span>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveSiteId("");
+                            if (typeof window !== "undefined") {
+                              localStorage.setItem("buildtrack_active_site", "");
+                              document.cookie = "buildtrack_active_site=; path=/; max-age=31536000; SameSite=Lax";
+                              window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
+                            }
+                          }}
+                          className="text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white px-2 py-1 rounded border border-slate-200 shadow-2xs hover:bg-slate-50 cursor-pointer"
+                        >
+                          ✕ Show All Sites
+                        </button>
+                      </div>
+
+                      {/* Site Statistics Bar */}
+                      <div className="grid grid-cols-3 gap-2 py-2 my-2 border-y border-amber-200/80 text-center bg-white/80 rounded-lg">
+                        <div>
+                          <div className="text-[10px] text-slate-500 font-medium">Projects</div>
+                          <div className="text-sm font-black text-slate-900">{siteProjs.length}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-500 font-medium">On-Site Today</div>
+                          <div className="text-sm font-black text-emerald-600">{siteOnSiteCount}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-500 font-medium">Direct Crew</div>
+                          <div className="text-sm font-black text-slate-700">{directCrew}</div>
+                        </div>
+                      </div>
+
+                      {/* Subcontractor gang label if on-site > direct crew */}
+                      {externalGang > 0 && (
+                        <div className="text-[10px] bg-amber-100/80 border border-amber-300 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-700 font-medium">Includes Subcontractor Labor:</span>
+                            <span className="font-bold text-amber-950">+{externalGang} External Gang</span>
+                          </div>
+                          <div className="text-[9.5px] text-amber-900 font-medium text-right">
+                            ({directCrew} Direct Crew + {externalGang} External = {siteOnSiteCount} On-Site)
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Active Projects List */}
+                      <div className="space-y-1.5 mt-2">
+                        <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                          <span>Site Projects ({siteProjs.length}):</span>
+                          {totalSiteBudget > 0 && (
+                            <span className="text-slate-500 font-mono text-[10px] font-semibold">
+                              Budget: {formatCurrency(totalSiteBudget)}
+                            </span>
+                          )}
+                        </div>
+                        {siteProjs.length === 0 ? (
+                          <div className="text-xs text-slate-400 italic p-2 bg-white rounded border border-slate-200">
+                            No projects currently logged for this site.
+                          </div>
+                        ) : (
+                          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                            {siteProjs.map((p) => (
+                              <Link
+                                key={p.id}
+                                href={`/projects/${p.id}`}
+                                className="flex items-center justify-between text-xs bg-white p-2.5 rounded-lg border border-slate-200 hover:border-amber-400 transition-colors block shadow-2xs"
+                              >
+                                <span className="font-bold text-slate-900 truncate max-w-[200px]">{p.name}</span>
+                                <span className="font-black text-slate-900 tabular-nums text-xs">
+                                  {formatCurrency(p.budgetAmount || 0)}
+                                </span>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {displayedSites.map((site) => {
+                    const siteProjs = projects.filter((p) => p.siteId === site.id);
+                    const siteWorkers = workers.filter((w) => w.defaultSiteId === site.id);
+                    const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+                      (r: any) => r.siteId === site.id || r.siteName?.toLowerCase() === site.name?.toLowerCase()
+                    );
+                    const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
+                    const siteOnSiteCount = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
+                    const directCrew = siteWorkers.length || site._count?.workforceMembers || 0;
+                    const externalGang = siteOnSiteCount > directCrew ? siteOnSiteCount - directCrew : 0;
+
+                    return (
+                      <div
+                        key={site.id}
+                        className="p-3.5 rounded-xl border border-slate-200 hover:border-amber-400 bg-slate-50/50 hover:bg-white transition-all shadow-2xs space-y-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900 text-xs sm:text-sm">{site.name}</span>
+                              {site.code && (
+                                <span className="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded">
+                                  {site.code}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[240px]">
+                              {site.address || "Active Site"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSiteId(site.id);
+                              if (typeof window !== "undefined") {
+                                localStorage.setItem("buildtrack_active_site", site.id);
+                                document.cookie = `buildtrack_active_site=${site.id}; path=/; max-age=31536000; SameSite=Lax`;
+                                window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: site.id } }));
+                              }
+                            }}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-white transition shrink-0 cursor-pointer"
+                          >
+                            Filter Site &rarr;
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5 py-1.5 border-y border-slate-200/60 text-center bg-white rounded-lg">
+                          <div>
+                            <div className="text-[9px] text-slate-500 uppercase font-medium">Projects</div>
+                            <div className="text-xs font-black text-slate-900">{siteProjs.length}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-slate-500 uppercase font-medium">On-Site</div>
+                            <div className="text-xs font-black text-emerald-600">{siteOnSiteCount}</div>
+                          </div>
+                          <div>
+                            <div className="text-[9px] text-slate-500 uppercase font-medium">Crew</div>
+                            <div className="text-xs font-black text-slate-700">{directCrew}</div>
+                          </div>
+                        </div>
+
+                        {externalGang > 0 && (
+                          <div className="text-[9.5px] bg-amber-50 border border-amber-200 px-2 py-1 rounded text-amber-900 flex items-center justify-between">
+                            <span>Includes Subcontractor Labor:</span>
+                            <span className="font-bold">+{externalGang} External Gang</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Pending Incomplete Tasks */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-blue-500" />
+                  <h2 className="text-base font-bold text-slate-900">
+                    {!activeSiteId
+                      ? "Pending Incomplete Tasks"
+                      : `Pending Tasks (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
+                  </h2>
+                  <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                    {displayedPendingTasks.length}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {overdueTasksCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setTaskFilterOverdueOnly(!taskFilterOverdueOnly)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                        taskFilterOverdueOnly
+                          ? "bg-rose-600 text-white shadow-xs"
+                          : "bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300"
+                      }`}
+                      title="Click to toggle overdue tasks only"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>{overdueTasksCount} Overdue</span>
+                    </button>
+                  )}
+                  <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
+                    Kanban &rarr;
+                  </Link>
+                </div>
+              </div>
+
+              {displayedPendingTasks.length === 0 ? (
+                <div className="text-center py-10 text-slate-400 text-xs">
+                  {taskFilterOverdueOnly
+                    ? "No overdue tasks found. All outstanding tasks are on schedule!"
+                    : dashboardFilterQuery
+                    ? `No tasks match "${dashboardFilterQuery}"`
+                    : "No pending tasks found. All caught up!"}
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                  {displayedPendingTasks.map((t: any) => {
+                    const isOverdue = isTaskOverdue(t);
+                    return (
+                      <div
+                        key={t.id}
+                        className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                          isOverdue
+                            ? "bg-rose-50/70 border-rose-300 hover:border-rose-400 shadow-2xs"
+                            : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900">
+                              {t.title}
+                            </span>
+                            <span
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
+                                t.priority === "CRITICAL"
+                                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                                  : t.priority === "HIGH"
+                                  ? "bg-amber-100 text-amber-800 border-amber-300"
+                                  : t.priority === "MEDIUM"
+                                  ? "bg-blue-100 text-blue-800 border-blue-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  t.priority === "CRITICAL"
+                                    ? "bg-rose-600"
+                                    : t.priority === "HIGH"
+                                    ? "bg-amber-600"
+                                    : t.priority === "MEDIUM"
+                                    ? "bg-blue-600"
+                                    : "bg-slate-500"
+                                }`}
+                              />
+                              <span>{t.priority}</span>
+                            </span>
+
+                            {isOverdue && (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
+                                <AlertTriangle className="w-3 h-3 text-white" />
+                                <span>OVERDUE</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                            <span>{t.project?.name || "General Work"}</span>
+                            {t.dueAt && (
+                              <span
+                                className={
+                                  isOverdue
+                                    ? "text-rose-600 font-bold flex items-center gap-1"
+                                    : "text-slate-500"
+                                }
+                              >
+                                • Due: <strong className={isOverdue ? "text-rose-600 font-bold" : "text-slate-700"}>{formatDate(t.dueAt)}</strong> {isOverdue && <span className="text-rose-600 font-bold">(Past Due)</span>}
+                              </span>
+                            )}
+                            {t.assignee?.name && (
+                              <span className="text-slate-400">• {t.assignee.name}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickCompleteTask(t.id, t.title)}
+                            title="Mark task as completed"
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
+                            <span>Complete</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* FULL SITES VIEW */}
+        {activeSectionTab === "SITES" && (
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -2238,228 +2687,219 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Active Projects and Tasks Section */}
-        {(activeSectionTab === "ALL" || activeSectionTab === "PROJECTS" || activeSectionTab === "TASKS") && (
-          <div className={activeSectionTab === "ALL" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : "w-full"}>
-            {/* Active Projects List */}
-            {(activeSectionTab === "ALL" || activeSectionTab === "PROJECTS") && (
-              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <FolderKanban className="w-4 h-4 text-amber-500" />
-                    <h2 className="text-base font-bold text-slate-900">
-                      {!activeSiteId
-                        ? "All Active Sites & Projects"
-                        : `Active Projects (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
-                    </h2>
-                    <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
-                      {displayedProjects.length}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Link href="/projects" className="text-xs font-semibold text-amber-600 hover:underline">
-                      View All
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => toggleSectionCollapse("projects")}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                      title={collapsedSections.projects ? "Expand Projects" : "Collapse Projects"}
-                    >
-                      <span>{collapsedSections.projects ? "Expand" : "Collapse"}</span>
-                      {collapsedSections.projects ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
-
-                {!collapsedSections.projects && (
-                  displayedProjects.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400 text-xs">
-                      {dashboardFilterQuery ? `No projects match "${dashboardFilterQuery}"` : "No active projects found."}
-                    </div>
-                  ) : (
-                    <div className={activeSectionTab === "PROJECTS" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5" : "space-y-3"}>
-                      {displayedProjects.map((p) => (
-                        <Link
-                          key={p.id}
-                          href={`/projects/${p.id}`}
-                          className="p-3.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:shadow-xs bg-slate-50/50 flex flex-col gap-2 transition block"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="font-bold text-slate-900 text-sm truncate">{p.name}</div>
-                            <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded shrink-0">
-                              {p.code}
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-500 flex items-center justify-between">
-                            <span>Site: {p.site?.name || "Main Site"}</span>
-                            <span className="font-semibold text-slate-700 tabular-nums">
-                              Budget: {formatCurrency(p.budgetAmount)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
-                            <span>Tasks: {p._count?.tasks ?? 0}</span>
-                            <span>Daily Reports: {p._count?.dailyReports ?? 0}</span>
-                            <span className="ml-auto font-medium text-emerald-600">
-                              ● {p.status}
-                            </span>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  )
-                )}
+        {/* FULL PROJECTS VIEW */}
+        {activeSectionTab === "PROJECTS" && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <FolderKanban className="w-4 h-4 text-amber-500" />
+                <h2 className="text-base font-bold text-slate-900">
+                  {!activeSiteId
+                    ? "All Active Sites & Projects"
+                    : `Active Projects (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
+                </h2>
+                <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                  {displayedProjects.length}
+                </span>
               </div>
+              <div className="flex items-center gap-2">
+                <Link href="/projects" className="text-xs font-semibold text-amber-600 hover:underline">
+                  Open Projects Registry &rarr;
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionCollapse("projects")}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  title={collapsedSections.projects ? "Expand Projects" : "Collapse Projects"}
+                >
+                  <span>{collapsedSections.projects ? "Expand" : "Collapse"}</span>
+                  {collapsedSections.projects ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {!collapsedSections.projects && (
+              displayedProjects.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs">
+                  {dashboardFilterQuery ? `No projects match "${dashboardFilterQuery}"` : "No active projects found."}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {displayedProjects.map((p) => (
+                    <Link
+                      key={p.id}
+                      href={`/projects/${p.id}`}
+                      className="p-3.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:shadow-xs bg-slate-50/50 flex flex-col gap-2 transition block"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-slate-900 text-sm truncate">{p.name}</div>
+                        <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded shrink-0">
+                          {p.code}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 flex items-center justify-between">
+                        <span>Site: {p.site?.name || "Main Site"}</span>
+                        <span className="font-semibold text-slate-700 tabular-nums">
+                          Budget: {formatCurrency(p.budgetAmount)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+                        <span>Tasks: {p._count?.tasks ?? 0}</span>
+                        <span>Daily Reports: {p._count?.dailyReports ?? 0}</span>
+                        <span className="ml-auto font-medium text-emerald-600">
+                          ● {p.status}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )
             )}
+          </div>
+        )}
 
-            {/* Pending Incomplete Tasks Quick List */}
-            {(activeSectionTab === "ALL" || activeSectionTab === "TASKS") && (
-              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <CheckSquare className="w-4 h-4 text-blue-500" />
-                    <h2 className="text-base font-bold text-slate-900">
-                      {!activeSiteId
-                        ? "Pending Incomplete Tasks"
-                        : `Pending Tasks (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
-                    </h2>
-                    <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
-                      {displayedPendingTasks.length}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* 4 Overdue Tasks Flag / Quick Filter Toggle */}
-                    {overdueTasksCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setTaskFilterOverdueOnly(!taskFilterOverdueOnly)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                          taskFilterOverdueOnly
-                            ? "bg-rose-600 text-white shadow-xs"
-                            : "bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300"
-                        }`}
-                        title="Click to toggle overdue tasks only"
-                      >
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>{overdueTasksCount} Overdue</span>
-                      </button>
-                    )}
-                    <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
-                      Open Kanban &rarr;
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => toggleSectionCollapse("tasks")}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                      title={collapsedSections.tasks ? "Expand Tasks" : "Collapse Tasks"}
-                    >
-                      <span>{collapsedSections.tasks ? "Expand" : "Collapse"}</span>
-                      {collapsedSections.tasks ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
-
-                {!collapsedSections.tasks && (
-                  displayedPendingTasks.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400 text-xs">
-                      {taskFilterOverdueOnly
-                        ? "No overdue tasks found. All outstanding tasks are on schedule!"
-                        : dashboardFilterQuery
-                        ? `No tasks match "${dashboardFilterQuery}"`
-                        : "No pending tasks found. All caught up!"}
-                    </div>
-                  ) : (
-                    <div className={activeSectionTab === "TASKS" ? "grid grid-cols-1 md:grid-cols-2 gap-3" : "space-y-2.5"}>
-                      {displayedPendingTasks.map((t: any) => {
-                        const isOverdue = isTaskOverdue(t);
-                        return (
-                          <div
-                            key={t.id}
-                            className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                              isOverdue
-                                ? "bg-rose-50/70 border-rose-300 hover:border-rose-400 shadow-2xs"
-                                : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
-                            }`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              {/* Task Title & Color-Coded UI Priority Badge Aligned Next to Title */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs sm:text-sm font-bold text-slate-900">
-                                  {t.title}
-                                </span>
-                                <span
-                                  className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                                    t.priority === "CRITICAL"
-                                      ? "bg-rose-100 text-rose-800 border-rose-300"
-                                      : t.priority === "HIGH"
-                                      ? "bg-amber-100 text-amber-800 border-amber-300"
-                                      : t.priority === "MEDIUM"
-                                      ? "bg-blue-100 text-blue-800 border-blue-200"
-                                      : "bg-slate-100 text-slate-700 border-slate-200"
-                                  }`}
-                                >
-                                  <span
-                                    className={`w-1.5 h-1.5 rounded-full ${
-                                      t.priority === "CRITICAL"
-                                        ? "bg-rose-600"
-                                        : t.priority === "HIGH"
-                                        ? "bg-amber-600"
-                                        : t.priority === "MEDIUM"
-                                        ? "bg-blue-600"
-                                        : "bg-slate-500"
-                                    }`}
-                                  />
-                                  <span>{t.priority}</span>
-                                </span>
-
-                                {isOverdue && (
-                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
-                                    <AlertTriangle className="w-3 h-3 text-white" />
-                                    <span>OVERDUE</span>
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Subtitle details: Project & Due Date */}
-                              <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2.5 flex-wrap">
-                                <span>{t.project?.name || "General Work"}</span>
-                                {t.dueAt && (
-                                  <span
-                                    className={
-                                      isOverdue
-                                        ? "text-rose-600 font-bold flex items-center gap-1"
-                                        : "text-slate-500"
-                                    }
-                                  >
-                                    • Due: <strong className={isOverdue ? "text-rose-600 font-bold" : "text-slate-700"}>{formatDate(t.dueAt)}</strong> {isOverdue && <span className="text-rose-600 font-bold">(Past Due)</span>}
-                                  </span>
-                                )}
-                                {t.assignee?.name && (
-                                  <span className="text-slate-400">• Assigned to: {t.assignee.name}</span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Clear Action Button instead of confusing "[✓ Done]" status badge */}
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleQuickCompleteTask(t.id, t.title)}
-                                title="Mark task as completed"
-                                className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
-                                <span>Complete</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )
-                )}
+        {/* FULL TASKS VIEW */}
+        {activeSectionTab === "TASKS" && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-blue-500" />
+                <h2 className="text-base font-bold text-slate-900">
+                  {!activeSiteId
+                    ? "Pending Incomplete Tasks"
+                    : `Pending Tasks (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
+                </h2>
+                <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                  {displayedPendingTasks.length}
+                </span>
               </div>
+
+              <div className="flex items-center gap-2">
+                {overdueTasksCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTaskFilterOverdueOnly(!taskFilterOverdueOnly)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      taskFilterOverdueOnly
+                        ? "bg-rose-600 text-white shadow-xs"
+                        : "bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300"
+                    }`}
+                    title="Click to toggle overdue tasks only"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>{overdueTasksCount} Overdue</span>
+                  </button>
+                )}
+                <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
+                  Open Kanban Board &rarr;
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionCollapse("tasks")}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  title={collapsedSections.tasks ? "Expand Tasks" : "Collapse Tasks"}
+                >
+                  <span>{collapsedSections.tasks ? "Expand" : "Collapse"}</span>
+                  {collapsedSections.tasks ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {!collapsedSections.tasks && (
+              displayedPendingTasks.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs">
+                  {taskFilterOverdueOnly
+                    ? "No overdue tasks found. All outstanding tasks are on schedule!"
+                    : dashboardFilterQuery
+                    ? `No tasks match "${dashboardFilterQuery}"`
+                    : "No pending tasks found. All caught up!"}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {displayedPendingTasks.map((t: any) => {
+                    const isOverdue = isTaskOverdue(t);
+                    return (
+                      <div
+                        key={t.id}
+                        className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                          isOverdue
+                            ? "bg-rose-50/70 border-rose-300 hover:border-rose-400 shadow-2xs"
+                            : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs sm:text-sm font-bold text-slate-900">
+                              {t.title}
+                            </span>
+                            <span
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
+                                t.priority === "CRITICAL"
+                                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                                  : t.priority === "HIGH"
+                                  ? "bg-amber-100 text-amber-800 border-amber-300"
+                                  : t.priority === "MEDIUM"
+                                  ? "bg-blue-100 text-blue-800 border-blue-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  t.priority === "CRITICAL"
+                                    ? "bg-rose-600"
+                                    : t.priority === "HIGH"
+                                    ? "bg-amber-600"
+                                    : t.priority === "MEDIUM"
+                                    ? "bg-blue-600"
+                                    : "bg-slate-500"
+                                }`}
+                              />
+                              <span>{t.priority}</span>
+                            </span>
+
+                            {isOverdue && (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
+                                <AlertTriangle className="w-3 h-3 text-white" />
+                                <span>OVERDUE</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2.5 flex-wrap">
+                            <span>{t.project?.name || "General Work"}</span>
+                            {t.dueAt && (
+                              <span
+                                className={
+                                  isOverdue
+                                    ? "text-rose-600 font-bold flex items-center gap-1"
+                                    : "text-slate-500"
+                                }
+                              >
+                                • Due: <strong className={isOverdue ? "text-rose-600 font-bold" : "text-slate-700"}>{formatDate(t.dueAt)}</strong> {isOverdue && <span className="text-rose-600 font-bold">(Past Due)</span>}
+                              </span>
+                            )}
+                            {t.assignee?.name && (
+                              <span className="text-slate-400">• Assigned to: {t.assignee.name}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickCompleteTask(t.id, t.title)}
+                            title="Mark task as completed"
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
+                            <span>Complete</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
             )}
           </div>
         )}
