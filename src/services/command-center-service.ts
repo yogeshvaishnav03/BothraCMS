@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/db";
 import { roundPaise } from "@/lib/financial-math";
 import { fetchDayBookData } from "@/services/day-book-service";
+import { parsePhotoUrls } from "@/services/task-timeline-service";
+import { WorkReportService } from "@/services/work-report-service";
+import { isReportingRole } from "@/services/staff-attendance-service";
+import { statusLabel } from "@/lib/task-notifications";
 
 /**
  * Admin Command Center: one call that answers "what happened in the company
@@ -193,7 +197,7 @@ export class CommandCenterService {
     // ── 5. Who did what on this date (audit trail + task updates) ──────────
     const dayStart = new Date(`${date}T00:00:00.000+05:30`);
     const dayEnd = new Date(`${date}T23:59:59.999+05:30`);
-    const [auditEvents, taskUpdates] = await Promise.all([
+    const [auditEvents, taskUpdates, taskComments, staffDay] = await Promise.all([
       prisma.auditEvent.findMany({
         where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
         include: { actor: { select: { id: true, name: true, role: true } } },
@@ -209,6 +213,16 @@ export class CommandCenterService {
         orderBy: { createdAt: "desc" },
         take: 200,
       }),
+      prisma.taskComment.findMany({
+        where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
+        include: {
+          user: { select: { id: true, name: true, role: true } },
+          task: { select: { id: true, title: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      WorkReportService.dayOverview(organizationId, date),
     ]);
 
     const team = new Map<
@@ -226,6 +240,60 @@ export class CommandCenterService {
     };
     auditEvents.forEach((e) => e.actor && touch(e.actor, e.createdAt, false));
     taskUpdates.forEach((h) => h.user && touch(h.user, h.createdAt, true));
+    taskComments.forEach((c) => c.user && touch(c.user, c.createdAt, true));
+
+    // ── 6. Task updates from the field, with their photos ─────────────────
+    const taskFeed = [
+      // Rows with no previous status are the task being created, not an update.
+      ...taskUpdates.filter((h) => h.oldStatus && h.oldStatus !== "NONE").map((h) => ({
+        id: `status-${h.id}`,
+        at: h.createdAt.toISOString(),
+        actor: h.user?.name || "Someone",
+        taskId: h.task.id,
+        taskTitle: h.task.title,
+        kind: "STATUS" as const,
+        text: `moved to ${statusLabel(h.newStatus)}`,
+        status: h.newStatus,
+        note: h.note,
+        photos: [] as string[],
+        userId: h.changedBy,
+      })),
+      ...taskComments.map((c) => ({
+        id: `comment-${c.id}`,
+        at: c.createdAt.toISOString(),
+        actor: c.user?.name || "Someone",
+        taskId: c.task.id,
+        taskTitle: c.task.title,
+        kind: c.type === "PROGRESS_UPDATE" ? ("UPDATE" as const) : ("COMMENT" as const),
+        text:
+          c.type === "PROGRESS_UPDATE" ? "posted an update" : c.type === "ASSISTANCE_REQUEST" ? "asked for help" : c.type === "QUESTION" ? "asked a question" : "commented",
+        status: null as string | null,
+        note: c.content,
+        photos: [...parsePhotoUrls(c.photoUrls), ...(c.photoUrl ? [c.photoUrl] : [])],
+        userId: c.userId,
+      })),
+    ].sort((a, b) => (a.at < b.at ? 1 : -1));
+
+    // A status move and the progress note posted with it read as one line.
+    const usedNotes = new Set<string>();
+    const mergedFeed: typeof taskFeed = [];
+    for (const item of taskFeed) {
+      if (item.kind !== "STATUS") continue;
+      let best: (typeof taskFeed)[number] | null = null;
+      let bestGap = Infinity;
+      for (const n of taskFeed) {
+        if (n.kind !== "UPDATE" || usedNotes.has(n.id) || n.taskId !== item.taskId || n.userId !== item.userId) continue;
+        const gap = Math.abs(new Date(n.at).getTime() - new Date(item.at).getTime());
+        if (gap <= 1_000 && gap < bestGap) {
+          best = n;
+          bestGap = gap;
+        }
+      }
+      if (best) usedNotes.add(best.id);
+      mergedFeed.push(best ? { ...item, note: best.note || item.note, photos: best.photos } : item);
+    }
+    for (const item of taskFeed) if (item.kind !== "STATUS" && !usedNotes.has(item.id)) mergedFeed.push(item);
+    mergedFeed.sort((a, b) => (a.at < b.at ? 1 : -1));
 
     const activity = [
       ...auditEvents.slice(0, 25).map((e) => ({
@@ -264,6 +332,14 @@ export class CommandCenterService {
       },
       team: Array.from(team.values()).sort((a, b) => b.actions + b.taskUpdates - (a.actions + a.taskUpdates)),
       activity,
+      taskFeed: mergedFeed.slice(0, 20).map(({ userId: _userId, ...rest }) => rest),
+      people: {
+        ...staffDay.totals,
+        missing: staffDay.staff
+          .filter((s) => !s.report && isReportingRole(s.user.role))
+          .slice(0, 8)
+          .map((s) => ({ userId: s.user.id, name: s.user.name, phone: s.user.phone })),
+      },
       recentActivityDates: dayBook.recentActivityDates,
     };
   }

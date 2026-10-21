@@ -53,9 +53,17 @@ export async function GET(
         return jsonError("Document not found or outside organization scope", "NOT_FOUND", 404);
       }
 
-      // Check project access if file belongs to a project
+      // Check project access if file belongs to a project. The task's own
+      // assignee and creator can always see the task's photos.
       if (attachment.projectId) {
-        await requireProjectAccess(user, attachment.projectId);
+        const task = attachment.taskId
+          ? await prisma.task.findFirst({
+              where: { id: attachment.taskId, organizationId: attachment.organizationId },
+              select: { assigneeUserId: true, createdBy: true },
+            })
+          : null;
+        const ownsTask = !!task && (task.assigneeUserId === user.userId || task.createdBy === user.userId);
+        if (!ownsTask) await requireProjectAccess(user, attachment.projectId);
       }
 
       // Check folder access if file belongs to a folder

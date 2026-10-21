@@ -42,6 +42,8 @@ model Organization {
   folderPermissions  FolderPermission[]
   measurementBookEntries MeasurementBookEntry[]
   workforceHeadcounts     WorkforceHeadcount[]
+  dailyWorkReports        DailyWorkReport[]
+  staffAttendance         StaffAttendance[]
 }
 
 model User {
@@ -82,6 +84,9 @@ model User {
   assignedProjectAssignments  ProjectAssignment[]   @relation("ProjectAssignmentAssigner")
   notifications               Notification[]
   folderPermissions           FolderPermission[]
+  workReports                 DailyWorkReport[]     @relation("WorkReportAuthor")
+  reviewedWorkReports         DailyWorkReport[]     @relation("WorkReportReviewer")
+  staffAttendance             StaffAttendance[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -142,6 +147,7 @@ model Project {
   purchaseOrders     PurchaseOrder[]
   attachments        Attachment[]
   documentFolders    DocumentFolder[]
+  workReports        DailyWorkReport[]
   assignments        ProjectAssignment[]
   measurementBookEntries MeasurementBookEntry[]
 
@@ -684,6 +690,7 @@ model TaskComment {
   content        String
   type           String   @default("COMMENT") // COMMENT, QUESTION, ASSISTANCE_REQUEST, PROGRESS_UPDATE
   photoUrl       String?
+  photoUrls      String?  // JSON array of /api/uploads/... urls attached to a progress update
   createdAt      DateTime @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -896,4 +903,57 @@ model WorkforceHeadcount {
   @@index([siteId])
   @@index([date])
   @@index([organizationId, siteId, date, shift])
+}
+
+// What an office or site employee did during one day, filed by the employee and reviewed by an admin.
+model DailyWorkReport {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String
+  reportDate     String    // YYYY-MM-DD (IST)
+  summary        String
+  hoursWorked    Float?
+  projectId      String?
+  blockers       String?
+  tomorrowPlan   String?
+  photoUrls      String?   // JSON array of /api/uploads/... urls
+  status         String    @default("SUBMITTED") // SUBMITTED, REVIEWED, NEEDS_INFO
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation("WorkReportAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy     User?        @relation("WorkReportReviewer", fields: [reviewedById], references: [id])
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, userId, reportDate])
+  @@index([organizationId, reportDate])
+}
+
+// Check-in / check-out for staff who log in to the CMS (engineers, accounts, office).
+// Labour on site keeps using AttendanceSession through WorkforceMember.
+model StaffAttendance {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String
+  workDate       String    // YYYY-MM-DD (IST)
+  checkInAt      DateTime
+  checkInLat     Float?
+  checkInLng     Float?
+  checkInNote    String?
+  checkOutAt     DateTime?
+  checkOutLat    Float?
+  checkOutLng    Float?
+  status         String    @default("PRESENT") // PRESENT, HALF_DAY, LEAVE
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, workDate])
+  @@index([organizationId, workDate])
 }

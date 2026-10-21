@@ -164,6 +164,12 @@
     @apply animate-shimmer rounded-lg;
   }
 
+  /* Full-screen overlays often sit inside a `space-y-*` stack, whose margin
+     would push a fixed overlay down and leave a strip of page showing. */
+  .fixed.inset-0 {
+    margin: 0 !important;
+  }
+
   /* Page entrance: children rise in, staggered. `backwards` fill leaves no
      transform behind once finished (a lingering transform would trap modals). */
   .page-enter > * {

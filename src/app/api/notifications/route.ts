@@ -18,7 +18,9 @@ export interface OperationalAlert {
     | "PURCHASE_ORDER"
     | "ORDER_APPROVAL_REQUEST"
     | "PAYMENT_APPROVAL_REQUEST"
-    | "CHAT_MESSAGE";
+    | "CHAT_MESSAGE"
+    | "TASK_UPDATE"
+    | "WORK_REPORT";
   severity: "CRITICAL" | "WARNING" | "INFO";
   title: string;
   message: string;

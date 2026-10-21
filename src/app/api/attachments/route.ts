@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
     const entityType = (formData.get("entityType") as string) || "GENERAL";
     const entityId = (formData.get("entityId") as string) || "";
-    const projectId = (formData.get("projectId") as string) || undefined;
+    let projectId = (formData.get("projectId") as string) || undefined;
     const folderId = (formData.get("folderId") as string) || undefined;
     const category = (formData.get("category") as string) || "GENERAL";
     const notes = (formData.get("notes") as string) || "";
@@ -164,8 +164,24 @@ export async function POST(req: NextRequest) {
     const materialId = (formData.get("materialId") as string) || undefined;
     const paymentId = (formData.get("paymentId") as string) || undefined;
 
+    // Photos uploaded on a task are linked to it so they show in the task history.
+    // The person a task is assigned to (or who created it) may add photos to it
+    // even when they are not on the project team.
+    let taskId: string | null = null;
+    let taskGrantsAccess = false;
+    if (entityType.toUpperCase() === "TASK" && entityId) {
+      const task = await prisma.task.findFirst({
+        where: { id: entityId, organizationId: user.organizationId },
+        select: { id: true, projectId: true, assigneeUserId: true, createdBy: true },
+      });
+      if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
+      taskId = task.id;
+      projectId = task.projectId;
+      taskGrantsAccess = task.assigneeUserId === user.userId || task.createdBy === user.userId;
+    }
+
     // Validate project access if provided
-    if (projectId) {
+    if (projectId && !taskGrantsAccess) {
       await requireProjectAccess(user, projectId);
     }
 
@@ -272,6 +288,7 @@ export async function POST(req: NextRequest) {
         diskFileName,
         projectId: projectId || null,
         folderId: folderId || null,
+        taskId,
         stockMovementId: stockMovementId || null,
         attendanceSessionId: attendanceSessionId || null,
         materialId: materialId || null,

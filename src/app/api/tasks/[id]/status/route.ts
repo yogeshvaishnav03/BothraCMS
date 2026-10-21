@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { notifyTaskUpdate, statusLabel } from "@/lib/task-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,17 @@ export async function PATCH(
         },
       }),
     ]);
+
+    if (oldStatus !== status) {
+      await notifyTaskUpdate({
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        task,
+        title: `${user.name} moved "${task.title}" to ${statusLabel(status)}`,
+        message: note?.trim() || `Status changed from ${statusLabel(oldStatus)} to ${statusLabel(status)}.`,
+        severity: status === "BLOCKED" ? "WARNING" : "INFO",
+      });
+    }
 
     return jsonSuccess(updatedTask);
   } catch (error) {

@@ -27,9 +27,11 @@ import {
   Edit2,
   Tag,
   Building,
+  GitCommitHorizontal,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
+import TaskTimeline from "@/components/tasks/TaskTimeline";
 import { canUser } from "@/lib/permissions";
 
 // Safely fetch and parse JSON, never throwing SyntaxError on HTML (e.g. 500 error pages)
@@ -105,6 +107,8 @@ export default function TasksPage() {
 
   // Audit History Modal state
   const [auditTarget, setAuditTarget] = useState<{ id: string; title: string } | null>(null);
+  const [timelineTask, setTimelineTask] = useState<any>(null);
+  const deepLinkHandled = React.useRef(false);
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -174,6 +178,22 @@ export default function TasksPage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterTab, selectedEmployeeId]);
+
+  // Notifications link to /tasks?task=<id>: open that task's history once the list is in.
+  useEffect(() => {
+    if (deepLinkHandled.current || loading) return;
+    const id = new URLSearchParams(window.location.search).get("task");
+    if (!id) return;
+    deepLinkHandled.current = true;
+    const found = tasks.find((x) => x.id === id);
+    if (found) {
+      setTimelineTask(found);
+    } else {
+      safeFetchJson(`/api/tasks/${id}`).then((res) => {
+        if (res?.success && res.data) setTimelineTask(res.data);
+      });
+    }
+  }, [loading, tasks]);
 
   const loadComments = (taskId: string) => {
     setCommentsLoading(true);
@@ -645,6 +665,16 @@ export default function TasksPage() {
                         Status
                       </button>
                     )}
+
+                    {/* Commit-style history with photos */}
+                    <button
+                      onClick={() => setTimelineTask(t)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-xs transition"
+                      title="Task history, progress updates & photos"
+                    >
+                      <GitCommitHorizontal className="w-3.5 h-3.5" />
+                      <span>History</span>
+                    </button>
 
                     {/* Discussion / Comments Button */}
                     <button
@@ -1247,6 +1277,18 @@ export default function TasksPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {timelineTask && (
+          <TaskTimeline
+            task={timelineTask}
+            canWrite={canWriteTasks}
+            onClose={() => {
+              setTimelineTask(null);
+              if (window.location.search.includes("task=")) window.history.replaceState(null, "", "/tasks");
+            }}
+            onChanged={loadData}
+          />
         )}
 
         {/* Modal: Audit History */}

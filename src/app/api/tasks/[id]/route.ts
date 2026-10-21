@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requireProjectAccess, requirePermission } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { notifyTaskUpdate } from "@/lib/task-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,26 @@ export async function PATCH(
         }),
       },
     });
+
+    const changed: string[] = [];
+    if (updated.title !== task.title) changed.push("title");
+    if ((updated.description || "") !== (task.description || "")) changed.push("description");
+    if (updated.priority !== task.priority) changed.push(`priority to ${updated.priority}`);
+    if (String(updated.dueAt) !== String(task.dueAt)) changed.push("due date");
+    if (updated.assigneeUserId !== task.assigneeUserId) {
+      changed.push(updated.assignee ? `assignee to ${updated.assignee.name}` : "assignee (now unassigned)");
+    }
+    if (changed.length > 0) {
+      await notifyTaskUpdate({
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        task: { ...task, assigneeUserId: updated.assigneeUserId },
+        title: `${user.name} edited "${updated.title}"`,
+        message: `Changed ${changed.join(", ")}.${data.reason ? ` Reason: ${data.reason}` : ""}`,
+        // The previous assignee hears that the task moved away from them.
+        extraRecipientIds: [task.assigneeUserId],
+      });
+    }
 
     return jsonSuccess(updated);
   } catch (error) {
