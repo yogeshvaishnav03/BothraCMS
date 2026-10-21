@@ -588,13 +588,13 @@ async function seedDayBookDemoData() {
     console.log(`✅ Demo data seeded successfully for organization "${org.name}".`);
   }
 
-  // 8. Synchronize active database (prisma/prisma/dev.db) to prisma/dev.db
-  const activeDb = path.resolve(__dirname, "..", "prisma", "prisma", "dev.db");
-  const backupDb = path.resolve(__dirname, "..", "prisma", "dev.db");
+  // 8. Synchronize active database (prisma/dev.db) to prisma/prisma/dev.db
+  const mainDb = path.resolve(__dirname, "..", "prisma", "dev.db");
+  const mirrorDb = path.resolve(__dirname, "..", "prisma", "prisma", "dev.db");
   try {
-    if (fs.existsSync(activeDb)) {
-      fs.copyFileSync(activeDb, backupDb);
-      console.log(`\n🔄 Synchronized ${activeDb} -> ${backupDb}`);
+    if (fs.existsSync(mainDb)) {
+      fs.copyFileSync(mainDb, mirrorDb);
+      console.log(`\n🔄 Synchronized ${mainDb} -> ${mirrorDb}`);
     }
   } catch (syncErr) {
     console.warn("Notice: Database sync copy warning:", syncErr.message);

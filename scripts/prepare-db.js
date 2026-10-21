@@ -140,3 +140,43 @@ try {
 } catch (seedErr) {
   console.warn("Notice: Day book demo data seed completed or skipped:", seedErr.message);
 }
+
+// Ensure 100+ demo data across all modules is populated
+try {
+  console.log("⚡ Ensuring 100+ demo data across all modules is populated...");
+  execSync("node scripts/seed-100-demo-data.js", {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      DATABASE_URL: dbUrl || "file:./prisma/dev.db",
+    },
+  });
+} catch (seed100Err) {
+  console.warn("Notice: 100+ demo data seed completed or skipped:", seed100Err.message);
+}
+
+// Ensure 100+ Projects, Purchase Orders and cross-org datasets are populated
+try {
+  console.log("⚡ Ensuring 100+ Projects & Orders are populated...");
+  execSync("node scripts/seed-projects-and-orders.js", {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      DATABASE_URL: dbUrl || "file:./prisma/dev.db",
+    },
+  });
+} catch (poErr) {
+  console.warn("Notice: Projects and orders seed completed or skipped:", poErr.message);
+}
+
+// Synchronize prisma/dev.db to prisma/prisma/dev.db
+try {
+  const mainDb = path.resolve(__dirname, "..", "prisma", "dev.db");
+  const mirrorDb = path.resolve(__dirname, "..", "prisma", "prisma", "dev.db");
+  if (fs.existsSync(mainDb)) {
+    fs.copyFileSync(mainDb, mirrorDb);
+    console.log("🔄 Synchronized prisma/dev.db -> prisma/prisma/dev.db");
+  }
+} catch (syncErr) {
+  console.warn("Notice: Final db sync copy warning:", syncErr.message);
+}
