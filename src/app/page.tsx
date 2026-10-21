@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -47,12 +47,29 @@ export default function DashboardPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoMsg, setPhotoMsg] = useState<string | null>(null);
 
-  const refreshRecentPhotos = async () => {
+  const isRelevantSitePhoto = (photo: any) => {
+    if (!photo) return false;
+    const name = (photo.fileName || "").toLowerCase();
+    const notes = (photo.notes || "").toLowerCase();
+    return (
+      !name.includes("academy") &&
+      !name.includes("screenshot") &&
+      !name.includes("wallpaper") &&
+      !name.includes("logo") &&
+      !name.includes("test_") &&
+      !notes.includes("dummy")
+    );
+  };
+
+  const refreshRecentPhotos = async (siteId?: string) => {
     try {
-      const res = await fetch("/api/attachments?category=PHOTO&limit=8");
+      const q = siteId
+        ? `?category=PHOTO&entityType=SITE_PHOTO&limit=12&projectId=${siteId}`
+        : "?category=PHOTO&entityType=SITE_PHOTO&limit=12";
+      const res = await fetch(`/api/attachments${q}`);
       const data = await res.json();
       if (res.ok && data.success) {
-        setRecentPhotos(data.data || []);
+        setRecentPhotos((data.data || []).filter(isRelevantSitePhoto));
       }
     } catch {
       // Ignore
@@ -86,7 +103,7 @@ export default function DashboardPage() {
         }
       }
       setPhotoMsg("Site photograph(s) uploaded and saved successfully!");
-      await refreshRecentPhotos();
+      await refreshRecentPhotos(activeSiteId);
     } catch (err: any) {
       alert(err.message || "Failed to upload photo");
     } finally {
@@ -202,8 +219,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeSiteId, setActiveSiteId] = useState<string>("");
 
-  // Quick Task Modal
+  // Quick Task Modal & Filter
   const [showQuickTaskModal, setShowQuickTaskModal] = useState(false);
+  const [taskFilterOverdueOnly, setTaskFilterOverdueOnly] = useState(false);
   const [quickTitle, setQuickTitle] = useState("");
   const [quickProjectId, setQuickProjectId] = useState("");
   const [quickPriority, setQuickPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
@@ -217,6 +235,98 @@ export default function DashboardPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittingTask, setSubmittingTask] = useState(false);
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
+
+  // 1. Site-by-site on-site workforce breakdown for 100% mathematical consistency (e.g. Chaupasni: 54, Skyline: 4 -> Total: 58)
+  const siteOnSiteBreakdown = useMemo(() => {
+    return sites.map((site) => {
+      const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+        (r: any) => r.siteId === site.id || r.siteName?.toLowerCase() === site.name?.toLowerCase()
+      );
+      const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
+      const count = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
+      return { siteId: site.id, siteName: site.name, count };
+    });
+  }, [sites, kpi]);
+
+  // Total workers on site: sum of site breakdowns across all sites (or active site count)
+  const displayTotalWorkersOnSite = useMemo(() => {
+    if (activeSiteId) {
+      const siteItem = siteOnSiteBreakdown.find((s) => s.siteId === activeSiteId);
+      if (siteItem) return siteItem.count;
+      const sh = (kpi?.workforceHeadcount?.records || []).find((r: any) => r.siteId === activeSiteId);
+      return sh?.grandTotal || 0;
+    }
+    const sumSites = siteOnSiteBreakdown.reduce((sum, s) => sum + s.count, 0);
+    const kpiHeadcount = (kpi?.workforceHeadcount?.grandTotal || 0) + (kpi?.staffAttendanceCount || 0);
+    return Math.max(sumSites, kpiHeadcount, kpi?.totalOnSiteCount || 0, kpi?.workersPresentTodayCount || 0);
+  }, [activeSiteId, siteOnSiteBreakdown, kpi]);
+
+  // Sub-category string correctly accounting for Artisans, Craftsmen, Laborers, and Staff with exact sum
+  const { workerSubCategorySummary, workerSubCategoryFull, staffDifference } = useMemo(() => {
+    const art = kpi?.workforceHeadcount?.totalArtisan || 0;
+    const craft = kpi?.workforceHeadcount?.totalCraftsman || 0;
+    const lab = kpi?.workforceHeadcount?.totalLaborer || 0;
+    const subSum = art + craft + lab;
+    const staffDiff = displayTotalWorkersOnSite > subSum ? displayTotalWorkersOnSite - subSum : (kpi?.staffAttendanceCount || 0);
+
+    const parts: string[] = [];
+    if (art > 0) parts.push(`${art} Art`);
+    if (craft > 0) parts.push(`${craft} Craft`);
+    if (lab > 0) parts.push(`${lab} Lab`);
+    if (staffDiff > 0) parts.push(`+${staffDiff} Staff`);
+
+    if (parts.length === 0) {
+      return {
+        workerSubCategorySummary: `${displayTotalWorkersOnSite} checked in today`,
+        workerSubCategoryFull: `${displayTotalWorkersOnSite} checked in today`,
+        staffDifference: staffDiff,
+      };
+    }
+
+    const fullStr = `${displayTotalWorkersOnSite} on site (${parts.join(", ")})`;
+    return {
+      workerSubCategorySummary: fullStr,
+      workerSubCategoryFull: fullStr,
+      staffDifference: staffDiff,
+    };
+  }, [kpi, displayTotalWorkersOnSite]);
+
+  // Incomplete tasks and overdue detection
+  const isTaskOverdue = (t: any) => {
+    if (["COMPLETED", "VERIFIED", "ARCHIVED"].includes(t.status)) return false;
+    if (t.isArchived || t.completedAt) return false;
+    if (!t.dueAt) return false;
+    return new Date(t.dueAt).getTime() < Date.now();
+  };
+
+  const pendingIncompleteTasks = useMemo(() => {
+    return allTasks
+      .filter((t: any) => {
+        if (["COMPLETED", "VERIFIED", "ARCHIVED"].includes(t.status)) return false;
+        if (t.isArchived || t.completedAt) return false;
+        if (activeSiteId) {
+          return t.project?.siteId === activeSiteId || t.projectId === activeSiteId;
+        }
+        return true;
+      })
+      .sort((a: any, b: any) => {
+        const aOverdue = isTaskOverdue(a) ? 1 : 0;
+        const bOverdue = isTaskOverdue(b) ? 1 : 0;
+        if (bOverdue !== aOverdue) return bOverdue - aOverdue; // Overdue tasks first
+        return new Date(a.dueAt || 0).getTime() - new Date(b.dueAt || 0).getTime();
+      });
+  }, [allTasks, activeSiteId]);
+
+  const overdueTasksCount = useMemo(() => {
+    return pendingIncompleteTasks.filter(isTaskOverdue).length;
+  }, [pendingIncompleteTasks]);
+
+  const displayedPendingTasks = useMemo(() => {
+    if (taskFilterOverdueOnly) {
+      return pendingIncompleteTasks.filter(isTaskOverdue);
+    }
+    return pendingIncompleteTasks.slice(0, 6);
+  }, [pendingIncompleteTasks, taskFilterOverdueOnly]);
 
   const refreshKpis = (serverKpi?: any, siteId?: string) => {
     const computed = clientCache.calculateKpis(serverKpi, siteId);
@@ -238,14 +348,14 @@ export default function DashboardPage() {
       fetch(`/api/workforce${siteId ? `?siteId=${siteId}` : ""}`).then((r) => r.json()),
       fetch("/api/sites").then((r) => r.json()),
       fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
-      fetch("/api/attachments?category=PHOTO&limit=8").then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/attachments?category=PHOTO&entityType=SITE_PHOTO&limit=12${siteId ? `&projectId=${siteId}` : ""}`).then((r) => r.json()).catch(() => ({})),
     ])
       .then(([kpiRes, projRes, taskRes, attRes, matRes, wfRes, sitesRes, meRes, photoRes]) => {
         if (meRes.success && meRes.data) {
           setCurrentUser(meRes.data.user);
         }
         if (photoRes.success && photoRes.data) {
-          setRecentPhotos(photoRes.data || []);
+          setRecentPhotos((photoRes.data || []).filter(isRelevantSitePhoto));
         }
         if (attRes.success) {
           setTodaySessions(attRes.data || []);
@@ -270,7 +380,7 @@ export default function DashboardPage() {
         }
 
         setAllTasks(filteredTasks);
-        setTasks(filteredTasks.filter((t: any) => t.status === "TODO" || t.status === "IN_PROGRESS"));
+        setTasks(filteredTasks.filter((t: any) => !["COMPLETED", "VERIFIED", "ARCHIVED"].includes(t.status) && !t.completedAt));
         refreshKpis(kpiRes.data, siteId);
       })
       .catch((err) => {
@@ -1291,19 +1401,33 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-slate-900 text-sm">{t.title}</span>
                               <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                                className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                                   t.priority === "CRITICAL"
-                                    ? "bg-rose-100 text-rose-800"
+                                    ? "bg-rose-100 text-rose-800 border-rose-300"
                                     : t.priority === "HIGH"
-                                    ? "bg-amber-100 text-amber-800"
-                                    : "bg-slate-200 text-slate-700"
+                                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                                    : t.priority === "MEDIUM"
+                                    ? "bg-blue-100 text-blue-800 border-blue-200"
+                                    : "bg-slate-100 text-slate-700 border-slate-200"
                                 }`}
                               >
-                                {t.priority}
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    t.priority === "CRITICAL"
+                                      ? "bg-rose-600"
+                                      : t.priority === "HIGH"
+                                      ? "bg-amber-600"
+                                      : t.priority === "MEDIUM"
+                                      ? "bg-blue-600"
+                                      : "bg-slate-500"
+                                  }`}
+                                />
+                                <span>{t.priority}</span>
                               </span>
                               {isOverdue && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-600 text-white uppercase">
-                                  Overdue
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
+                                  <AlertTriangle className="w-3 h-3 text-white" />
+                                  <span>OVERDUE</span>
                                 </span>
                               )}
                             </div>
@@ -1386,13 +1510,11 @@ export default function DashboardPage() {
               </div>
               <div className="text-2xl font-black text-slate-900 flex items-baseline gap-2">
                 <span>
-                  {(kpi?.workforceHeadcount?.grandTotal || 0) > 0
-                    ? kpi.workforceHeadcount.grandTotal
-                    : kpi?.workersPresentTodayCount ?? 0}
+                  {displayTotalWorkersOnSite}
                 </span>
-                {(kpi?.workforceHeadcount?.grandTotal || 0) > 0 && (kpi?.staffAttendanceCount || 0) > 0 && (
+                {staffDifference > 0 && (
                   <span className="text-xs font-bold text-slate-400">
-                    (+{kpi.staffAttendanceCount} staff)
+                    (+{staffDifference} staff)
                   </span>
                 )}
                 {kpi?.workforceHeadcount?.isLatestFallback && (
@@ -1402,10 +1524,8 @@ export default function DashboardPage() {
                 )}
               </div>
               <div className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center justify-between">
-                <span className="truncate max-w-[190px]">
-                  {(kpi?.workforceHeadcount?.grandTotal || 0) > 0
-                    ? `${kpi.workforceHeadcount.grandTotal} on site (${kpi.workforceHeadcount.totalArtisan || 0} Art, ${kpi.workforceHeadcount.totalLaborer || 0} Lab)`
-                    : `${kpi?.workersPresentTodayCount ?? 0} checked in today`}
+                <span className="truncate max-w-[210px]" title={workerSubCategoryFull}>
+                  {workerSubCategorySummary}
                 </span>
                 <span className="text-emerald-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0">
                   Details <ExternalLink className="w-3 h-3" />
@@ -1734,12 +1854,24 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-500 font-medium">Crew Total</div>
+                        <div className="text-[10px] text-slate-500 font-medium" title="Permanent in-house payroll staff & crew">
+                          Direct Crew
+                        </div>
                         <div className="text-sm font-black text-slate-700">
                           {siteWorkers.length || site._count?.workforceMembers || 0}
                         </div>
                       </div>
                     </div>
+
+                    {/* Breakdown clarification when on-site includes external subcontractor labor */}
+                    {siteOnSiteCount > (siteWorkers.length || site._count?.workforceMembers || 0) && (
+                      <div className="text-[10px] text-slate-600 bg-amber-50/80 border border-amber-200/60 px-2.5 py-1 rounded-md flex items-center justify-between mb-2">
+                        <span className="text-slate-500">Includes Subcontractor Labor:</span>
+                        <span className="font-bold text-amber-900">
+                          +{siteOnSiteCount - (siteWorkers.length || site._count?.workforceMembers || 0)} External Gang
+                        </span>
+                      </div>
+                    )}
 
                     {/* Site Projects List */}
                     <div className="space-y-1.5 my-2">
@@ -1855,64 +1987,137 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Pending Tasks Quick List */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          {/* Pending Incomplete Tasks Quick List */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
                 <CheckSquare className="w-4 h-4 text-blue-500" />
-                <span>
+                <h2 className="text-base font-bold text-slate-900">
                   {!activeSiteId
-                    ? "Pending Tasks Across All Sites"
+                    ? "Pending Incomplete Tasks"
                     : `Pending Tasks (${sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"})`}
+                </h2>
+                <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                  {pendingIncompleteTasks.length}
                 </span>
-              </h2>
-              <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
-                Open Kanban
-              </Link>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* 4 Overdue Tasks Flag / Quick Filter Toggle */}
+                {overdueTasksCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTaskFilterOverdueOnly(!taskFilterOverdueOnly)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      taskFilterOverdueOnly
+                        ? "bg-rose-600 text-white shadow-xs"
+                        : "bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-300"
+                    }`}
+                    title="Click to toggle overdue tasks only"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>{overdueTasksCount} Overdue</span>
+                  </button>
+                )}
+                <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
+                  Open Kanban &rarr;
+                </Link>
+              </div>
             </div>
 
-            {tasks.length === 0 ? (
+            {displayedPendingTasks.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-xs">
-                No pending tasks found. All caught up!
+                {taskFilterOverdueOnly
+                  ? "No overdue tasks found. All outstanding tasks are on schedule!"
+                  : "No pending tasks found. All caught up!"}
               </div>
             ) : (
               <div className="space-y-2.5">
-                {tasks.slice(0, 5).map((t) => (
-                  <div
-                    key={t.id}
-                    className="p-3 rounded-lg border border-slate-100 hover:border-slate-200 bg-slate-50/50 flex items-center justify-between gap-3"
-                  >
-                    <div className="truncate flex-1">
-                      <div className="text-xs font-bold text-slate-900 truncate">
-                        {t.title}
+                {displayedPendingTasks.map((t: any) => {
+                  const isOverdue = isTaskOverdue(t);
+                  return (
+                    <div
+                      key={t.id}
+                      className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isOverdue
+                          ? "bg-rose-50/70 border-rose-300 hover:border-rose-400 shadow-2xs"
+                          : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        {/* Task Title & Color-Coded UI Priority Badge Aligned Next to Title */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs sm:text-sm font-bold text-slate-900">
+                            {t.title}
+                          </span>
+                          <span
+                            className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
+                              t.priority === "CRITICAL"
+                                ? "bg-rose-100 text-rose-800 border-rose-300"
+                                : t.priority === "HIGH"
+                                ? "bg-amber-100 text-amber-800 border-amber-300"
+                                : t.priority === "MEDIUM"
+                                ? "bg-blue-100 text-blue-800 border-blue-200"
+                                : "bg-slate-100 text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                t.priority === "CRITICAL"
+                                  ? "bg-rose-600"
+                                  : t.priority === "HIGH"
+                                  ? "bg-amber-600"
+                                  : t.priority === "MEDIUM"
+                                  ? "bg-blue-600"
+                                  : "bg-slate-500"
+                              }`}
+                            />
+                            <span>{t.priority}</span>
+                          </span>
+
+                          {isOverdue && (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
+                              <AlertTriangle className="w-3 h-3 text-white" />
+                              <span>OVERDUE</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Subtitle details: Project & Due Date */}
+                        <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2.5 flex-wrap">
+                          <span>{t.project?.name || "General Work"}</span>
+                          {t.dueAt && (
+                            <span
+                              className={
+                                isOverdue
+                                  ? "text-rose-700 font-bold flex items-center gap-1"
+                                  : "text-slate-500"
+                              }
+                            >
+                              • Due: {formatDate(t.dueAt)} {isOverdue && "(Past Due)"}
+                            </span>
+                          )}
+                          {t.assignee?.name && (
+                            <span className="text-slate-400">• Assigned to: {t.assignee.name}</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
-                        <span>{t.project?.name || "General"}</span>
-                        {t.dueAt && <span>• Due: {formatDate(t.dueAt)}</span>}
+
+                      {/* Clear Action Button instead of confusing "[✓ Done]" status badge */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleQuickCompleteTask(t.id, t.title)}
+                          title="Mark task as completed"
+                          className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
+                          <span>Complete</span>
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => handleQuickCompleteTask(t.id, t.title)}
-                        title="Mark Completed"
-                        className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-[11px] rounded-md transition flex items-center gap-1 shadow-2xs"
-                      >
-                        <span>✓ Done</span>
-                      </button>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                          t.priority === "CRITICAL"
-                            ? "bg-rose-100 text-rose-700"
-                            : t.priority === "HIGH"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-200 text-slate-700"
-                        }`}
-                      >
-                        {t.priority}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

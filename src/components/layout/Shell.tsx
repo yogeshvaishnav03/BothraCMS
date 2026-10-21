@@ -31,8 +31,11 @@ import {
   Globe,
   Check,
   MessageSquare,
+  Zap,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
+import InteractiveGuideModal from "@/components/ui/InteractiveGuideModal";
+import QuickActionLauncher from "@/components/ui/QuickActionLauncher";
 
 interface ShellProps {
   children: React.ReactNode;
@@ -526,8 +529,47 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-20 lg:pb-8">
-        <div className="max-w-7xl mx-auto">{children}</div>
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
+        <div className="max-w-7xl mx-auto space-y-4">
+          {/* Top Interactive Helper & Site Bar for Non-Tech Users */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white border border-slate-200/90 px-3.5 py-2.5 rounded-xl shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  activeSiteId ? "bg-emerald-500 ring-2 ring-emerald-200" : "bg-amber-400 animate-pulse"
+                }`}
+              />
+              <span className="text-xs font-bold text-slate-800 truncate">
+                {sites.find((s) => s.id === activeSiteId)?.name ||
+                  (language === "hi" ? "सभी सक्रिय साइट्स (ऑल साइट्स)" : "All Active Sites (Overview)")}
+              </span>
+              <span className="hidden sm:inline-block text-[11px] text-slate-300">|</span>
+              <span className="hidden md:inline-block text-[11px] text-slate-500 truncate">
+                {language === "hi"
+                  ? "💡 टिप: कॉलम हेडर पर 🔍 आइकन दबाकर एक्सेल जैसा फ़िल्टर व सॉर्ट करें"
+                  : "💡 Tip: Click 🔍 on any column header to sort & filter like Excel"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Interactive Page Guide Modal Button */}
+              <InteractiveGuideModal />
+
+              {/* Quick Actions Trigger Button */}
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("openQuickActionLauncher"))}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-bold transition shadow-xs cursor-pointer group"
+                title={language === "hi" ? "त्वरित कार्य (Alt + Q)" : "Quick Actions (Alt + Q)"}
+              >
+                <Zap className="w-3.5 h-3.5 fill-amber-400 stroke-amber-400 group-hover:scale-110 transition-transform" />
+                <span>{language === "hi" ? "त्वरित कार्य" : "Quick Actions"}</span>
+              </button>
+            </div>
+          </div>
+
+          <div>{children}</div>
+        </div>
       </main>
 
       {/* Real-Time Operational Notifications Drawer */}
@@ -597,51 +639,65 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Mobile Supervisor Bottom Dock */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 px-3 py-2 flex items-center justify-around z-30 shadow-lg">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 px-3 py-1.5 flex items-center justify-around z-30 shadow-2xl">
         <Link
           href="/"
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium ${
-            pathname === "/" ? "text-amber-400" : "text-slate-400"
+          className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${
+            pathname === "/" ? "text-amber-400 font-bold" : "text-slate-400 hover:text-slate-200"
           }`}
         >
           <LayoutDashboard className="w-5 h-5" />
           <span>{t("nav.home", "Home")}</span>
         </Link>
         <Link
-          href="/tasks"
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium ${
-            pathname.startsWith("/tasks") ? "text-amber-400" : "text-slate-400"
+          href="/day-book"
+          className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${
+            pathname.startsWith("/day-book") ? "text-amber-400 font-bold" : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <CheckSquare className="w-5 h-5" />
-          <span>{t("nav.tasks", "Tasks")}</span>
+          <CalendarDays className="w-5 h-5" />
+          <span>{t("nav.dayBook", "Day Book")}</span>
         </Link>
-        <Link
-          href="/materials"
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium ${
-            pathname.startsWith("/materials") ? "text-amber-400" : "text-slate-400"
-          }`}
+
+        {/* Center Elevated 1-Tap Quick Action Launcher Button */}
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("openQuickActionLauncher"))}
+          className="flex flex-col items-center -mt-5 relative z-10 focus:outline-none group cursor-pointer"
+          title={language === "hi" ? "त्वरित कार्य (Alt + Q)" : "Quick Actions (Alt + Q)"}
         >
-          <Boxes className="w-5 h-5" />
-          <span>{t("nav.materials", "Materials")}</span>
-        </Link>
+          <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 flex items-center justify-center shadow-lg border-2 border-slate-900 group-hover:scale-105 active:scale-95 transition-transform">
+            <Zap className="w-6 h-6 fill-slate-950 stroke-slate-950" />
+          </div>
+          <span className="text-[10px] font-bold text-amber-400 mt-0.5">
+            {language === "hi" ? "कार्य" : "Quick"}
+          </span>
+        </button>
+
         <Link
           href="/attendance"
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium ${
-            pathname.startsWith("/attendance") ? "text-amber-400" : "text-slate-400"
+          className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${
+            pathname.startsWith("/attendance") ? "text-amber-400 font-bold" : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <HardHat className="w-5 h-5" />
+          <Clock className="w-5 h-5" />
           <span>{t("nav.attendance", "Attendance")}</span>
         </Link>
         <Link
-          href="/finance"
-          className={`flex flex-col items-center gap-1 text-[11px] font-medium ${
-            pathname.startsWith("/finance") ? "text-amber-400" : "text-slate-400"
+          href="/chat"
+          className={`flex flex-col items-center gap-0.5 text-[11px] font-medium relative transition ${
+            pathname.startsWith("/chat") ? "text-amber-400 font-bold" : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <DollarSign className="w-5 h-5" />
-          <span>{t("nav.finance", "Finance")}</span>
+          <div className="relative">
+            <MessageSquare className="w-5 h-5" />
+            {unreadChatCount > 0 && (
+              <span className="absolute -top-1 -right-2 px-1 min-w-3.5 h-3.5 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black flex items-center justify-center animate-pulse">
+                {unreadChatCount > 9 ? "9+" : unreadChatCount}
+              </span>
+            )}
+          </div>
+          <span>{t("nav.chat", "Chat")}</span>
         </Link>
       </div>
 
@@ -760,6 +816,9 @@ export default function Shell({ children }: ShellProps) {
           </div>
         </div>
       )}
+
+      {/* Global Interactive Quick Action Launcher (Speed Dial FAB & Keyboard Shortcut Alt+Q) */}
+      <QuickActionLauncher currentUser={user} />
     </div>
   );
 }
