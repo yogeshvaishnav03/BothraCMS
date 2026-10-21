@@ -543,12 +543,16 @@ export default function Shell({ children }: ShellProps) {
                 {sites.find((s) => s.id === activeSiteId)?.name ||
                   (language === "hi" ? "सभी सक्रिय साइट्स (ऑल साइट्स)" : "All Active Sites (Overview)")}
               </span>
-              <span className="hidden sm:inline-block text-[11px] text-slate-300">|</span>
-              <span className="hidden md:inline-block text-[11px] text-slate-500 truncate">
-                {language === "hi"
-                  ? "💡 टिप: कॉलम हेडर पर 🔍 आइकन दबाकर एक्सेल जैसा फ़िल्टर व सॉर्ट करें"
-                  : "💡 Tip: Click 🔍 on any column header to sort & filter like Excel"}
-              </span>
+              {pathname !== "/" && (
+                <>
+                  <span className="hidden sm:inline-block text-[11px] text-slate-300">|</span>
+                  <span className="hidden md:inline-block text-[11px] text-slate-500 truncate">
+                    {language === "hi"
+                      ? "💡 टिप: कॉलम हेडर पर 🔍 आइकन दबाकर एक्सेल जैसा फ़िल्टर व सॉर्ट करें"
+                      : "💡 Tip: Click 🔍 on any column header to sort & filter like Excel"}
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="flex items-center gap-2 shrink-0">

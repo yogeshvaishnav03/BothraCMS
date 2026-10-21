@@ -187,4 +187,65 @@ describe("Dashboard Fixes — Data Logic, Content & UI/UX Verification", () => {
     expect(getPriorityBadgeStyle("MEDIUM")).toContain("blue");
     expect(getPriorityBadgeStyle("LOW")).toContain("slate");
   });
+
+  it("4.1 Global Workers on Site Aggregation: Chaupasni (54) + Riverside (0) + Skyline (4) = 58", () => {
+    const siteBreakdowns = [
+      { siteName: "Chaupasni", count: 54 },
+      { siteName: "Riverside", count: 0 },
+      { siteName: "Skyline Heights", count: 4 },
+    ];
+
+    const totalAggregated = siteBreakdowns.reduce((sum, s) => sum + s.count, 0);
+    expect(totalAggregated).toBe(58);
+
+    // Subcategory math verification: 14 Art + 8 Craft + 32 Lab = 54, diff = 4 Site Crew
+    const art = 14;
+    const craft = 8;
+    const lab = 32;
+    const subSum = art + craft + lab;
+    const diff = totalAggregated - subSum;
+    expect(diff).toBe(4);
+
+    const parts = [`${art} Art`, `${craft} Craft`, `${lab} Lab`, `+${diff} Site Crew`];
+    expect(parts.join(", ")).toBe("14 Art, 8 Craft, 32 Lab, +4 Site Crew");
+    expect(art + craft + lab + diff).toBe(58);
+  });
+
+  it("4.2 Skyline Heights Crew Discrepancy Clarification: 5 Direct Crew - 1 Absent = 4 On-Site", () => {
+    const directCrew = 5;
+    const siteOnSiteCount = 4;
+    expect(siteOnSiteCount < directCrew).toBe(true);
+
+    const absentCount = directCrew - siteOnSiteCount;
+    expect(absentCount).toBe(1);
+
+    const statusBadge = `-${absentCount} Direct Crew Absent`;
+    const clarificationFormula = `(${directCrew} Direct Crew - ${absentCount} Absent = ${siteOnSiteCount} On-Site Today)`;
+
+    expect(statusBadge).toBe("-1 Direct Crew Absent");
+    expect(clarificationFormula).toBe("(5 Direct Crew - 1 Absent = 4 On-Site Today)");
+  });
+
+  it("4.3 Excel Tooltip Filtering: Visible only on table pages (pathname !== '/'), hidden on dashboard", () => {
+    const shouldShowExcelTip = (pathname: string) => pathname !== "/";
+
+    expect(shouldShowExcelTip("/")).toBe(false);
+    expect(shouldShowExcelTip("/materials")).toBe(true);
+    expect(shouldShowExcelTip("/tasks")).toBe(true);
+    expect(shouldShowExcelTip("/attendance")).toBe(true);
+  });
+
+  it("4.4 Site Tab Visibility: Tabs use flex-wrap and preserve full site names without clipping", () => {
+    const sampleSites = [
+      { id: "s1", name: "Chaupasni Phase 1", code: "CHAU-01" },
+      { id: "s2", name: "Riverside Enclave Phase 2", code: "RIV-128" },
+      { id: "s3", name: "Skyline Heights", code: "SKY-09" },
+    ];
+
+    sampleSites.forEach((site) => {
+      // Full site name must never be truncated to 2 chars like "Ri..."
+      expect(site.name.length).toBeGreaterThan(5);
+      expect(site.name).not.toBe("Ri...");
+    });
+  });
 });

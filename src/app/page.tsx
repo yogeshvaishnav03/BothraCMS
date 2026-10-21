@@ -277,39 +277,34 @@ export default function DashboardPage() {
     });
   }, [sites, kpi]);
 
-  // Total workers on site: sum of site breakdowns across all sites (or active site count)
+  // Total workers on site: accurately aggregate active site numbers from the site cards (Chaupasni: 54, Riverside: 0, Skyline: 4 -> 58)
   const displayTotalWorkersOnSite = useMemo(() => {
     if (activeSiteId) {
       const siteItem = siteOnSiteBreakdown.find((s) => s.siteId === activeSiteId);
-      const baseCount = siteItem ? siteItem.count : ((kpi?.workforceHeadcount?.records || []).find((r: any) => r.siteId === activeSiteId)?.grandTotal || 0);
-      const staffCount = kpi?.staffAttendanceCount || 0;
-      return Math.max(baseCount + staffCount, kpi?.totalOnSiteCount || 0, baseCount);
+      return siteItem ? siteItem.count : 0;
     }
-    const sumSites = siteOnSiteBreakdown.reduce((sum, s) => sum + s.count, 0);
-    const staffCount = kpi?.staffAttendanceCount || 0;
-    const kpiHeadcount = (kpi?.workforceHeadcount?.grandTotal || 0) + staffCount;
-    return Math.max(sumSites + staffCount, kpiHeadcount, kpi?.totalOnSiteCount || 0, kpi?.workersPresentTodayCount || 0);
-  }, [activeSiteId, siteOnSiteBreakdown, kpi]);
+    return siteOnSiteBreakdown.reduce((sum, s) => sum + s.count, 0);
+  }, [activeSiteId, siteOnSiteBreakdown]);
 
-  // Sub-category string correctly accounting for Artisans, Craftsmen, Laborers, and Staff with exact sum
+  // Sub-category string correctly accounting for Artisans, Craftsmen, Laborers, and Staff/Crew with exact sum
   const { workerSubCategorySummary, workerSubCategoryFull, staffDifference } = useMemo(() => {
     const art = kpi?.workforceHeadcount?.totalArtisan || 0;
     const craft = kpi?.workforceHeadcount?.totalCraftsman || 0;
     const lab = kpi?.workforceHeadcount?.totalLaborer || 0;
     const subSum = art + craft + lab;
-    const staffDiff = displayTotalWorkersOnSite > subSum ? displayTotalWorkersOnSite - subSum : (kpi?.staffAttendanceCount || 0);
+    const diff = displayTotalWorkersOnSite > subSum ? displayTotalWorkersOnSite - subSum : 0;
 
     const parts: string[] = [];
     if (art > 0) parts.push(`${art} Art`);
     if (craft > 0) parts.push(`${craft} Craft`);
     if (lab > 0) parts.push(`${lab} Lab`);
-    if (staffDiff > 0) parts.push(`+${staffDiff} Staff`);
+    if (diff > 0) parts.push(`+${diff} Site Crew`);
 
     if (parts.length === 0) {
       return {
         workerSubCategorySummary: `${displayTotalWorkersOnSite} checked in today`,
         workerSubCategoryFull: `${displayTotalWorkersOnSite} checked in today`,
-        staffDifference: staffDiff,
+        staffDifference: diff,
       };
     }
 
@@ -318,7 +313,7 @@ export default function DashboardPage() {
     return {
       workerSubCategorySummary: subcategoryText,
       workerSubCategoryFull: fullStr,
-      staffDifference: staffDiff,
+      staffDifference: diff,
     };
   }, [kpi, displayTotalWorkersOnSite]);
 
@@ -1302,30 +1297,16 @@ export default function DashboardPage() {
                 <LayoutGrid className="w-3.5 h-3.5 text-slate-500" />
                 <span className="hidden sm:inline">{kpiDensity === "compact" ? "Compact" : "Expanded"}</span>
               </button>
-
-              {/* Action Buttons */}
-              <button
-                type="button"
-                onClick={() => setShowQuickTaskModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition-all cursor-pointer"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>Quick Task</span>
-              </button>
-              <Link
-                href="/materials"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all"
-              >
-                <PackagePlus className="w-3.5 h-3.5 text-amber-400" />
-                <span>Receive Stock</span>
-              </Link>
             </div>
           </div>
 
-          {/* Bottom Row: Site Selector Pills + Interactive Section Tabs + Live Search */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
-            {/* Site Selector Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 lg:pb-0">
+          {/* Dedicated Site Selection Ribbon */}
+          <div className="pt-2.5 border-t border-slate-100">
+            <div className="flex items-center gap-2 flex-wrap overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 shrink-0 mr-1">
+                <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                <span>Sites:</span>
+              </span>
               <button
                 type="button"
                 onClick={() => {
@@ -1336,13 +1317,13 @@ export default function DashboardPage() {
                     window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
                   }
                 }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer shadow-2xs ${
                   !activeSiteId
-                    ? "bg-slate-900 text-white shadow-xs"
+                    ? "bg-slate-900 text-white"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                <span>🌐 All Sites</span>
+                <span>🌐 All Active Sites</span>
                 <span className="text-[10px] opacity-75 font-mono">({sites.length})</span>
               </button>
               {sites.map((s) => {
@@ -1359,9 +1340,9 @@ export default function DashboardPage() {
                         window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: s.id } }));
                       }
                     }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer shadow-2xs ${
                       isSelected
-                        ? "bg-amber-500 text-slate-950 shadow-xs"
+                        ? "bg-amber-500 text-slate-950 ring-2 ring-amber-300"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
@@ -1371,10 +1352,11 @@ export default function DashboardPage() {
                 );
               })}
             </div>
+          </div>
 
-            {/* Interactive Section Tabs + Live Search Filter */}
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg overflow-x-auto">
+          {/* Interactive Section Tabs + Live Search Filter */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <button
                   type="button"
                   onClick={() => setActiveSectionTab("ALL")}
@@ -1474,7 +1456,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        </div>
 
         {/* Status notification banner */}
         {statusMessage && (
@@ -1729,9 +1710,6 @@ export default function DashboardPage() {
               </div>
               <div className="text-xl font-black text-slate-900 flex items-baseline gap-1">
                 <span>{displayTotalWorkersOnSite}</span>
-                {staffDifference > 0 && (
-                  <span className="text-[10px] font-bold text-slate-400">(+{staffDifference})</span>
-                )}
               </div>
               <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5" title={workerSubCategoryFull}>
                 {workerSubCategorySummary}
@@ -1886,11 +1864,6 @@ export default function DashboardPage() {
                 <span>
                   {displayTotalWorkersOnSite}
                 </span>
-                {staffDifference > 0 && (
-                  <span className="text-xs font-bold text-slate-400">
-                    (+{staffDifference} staff)
-                  </span>
-                )}
                 {kpi?.workforceHeadcount?.isLatestFallback && (
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
                     Latest: {kpi.workforceHeadcount.activeDate ? formatDate(kpi.workforceHeadcount.activeDate) : "Recent"}
@@ -2239,6 +2212,22 @@ export default function DashboardPage() {
                         </div>
                       )}
 
+                      {/* Crew attendance clarification if on-site < direct crew (e.g. absent workers) */}
+                      {siteOnSiteCount < directCrew && (() => {
+                        const absentCount = directCrew - siteOnSiteCount;
+                        return (
+                          <div className="text-[10px] bg-blue-50/90 border border-blue-200/80 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600 font-medium">Crew Attendance Status:</span>
+                              <span className="font-bold text-blue-900">-{absentCount} Direct Crew Absent</span>
+                            </div>
+                            <div className="text-[9.5px] text-blue-800 font-medium text-right">
+                              ({directCrew} Direct Crew - {absentCount} Absent = {siteOnSiteCount} On-Site Today)
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Active Projects List */}
                       <div className="space-y-1.5 mt-2">
                         <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
@@ -2336,12 +2325,17 @@ export default function DashboardPage() {
                           </div>
                         </div>
 
-                        {externalGang > 0 && (
+                        {externalGang > 0 ? (
                           <div className="text-[9.5px] bg-amber-50 border border-amber-200 px-2 py-1 rounded text-amber-900 flex items-center justify-between">
                             <span>Includes Subcontractor Labor:</span>
                             <span className="font-bold">+{externalGang} External Gang</span>
                           </div>
-                        )}
+                        ) : siteOnSiteCount < directCrew ? (
+                          <div className="text-[9.5px] bg-blue-50 border border-blue-200 px-2 py-1 rounded text-blue-900 flex items-center justify-between">
+                            <span>Crew Attendance Status:</span>
+                            <span className="font-bold">-{directCrew - siteOnSiteCount} Absent ({siteOnSiteCount} of {directCrew} On-Site)</span>
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -2619,6 +2613,25 @@ export default function DashboardPage() {
                               </div>
                               <div className="text-[9.5px] text-amber-800 font-medium text-right">
                                 ({directCrew} Direct Crew + {externalGang} External = {siteOnSiteCount} On-Site)
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Breakdown clarification when on-site is less than direct crew (e.g. absent workers) */}
+                        {siteOnSiteCount < (siteWorkers.length || site._count?.workforceMembers || 0) && (() => {
+                          const directCrew = siteWorkers.length || site._count?.workforceMembers || 0;
+                          const absentCount = directCrew - siteOnSiteCount;
+                          return (
+                            <div className="text-[10px] bg-blue-50/90 border border-blue-200/70 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-600 font-medium">Crew Attendance Status:</span>
+                                <span className="font-bold text-blue-900">
+                                  -{absentCount} Direct Crew Absent
+                                </span>
+                              </div>
+                              <div className="text-[9.5px] text-blue-800 font-medium text-right">
+                                ({directCrew} Direct Crew - {absentCount} Absent = {siteOnSiteCount} On-Site Today)
                               </div>
                             </div>
                           );
