@@ -25,7 +25,7 @@ if (fs.existsSync(envPath)) {
   // Generate a cryptographically secure 64-char SESSION_SECRET on fresh environments
   const autoSecret = crypto.randomBytes(32).toString("hex");
   const defaultEnv = `# BothraCMS (BuildTrack Pro) — Production & Local Environment Configuration
-DATABASE_URL="file:./prisma/dev.db"
+DATABASE_URL="file:./dev.db"
 SESSION_SECRET="${autoSecret}"
 NODE_ENV="production"
 PORT=3000
@@ -96,7 +96,7 @@ if (fs.existsSync(schemaPath)) {
           dbUrl ||
           (targetProvider === "postgresql"
             ? "postgresql://postgres:postgres@localhost:5432/postgres"
-            : "file:./prisma/dev.db"),
+            : "file:./dev.db"),
       },
     });
   } catch (genErr) {
@@ -134,7 +134,7 @@ try {
     stdio: "inherit",
     env: {
       ...process.env,
-      DATABASE_URL: dbUrl || "file:./prisma/dev.db",
+      DATABASE_URL: dbUrl || "file:./dev.db",
     },
   });
 } catch (seedErr) {
@@ -148,7 +148,7 @@ try {
     stdio: "inherit",
     env: {
       ...process.env,
-      DATABASE_URL: dbUrl || "file:./prisma/dev.db",
+      DATABASE_URL: dbUrl || "file:./dev.db",
     },
   });
 } catch (seed100Err) {
@@ -162,7 +162,7 @@ try {
     stdio: "inherit",
     env: {
       ...process.env,
-      DATABASE_URL: dbUrl || "file:./prisma/dev.db",
+      DATABASE_URL: dbUrl || "file:./dev.db",
     },
   });
 } catch (poErr) {
