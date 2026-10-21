@@ -530,7 +530,7 @@ async function main() {
   // Seed 125+ Stock Movements
   console.log('  Seeding 125+ Stock Movements...');
   const currentMovements = await prisma.stockMovement.count({ where: { organizationId: ORG_ID } });
-  const movementsNeeded = Math.max(125 - currentMovements, 60);
+  const movementsNeeded = Math.max(125 - currentMovements, 0);
 
   const movementTypes = ['RECEIPT', 'ISSUE', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUSTMENT'];
   const vendors = allParties.filter(p => p.partyType === 'VENDOR' || p.partyType === 'BOTH');
@@ -645,7 +645,7 @@ async function main() {
   const statuses = ['TODO', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED', 'VERIFIED'];
 
   const currentTasksCount = await prisma.task.count({ where: { organizationId: ORG_ID } });
-  const tasksNeeded = Math.max(115 - currentTasksCount, 80);
+  const tasksNeeded = Math.max(115 - currentTasksCount, 0);
 
   console.log(`Current Tasks count: ${currentTasksCount}. Seeding ${tasksNeeded} additional Tasks...`);
 
@@ -711,7 +711,7 @@ async function main() {
 
   const mbStatuses = ['SUBMITTED', 'VERIFIED', 'APPROVED', 'BILLED', 'DRAFT'];
   const currentMbCount = await prisma.measurementBookEntry.count({ where: { organizationId: ORG_ID } });
-  const mbNeeded = Math.max(110 - currentMbCount, 75);
+  const mbNeeded = Math.max(110 - currentMbCount, 0);
 
   console.log(`Current MB count: ${currentMbCount}. Seeding ${mbNeeded} additional Measurement Book Entries...`);
 
@@ -802,7 +802,7 @@ async function main() {
   ];
 
   const currentWfCount = await prisma.workforceMember.count({ where: { organizationId: ORG_ID } });
-  const wfNeeded = Math.max(115 - currentWfCount, 85);
+  const wfNeeded = Math.max(115 - currentWfCount, 0);
   console.log(`Current Workforce count: ${currentWfCount}. Seeding ${wfNeeded} additional Workforce Members...`);
 
   let wfCodeSeq = 2000 + currentWfCount;
@@ -890,7 +890,7 @@ async function main() {
   // -------------------------------------------------------------
   console.log('\n--- Seeding Workforce Headcount Muster Logs ---');
   const currentHeadcounts = await prisma.workforceHeadcount.count({ where: { organizationId: ORG_ID } });
-  const headcountsNeeded = Math.max(105 - currentHeadcounts, 70);
+  const headcountsNeeded = Math.max(105 - currentHeadcounts, 0);
 
   console.log(`Current Headcounts: ${currentHeadcounts}. Seeding ${headcountsNeeded} additional records...`);
 
@@ -950,7 +950,7 @@ async function main() {
   console.log('\n--- Seeding Daily Site Reports ---');
 
   const currentReportsCount = await prisma.dailySiteReport.count({ where: { organizationId: ORG_ID } });
-  const reportsNeeded = Math.max(110 - currentReportsCount, 75);
+  const reportsNeeded = Math.max(110 - currentReportsCount, 0);
   console.log(`Current Daily Reports: ${currentReportsCount}. Seeding ${reportsNeeded} additional reports...`);
 
   const progressSnippets = [
@@ -1010,7 +1010,7 @@ async function main() {
   console.log('\n--- Seeding Finance (Bills & Payments) ---');
 
   const currentBillsCount = await prisma.bill.count({ where: { organizationId: ORG_ID } });
-  const billsNeeded = Math.max(110 - currentBillsCount, 75);
+  const billsNeeded = Math.max(110 - currentBillsCount, 0);
   console.log(`Current Bills: ${currentBillsCount}. Seeding ${billsNeeded} additional Bills...`);
 
   const createdBills = [];
@@ -1070,7 +1070,7 @@ async function main() {
 
   // Seed 115+ Payments
   const currentPaymentsCount = await prisma.payment.count({ where: { organizationId: ORG_ID } });
-  const paymentsNeeded = Math.max(115 - currentPaymentsCount, 75);
+  const paymentsNeeded = Math.max(115 - currentPaymentsCount, 0);
   console.log(`Current Payments: ${currentPaymentsCount}. Seeding ${paymentsNeeded} additional Payments...`);
 
   const bankAccounts = [
@@ -1138,7 +1138,7 @@ async function main() {
   console.log('\n--- Seeding Audit Events ---');
 
   const currentAuditCount = await prisma.auditEvent.count({ where: { organizationId: ORG_ID } });
-  const auditNeeded = Math.max(125 - currentAuditCount, 85);
+  const auditNeeded = Math.max(125 - currentAuditCount, 0);
   console.log(`Current Audit Events: ${currentAuditCount}. Seeding ${auditNeeded} additional Audit Events...`);
 
   const auditActions = [
