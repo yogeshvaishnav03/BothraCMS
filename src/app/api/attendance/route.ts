@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const siteId = searchParams.get("siteId") || undefined;
-    const workDate = searchParams.get("workDate") || new Date().toISOString().split("T")[0];
+    const workDate = searchParams.get("workDate") || undefined;
 
     const records = await AttendanceService.getDailyAttendance(
       user.organizationId,
