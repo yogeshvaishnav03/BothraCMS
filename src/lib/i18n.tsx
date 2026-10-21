@@ -237,6 +237,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "settings.languageDesc": "Choose your personal interface language for all screens, navigation, and reports.",
     "settings.quickSwitcher": "Quick Language Switcher",
     "settings.quickSwitcherDesc": "Switch platform display language instantly:",
+    "settings.securityTitle": "Account Security & Change Password",
+    "settings.securitySubtitle": "Update your password regularly to protect your account and data.",
+    "action.changePassword": "Change Password",
 
     // Statuses
     "status.todo": "To Do",
@@ -461,6 +464,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "settings.languageDesc": "सभी स्क्रीन, नेविगेशन और रिपोर्ट्स के लिए अपनी व्यक्तिगत भाषा चुनें।",
     "settings.quickSwitcher": "त्वरित भाषा परिवर्तक",
     "settings.quickSwitcherDesc": "1-क्लिक में तुरंत प्लेटफ़ॉर्म भाषा बदलें:",
+    "settings.securityTitle": "खाता सुरक्षा एवं पासवर्ड बदलें",
+    "settings.securitySubtitle": "अपने खाते और डेटा की सुरक्षा के लिए पासवर्ड नियमित रूप से बदलें।",
+    "action.changePassword": "पासवर्ड बदलें",
 
     // Statuses
     "status.todo": "लंबित",

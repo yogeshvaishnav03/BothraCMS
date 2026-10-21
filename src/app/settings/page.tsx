@@ -20,6 +20,10 @@ import {
   Languages,
   Check,
   Sparkles,
+  Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 interface LanguageOption {
@@ -103,6 +107,17 @@ export default function SettingsPage() {
   const [workDayHours, setWorkDayHours] = useState(8);
 
   const [orgData, setOrgData] = useState<OrgData | null>(null);
+
+  // Password change states
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdSuccessMsg, setPwdSuccessMsg] = useState("");
+  const [pwdErrorMsg, setPwdErrorMsg] = useState("");
 
   useEffect(() => {
     fetchOrg();
@@ -198,6 +213,51 @@ export default function SettingsPage() {
       setErrorMsg("Network error saving organization settings");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault();
+    setPwdSaving(true);
+    setPwdSuccessMsg("");
+    setPwdErrorMsg("");
+
+    if (newPassword.length < 8) {
+      setPwdErrorMsg("New password must be at least 8 characters long.");
+      setPwdSaving(false);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPwdErrorMsg("New password and confirm password do not match.");
+      setPwdSaving(false);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setPwdSuccessMsg("Your password has been changed successfully.");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        setPwdErrorMsg(json.error?.message || "Failed to change password");
+      }
+    } catch {
+      setPwdErrorMsg("Network error changing password. Please try again.");
+    } finally {
+      setPwdSaving(false);
     }
   }
 
@@ -467,6 +527,145 @@ export default function SettingsPage() {
                   </div>
                 )}
               </form>
+
+              {/* Account Security & Password Change Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-slate-800">
+                        {t("settings.securityTitle", "Account Security & Change Password")}
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        {t("settings.securitySubtitle", "Update your password regularly to protect your account and data.")}
+                      </p>
+                    </div>
+                  </div>
+                  {currentUser?.email && (
+                    <span className="self-start sm:self-auto text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                      {currentUser.email}
+                    </span>
+                  )}
+                </div>
+
+                {pwdSuccessMsg && (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>{pwdSuccessMsg}</span>
+                  </div>
+                )}
+
+                {pwdErrorMsg && (
+                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                    <span>{pwdErrorMsg}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Current Password */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Current Password *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPassword ? "text" : "password"}
+                          required
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="Current password"
+                          className="w-full pl-3 pr-10 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition"
+                          title={showCurrentPassword ? "Hide password" : "Show password"}
+                        >
+                          {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* New Password */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        New Password *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          required
+                          minLength={8}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="At least 8 characters"
+                          className="w-full pl-3 pr-10 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition"
+                          title={showNewPassword ? "Hide password" : "Show password"}
+                        >
+                          {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <span className="text-[11px] text-slate-400 mt-1 block">Min. 8 characters</span>
+                    </div>
+
+                    {/* Confirm New Password */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Confirm New Password *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter new password"
+                          className={`w-full pl-3 pr-10 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none ${
+                            confirmPassword && newPassword !== confirmPassword
+                              ? "border-rose-300 bg-rose-50/30"
+                              : "border-slate-200"
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition"
+                          title={showConfirmPassword ? "Hide password" : "Show password"}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {confirmPassword && newPassword !== confirmPassword ? (
+                        <span className="text-[11px] text-rose-500 font-medium mt-1 block">Passwords do not match</span>
+                      ) : confirmPassword && newPassword === confirmPassword ? (
+                        <span className="text-[11px] text-emerald-600 font-medium mt-1 block">Passwords match</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={pwdSaving || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword || newPassword.length < 8}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-sm font-bold shadow-md shadow-amber-600/20 transition disabled:opacity-50"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      {pwdSaving ? t("action.saving", "Updating Password...") : t("action.changePassword", "Change Password")}
+                    </button>
+                  </div>
+                </form>
+              </div>
 
               {/* Team Members Table */}
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
