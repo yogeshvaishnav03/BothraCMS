@@ -171,7 +171,7 @@ describe("Priority 4 & 6: Vendors, Contractors, Contract Progress, Payments & Au
     expect(bill).toBeDefined();
 
     // Record partial payment of ₹3 Lakhs (30,000,000 paise) against ₹5 Lakhs bill
-    const { payment } = await FinanceService.recordPayment({
+    const { payment: pendingPayment } = await FinanceService.recordPayment({
       organizationId: orgId,
       partyId: contractorPartyId,
       recipientType: "CONTRACTOR",
@@ -188,6 +188,20 @@ describe("Priority 4 & 6: Vendors, Contractors, Contract Progress, Payments & Au
       autoApprove: true,
       allocations: [{ billId: bill.id, amount: 30000000 }],
       notes: "Part payment against RA Bill 1",
+    });
+
+    // An accountant cannot self-approve: the payment waits for an admin.
+    expect(pendingPayment.status).toBe("PENDING_APPROVAL");
+    await FinanceService.approvePayment({
+      paymentId: pendingPayment.id,
+      organizationId: orgId,
+      userId: adminId,
+      role: "ORG_ADMIN",
+      approverName: "Org Admin",
+    });
+    const payment = await prisma.payment.findUniqueOrThrow({
+      where: { id: pendingPayment.id },
+      include: { allocations: true },
     });
 
     expect(payment.status).toBe("POSTED");

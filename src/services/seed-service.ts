@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { randomBytes } from "crypto";
 import { hashPassword } from "@/lib/auth";
 
 export interface SeedResult {
@@ -15,6 +16,15 @@ export interface SeedResult {
   workforceCreated: number;
   attendanceCreated: number;
   dailyReportsCreated: number;
+  /** Emails of demo accounts newly created in this run (existing accounts are left untouched). */
+  createdUsers: string[];
+  /** Random password assigned to the accounts in createdUsers; null if none were created. */
+  generatedPassword: string | null;
+}
+
+function generateDemoPassword(): string {
+  // 16 random bytes → 22 url-safe chars, plus a fixed suffix to satisfy complexity rules.
+  return `${randomBytes(16).toString("base64url")}#A1`;
 }
 
 export async function seedDemoData(
@@ -41,7 +51,9 @@ export async function seedDemoData(
   }
 
   const orgId = org.id;
-  const defaultPasswordHash = await hashPassword("Password123!");
+  // A fresh random password per run; never a fixed, guessable default.
+  const generatedPassword = generateDemoPassword();
+  let generatedPasswordHash: string | null = null;
 
   // 2. Ensure standard role accounts exist for this organization
   const standardUsers = [
@@ -84,25 +96,34 @@ export async function seedDemoData(
   ];
 
   const userMap: Record<string, string> = {};
+  const createdUsers: string[] = [];
   for (const u of standardUsers) {
-    const userRec = await prisma.user.upsert({
+    const existing = await prisma.user.findUnique({
       where: {
         organizationId_email: {
           organizationId: orgId,
           email: u.email,
         },
       },
-      update: { role: u.role },
-      create: {
+    });
+    if (existing) {
+      // Leave existing accounts (including their role and password) untouched.
+      userMap[u.role] = existing.id;
+      continue;
+    }
+    generatedPasswordHash ??= await hashPassword(generatedPassword);
+    const userRec = await prisma.user.create({
+      data: {
         id: u.id,
         organizationId: orgId,
         name: u.name,
         email: u.email,
-        passwordHash: defaultPasswordHash,
+        passwordHash: generatedPasswordHash,
         role: u.role,
         status: "ACTIVE",
       },
     });
+    createdUsers.push(u.email);
     userMap[u.role] = userRec.id;
   }
 
@@ -773,5 +794,7 @@ export async function seedDemoData(
     workforceCreated: workers.length,
     attendanceCreated: 4,
     dailyReportsCreated: 1,
+    createdUsers,
+    generatedPassword: createdUsers.length ? generatedPassword : null,
   };
 }

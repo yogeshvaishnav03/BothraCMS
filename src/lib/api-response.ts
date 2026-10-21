@@ -61,11 +61,21 @@ export function jsonError(
   );
 }
 
+/** Turns a ZodError into a readable message, e.g. "Validation error: amount — Expected number, received string". */
+export function formatZodError(error: ZodError): string {
+  const parts = error.issues.slice(0, 3).map((issue) => {
+    const field = issue.path.join(".");
+    return field ? `${field} — ${issue.message}` : issue.message;
+  });
+  const more = error.issues.length > 3 ? ` (+${error.issues.length - 3} more)` : "";
+  return parts.length ? `Validation error: ${parts.join("; ")}${more}` : "Validation error";
+}
+
 export function handleApiError(error: unknown) {
   console.error("[API_ERROR]", error);
 
   if (error instanceof ZodError) {
-    return jsonError("Validation error", "VALIDATION_ERROR", 422, error.flatten());
+    return jsonError(formatZodError(error), "VALIDATION_ERROR", 422, error.flatten());
   }
 
   if (error && typeof error === "object" && "statusCode" in error && "code" in error) {

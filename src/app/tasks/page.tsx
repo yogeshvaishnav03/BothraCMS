@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert } from "@/components/ui/Alert";
+import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatDate } from "@/lib/formatters";
@@ -382,16 +384,7 @@ export default function TasksPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <CheckSquare className="w-6 h-6 text-amber-500" />
-              <span>Site Tasks & Employee Accountability</span>
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Employee task assignment, progress photos, assistance requests, verification timestamps & audit history.
-            </p>
-          </div>
+        <PageHeader icon={CheckSquare} title="Site Tasks & Employee Accountability" subtitle="Employee task assignment, progress photos, assistance requests, verification timestamps & audit history.">
 
           {canWriteTasks && (
             <button
@@ -410,21 +403,11 @@ export default function TasksPage() {
               <span>+ Create / Assign Task</span>
             </button>
           )}
-        </div>
+        </PageHeader>
 
         {/* Feedback alerts */}
-        {statusMessage && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{statusMessage}</span>
-          </div>
-        )}
-        {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
+        {statusMessage && <Alert tone="success">{statusMessage}</Alert>}
+        {errorMessage && <Alert tone="error">{errorMessage}</Alert>}
 
         {/* Filter controls */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">

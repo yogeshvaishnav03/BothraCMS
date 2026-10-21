@@ -73,6 +73,8 @@ describe("POST /api/admin/seed (1-Click Demo Data Population)", () => {
       workforceCreated: 5,
       attendanceCreated: 4,
       dailyReportsCreated: 1,
+      createdUsers: ["pm@buildtrack.pro"],
+      generatedPassword: "random-generated-pw#A1",
     };
 
     vi.spyOn(seedService, "seedDemoData").mockResolvedValue(mockSeedResult);
@@ -90,5 +92,37 @@ describe("POST /api/admin/seed (1-Click Demo Data Population)", () => {
     expect(json.data.summary.sitesCreated).toBe(2);
     expect(json.data.summary.projectsCreated).toBe(2);
     expect(json.data.summary.materialsCreated).toBe(5);
+    // The generated password for newly created demo accounts is returned once
+    expect(json.data.demoCredentials).toEqual({
+      password: "random-generated-pw#A1",
+      emails: ["pm@buildtrack.pro"],
+    });
+  });
+
+  it("should refuse seeding in production unless ALLOW_DEMO_SEED=true", async () => {
+    vi.spyOn(auth, "getUserContext").mockResolvedValue({
+      userId: "usr-super-1",
+      organizationId: "org-1",
+      email: "superadmin@buildtrack.pro",
+      name: "Master Super Admin",
+      role: "SUPER_ADMIN",
+      organizationName: "Bothra Construction",
+      currency: "INR",
+      timezone: "Asia/Kolkata",
+    });
+    const seedSpy = vi.spyOn(seedService, "seedDemoData");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_DEMO_SEED", "");
+    try {
+      const res = await POST(
+        new NextRequest("http://localhost:3000/api/admin/seed", { method: "POST" })
+      );
+      const json = await res.json();
+      expect(res.status).toBe(403);
+      expect(json.error.code).toBe("DEMO_SEED_DISABLED");
+      expect(seedSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

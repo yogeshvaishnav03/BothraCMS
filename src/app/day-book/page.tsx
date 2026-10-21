@@ -1,5 +1,8 @@
 "use client";
 
+import { Alert } from "@/components/ui/Alert";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
 import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -26,6 +29,7 @@ import {
   Filter,
   Users,
   Sparkles,
+  CalendarX,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -65,6 +69,7 @@ export default function DayBookPage() {
   const canWriteProjects = !currentUser || canUser(currentUser, "projects:write");
   const canWriteTasks = !currentUser || canUser(currentUser, "tasks:write");
   const canWriteAttendance = !currentUser || canUser(currentUser, "attendance:write");
+  const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
   const canWriteDsr = canWriteProjects || canWriteTasks;
   const canLogDayEntry = canWriteFinance || canWriteDsr || canWriteAttendance;
 
@@ -777,7 +782,8 @@ export default function DayBookPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Populate Demo Data Button */}
+            {/* Populate Demo Data Button (Super Admin only) */}
+            {isSuperAdmin && (
             <button
               onClick={handleSeedDemoData}
               disabled={actionLoading}
@@ -787,6 +793,7 @@ export default function DayBookPage() {
               <Sparkles className="w-4 h-4 text-amber-600" />
               <span>{actionLoading ? "Loading..." : "Load Demo Data"}</span>
             </button>
+            )}
 
             {/* Quick Action Button */}
             {canLogDayEntry && (
@@ -887,48 +894,47 @@ export default function DayBookPage() {
 
         {/* Feedback message */}
         {statusMessage && (
-          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-semibold flex items-center justify-between">
-            <span>{statusMessage}</span>
-            <button onClick={() => setStatusMessage(null)}>
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <Alert
+            tone={statusMessage.startsWith("❌") ? "error" : statusMessage.startsWith("✅") ? "success" : "warning"}
+            onDismiss={() => setStatusMessage(null)}
+          >
+            {statusMessage.replace(/^(❌|✅)\s*/u, "")}
+          </Alert>
         )}
 
-        {/* Helpful Banner: When current date is empty */}
+        {/* Empty state: no activity recorded for the selected date */}
         {!loading && totalActivityCount === 0 && (
-          <div className="bg-amber-500/10 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900">
-            <div className="flex items-center gap-2.5">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-              <div>
-                <span className="text-xs font-bold block sm:inline">
-                  No Day Book entries logged for {formatDate(selectedDate)}.
-                </span>
-                <span className="text-xs text-amber-800 ml-0 sm:ml-1 font-medium">
-                  Click below to generate sample payments, vendor bills, inventory receipts/issues, labor muster, and site progress reports.
-                </span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
+          <EmptyState
+            icon={CalendarX}
+            title={`No Day Book entries for ${formatDate(selectedDate)}`}
+            description={
+              canLogDayEntry
+                ? "Nothing has been recorded for this date yet. Use “+ Log Day Entry” to add a payment, bill, stock movement, headcount or site report."
+                : "Nothing has been recorded for this date yet. Pick another date to review earlier activity."
+            }
+          >
+            {canLogDayEntry && (
+              <Button icon={<PlusCircle className="w-4 h-4" />} onClick={() => setShowLogModal(true)}>
+                {t("daybook.addEntry", "+ Log Day Entry")}
+              </Button>
+            )}
+            {dayData?.recentActivityDates && dayData.recentActivityDates.map((dt) => (
+              <Button key={dt} variant="secondary" size="sm" onClick={() => handleDateChange(dt)}>
+                Jump to {formatDate(dt)}
+              </Button>
+            ))}
+            {isSuperAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                loading={actionLoading}
+                icon={<Sparkles className="w-3.5 h-3.5 text-amber-600" />}
                 onClick={handleSeedDemoData}
-                disabled={actionLoading}
-                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-lg transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>{actionLoading ? "Generating..." : "Populate Demo Records"}</span>
-              </button>
-              {dayData?.recentActivityDates && dayData.recentActivityDates.map((dt) => (
-                <button
-                  key={dt}
-                  onClick={() => handleDateChange(dt)}
-                  className="px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition shadow-xs"
-                >
-                  Jump to {formatDate(dt)}
-                </button>
-              ))}
-            </div>
-          </div>
+                Populate Demo Records
+              </Button>
+            )}
+          </EmptyState>
         )}
 
         {/* Summary KPI Cards for Selected Date */}

@@ -24,6 +24,39 @@
   }
 }
 
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Visible keyboard focus everywhere, without changing mouse/touch styling */
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid #f59e0b;
+    outline-offset: 2px;
+  }
+
+  /* Long words / IDs / emails must wrap instead of widening the page */
+  h1, h2, h3, p, li, label {
+    overflow-wrap: break-word;
+  }
+
+  img, video, canvas, svg {
+    max-width: 100%;
+  }
+}
+
+@layer utilities {
+  /* Horizontally scrolling table containers: smooth on touch, never scroll the page */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    max-width: 100%;
+  }
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }

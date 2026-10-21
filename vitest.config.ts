@@ -9,7 +9,7 @@ export default defineConfig({
     testTimeout: 20000,
     hookTimeout: 20000,
     env: {
-      DATABASE_URL: process.env.DATABASE_URL || "file:./prisma/dev.db",
+      DATABASE_URL: process.env.DATABASE_URL || "file:./dev.db",
     },
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["audit-artifacts/**", "node_modules/**"],

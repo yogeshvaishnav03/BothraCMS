@@ -60,6 +60,7 @@ export default function SuperAdminDashboardPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [seedSummary, setSeedSummary] = useState<any>(null);
+  const [seedCredentials, setSeedCredentials] = useState<{ password: string; emails: string[] } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -318,6 +319,7 @@ export default function SuperAdminDashboardPage() {
     setErrorMsg("");
     setSuccessMsg("");
     setSeedSummary(null);
+    setSeedCredentials(null);
 
     try {
       const res = await fetch("/api/admin/seed", {
@@ -329,6 +331,7 @@ export default function SuperAdminDashboardPage() {
       if (res.ok && data.success) {
         setSuccessMsg(data.data.message || "Demo data populated successfully!");
         setSeedSummary(data.data.summary);
+        setSeedCredentials(data.data.demoCredentials || null);
         await loadTenants();
         await loadPendingOrders();
       } else {
@@ -1084,6 +1087,17 @@ export default function SuperAdminDashboardPage() {
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>Demo Records Seeded for {seedSummary.organizationName}</span>
             </div>
+            {seedCredentials && (
+              <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-950" role="status">
+                <p className="font-bold mb-1">New demo logins created — copy this password now, it will not be shown again.</p>
+                <p className="font-mono text-sm bg-white border border-amber-200 rounded-lg px-2 py-1 inline-block select-all break-all">
+                  {seedCredentials.password}
+                </p>
+                <p className="mt-1.5 text-[11px] text-amber-900 break-words">
+                  Accounts: {seedCredentials.emails.join(", ")}
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
                 <div className="text-[10px] text-slate-500 uppercase font-semibold">Sites</div>

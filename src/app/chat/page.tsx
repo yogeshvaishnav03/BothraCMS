@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/ui/Alert";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatDateTime } from "@/lib/formatters";
@@ -1185,12 +1186,7 @@ export default function ChatPage() {
             </div>
 
             <form onSubmit={handleCreateGroup} className="p-5 space-y-4">
-              {groupError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{groupError}</span>
-                </div>
-              )}
+              {groupError && <Alert tone="error">{groupError}</Alert>}
 
               {/* Group Name */}
               <div>
