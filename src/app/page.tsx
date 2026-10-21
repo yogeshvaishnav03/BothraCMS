@@ -57,7 +57,13 @@ export default function DashboardPage() {
       !name.includes("wallpaper") &&
       !name.includes("logo") &&
       !name.includes("test_") &&
-      !notes.includes("dummy")
+      !name.includes("mockup") &&
+      !name.includes("placeholder") &&
+      !name.includes("dummy") &&
+      !notes.includes("dummy") &&
+      !notes.includes("mockup") &&
+      !notes.includes("placeholder") &&
+      Boolean(photo.fileId || photo.url)
     );
   };
 
@@ -252,13 +258,14 @@ export default function DashboardPage() {
   const displayTotalWorkersOnSite = useMemo(() => {
     if (activeSiteId) {
       const siteItem = siteOnSiteBreakdown.find((s) => s.siteId === activeSiteId);
-      if (siteItem) return siteItem.count;
-      const sh = (kpi?.workforceHeadcount?.records || []).find((r: any) => r.siteId === activeSiteId);
-      return sh?.grandTotal || 0;
+      const baseCount = siteItem ? siteItem.count : ((kpi?.workforceHeadcount?.records || []).find((r: any) => r.siteId === activeSiteId)?.grandTotal || 0);
+      const staffCount = kpi?.staffAttendanceCount || 0;
+      return Math.max(baseCount + staffCount, kpi?.totalOnSiteCount || 0, baseCount);
     }
     const sumSites = siteOnSiteBreakdown.reduce((sum, s) => sum + s.count, 0);
-    const kpiHeadcount = (kpi?.workforceHeadcount?.grandTotal || 0) + (kpi?.staffAttendanceCount || 0);
-    return Math.max(sumSites, kpiHeadcount, kpi?.totalOnSiteCount || 0, kpi?.workersPresentTodayCount || 0);
+    const staffCount = kpi?.staffAttendanceCount || 0;
+    const kpiHeadcount = (kpi?.workforceHeadcount?.grandTotal || 0) + staffCount;
+    return Math.max(sumSites + staffCount, kpiHeadcount, kpi?.totalOnSiteCount || 0, kpi?.workersPresentTodayCount || 0);
   }, [activeSiteId, siteOnSiteBreakdown, kpi]);
 
   // Sub-category string correctly accounting for Artisans, Craftsmen, Laborers, and Staff with exact sum
@@ -283,9 +290,10 @@ export default function DashboardPage() {
       };
     }
 
-    const fullStr = `${displayTotalWorkersOnSite} on site (${parts.join(", ")})`;
+    const subcategoryText = parts.join(", ");
+    const fullStr = `${displayTotalWorkersOnSite} on site (${subcategoryText})`;
     return {
-      workerSubCategorySummary: fullStr,
+      workerSubCategorySummary: subcategoryText,
       workerSubCategoryFull: fullStr,
       staffDifference: staffDiff,
     };
@@ -325,7 +333,7 @@ export default function DashboardPage() {
     if (taskFilterOverdueOnly) {
       return pendingIncompleteTasks.filter(isTaskOverdue);
     }
-    return pendingIncompleteTasks.slice(0, 6);
+    return pendingIncompleteTasks.slice(0, 8);
   }, [pendingIncompleteTasks, taskFilterOverdueOnly]);
 
   const refreshKpis = (serverKpi?: any, siteId?: string) => {
@@ -1459,16 +1467,21 @@ export default function DashboardPage() {
                             </div>
                             <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
                               <span>Project: <strong className="text-slate-700">{t.project?.name || "General"}</strong></span>
-                              {t.dueAt && <span>Due: <strong>{formatDate(t.dueAt)}</strong></span>}
+                              {t.dueAt && (
+                                <span className={isOverdue ? "text-rose-600 font-bold flex items-center gap-1" : "text-slate-500"}>
+                                  Due: <strong className={isOverdue ? "text-rose-600 font-bold" : "text-slate-700"}>{formatDate(t.dueAt)}</strong> {isOverdue && <span className="text-rose-600 font-bold">(Past Due)</span>}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <button
                               onClick={() => handleQuickCompleteTask(t.id, t.title)}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-2xs transition flex items-center gap-1"
+                              title="Mark task as completed"
+                              className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer group"
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Mark Done</span>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
+                              <span>Complete</span>
                             </button>
                             <Link
                               href="/tasks"
@@ -1550,7 +1563,7 @@ export default function DashboardPage() {
                 )}
               </div>
               <div className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center justify-between">
-                <span className="truncate max-w-[210px]" title={workerSubCategoryFull}>
+                <span className="truncate max-w-[280px]" title={workerSubCategoryFull}>
                   {workerSubCategorySummary}
                 </span>
                 <span className="text-emerald-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0">
@@ -1890,14 +1903,23 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Breakdown clarification when on-site includes external subcontractor labor */}
-                    {siteOnSiteCount > (siteWorkers.length || site._count?.workforceMembers || 0) && (
-                      <div className="text-[10px] text-slate-600 bg-amber-50/80 border border-amber-200/60 px-2.5 py-1 rounded-md flex items-center justify-between mb-2">
-                        <span className="text-slate-500">Includes Subcontractor Labor:</span>
-                        <span className="font-bold text-amber-900">
-                          +{siteOnSiteCount - (siteWorkers.length || site._count?.workforceMembers || 0)} External Gang
-                        </span>
-                      </div>
-                    )}
+                    {siteOnSiteCount > (siteWorkers.length || site._count?.workforceMembers || 0) && (() => {
+                      const directCrew = siteWorkers.length || site._count?.workforceMembers || 0;
+                      const externalGang = siteOnSiteCount - directCrew;
+                      return (
+                        <div className="text-[10px] bg-amber-50/90 border border-amber-200/70 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-600 font-medium">Includes Subcontractor Labor:</span>
+                            <span className="font-bold text-amber-900">
+                              +{externalGang} External Gang
+                            </span>
+                          </div>
+                          <div className="text-[9.5px] text-amber-800 font-medium text-right">
+                            ({directCrew} Direct Crew + {externalGang} External = {siteOnSiteCount} On-Site)
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Site Projects List */}
                     <div className="space-y-1.5 my-2">
@@ -2116,11 +2138,11 @@ export default function DashboardPage() {
                             <span
                               className={
                                 isOverdue
-                                  ? "text-rose-700 font-bold flex items-center gap-1"
+                                  ? "text-rose-600 font-bold flex items-center gap-1"
                                   : "text-slate-500"
                               }
                             >
-                              • Due: {formatDate(t.dueAt)} {isOverdue && "(Past Due)"}
+                              • Due: <strong className={isOverdue ? "text-rose-600 font-bold" : "text-slate-700"}>{formatDate(t.dueAt)}</strong> {isOverdue && <span className="text-rose-600 font-bold">(Past Due)</span>}
                             </span>
                           )}
                           {t.assignee?.name && (
