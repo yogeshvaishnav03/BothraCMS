@@ -72,11 +72,15 @@ export async function middleware(req: NextRequest) {
 
   // 4. Verify token
   let verifiedPayload: any = null;
+  const currentSecret = getJwtSecret();
   try {
-    const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
+    const { payload } = await jwtVerify(token, currentSecret, { algorithms: ["HS256"] });
     verifiedPayload = payload;
   } catch (err: any) {
-    // If token verification fails, return diagnostic header for easier troubleshooting
+    const hashBuffer = await crypto.subtle.digest("SHA-256", new Uint8Array(currentSecret).buffer as ArrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const edgeSecretHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { 
@@ -84,7 +88,9 @@ export async function middleware(req: NextRequest) {
           error: { 
             code: "UNAUTHORIZED", 
             message: "Session expired or invalid",
-            reason: err?.code || err?.message || "jwt_verification_failed"
+            reason: err?.code || err?.message || "jwt_verification_failed",
+            edgeSecretHash,
+            tokenLen: token.length,
           } 
         },
         { status: 401 }
@@ -93,6 +99,7 @@ export async function middleware(req: NextRequest) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("from", pathname);
     loginUrl.searchParams.set("reason", "token_invalid");
+    loginUrl.searchParams.set("edgeSecretHash", edgeSecretHash);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete(SESSION_COOKIE_NAME);
     return response;
