@@ -19,6 +19,7 @@ export interface CreateBillInput {
   dueDate?: Date;
   lines: BillLineInput[];
   notes?: string;
+  costHead?: string | null;
   userId: string;
   role: Role;
 }
@@ -44,6 +45,7 @@ export interface RecordPaymentInput {
   idempotencyKey: string;
   allocations?: PaymentAllocationInput[];
   notes?: string;
+  costHead?: string | null;
   userId: string;
   role: Role;
   autoApprove?: boolean;
@@ -123,6 +125,7 @@ export class FinanceService {
           billDate: input.billDate,
           dueDate: input.dueDate ?? null,
           totalAmount: calculatedTotal,
+          costHead: input.costHead ?? null,
           status: "POSTED",
           notes: input.notes ?? null,
           createdBy: input.userId,
@@ -309,6 +312,7 @@ export class FinanceService {
           amount: input.amount,
           currency: input.currency ?? "INR",
           method: input.method,
+          costHead: input.costHead ?? null,
           referenceNumber: input.referenceNumber,
           status,
           approvedBy,

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { COST_HEAD_KEYS } from "@/services/project-budget-service";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission, requireProjectAccess } from "@/lib/server-auth";
 import { FinanceService } from "@/services/finance-service";
@@ -20,6 +21,7 @@ const createPaymentSchema = z.object({
   method: z.enum(["BANK_TRANSFER", "UPI", "CASH", "CHEQUE", "NEFT_RTGS"]),
   referenceNumber: z.string().min(1),
   idempotencyKey: z.string().min(1),
+  costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
   notes: z.string().optional(),
   autoApprove: z.boolean().optional(),
   allocations: z
@@ -107,6 +109,7 @@ export async function POST(req: NextRequest) {
       method: data.method,
       referenceNumber: data.referenceNumber,
       idempotencyKey: data.idempotencyKey,
+      costHead: data.costHead,
       notes: data.notes,
       userId: user.userId,
       role: user.role,

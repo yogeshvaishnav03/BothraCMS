@@ -24,6 +24,7 @@ import {
   Wallet,
   GitCommitHorizontal,
   NotebookPen,
+  Building2,
 } from "lucide-react";
 import { ContactActions } from "@/components/ui/ContactActions";
 import type { LucideIcon } from "lucide-react";
@@ -60,7 +61,19 @@ interface Overview {
   };
   timeline: TimelineEntry[];
   timelineTotal: number;
-  approvals: { paymentsPendingCount: number; paymentsPendingAmount: number; ordersPendingCount: number };
+  approvals: { paymentsPendingCount: number; paymentsPendingAmount: number; ordersPendingCount: number; materialRequestsPending: number };
+  projects: {
+    projectId: string;
+    name: string;
+    siteName: string | null;
+    budget: number;
+    actual: number;
+    committed: number;
+    usedPercent: number | null;
+    health: "NO_BUDGET" | "OK" | "WATCH" | "OVER";
+    progress: number | null;
+    delayedStages: number;
+  }[];
   finance: { outstandingPayables: number; trend: { date: string; paid: number; billed: number }[] };
   team: { userId: string; name: string; role: string; actions: number; taskUpdates: number; lastActiveAt: string }[];
   activity: { id: string; at: string; actor: string; action: string; entityType: string; reason: string | null }[];
@@ -87,6 +100,13 @@ interface Overview {
   };
   recentActivityDates: string[];
 }
+
+const HEALTH_TONE: Record<string, { label: string; hiLabel: string; pill: string; bar: string }> = {
+  OK: { label: "On budget", hiLabel: "बजट में", pill: "bg-emerald-50 text-emerald-700 ring-emerald-200", bar: "bg-emerald-500" },
+  WATCH: { label: "Near limit", hiLabel: "सीमा के पास", pill: "bg-amber-50 text-amber-800 ring-amber-200", bar: "bg-amber-500" },
+  OVER: { label: "Over budget", hiLabel: "बजट से ज़्यादा", pill: "bg-rose-50 text-rose-700 ring-rose-200", bar: "bg-rose-500" },
+  NO_BUDGET: { label: "No budget", hiLabel: "बजट नहीं", pill: "bg-slate-50 text-slate-600 ring-slate-200", bar: "bg-slate-400" },
+};
 
 const FEED_STATUS_TONE: Record<string, string> = {
   IN_PROGRESS: "bg-blue-50 text-blue-700 ring-blue-200",
@@ -833,6 +853,80 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             </>
           )}
         </div>
+      </div>
+
+      {/* ── Project health: progress vs budget used ──────────────────────── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-amber-500" aria-hidden />
+            {hi ? "प्रोजेक्ट की स्थिति" : "Project health"}
+          </h2>
+          <div className="flex items-center gap-2">
+            {data && data.approvals.materialRequestsPending > 0 && (
+              <Link
+                href="/material-requests?status=PENDING"
+                className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100"
+              >
+                <PackagePlus className="w-3.5 h-3.5" />
+                {data.approvals.materialRequestsPending} {hi ? "सामग्री मांग बाकी" : data.approvals.materialRequestsPending === 1 ? "material request waiting" : "material requests waiting"}
+              </Link>
+            )}
+            <Link href="/projects" className="text-xs font-semibold text-amber-600 hover:text-amber-700">
+              {hi ? "सभी प्रोजेक्ट" : "All projects"}
+            </Link>
+          </div>
+        </div>
+        {!data ? (
+          <div className="skeleton h-32" />
+        ) : data.projects.length === 0 ? (
+          <p className="text-xs text-slate-500">{hi ? "कोई सक्रिय प्रोजेक्ट नहीं।" : "No active projects."}</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-1">
+            <div className="hidden lg:grid col-span-full grid-cols-[minmax(0,1.4fr)_1fr_1fr] gap-4 text-[11px] text-slate-400 pb-1">
+              <span>{hi ? "प्रोजेक्ट" : "Project"}</span>
+              <span>{hi ? "काम पूरा" : "Work done"}</span>
+              <span>{hi ? "बजट खर्च" : "Budget spent"}</span>
+            </div>
+            {data.projects.map((p) => {
+              const tone = HEALTH_TONE[p.health];
+              return (
+                <Link
+                  key={p.projectId}
+                  href={`/projects/${p.projectId}?tab=PROGRESS`}
+                  className="col-span-full grid grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_1fr_1fr] items-center gap-2 sm:gap-4 rounded-xl px-2 py-2.5 -mx-2 hover:bg-slate-50 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900 truncate">{p.name}</div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                      <span className={cn("rounded-full px-1.5 py-px text-[10px] font-bold ring-1", tone.pill)}>{hi ? tone.hiLabel : tone.label}</span>
+                      {p.delayedStages > 0 && (
+                        <span className="rounded-full px-1.5 py-px text-[10px] font-bold ring-1 bg-rose-50 text-rose-700 ring-rose-200">
+                          {p.delayedStages} {hi ? "चरण लेट" : p.delayedStages === 1 ? "stage late" : "stages late"}
+                        </span>
+                      )}
+                      {p.siteName && <span className="text-[11px] text-slate-400 truncate">{p.siteName}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${p.progress ?? 0}%` }} />
+                    </div>
+                    <span className="w-12 text-right text-xs font-bold tabular-nums text-slate-800">{p.progress === null ? "—" : `${Math.round(p.progress)}%`}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                      <div className={cn("h-full rounded-full", tone.bar)} style={{ width: `${Math.min(100, p.usedPercent ?? 0)}%` }} />
+                    </div>
+                    <span className="w-12 text-right text-xs font-bold tabular-nums text-slate-800" title={`${formatCompactINR(p.actual)} of ${formatCompactINR(p.budget)}`}>
+                      {p.usedPercent === null ? "—" : `${Math.round(p.usedPercent)}%`}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

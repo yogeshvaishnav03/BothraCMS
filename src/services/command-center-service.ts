@@ -4,6 +4,8 @@ import { fetchDayBookData } from "@/services/day-book-service";
 import { parsePhotoUrls } from "@/services/task-timeline-service";
 import { WorkReportService } from "@/services/work-report-service";
 import { isReportingRole } from "@/services/staff-attendance-service";
+import { ProjectBudgetService } from "@/services/project-budget-service";
+import { MilestoneService } from "@/services/milestone-service";
 import { statusLabel } from "@/lib/task-notifications";
 
 /**
@@ -197,7 +199,7 @@ export class CommandCenterService {
     // ── 5. Who did what on this date (audit trail + task updates) ──────────
     const dayStart = new Date(`${date}T00:00:00.000+05:30`);
     const dayEnd = new Date(`${date}T23:59:59.999+05:30`);
-    const [auditEvents, taskUpdates, taskComments, staffDay] = await Promise.all([
+    const [auditEvents, taskUpdates, taskComments, staffDay, portfolio, materialRequestsPending] = await Promise.all([
       prisma.auditEvent.findMany({
         where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
         include: { actor: { select: { id: true, name: true, role: true } } },
@@ -223,7 +225,29 @@ export class CommandCenterService {
         take: 100,
       }),
       WorkReportService.dayOverview(organizationId, date),
+      ProjectBudgetService.getPortfolio(organizationId),
+      prisma.materialRequest.count({ where: { organizationId, status: "PENDING" } }),
     ]);
+    const progress = await MilestoneService.progressByProject(organizationId, portfolio.map((p) => p.projectId));
+    const projects = portfolio
+      .filter((p) => !siteId || p.siteId === siteId)
+      .map((p) => ({
+        projectId: p.projectId,
+        name: p.name,
+        siteName: p.siteName,
+        budget: p.budget,
+        actual: p.actual,
+        committed: p.committed,
+        usedPercent: p.usedPercent,
+        health: p.health,
+        progress: progress.get(p.projectId)?.progress ?? null,
+        delayedStages: progress.get(p.projectId)?.delayed ?? 0,
+      }))
+      // Projects that need attention first.
+      .sort((a, b) => {
+        const score = (x: typeof a) => (x.health === "OVER" ? 3 : x.health === "WATCH" ? 2 : 0) + (x.delayedStages > 0 ? 2 : 0);
+        return score(b) - score(a) || (b.usedPercent ?? 0) - (a.usedPercent ?? 0);
+      });
 
     const team = new Map<
       string,
@@ -325,7 +349,9 @@ export class CommandCenterService {
         paymentsPendingCount: pendingPayments.length,
         paymentsPendingAmount: roundPaise(pendingPayments.reduce((s, p) => s + p.amount, 0)),
         ordersPendingCount: pendingOrders,
+        materialRequestsPending,
       },
+      projects: projects.slice(0, 8),
       finance: {
         outstandingPayables,
         trend,

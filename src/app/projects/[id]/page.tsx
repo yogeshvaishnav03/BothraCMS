@@ -30,9 +30,14 @@ import {
   Edit2,
   History,
   FileText,
+  Flag,
+  IndianRupee,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
+import ProjectBudget from "@/components/projects/ProjectBudget";
+import ProjectMilestones from "@/components/projects/ProjectMilestones";
+import { canUser } from "@/lib/permissions";
 
 export default function ProjectDetailsPage() {
   const params = useParams();
@@ -40,7 +45,17 @@ export default function ProjectDetailsPage() {
 
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"DSR" | "TASKS" | "MATERIALS" | "DOCUMENTS">("DSR");
+  const [activeTab, setActiveTab] = useState<"PROGRESS" | "BUDGET" | "DSR" | "TASKS" | "MATERIALS" | "DOCUMENTS">("PROGRESS");
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab")?.toUpperCase();
+    if (tab && ["PROGRESS", "BUDGET", "DSR", "TASKS", "MATERIALS", "DOCUMENTS"].includes(tab)) setActiveTab(tab as any);
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((j) => setCurrentUser(j?.data?.user || null))
+      .catch(() => {});
+  }, []);
 
   // Dynamic Modals
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -86,7 +101,7 @@ export default function ProjectDetailsPage() {
           setProject(projRes.data);
           setEditName(projRes.data.name);
           setEditDescription(projRes.data.description || "");
-          setEditBudget(projRes.data.budgetAmount ? projRes.data.budgetAmount.toString() : "");
+          setEditBudget(projRes.data.budgetAmount ? String(projRes.data.budgetAmount / 100) : "");
           setEditStatus(projRes.data.status || "ACTIVE");
         } else {
           setProject(null);
@@ -229,7 +244,7 @@ export default function ProjectDetailsPage() {
         body: JSON.stringify({
           name: editName,
           description: editDescription || undefined,
-          budgetAmount: editBudget ? parseFloat(editBudget) : undefined,
+          budgetAmount: editBudget ? Math.round(parseFloat(editBudget) * 100) : undefined,
           status: editStatus,
           reason: editReason || undefined,
         }),
@@ -306,7 +321,8 @@ export default function ProjectDetailsPage() {
 
   const budget = project.financials?.budgetAmount || project.budgetAmount || 0;
   const billed = project.financials?.totalBilled || 0;
-  const budgetUtilization = budget > 0 ? Math.min(100, Math.round((billed / (budget * 100)) * 100)) : 0;
+  const budgetUtilization = budget > 0 ? Math.min(100, Math.round((billed / budget) * 100)) : 0;
+  const canSeeMoney = canUser(currentUser, "finance:read");
 
   return (
     <Shell>
@@ -412,13 +428,15 @@ export default function ProjectDetailsPage() {
         )}
 
         {/* Financial & Operational KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className={`grid grid-cols-2 gap-4 ${canSeeMoney ? "lg:grid-cols-4" : ""}`}>
+          {canSeeMoney && (
+            <>
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Project Budget
             </span>
             <div className="text-xl font-black text-slate-900 mt-1">
-              ₹{(budget).toLocaleString("en-IN")}
+              {formatCurrency(budget)}
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Approved financial allocation</div>
           </div>
@@ -434,6 +452,9 @@ export default function ProjectDetailsPage() {
               {project.bills?.length || 0} posted vendor/sub bills
             </div>
           </div>
+
+            </>
+          )}
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -457,10 +478,11 @@ export default function ProjectDetailsPage() {
         </div>
 
         {/* Budget Progress Indicator */}
+        {canSeeMoney && (
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-            <span>Budget Utilization: {budgetUtilization}% committed</span>
-            <span>{formatCurrency(billed)} of ₹{budget.toLocaleString("en-IN")}</span>
+            <span>Budget used: {budgetUtilization}% billed so far</span>
+            <span>{formatCurrency(billed)} of {formatCurrency(budget)}</span>
           </div>
           <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
             <div
@@ -475,9 +497,34 @@ export default function ProjectDetailsPage() {
             />
           </div>
         </div>
+        )}
 
         {/* Tab Navigation */}
         <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab("PROGRESS")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
+              activeTab === "PROGRESS"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <Flag className="w-4 h-4" />
+            Progress & Stages
+          </button>
+          {canUser(currentUser, "finance:read") && (
+            <button
+              onClick={() => setActiveTab("BUDGET")}
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
+                activeTab === "BUDGET"
+                  ? "border-amber-600 text-amber-700"
+                  : "border-transparent text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <IndianRupee className="w-4 h-4" />
+              Budget vs Actual
+            </button>
+          )}
           <button
             onClick={() => setActiveTab("DSR")}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
@@ -523,6 +570,18 @@ export default function ProjectDetailsPage() {
             Project Documents & Drawings
           </button>
         </div>
+
+        {activeTab === "PROGRESS" && (
+          <ProjectMilestones
+            projectId={project.id}
+            canPlan={canUser(currentUser, "projects:write")}
+            canUpdate={canUser(currentUser, "tasks:write")}
+          />
+        )}
+
+        {activeTab === "BUDGET" && canUser(currentUser, "finance:read") && (
+          <ProjectBudget projectId={project.id} canEdit={canUser(currentUser, "finance:write")} />
+        )}
 
         {/* Tab 1: Daily Site Reports (DSR History) */}
         {activeTab === "DSR" && (

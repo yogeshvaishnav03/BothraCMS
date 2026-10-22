@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { COST_HEAD_KEYS } from "@/services/project-budget-service";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission, requireProjectAccess } from "@/lib/server-auth";
 import { FinanceService } from "@/services/finance-service";
@@ -13,6 +14,7 @@ const createBillSchema = z.object({
   billNumber: z.string().min(1),
   billDate: z.string(),
   dueDate: z.string().optional(),
+  costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
   notes: z.string().optional(),
   lines: z.array(
     z.object({
@@ -92,6 +94,7 @@ export async function POST(req: NextRequest) {
       billNumber: data.billNumber,
       billDate: new Date(data.billDate),
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+      costHead: data.costHead,
       notes: data.notes,
       lines: data.lines,
       userId: user.userId,
