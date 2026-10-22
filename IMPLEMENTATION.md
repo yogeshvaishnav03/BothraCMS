@@ -1,6 +1,6 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 22 Oct 2026 (after Phase 5)
+Last updated: 23 Oct 2026 (after Phase 6)
 Branch: `claude/project-thread-7co71b` (committed locally, **not pushed** to GitHub yet)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
@@ -13,17 +13,18 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 2 | Vendor and contractor bank details, one-click WhatsApp, chat links, team management | Done | `353072e` | `bothra-redesign-phase2.bundle` |
 | 3 | Task history with photos, task updates to admin, daily work reports, staff attendance | Done | `bb493be` | `bothra-redesign-phase3.bundle` |
 | 4 | Budget vs actual, construction stages and progress, material requests | Done | `d81adfc` | `bothra-redesign-phase4.bundle` |
-| 5 | Payroll, drawings register, quality and safety, equipment, sales | Done | see `git log` | `bothra-redesign-phase5.bundle` |
+| 5 | Payroll, drawings register, quality and safety, equipment, sales | Done | `0cc23cf` | `bothra-redesign-phase5.bundle` |
+| 6 | Buyer portal, automatic stage demands, GST receipts, Tally / GST export, PF / ESI / PT in payroll | Done | see `git log` | `bothra-redesign-phase6.bundle` |
 
-**All five planned phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase5.bundle` is the only one you need.
+**Six phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase6.bundle` is the only one you need.
 
 ### How to load the latest version
 
 ```bash
-git fetch bothra-redesign-phase5.bundle claude/project-thread-7co71b:claude/redesign-phase5
-git checkout claude/redesign-phase5
+git fetch bothra-redesign-phase6.bundle claude/project-thread-7co71b:claude/redesign-phase6
+git checkout claude/redesign-phase6
 npm install
-npx prisma db push      # required: phases 2 to 5 add new tables and columns
+npx prisma db push      # required: phases 2 to 6 add new tables and columns
 npm run dev
 ```
 
@@ -183,36 +184,89 @@ npm run dev
 
 ---
 
+## Phase 6: Buyer side, accounts export and statutory payroll (done)
+
+**Automatic customer demands**
+- Each construction-linked instalment is tied to a project stage by its name: foundation, plinth, slab, brickwork, plaster and possession. The office can pick a different stage for any instalment on the booking.
+- When a stage reaches 100% on the Progress tab, the matching demands for every buyer in that project are raised automatically, due in 15 days. Admins and the person who made the booking get an alert.
+- A buyer who books late owes the stages already finished. Those demands are raised at booking.
+- Sales shows a "demands raised and not yet paid" list with a printable demand letter and a WhatsApp button for each buyer. The message includes the buyer's page link.
+
+**GST and receipts**
+- Each booking has a GST rate: 5% for flats, 12% for shops and offices and 0% for plots by default, and it can be changed.
+- Each instalment shows its price plus GST.
+- Every amount received gets a numbered receipt (RC-YYMM-NNN), split between price and GST.
+- Printable receipt with CGST and SGST, the amount in words and the company GSTIN from Settings.
+- Printable demand letter that adds any earlier instalments still unpaid.
+
+**Money in**
+- Customer receipts show on the Day Book as "Money in from customers".
+- On the dashboard they appear on the timeline, the cash card and a third "Received" bar in the 7-day cash chart.
+- Accountants now see every booking, so they can record receipts for any project.
+
+**Buyer portal** (a private link per booking, no login)
+- The buyer sees their payment schedule, what is due now, their receipts (printable), construction progress by stage and the latest site photos from their own project.
+- The link can be sent on WhatsApp, and reset if it is shared by mistake. Cancelling a booking turns the link off.
+- Photos are only served if they belong to that buyer's project. The link is long and random, and photo requests are rate limited.
+
+**Accounts export** (`/exports`, for finance staff)
+- Quick ranges for this month, last month, this quarter and this financial year, with totals for the range.
+- One Tally import file (XML) with the ledgers it needs and these vouchers:
+  - Supplier bills as Purchase vouchers.
+  - Payments (including wages and salaries) as Payment vouchers.
+  - Each customer receipt as a Sales invoice with CGST and SGST, plus a Receipt.
+- CSV registers: GST sales register (for GSTR-1 and 3B), purchase register with supplier GSTIN (for GSTR-2B matching) and a payments list for the bank reconciliation.
+- Every export is written to the audit log.
+
+**Payroll deductions**
+- For each staff member: PF and ESI switches, plus UAN and ESIC numbers.
+- PF is 12% of basic up to the ₹15,000 wage ceiling. The company's 12% is shown too.
+- ESI is 0.75% (company 3.25%) while the salary is ₹21,000 or less.
+- Professional tax by state: Maharashtra (with ₹300 in February), Karnataka, Gujarat, West Bengal, Telangana and Andhra Pradesh, or none (Rajasthan has none).
+- TDS is typed in per person and kept when the draft is refreshed.
+- Payroll shows what to deposit this month (PF, ESI, PT, TDS). Payslips list each deduction and the company's share.
+- Bank transfer file (CSV) for bulk salary upload once payroll is approved. People with no bank details are listed last, to pay by cash or cheque.
+
+---
+
 ## Incomplete or still planned
 
-All five planned phases are built. The items below are not built yet, or work only partly.
+All six phases are built. The items below are not built yet, or work only partly.
 
-### Gaps in Phase 5 features
+### Gaps in Phase 5 and 6 features
 
 - **Payroll:**
-  - No statutory deductions (PF, ESI, professional tax or TDS).
+  - PF, ESI and professional tax apply to staff only, not to daily-wage site workers.
+  - No PF ECR or ESI challan file. The amounts to deposit are shown, but they are not filed.
+  - Professional tax ignores the exemption for women in Maharashtra. TDS is not worked out from the tax regime; it is typed in.
+  - Statutory amounts are not posted to Finance as payables until they are paid as ordinary payments.
   - Overtime is paid at 1× the hourly rate.
-  - No bank upload file for bulk salary transfer.
 - **Sales:**
-  - Customer receipts are recorded on the booking but not posted to Finance or the Day Book as income.
-  - No GST on sales and no printable receipt or demand letter.
-  - "Raise demand" is a manual click. It is not triggered automatically when a construction stage reaches 100%.
+  - GST is split as CGST and SGST only. There is no IGST for buyers in another state, and no 1% affordable-housing check.
+  - A receipt cannot be cancelled or edited once saved.
+  - "On each slab" is one instalment raised when the whole superstructure stage is done. It is not one demand per slab.
+  - The demand WhatsApp is still sent by a click per buyer.
+- **Exports:**
+  - Supplier bills are exported at their total, because bills do not record GST separately yet. The purchase register lists the GSTIN, but not the tax amounts.
+  - Ledger names are fixed (for example "Purchase - Construction Material"). Rename them in Tally, or ask for a mapping screen.
+  - There is no direct sync with Tally. It is an import file.
 - **Equipment:** hire and fuel costs logged here are not added to the project budget automatically. Hire bills should still be entered in Finance under the Equipment cost head.
 - **Quality:** the five checklists are fixed. There is no screen yet to make your own checklist.
 - **Drawings:** no markup or side-by-side comparison of revisions. Files are limited to PDF or images up to 10 MB.
 
-### Ideas for a Phase 6 (not started)
+### Ideas for a Phase 7 (not started)
 
 | Feature | Notes |
 |---|---|
-| Customer portal | Buyers log in to see their payment schedule, receipts and construction photos. |
-| Tally / GST export | Export bills, payments and sales receipts for the accountant. |
 | Offline mobile app | Supervisors on site with weak signal can fill in reports and photos offline, and they sync later. |
-| Automatic stage demands | When a stage hits 100% on the Progress tab, raise the matching customer demands and WhatsApp the buyers. |
+| GST on supplier bills | Record taxable value and GST per bill, so the purchase register and Tally carry input tax credit. |
+| Automatic WhatsApp | Send demand letters and reminders without a click, using the WhatsApp Business API. |
+| Statutory filings | PF ECR file, ESI challan and Form 16, from the payroll already worked out. |
+| Buyer login | A proper sign-in for buyers (OTP on their mobile) in place of the secret link. |
 
 ### General gaps
 
-- **Nothing is pushed to GitHub yet.** All five phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
+- **Nothing is pushed to GitHub yet.** All six phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
 - **WhatsApp is click-to-chat only.** The buttons open WhatsApp with the number and a message filled in. Automatic WhatsApp messages (for example sending reminders without a click) would need the WhatsApp Business API and an account.
 - **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
 - **Photos and drawings are stored on the server's disk** (`storage/uploads/private`), with a backup copy in the database. For heavy use they should move to cloud storage such as S3, so the database stays small.
@@ -222,11 +276,11 @@ All five planned phases are built. The items below are not built yet, or work on
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 343 of 345 tests.
+  The rest of the suite passes: 350 of 352 tests.
 
-## Checks run on the latest version (Phase 5)
+## Checks run on the latest version (Phase 6)
 
-- Tests: 343 of 345 pass. The only failures are the 2 older tests listed above. This includes 8 new tests for Phase 5 and 10 for Phase 4.
+- Tests: 350 of 352 pass. The only failures are the 2 older tests listed above. This includes 7 new tests for Phase 6, 8 for Phase 5 and 10 for Phase 4.
 - Type check: clean.
 - Lint: 9 warnings, the same as before the redesign.
 - Production build: succeeds.

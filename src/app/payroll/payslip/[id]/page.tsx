@@ -29,6 +29,10 @@ export default function PayslipPage() {
   ];
   const deductions = [
     ...slip.advances.map((a: any) => ({ label: `Advance given ${shortDate(a.givenOn)}`, amount: a.amount })),
+    ...(slip.pfEmployee ? [{ label: "Provident fund (12%)", amount: slip.pfEmployee }] : []),
+    ...(slip.esiEmployee ? [{ label: "ESI (0.75%)", amount: slip.esiEmployee }] : []),
+    ...(slip.professionalTax ? [{ label: "Professional tax", amount: slip.professionalTax }] : []),
+    ...(slip.tds ? [{ label: "Income tax (TDS)", amount: slip.tds }] : []),
     ...(slip.otherDeduction ? [{ label: "Other deduction", amount: slip.otherDeduction }] : []),
   ];
 
@@ -58,6 +62,9 @@ export default function PayslipPage() {
             <div className="text-xs text-slate-500">Name</div>
             <div className="font-bold text-slate-900">{slip.personName}</div>
             <div className="text-slate-600">{(slip.roleLabel || "").toLowerCase()}</div>
+            {(slip.uan || slip.esicNumber) && (
+              <div className="text-xs text-slate-500">{[slip.uan && `UAN ${slip.uan}`, slip.esicNumber && `ESIC ${slip.esicNumber}`].filter(Boolean).join(" · ")}</div>
+            )}
           </div>
           <div>
             <div className="text-xs text-slate-500">Attendance</div>
@@ -71,7 +78,7 @@ export default function PayslipPage() {
         <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
           {[
             { title: "Earnings", rows: earnings, total: slip.gross },
-            { title: "Deductions", rows: deductions, total: slip.advanceDeduction + slip.otherDeduction },
+            { title: "Deductions", rows: deductions, total: slip.gross - slip.net },
           ].map((block) => (
             <div key={block.title}>
               <div className="border-b border-slate-200 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500">{block.title}</div>
@@ -93,6 +100,12 @@ export default function PayslipPage() {
           <span className="text-sm font-semibold">Net pay</span>
           <span className="font-display text-2xl font-extrabold tabular-nums">{rupees(slip.net)}</span>
         </div>
+        {slip.pfEmployer + slip.esiEmployer > 0 && (
+          <p className="mt-3 text-xs text-slate-500">
+            Paid by the company on top of your salary:{" "}
+            {[slip.pfEmployer && `PF ${rupees(slip.pfEmployer)}`, slip.esiEmployer && `ESI ${rupees(slip.esiEmployer)}`].filter(Boolean).join(", ")}.
+          </p>
+        )}
         {slip.note && <p className="mt-3 text-sm text-slate-600">Note: {slip.note}</p>}
         <p className="mt-8 text-center text-[11px] text-slate-400">This is a computer-generated payslip.</p>
       </div>

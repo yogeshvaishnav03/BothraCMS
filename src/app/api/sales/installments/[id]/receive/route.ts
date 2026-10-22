@@ -18,8 +18,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const user = await requireUserContext(req);
     requirePermission(user, "finance:write");
-    await SalesService.receive(user, params.id, schema.parse(await req.json()));
-    return jsonSuccess({ ok: true });
+    const receipt = await SalesService.receive(user, params.id, schema.parse(await req.json()));
+    return jsonSuccess({ ok: true, receiptId: receipt.id, receiptNumber: receipt.receiptNumber });
   } catch (error) {
     return handleApiError(error);
   }

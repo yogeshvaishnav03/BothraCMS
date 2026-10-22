@@ -9,10 +9,11 @@ export const dynamic = "force-dynamic";
 const schema = z.object({
   bonus: z.number().int().min(0).max(1e10).optional(), // paise
   otherDeduction: z.number().int().min(0).max(1e10).optional(), // paise
+  tds: z.number().int().min(0).max(1e10).optional(), // paise
   note: z.string().max(300).nullable().optional(),
 });
 
-/** Add a bonus, an extra deduction or a note to one person's line in a draft payroll. */
+/** Add a bonus, TDS, an extra deduction or a note to one person's line in a draft payroll. */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUserContext(req);

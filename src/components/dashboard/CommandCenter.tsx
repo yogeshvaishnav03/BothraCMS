@@ -32,7 +32,7 @@ import { cn } from "@/lib/cn";
 import { formatCompactINR, formatCurrency } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
 
-type Kind = "PAYMENT" | "BILL" | "RECEIPT" | "ISSUE" | "ATTENDANCE" | "HEADCOUNT" | "SITE_REPORT";
+type Kind = "PAYMENT" | "MONEY_IN" | "BILL" | "RECEIPT" | "ISSUE" | "ATTENDANCE" | "HEADCOUNT" | "SITE_REPORT";
 
 interface TimelineEntry {
   id: string;
@@ -49,6 +49,7 @@ interface Overview {
   date: string;
   summary: {
     totalPaymentsAmount: number;
+    totalMoneyInAmount?: number;
     totalBillsAmount: number;
     paymentsCount: number;
     billsCount: number;
@@ -75,7 +76,7 @@ interface Overview {
     progress: number | null;
     delayedStages: number;
   }[];
-  finance: { outstandingPayables: number; trend: { date: string; paid: number; billed: number }[] };
+  finance: { outstandingPayables: number; trend: { date: string; paid: number; billed: number; received?: number }[] };
   team: { userId: string; name: string; role: string; actions: number; taskUpdates: number; lastActiveAt: string }[];
   activity: { id: string; at: string; actor: string; action: string; entityType: string; reason: string | null }[];
   taskFeed: {
@@ -119,6 +120,7 @@ const FEED_STATUS_TONE: Record<string, string> = {
 
 const KIND_META: Record<Kind, { label: string; hiLabel: string; Icon: LucideIcon; dot: string; chip: string }> = {
   PAYMENT: { label: "Payments", hiLabel: "भुगतान", Icon: Wallet, dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700 ring-rose-200" },
+  MONEY_IN: { label: "Money in", hiLabel: "प्राप्ति", Icon: IndianRupee, dot: "bg-teal-500", chip: "bg-teal-50 text-teal-700 ring-teal-200" },
   BILL: { label: "Bills", hiLabel: "बिल", Icon: ReceiptText, dot: "bg-violet-500", chip: "bg-violet-50 text-violet-700 ring-violet-200" },
   RECEIPT: { label: "Material in", hiLabel: "सामग्री प्राप्त", Icon: PackagePlus, dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
   ISSUE: { label: "Material out", hiLabel: "सामग्री जारी", Icon: PackageMinus, dot: "bg-amber-500", chip: "bg-amber-50 text-amber-800 ring-amber-200" },
@@ -245,11 +247,12 @@ function MiniStat({ label, value, Icon, tone, href }: { label: string; value: st
 /** Seven days of cash paid vs bills booked, as paired bars with hover values. */
 function CashTrend({ trend, hi }: { trend: Overview["finance"]["trend"]; hi: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...trend.map((d) => Math.max(d.paid, d.billed)));
+  const max = Math.max(1, ...trend.map((d) => Math.max(d.paid, d.billed, d.received || 0)));
+  const showIn = trend.some((d) => (d.received || 0) > 0);
   const W = 280;
   const H = 120;
   const slot = W / trend.length;
-  const barW = Math.min(12, slot / 3);
+  const barW = showIn ? Math.min(9, slot / 4) : Math.min(12, slot / 3);
   const active = hover !== null ? trend[hover] : trend[trend.length - 1];
 
   return (
@@ -267,6 +270,12 @@ function CashTrend({ trend, hi }: { trend: Overview["finance"]["trend"]; hi: boo
             <span className="w-2.5 h-2.5 rounded-sm bg-slate-400" />
             {hi ? "बिल" : "Billed"} <b className="text-slate-900 tabular-nums">{formatCompactINR(active?.billed)}</b>
           </span>
+          {showIn && (
+            <span className="flex items-center gap-1.5 text-slate-600">
+              <span className="w-2.5 h-2.5 rounded-sm bg-teal-500" />
+              {hi ? "प्राप्त" : "Received"} <b className="text-slate-900 tabular-nums">{formatCompactINR(active?.received || 0)}</b>
+            </span>
+          )}
         </div>
       </div>
       <svg viewBox={`0 0 ${W} ${H + 18}`} className="w-full h-auto" role="img" aria-label="Cash paid and bills booked over the last seven days">
@@ -278,8 +287,18 @@ function CashTrend({ trend, hi }: { trend: Overview["finance"]["trend"]; hi: boo
           const dim = hover !== null && hover !== i;
           return (
             <g key={d.date} opacity={dim ? 0.4 : 1} style={{ transition: "opacity 150ms" }}>
-              <rect x={cx - barW - 1} y={H - hp} width={barW} height={Math.max(hp, 0)} rx="3" fill="#f59e0b" />
-              <rect x={cx + 1} y={H - hb} width={barW} height={Math.max(hb, 0)} rx="3" fill="#94a3b8" />
+              {showIn ? (
+                <>
+                  <rect x={cx - barW * 1.5 - 2} y={H - hp} width={barW} height={Math.max(hp, 0)} rx="3" fill="#f59e0b" />
+                  <rect x={cx - barW / 2} y={H - hb} width={barW} height={Math.max(hb, 0)} rx="3" fill="#94a3b8" />
+                  <rect x={cx + barW / 2 + 2} y={H - ((d.received || 0) / max) * (H - 8)} width={barW} height={Math.max(((d.received || 0) / max) * (H - 8), 0)} rx="3" fill="#14b8a6" />
+                </>
+              ) : (
+                <>
+                  <rect x={cx - barW - 1} y={H - hp} width={barW} height={Math.max(hp, 0)} rx="3" fill="#f59e0b" />
+                  <rect x={cx + 1} y={H - hb} width={barW} height={Math.max(hb, 0)} rx="3" fill="#94a3b8" />
+                </>
+              )}
               <text x={cx} y={H + 13} textAnchor="middle" fontSize="9" fill="#64748b">
                 {new Date(`${d.date}T00:00:00`).toLocaleDateString("en-IN", { weekday: "narrow" })}
               </text>
@@ -292,7 +311,7 @@ function CashTrend({ trend, hi }: { trend: Overview["finance"]["trend"]; hi: boo
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
               >
-                <title>{`${d.date}: paid ${formatCurrency(d.paid)}, billed ${formatCurrency(d.billed)}`}</title>
+                <title>{`${d.date}: paid ${formatCurrency(d.paid)}, billed ${formatCurrency(d.billed)}${showIn ? `, received ${formatCurrency(d.received || 0)}` : ""}`}</title>
               </rect>
             </g>
           );
@@ -457,7 +476,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             label={hi ? "आज भुगतान" : "Cash paid"}
             value={s?.totalPaymentsAmount || 0}
             format={formatCompactINR}
-            sub={`${s?.paymentsCount || 0} ${hi ? "भुगतान" : "payments"}`}
+            sub={`${s?.paymentsCount || 0} ${hi ? "भुगतान" : "payments"}${s?.totalMoneyInAmount ? ` · ${formatCompactINR(s.totalMoneyInAmount)} ${hi ? "प्राप्त" : "received"}` : ""}`}
             Icon={ArrowUpRight}
             tone="bg-rose-500/15 text-rose-300"
             href="/finance"

@@ -9,6 +9,9 @@ const PUBLIC_PATHS = [
   "/login",
   "/api/auth/login",
   "/api/health",
+  // Buyer portal: a secret link per booking, read-only.
+  "/portal",
+  "/api/portal",
 ];
 
 // Trusted origins for CORS and CSRF (configure in environment)

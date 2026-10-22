@@ -40,6 +40,7 @@ import {
   Truck,
   Wallet,
   Handshake,
+  Landmark,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -221,6 +222,7 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
         ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),
         ...(canUser(user, "sales:read") ? [{ key: "nav.sales", defaultLabel: "Sales", href: "/sales", icon: Handshake }] : []),
+        ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Accounts export", href: "/exports", icon: Landmark }] : []),
       ],
     },
     {

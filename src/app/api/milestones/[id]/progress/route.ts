@@ -23,11 +23,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!m) return jsonError("Stage not found", "NOT_FOUND", 404);
     await requireProjectAccess(user, m.projectId, "tasks:write");
     const body = progressSchema.parse(await req.json());
-    await MilestoneService.postProgress(user.organizationId, params.id, { userId: user.userId, name: user.name }, {
+    const { demandsRaised } = await MilestoneService.postProgress(user.organizationId, params.id, { userId: user.userId, name: user.name }, {
       ...body,
       photoUrls: sanitizePhotoUrls(body.photoUrls),
     });
-    return jsonSuccess(await MilestoneService.list(user.organizationId, m.projectId), 201);
+    return jsonSuccess({ ...(await MilestoneService.list(user.organizationId, m.projectId)), demandsRaised }, 201);
   } catch (error) {
     return handleApiError(error);
   }

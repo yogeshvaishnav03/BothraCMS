@@ -29,6 +29,7 @@ function days(n: number) {
 function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => void; onSaved: (run: any) => void }) {
   const [bonus, setBonus] = useState(line.bonus ? String(line.bonus / 100) : "");
   const [deduction, setDeduction] = useState(line.otherDeduction ? String(line.otherDeduction / 100) : "");
+  const [tds, setTds] = useState(line.tds ? String(line.tds / 100) : "");
   const [note, setNote] = useState(line.note || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +44,7 @@ function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => v
         setSaving(true);
         setError(null);
         try {
-          const d = await api(`/api/payroll/lines/${line.id}`, patch({ bonus: toPaise(bonus), otherDeduction: toPaise(deduction), note: note || null }));
+          const d = await api(`/api/payroll/lines/${line.id}`, patch({ bonus: toPaise(bonus), otherDeduction: toPaise(deduction), tds: toPaise(tds), note: note || null }));
           onSaved(d.run);
         } catch (e: any) {
           setError(e.message);
@@ -56,14 +57,22 @@ function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => v
         {days(line.payableDays)} payable days · base {rupees(line.basePay)}
         {line.overtimePay > 0 && ` · overtime ${rupees(line.overtimePay)}`}
         {line.advanceDeduction > 0 && ` · advance recovered ${rupees(line.advanceDeduction)}`}
+        {line.pfEmployee > 0 && ` · PF ${rupees(line.pfEmployee)}`}
+        {line.esiEmployee > 0 && ` · ESI ${rupees(line.esiEmployee)}`}
+        {line.professionalTax > 0 && ` · PT ${rupees(line.professionalTax)}`}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${line.personType === "STAFF" ? "grid-cols-3" : "grid-cols-2"}`}>
         <Field label="Bonus / incentive (₹)">
           <input type="number" min="0" step="1" value={bonus} onChange={(e) => setBonus(e.target.value)} className={inputCls} />
         </Field>
         <Field label="Other deduction (₹)">
           <input type="number" min="0" step="1" value={deduction} onChange={(e) => setDeduction(e.target.value)} className={inputCls} />
         </Field>
+        {line.personType === "STAFF" && (
+          <Field label="TDS (₹)">
+            <input type="number" min="0" step="1" value={tds} onChange={(e) => setTds(e.target.value)} className={inputCls} />
+          </Field>
+        )}
       </div>
       <Field label="Note on the payslip">
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="e.g. Festival bonus, canteen deduction" className={inputCls} />
@@ -189,9 +198,13 @@ function AdvanceModal({ people, onClose, onSaved }: { people: any[]; onClose: ()
 
 function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved: (staff: any[]) => void }) {
   const [salary, setSalary] = useState(s.monthlySalary ? String(s.monthlySalary / 100) : "");
+  const [pf, setPf] = useState<boolean>(s.pfApplicable);
+  const [esi, setEsi] = useState<boolean>(s.esiApplicable);
+  const [uan, setUan] = useState(s.uan || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dirty = toPaise(salary) !== s.monthlySalary;
+  const dirty = toPaise(salary) !== s.monthlySalary || pf !== s.pfApplicable || esi !== s.esiApplicable || uan !== (s.uan || "");
+  const esiOver = esi && toPaise(salary) > 21_000_00;
   return (
     <tr className="border-t border-slate-100">
       <td className="px-4 py-2.5">
@@ -199,6 +212,26 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
         <div className="text-xs text-slate-500">{s.jobTitle || s.role.replace(/_/g, " ").toLowerCase()}</div>
       </td>
       <td className="px-4 py-2.5 text-xs text-slate-500">{s.bankAccountMasked ? `${s.bankAccountMasked} · ${s.ifsc || ""}` : "—"}</td>
+      <td className="px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-700">
+          <label className="inline-flex items-center gap-1.5">
+            <input type="checkbox" disabled={!canEdit} checked={pf} onChange={(e) => setPf(e.target.checked)} className="rounded border-slate-300" /> PF
+          </label>
+          <label className="inline-flex items-center gap-1.5" title="ESI applies while the monthly salary is ₹21,000 or less">
+            <input type="checkbox" disabled={!canEdit} checked={esi} onChange={(e) => setEsi(e.target.checked)} className="rounded border-slate-300" /> ESI
+          </label>
+          {pf && (
+            <input
+              disabled={!canEdit}
+              value={uan}
+              onChange={(e) => setUan(e.target.value.replace(/\D/g, "").slice(0, 12))}
+              placeholder="UAN (12 digits)"
+              className="w-32 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50"
+            />
+          )}
+        </div>
+        {esiOver && <div className="mt-1 text-[11px] text-amber-700">Above ₹21,000, so no ESI is deducted.</div>}
+      </td>
       <td className="px-4 py-2.5">
         <div className="flex items-center justify-end gap-2">
           <span className="text-slate-400">₹</span>
@@ -218,7 +251,7 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
                 setSaving(true);
                 setError(null);
                 try {
-                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary) }))).staff);
+                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary), pfApplicable: pf, esiApplicable: esi, uan: uan || null }))).staff);
                 } catch (e: any) {
                   setError(e.message);
                 } finally {
@@ -252,6 +285,7 @@ export default function PayrollPage() {
   const [editing, setEditing] = useState<any>(null);
   const [paying, setPaying] = useState(false);
   const [giving, setGiving] = useState(false);
+  const [settings, setSettings] = useState<{ ptState: string; states: { key: string; name: string }[] } | null>(null);
 
   const canWrite = canUser(me, "payroll:write");
   const isAdmin = me?.role === "SUPER_ADMIN" || me?.role === "ORG_ADMIN";
@@ -269,7 +303,8 @@ export default function PayrollPage() {
 
   const loadSide = useCallback(async () => {
     try {
-      const [s, a] = await Promise.all([api("/api/payroll/salaries"), api("/api/payroll/advances")]);
+      const [s, a, st] = await Promise.all([api("/api/payroll/salaries"), api("/api/payroll/advances"), api("/api/payroll/settings")]);
+      setSettings(st);
       setStaff(s.staff);
       setPeople(s.people);
       setAdvances(a);
@@ -399,6 +434,11 @@ export default function PayrollPage() {
                           <BadgeCheck className="h-4 w-4" /> Approve
                         </button>
                       )}
+                      {run.status !== "DRAFT" && canWrite && (
+                        <a href={`/api/payroll/${month}/bank-file`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                          <FileText className="h-4 w-4" /> Bank transfer file
+                        </a>
+                      )}
                       {run.status === "APPROVED" && canWrite && canUser(me, "finance:write") && (
                         <button onClick={() => setPaying(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-3 py-2 text-xs font-bold text-slate-950">
                           <Banknote className="h-4 w-4" /> Mark as paid
@@ -417,9 +457,33 @@ export default function PayrollPage() {
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                   <StatTile value={run.lines.length} label="People paid" hint={`${labour.length} workers · ${staffLines.length} staff`} />
                   <StatTile value={rupees(run.totalGross)} label="Gross pay" />
-                  <StatTile value={rupees(run.totalDeductions)} label="Deductions" tone="rose" hint="Advances and other" />
+                  <StatTile
+                    value={rupees(run.totalDeductions)}
+                    label="Deductions"
+                    tone="rose"
+                    hint={
+                      run.statutory && run.statutory.pfEmployee + run.statutory.esiEmployee + run.statutory.professionalTax + run.statutory.tds > 0
+                        ? `PF ${rupees(run.statutory.pfEmployee)} · ESI ${rupees(run.statutory.esiEmployee)} · PT ${rupees(run.statutory.professionalTax)}${run.statutory.tds ? ` · TDS ${rupees(run.statutory.tds)}` : ""}`
+                        : "Advances and other"
+                    }
+                  />
                   <StatTile value={rupees(run.totalNet)} label="Net to pay" tone="emerald" />
                 </div>
+                {run.statutory && run.statutory.pfEmployer + run.statutory.esiEmployer > 0 && (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm shadow-xs">
+                    <span className="font-semibold text-slate-900">To deposit this month</span>
+                    <span className="text-slate-600">
+                      PF {rupees(run.statutory.pfEmployee + run.statutory.pfEmployer)} <span className="text-xs text-slate-400">(staff {rupees(run.statutory.pfEmployee)} + company {rupees(run.statutory.pfEmployer)}) by the 15th</span>
+                    </span>
+                    {run.statutory.esiEmployee + run.statutory.esiEmployer > 0 && (
+                      <span className="text-slate-600">
+                        ESI {rupees(run.statutory.esiEmployee + run.statutory.esiEmployer)} <span className="text-xs text-slate-400">by the 15th</span>
+                      </span>
+                    )}
+                    {run.statutory.professionalTax > 0 && <span className="text-slate-600">Professional tax {rupees(run.statutory.professionalTax)}</span>}
+                    {run.statutory.tds > 0 && <span className="text-slate-600">TDS {rupees(run.statutory.tds)} by the 7th</span>}
+                  </div>
+                )}
 
                 {[
                   { title: "Site workers", rows: labour, labour: true },
@@ -467,8 +531,23 @@ export default function PayrollPage() {
                                 <td className="px-3 py-2.5 text-right tabular-nums">{rupees(l.basePay + l.overtimePay)}</td>
                                 <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700">{l.bonus ? rupees(l.bonus) : "—"}</td>
                                 <td className="px-3 py-2.5 text-right tabular-nums text-rose-600">
-                                  {l.advanceDeduction + l.otherDeduction ? rupees(l.advanceDeduction + l.otherDeduction) : "—"}
-                                  {l.advanceDeduction > 0 && <div className="text-[11px] text-slate-400">advance {rupees(l.advanceDeduction)}</div>}
+                                  {(() => {
+                                    const statutory = l.pfEmployee + l.esiEmployee + l.professionalTax + l.tds;
+                                    const all = l.advanceDeduction + l.otherDeduction + statutory;
+                                    return (
+                                      <>
+                                        {all ? rupees(all) : "—"}
+                                        {l.advanceDeduction > 0 && <div className="text-[11px] text-slate-400">advance {rupees(l.advanceDeduction)}</div>}
+                                        {statutory > 0 && (
+                                          <div className="text-[11px] text-slate-400">
+                                            {[l.pfEmployee && `PF ${rupees(l.pfEmployee)}`, l.esiEmployee && `ESI ${rupees(l.esiEmployee)}`, l.professionalTax && `PT ${rupees(l.professionalTax)}`, l.tds && `TDS ${rupees(l.tds)}`]
+                                              .filter(Boolean)
+                                              .join(" · ")}
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </td>
                                 <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-900">{rupees(l.net)}</td>
                                 <td className="px-3 py-2.5">
@@ -520,15 +599,41 @@ export default function PayrollPage() {
 
         {tab === "SALARIES" && (
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-            <div className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
-              Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workforce page.
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
+              <span>Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workforce page.</span>
+              {settings && (
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                  Professional tax
+                  <select
+                    disabled={!canWrite}
+                    value={settings.ptState}
+                    onChange={async (e) => {
+                      try {
+                        const d = await api("/api/payroll/settings", put({ ptState: e.target.value }));
+                        setSettings({ ...settings, ptState: d.ptState });
+                        setNotice("Professional tax state saved. Refresh a draft payroll to apply it.");
+                      } catch (err: any) {
+                        setError(err.message);
+                      }
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                  >
+                    {settings.states.map((st) => (
+                      <option key={st.key} value={st.key}>
+                        {st.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-sm">
+              <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-4 py-2 text-left">Staff member</th>
                     <th className="px-4 py-2 text-left">Bank</th>
+                    <th className="px-4 py-2 text-left">PF / ESI</th>
                     <th className="px-4 py-2 text-right">Monthly salary</th>
                   </tr>
                 </thead>

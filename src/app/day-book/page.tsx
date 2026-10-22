@@ -3,6 +3,7 @@
 import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import Link from "next/link";
 import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -40,6 +41,8 @@ interface DayBookData {
   summary: {
     totalPaymentsAmount: number;
     totalBillsAmount: number;
+    totalMoneyInAmount?: number;
+    moneyInCount?: number;
     paymentsCount: number;
     billsCount: number;
     receiptsCount: number;
@@ -53,6 +56,7 @@ interface DayBookData {
     reportsCount: number;
   };
   payments: any[];
+  moneyIn?: any[];
   bills: any[];
   receipts: any[];
   issues: any[];
@@ -1129,6 +1133,58 @@ export default function DayBookPage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* 0. Money in from buyers (Sales receipts) */}
+            {activeTab === "ALL" && (dayData?.moneyIn?.length || 0) > 0 && (
+              <div className="bg-white rounded-2xl border border-emerald-200 overflow-hidden shadow-xs">
+                <div className="p-4 bg-emerald-50/60 border-b border-emerald-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+                    <h3 className="text-sm font-black text-slate-900">Money in from customers</h3>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-700">{formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Receipt</th>
+                        <th className="px-4 py-2 text-left">Customer</th>
+                        <th className="px-4 py-2 text-left">For</th>
+                        <th className="px-4 py-2 text-left">Mode</th>
+                        <th className="px-4 py-2 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dayData!.moneyIn!.map((r: any) => (
+                        <tr key={r.id} className="border-t border-slate-100">
+                          <td className="px-4 py-2">
+                            <Link href={`/sales/receipt/${r.id}`} className="font-mono text-xs font-bold text-slate-900 hover:underline">
+                              {r.receiptNumber}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-2 text-slate-800">
+                            {r.booking.customerName}
+                            <div className="text-xs text-slate-500">
+                              {r.booking.unit.unitNumber} · {r.booking.unit.project.name}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-slate-600">{r.installment.label}</td>
+                          <td className="px-4 py-2 text-slate-600">
+                            {({ NEFT_RTGS: "NEFT / RTGS", HOME_LOAN: "Home loan", UPI: "UPI", CHEQUE: "Cheque", CASH: "Cash" } as Record<string, string>)[r.mode] || r.mode}
+                            {r.reference ? <div className="text-xs text-slate-400">{r.reference}</div> : null}
+                          </td>
+                          <td className="px-4 py-2 text-right font-semibold tabular-nums text-emerald-700">
+                            {formatCurrency(r.amount)}
+                            {r.gstAmount > 0 && <div className="text-[11px] font-normal text-slate-400">incl. GST {formatCurrency(r.gstAmount)}</div>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* 1. Payments Table */}
             {(activeTab === "ALL" || activeTab === "PAYMENTS") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">

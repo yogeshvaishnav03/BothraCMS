@@ -57,6 +57,7 @@ model Organization {
   salesUnits              SalesUnit[]
   salesLeads              SalesLead[]
   salesBookings           SalesBooking[]
+  salesReceipts           SalesReceipt[]
 }
 
 model User {
@@ -103,6 +104,7 @@ model User {
   milestoneUpdates            ProjectMilestoneUpdate[]
   materialRequests            MaterialRequest[]     @relation("MaterialRequester")
   reviewedMaterialRequests    MaterialRequest[]     @relation("MaterialRequestReviewer")
+  salesReceipts               SalesReceipt[]        @relation("SalesReceiptCreator")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -1102,6 +1104,10 @@ model PayrollProfile {
   monthlySalary  Int      // paise
   bankAccount    String?  // shown masked
   ifsc           String?
+  pfApplicable   Boolean  @default(false) // EPF: 12% of basic up to the wage ceiling
+  esiApplicable  Boolean  @default(false) // ESI: 0.75% while gross is within the limit
+  uan            String?  // PF Universal Account Number
+  esicNumber     String?
   updatedAt      DateTime @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1167,6 +1173,12 @@ model PayrollLine {
   bonus           Int      @default(0)
   advanceDeduction Int     @default(0)
   otherDeduction  Int      @default(0)
+  pfEmployee      Int      @default(0) // statutory deductions (paise)
+  esiEmployee     Int      @default(0)
+  professionalTax Int      @default(0)
+  tds             Int      @default(0) // entered by hand
+  pfEmployer      Int      @default(0) // employer's share, a cost on top of gross
+  esiEmployer     Int      @default(0)
   gross           Int      @default(0)
   net             Int      @default(0)
   note            String?
@@ -1382,7 +1394,9 @@ model SalesBooking {
   customerPhone   String
   customerEmail   String?
   bookingDate     String   // YYYY-MM-DD
-  agreementValue  Int      // paise
+  agreementValue  Int      // paise, before GST
+  gstRate         Float    @default(0) // % on each instalment, e.g. 5 for residential, 12 for shops
+  portalToken     String?  @unique // secret link for the buyer's portal; reset to revoke
   status          String   @default("ACTIVE") // ACTIVE, CANCELLED
   createdBy       String
   createdAt       DateTime @default(now())
@@ -1390,6 +1404,7 @@ model SalesBooking {
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   unit            SalesUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
   installments    SalesInstallment[]
+  receiptRows     SalesReceipt[]
 
   @@unique([organizationId, bookingNumber])
 }
@@ -1400,13 +1415,44 @@ model SalesInstallment {
   sortOrder      Int
   label          String    // Booking amount, On plinth, On 3rd slab...
   percent        Float?
-  amount         Int       // paise
+  amount         Int       // paise, before GST
+  gstAmount      Int       @default(0) // paise; the buyer pays amount + gstAmount
   dueDate        String?   // YYYY-MM-DD; null until the linked stage is reached
-  receivedAmount Int       @default(0)
+  milestoneId    String?   // stage that raises this demand; matched by name when empty
+  demandRaisedAt DateTime?
+  demandAuto     Boolean   @default(false) // raised by the stage reaching 100%
+  receivedAmount Int       @default(0) // paise, including GST
   lastReceivedAt DateTime?
-  receipts       String?   // JSON [{amount, date, mode, reference, by}]
+  receipts       String?   // legacy JSON [{amount, date, mode, reference, by}]; SalesReceipt rows from Phase 6
 
   booking        SalesBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  receiptRows    SalesReceipt[]
 
   @@index([bookingId])
+}
+
+// Money received from a buyer. Shows in the Day Book as money in and is
+// exported to Tally as a sales invoice plus a receipt.
+model SalesReceipt {
+  id             String    @id @default(uuid())
+  organizationId String
+  bookingId      String
+  installmentId  String
+  receiptNumber  String    // RC-YYMM-NNN
+  date           String    // YYYY-MM-DD
+  amount         Int       // paise, including GST
+  taxableAmount  Int       // paise
+  gstAmount      Int       // paise
+  mode           String    // NEFT, RTGS, UPI, CHEQUE, CASH, HOME_LOAN
+  reference      String?
+  createdBy      String
+  createdAt      DateTime  @default(now())
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator        User             @relation("SalesReceiptCreator", fields: [createdBy], references: [id])
+  booking        SalesBooking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  installment    SalesInstallment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, receiptNumber])
+  @@index([organizationId, date])
 }

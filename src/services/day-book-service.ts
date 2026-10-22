@@ -157,6 +157,19 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
     orderBy: { createdAt: "desc" },
   });
 
+  // 6. Money in: customer receipts against bookings
+  const moneyIn = (
+    await prisma.salesReceipt.findMany({
+      where: { organizationId: orgId, date, booking: { status: "ACTIVE", ...(siteId ? { unit: { project: { siteId } } } : {}) } },
+      include: {
+        booking: { select: { id: true, bookingNumber: true, customerName: true, unit: { select: { unitNumber: true, project: { select: { id: true, name: true } } } } } },
+        installment: { select: { label: true } },
+        creator: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    })
+  );
+
   // Summaries
   const totalPaymentsAmount = payments.reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
   const totalBillsAmount = bills.reduce((acc: number, b: any) => acc + (b.totalAmount || 0), 0);
@@ -185,6 +198,8 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
     summary: {
       totalPaymentsAmount,
       totalBillsAmount,
+      totalMoneyInAmount: moneyIn.reduce((acc, r) => acc + r.amount, 0),
+      moneyInCount: moneyIn.length,
       paymentsCount: payments.length,
       billsCount: bills.length,
       receiptsCount: receipts.length,
@@ -198,6 +213,7 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
       reportsCount: dailyReports.length,
     },
     payments,
+    moneyIn,
     bills,
     receipts,
     issues,
