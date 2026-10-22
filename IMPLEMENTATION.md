@@ -1,6 +1,6 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 23 Oct 2026 (after Phase 6)
+Last updated: 23 Oct 2026 (after Phase 7)
 Branch: `claude/project-thread-7co71b` (committed locally, **not pushed** to GitHub yet)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
@@ -14,17 +14,18 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 3 | Task history with photos, task updates to admin, daily work reports, staff attendance | Done | `bb493be` | `bothra-redesign-phase3.bundle` |
 | 4 | Budget vs actual, construction stages and progress, material requests | Done | `d81adfc` | `bothra-redesign-phase4.bundle` |
 | 5 | Payroll, drawings register, quality and safety, equipment, sales | Done | `0cc23cf` | `bothra-redesign-phase5.bundle` |
-| 6 | Buyer portal, automatic stage demands, GST receipts, Tally / GST export, PF / ESI / PT in payroll | Done | see `git log` | `bothra-redesign-phase6.bundle` |
+| 6 | Buyer portal, automatic stage demands, GST receipts, Tally / GST export, PF / ESI / PT in payroll | Done | `224a2e5` | `bothra-redesign-phase6.bundle` |
+| 7 | GST on supplier bills, PF / ESI for site workers with PF ECR and ESI files, cancelling a receipt, offline site app | Done | see `git log` | `bothra-redesign-phase7.bundle` |
 
-**Six phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase6.bundle` is the only one you need.
+**Seven phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase7.bundle` is the only one you need.
 
 ### How to load the latest version
 
 ```bash
-git fetch bothra-redesign-phase6.bundle claude/project-thread-7co71b:claude/redesign-phase6
-git checkout claude/redesign-phase6
+git fetch bothra-redesign-phase7.bundle claude/project-thread-7co71b:claude/redesign-phase7
+git checkout claude/redesign-phase7
 npm install
-npx prisma db push      # required: phases 2 to 6 add new tables and columns
+npx prisma db push      # required: phases 2 to 7 add new tables and columns
 npm run dev
 ```
 
@@ -229,44 +230,92 @@ npm run dev
 
 ---
 
+## Phase 7: GST on purchases, statutory filings, receipt cancellation and the offline site app (done)
+
+**GST on supplier bills**
+- The bill form has a GST rate (0, 5, 12, 18 or 28%) added on top of the lines, and shows the taxable value, the tax and the total.
+- Tax type is worked out from the GSTINs: a supplier in another state (different first two digits from the company GSTIN in Settings) is IGST, otherwise CGST plus SGST. It can be set by hand.
+- An "input tax credit" tick for each bill. Untick it for blocked credit, such as furniture or food.
+- Bills with no GST work as before.
+
+**GST in the accounts export**
+- Tally purchase vouchers now debit the expense with the taxable value and "Input CGST", "Input SGST" or "Input IGST" (under Duties & Taxes) with the tax, and credit the supplier with the total. When credit is not claimed the tax stays in the expense.
+- The purchase register has taxable value, rate, CGST, SGST, IGST and ITC columns, with totals, ready to match against GSTR-2B.
+
+**PF and ESI for site workers**
+- Payroll → Staff salaries now has a site-workers table: PF and ESI ticks, UAN, ESIC number, bank account and IFSC for each worker. Account numbers are shown masked.
+- PF is 12% of wages up to ₹15,000 a month. ESI is 0.75% (company 3.25%) while 26 days' wages are ₹21,000 or less. Professional tax is not cut from daily wages.
+- The bank transfer file now includes site workers' bank details.
+
+**Statutory files** (after payroll is approved)
+- PF ECR file in the EPFO text format (`#~#` between fields): UAN, name, gross, EPF/EPS/EDLI wages, employee 12%, EPS 8.33%, the difference, non-contributory days and refund. Amounts are in whole rupees.
+- ESI monthly contribution file (CSV) for the ESIC portal: IP number, name, days paid and wages.
+- People ticked for PF or ESI who have no UAN or ESIC number are left out of the file, and Payroll names them so they can be added before filing.
+
+**Cancelling a receipt** (admins only)
+- For a bounced cheque or a receipt entered by mistake. A reason is required.
+- The amount goes back on the instalment, and a sold unit goes back to booked.
+- The receipt stays on record with a "Cancelled" stamp and is struck through on the booking. Its number is not reused.
+- Cancelled receipts are left out of money in, the Day Book, the dashboard, the GST sales register, Tally and the buyer's page.
+
+**Offline site app**
+- The app can be installed on a phone's home screen (Add to Home screen) with its own icon.
+- Pages already opened, such as a project's stages and the daily report, open with no signal. The latest data seen is shown.
+- With no signal, a stage progress update or a daily report is saved on the phone, with its photos. A bar at the top shows "No signal" and how many are waiting.
+- They are sent by themselves when the signal comes back, photos first. "Send now" retries by hand. If the server refuses one (for example the stage was deleted), it is marked so it can be read and discarded.
+- A page never opened before shows a "No signal" page instead of an error.
+- Logging out clears the pages kept on the phone. If anything is still waiting to be sent, it asks first, because saved updates are sent as whoever is logged in.
+
+**Why buyers do not get IGST**
+- GST on an under-construction flat is charged where the property is, not where the buyer lives. So a buyer from another state is still charged CGST plus SGST. IGST for buyers was left out on purpose.
+
+---
+
 ## Incomplete or still planned
 
-All six phases are built. The items below are not built yet, or work only partly.
+All seven phases are built. The items below are not built yet, or work only partly.
 
-### Gaps in Phase 5 and 6 features
+### Gaps in Phase 5, 6 and 7 features
 
 - **Payroll:**
-  - PF, ESI and professional tax apply to staff only, not to daily-wage site workers.
-  - No PF ECR or ESI challan file. The amounts to deposit are shown, but they are not filed.
+  - The PF ECR and ESI files are made for upload; filing and paying the challan are still done on the EPFO and ESIC portals.
+  - The ECR assumes everyone is in the pension scheme (EPS). Members over 58 or not eligible for EPS need their line edited before upload.
+  - No Form 16.
   - Professional tax ignores the exemption for women in Maharashtra. TDS is not worked out from the tax regime; it is typed in.
   - Statutory amounts are not posted to Finance as payables until they are paid as ordinary payments.
   - Overtime is paid at 1× the hourly rate.
 - **Sales:**
-  - GST is split as CGST and SGST only. There is no IGST for buyers in another state, and no 1% affordable-housing check.
-  - A receipt cannot be cancelled or edited once saved.
+  - No 1% affordable-housing GST check. The rate is set per booking.
+  - A receipt can be cancelled but not edited. To correct one, cancel it and enter it again.
   - "On each slab" is one instalment raised when the whole superstructure stage is done. It is not one demand per slab.
   - The demand WhatsApp is still sent by a click per buyer.
 - **Exports:**
-  - Supplier bills are exported at their total, because bills do not record GST separately yet. The purchase register lists the GSTIN, but not the tax amounts.
+  - GST on a supplier bill is one rate for the whole bill. A bill with items at different rates should be entered as separate bills.
+  - Reverse charge (for example on unregistered suppliers or some services) is not handled.
   - Ledger names are fixed (for example "Purchase - Construction Material"). Rename them in Tally, or ask for a mapping screen.
   - There is no direct sync with Tally. It is an import file.
 - **Equipment:** hire and fuel costs logged here are not added to the project budget automatically. Hire bills should still be entered in Finance under the Equipment cost head.
 - **Quality:** the five checklists are fixed. There is no screen yet to make your own checklist.
 - **Drawings:** no markup or side-by-side comparison of revisions. Files are limited to PDF or images up to 10 MB.
+- **Offline app:**
+  - Only stage progress and daily reports can be saved offline. Attendance, material requests, payments and the rest need a signal.
+  - A page has to be opened once with a signal before it works offline.
+  - Offline saving works in the installed app and in Chrome or Safari on the phone. The offline page cache only runs on the production build, not in `npm run dev`.
+  - If the signal drops just after the server saved an update but before the phone heard back, that update can be sent twice. It shows as two entries in the stage history.
 
-### Ideas for a Phase 7 (not started)
+### Ideas for a Phase 8 (not started)
 
 | Feature | Notes |
 |---|---|
-| Offline mobile app | Supervisors on site with weak signal can fill in reports and photos offline, and they sync later. |
-| GST on supplier bills | Record taxable value and GST per bill, so the purchase register and Tally carry input tax credit. |
 | Automatic WhatsApp | Send demand letters and reminders without a click, using the WhatsApp Business API. |
-| Statutory filings | PF ECR file, ESI challan and Form 16, from the payroll already worked out. |
 | Buyer login | A proper sign-in for buyers (OTP on their mobile) in place of the secret link. |
+| More offline forms | Attendance, material requests and quality checklists saved offline too. |
+| Form 16 and TDS | Work out TDS from the tax regime and make Form 16 at year end. |
+| GST per bill line | Different GST rates on lines of the same bill, and reverse charge. |
 
 ### General gaps
 
-- **Nothing is pushed to GitHub yet.** All six phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
+- **Nothing is pushed to GitHub yet.** All seven phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
 - **WhatsApp is click-to-chat only.** The buttons open WhatsApp with the number and a message filled in. Automatic WhatsApp messages (for example sending reminders without a click) would need the WhatsApp Business API and an account.
 - **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
 - **Photos and drawings are stored on the server's disk** (`storage/uploads/private`), with a backup copy in the database. For heavy use they should move to cloud storage such as S3, so the database stays small.
@@ -276,11 +325,12 @@ All six phases are built. The items below are not built yet, or work only partly
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 350 of 352 tests.
+  The rest of the suite passes: 354 of 356 tests.
 
-## Checks run on the latest version (Phase 6)
+## Checks run on the latest version (Phase 7)
 
-- Tests: 350 of 352 pass. The only failures are the 2 older tests listed above. This includes 7 new tests for Phase 6, 8 for Phase 5 and 10 for Phase 4.
+- Tests: 354 of 356 pass. The only failures are the 2 older tests listed above. This includes 4 new tests for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
+- Offline app, tried in a phone-sized browser on the production build with the server switched off: a stage update with a photo and a daily report were saved on the phone, and both reached the server with the photo when it came back.
 - Type check: clean.
 - Lint: 9 warnings, the same as before the redesign.
 - Production build: succeeds.

@@ -77,9 +77,14 @@ export interface StatutoryProfile {
   pfApplicable: boolean;
   esiApplicable: boolean;
   monthlySalary: number;
+  /** Professional tax is cut from staff salaries only. */
+  professionalTax?: boolean;
 }
 
-/** PF, ESI and professional tax for one person's month. Labour (no profile) has none. */
+/** Site workers' monthly wage for the ESI limit: 26 working days at the daily rate. */
+export const LABOUR_MONTH_DAYS = 26;
+
+/** PF, ESI and professional tax for one person's month. No profile means none. */
 export function statutory(profile: StatutoryProfile | null | undefined, pay: { basePay: number; gross: number }, ptState: string, month: string) {
   if (!profile) return { pfEmployee: 0, pfEmployer: 0, esiEmployee: 0, esiEmployer: 0, professionalTax: 0 };
   const pfWage = Math.min(pay.basePay, PF_WAGE_CEILING);
@@ -90,7 +95,7 @@ export function statutory(profile: StatutoryProfile | null | undefined, pay: { b
     pfEmployer: pf,
     esiEmployee: esiCovered ? esi(pay.gross, ESI_EMPLOYEE_RATE) : 0,
     esiEmployer: esiCovered ? esi(pay.gross, ESI_EMPLOYER_RATE) : 0,
-    professionalTax: pay.gross > 0 ? professionalTax(ptState, pay.gross, month) : 0,
+    professionalTax: pay.gross > 0 && profile.professionalTax !== false ? professionalTax(ptState, pay.gross, month) : 0,
   };
 }
 
@@ -133,13 +138,18 @@ interface DraftLine {
   profile?: StatutoryProfile | null;
 }
 
+function labourProfile(m: { pfApplicable: boolean; esiApplicable: boolean }, rate: number): StatutoryProfile | null {
+  if (!m.pfApplicable && !m.esiApplicable) return null;
+  return { pfApplicable: m.pfApplicable, esiApplicable: m.esiApplicable, monthlySalary: rate * LABOUR_MONTH_DAYS, professionalTax: false };
+}
+
 /** Labour lines from site attendance. */
 async function labourLines(organizationId: string, month: string): Promise<DraftLine[]> {
   const days = monthDays(month);
   const [members, sessions] = await Promise.all([
     prisma.workforceMember.findMany({
       where: { organizationId, isArchived: false, active: true },
-      select: { id: true, name: true, workerType: true, dailyWageRate: true },
+      select: { id: true, name: true, workerType: true, dailyWageRate: true, pfApplicable: true, esiApplicable: true },
     }),
     prisma.attendanceSession.findMany({
       where: { organizationId, isArchived: false, workDate: { gte: days[0], lte: days[days.length - 1] } },
@@ -189,6 +199,7 @@ async function labourLines(organizationId: string, month: string): Promise<Draft
       rate,
       basePay: Math.round(rate * payableDays),
       overtimePay: Math.round((rate / STANDARD_HOURS) * overtimeHours),
+      profile: labourProfile(m, rate),
     });
   }
   return lines;
@@ -250,6 +261,71 @@ async function staffLines(organizationId: string, month: string): Promise<DraftL
     });
   }
   return lines;
+}
+
+type Ids = { uan: string | null; esicNumber: string | null; bankAccount: string | null; ifsc: string | null };
+
+/** UAN, ESIC number and bank details for each person on a run, staff and site workers alike. */
+async function statutoryIds(organizationId: string, lines: { personType: string; personId: string }[]) {
+  const staff = lines.filter((l) => l.personType === "STAFF").map((l) => l.personId);
+  const labour = lines.filter((l) => l.personType === "LABOUR").map((l) => l.personId);
+  const [profiles, members] = await Promise.all([
+    prisma.payrollProfile.findMany({ where: { organizationId, userId: { in: staff } } }),
+    prisma.workforceMember.findMany({ where: { organizationId, id: { in: labour } }, select: { id: true, uan: true, esicNumber: true, bankAccount: true, ifsc: true } }),
+  ]);
+  const out = new Map<string, Ids>();
+  profiles.forEach((p) => out.set(p.userId, { uan: p.uan, esicNumber: p.esicNumber, bankAccount: p.bankAccount, ifsc: p.ifsc }));
+  members.forEach((m) => out.set(m.id, { uan: m.uan, esicNumber: m.esicNumber, bankAccount: m.bankAccount, ifsc: m.ifsc }));
+  return out;
+}
+
+export const EPS_RATE = 8.33;
+
+type RunLine = { personType: string; personId: string; personName: string; payableDays: number; basePay: number; gross: number; pfEmployee: number; esiEmployee: number };
+
+/** Days with no PF: unpaid days for staff, days short of 26 for site workers. */
+function ncpDays(l: RunLine, month: string) {
+  const full = l.personType === "STAFF" ? monthDays(month).length : LABOUR_MONTH_DAYS;
+  return Math.max(0, Math.round(full - l.payableDays));
+}
+
+const rupees = (paise: number) => Math.round(paise / 100);
+
+/**
+ * The monthly PF ECR text file for the EPFO portal and the ESI contribution
+ * sheet for the ESIC portal. People missing a UAN or ESIC number are left out
+ * and listed, so they can be added before filing.
+ */
+export function statutoryReturn(kind: "pf-ecr" | "esi", month: string, lines: RunLine[], ids: Map<string, Ids>) {
+  const missing: string[] = [];
+  if (kind === "pf-ecr") {
+    const rows: string[] = [];
+    for (const l of lines.filter((x) => x.pfEmployee > 0)) {
+      const uan = ids.get(l.personId)?.uan?.trim();
+      if (!uan) {
+        missing.push(l.personName);
+        continue;
+      }
+      const epfWages = rupees(Math.min(l.basePay, PF_WAGE_CEILING));
+      const ee = rupees(l.pfEmployee);
+      const eps = Math.round((epfWages * EPS_RATE) / 100);
+      const name = l.personName.toUpperCase().replace(/[^A-Z .]/g, "").trim();
+      rows.push([uan, name, rupees(l.gross), epfWages, epfWages, epfWages, ee, eps, ee - eps, ncpDays(l, month), 0].join("#~#"));
+    }
+    return { body: rows.join("\n"), missing, count: rows.length, filename: `pf-ecr_${month}.txt`, type: "text/plain" };
+  }
+  const head = ["IP Number", "IP Name", "No of Days for which wages paid/payable during the month", "Total Monthly Wages", "Reason Code for Zero workings days", "Last Working Day"];
+  const rows: string[][] = [];
+  for (const l of lines.filter((x) => x.esiEmployee > 0)) {
+    const ip = ids.get(l.personId)?.esicNumber?.trim();
+    if (!ip) {
+      missing.push(l.personName);
+      continue;
+    }
+    rows.push([ip, l.personName, String(Math.round(l.payableDays)), String(rupees(l.gross)), "", ""]);
+  }
+  const cell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  return { body: [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n"), missing, count: rows.length, filename: `esi-contribution_${month}.csv`, type: "text/csv" };
 }
 
 async function refreshTotals(runId: string) {
@@ -397,10 +473,13 @@ export class PayrollService {
       otherDeduction: input.otherDeduction ?? line.otherDeduction,
       tds: input.tds ?? line.tds,
     };
-    const profile =
-      line.personType === "STAFF"
-        ? await prisma.payrollProfile.findUnique({ where: { organizationId_userId: { organizationId: user.organizationId, userId: line.personId } } })
-        : null;
+    let profile: StatutoryProfile | null = null;
+    if (line.personType === "STAFF") {
+      profile = await prisma.payrollProfile.findUnique({ where: { organizationId_userId: { organizationId: user.organizationId, userId: line.personId } } });
+    } else {
+      const m = await prisma.workforceMember.findFirst({ where: { id: line.personId, organizationId: user.organizationId } });
+      profile = m ? labourProfile(m, line.rate) : null;
+    }
     const { ptState } = await payrollSettings(user.organizationId);
     const { gross, net, ...stat } = recompute(next, profile, ptState, line.run.month);
     const deductions = next.advanceDeduction + next.otherDeduction + next.tds + stat.pfEmployee + stat.esiEmployee + stat.professionalTax;
@@ -564,6 +643,43 @@ export class PayrollService {
     });
   }
 
+  /** Site workers with their PF, ESI and bank details (account masked). */
+  static async listWorkers(organizationId: string) {
+    const members = await prisma.workforceMember.findMany({
+      where: { organizationId, isArchived: false, active: true },
+      select: { id: true, name: true, employeeCode: true, workerType: true, dailyWageRate: true, pfApplicable: true, esiApplicable: true, uan: true, esicNumber: true, bankAccount: true, ifsc: true },
+      orderBy: { name: "asc" },
+    });
+    return members.map(({ bankAccount, ...m }) => ({ ...m, bankAccountMasked: bankAccount ? `••••${bankAccount.slice(-4)}` : null }));
+  }
+
+  static async saveWorker(
+    user: UserContext,
+    memberId: string,
+    input: { pfApplicable?: boolean; esiApplicable?: boolean; uan?: string | null; esicNumber?: string | null; bankAccount?: string | null; ifsc?: string | null }
+  ) {
+    const m = await prisma.workforceMember.findFirst({ where: { id: memberId, organizationId: user.organizationId } });
+    if (!m) throw new PayrollError("Worker not found", 404, "NOT_FOUND");
+    const data: any = {};
+    if (input.pfApplicable !== undefined) data.pfApplicable = input.pfApplicable;
+    if (input.esiApplicable !== undefined) data.esiApplicable = input.esiApplicable;
+    if (input.uan !== undefined) data.uan = input.uan || null;
+    if (input.esicNumber !== undefined) data.esicNumber = input.esicNumber || null;
+    if (input.bankAccount !== undefined) data.bankAccount = input.bankAccount || null;
+    if (input.ifsc !== undefined) data.ifsc = input.ifsc ? input.ifsc.toUpperCase() : null;
+    await prisma.workforceMember.update({ where: { id: m.id }, data });
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "WORKER_STATUTORY_UPDATED",
+        entityType: "WORKFORCE_MEMBER",
+        entityId: m.id,
+        afterJson: JSON.stringify({ pfApplicable: data.pfApplicable, esiApplicable: data.esiApplicable, bankChanged: input.bankAccount !== undefined }),
+      },
+    });
+  }
+
   static async saveSettings(user: UserContext, input: { ptState: string }) {
     if (!PT_STATES[input.ptState]) throw new PayrollError("Pick a state for professional tax.");
     const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { settingsJson: true } });
@@ -589,12 +705,11 @@ export class PayrollService {
     const run = await prisma.payrollRun.findUnique({ where: { organizationId_month: { organizationId: user.organizationId, month } }, include: { lines: true } });
     if (!run) throw new PayrollError("Payroll not found", 404, "NOT_FOUND");
     if (run.status === "DRAFT") throw new PayrollError("Approve the payroll before making the bank file.", 409, "PAYROLL_NOT_APPROVED");
-    const profiles = await prisma.payrollProfile.findMany({ where: { organizationId: user.organizationId, userId: { in: run.lines.filter((l) => l.personType === "STAFF").map((l) => l.personId) } } });
-    const bank = new Map(profiles.map((p) => [p.userId, p]));
+    const ids = await statutoryIds(user.organizationId, run.lines);
     const rows = run.lines
       .filter((l) => l.net > 0)
       .map((l) => {
-        const p = l.personType === "STAFF" ? bank.get(l.personId) : null;
+        const p = ids.get(l.personId);
         return { name: l.personName, account: p?.bankAccount || "", ifsc: p?.ifsc || "", amount: (l.net / 100).toFixed(2), narration: `${l.personType === "LABOUR" ? "Wages" : "Salary"} ${month}` };
       })
       .sort((a, b) => Number(!a.account) - Number(!b.account) || a.name.localeCompare(b.name));
@@ -606,6 +721,29 @@ export class PayrollService {
       ["Beneficiary name", "Account number", "IFSC", "Amount", "Narration", "Note"].join(","),
       ...rows.map((r) => [r.name, r.account ? `'${r.account}` : "", r.ifsc, r.amount, r.narration, r.account ? "" : "No bank details: pay by cash or cheque"].map(cell).join(",")),
     ].join("\r\n");
+  }
+
+  /** PF ECR or ESI contribution file for an approved month. */
+  static async statutoryFile(user: UserContext, month: string, kind: "pf-ecr" | "esi") {
+    const run = await prisma.payrollRun.findUnique({ where: { organizationId_month: { organizationId: user.organizationId, month } }, include: { lines: true } });
+    if (!run) throw new PayrollError("Payroll not found", 404, "NOT_FOUND");
+    if (run.status === "DRAFT") throw new PayrollError("Approve the payroll before making the PF or ESI file.", 409, "PAYROLL_NOT_APPROVED");
+    const file = statutoryReturn(kind, month, run.lines, await statutoryIds(user.organizationId, run.lines));
+    await prisma.auditEvent.create({
+      data: { organizationId: user.organizationId, actorUserId: user.userId, action: "PAYROLL_STATUTORY_FILE", entityType: "PAYROLL_RUN", entityId: run.id, afterJson: JSON.stringify({ month, kind, rows: file.count, missing: file.missing.length }) },
+    });
+    return file;
+  }
+
+  /** Who on the month's run is missing the UAN or ESIC number the filings need. */
+  static async statutoryGaps(organizationId: string, month: string) {
+    const run = await prisma.payrollRun.findUnique({ where: { organizationId_month: { organizationId, month } }, include: { lines: true } });
+    if (!run) return { pf: [], esi: [] };
+    const ids = await statutoryIds(organizationId, run.lines);
+    return {
+      pf: statutoryReturn("pf-ecr", month, run.lines, ids).missing,
+      esi: statutoryReturn("esi", month, run.lines, ids).missing,
+    };
   }
 
   static async listAdvances(organizationId: string) {

@@ -5,7 +5,8 @@ import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { ContactActions } from "@/components/ui/ContactActions";
-import { PhotoPicker, PickedPhoto } from "@/components/ui/PhotoPicker";
+import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
+import { submitOrQueue } from "@/lib/offline-queue";
 import { cn } from "@/lib/cn";
 import {
   AlertTriangle,
@@ -322,19 +323,27 @@ function MyReport({ initialDate }: { initialDate: string }) {
     setSaving(true);
     setError(null);
     try {
-      const report = await api("/api/work-reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { urls, pending } = splitPhotos(photos, { entityType: "WORK_REPORT" });
+      const result = await submitOrQueue<any>({
+        label: `Daily report for ${date}`,
+        url: "/api/work-reports",
+        body: {
           reportDate: date,
           summary,
           hoursWorked: hours === "" ? null : Number(hours),
           projectId: projectId || null,
           blockers: blockers || null,
           tomorrowPlan: tomorrowPlan || null,
-          photoUrls: photos.map((p) => p.url),
-        }),
+          photoUrls: urls,
+        },
+        photos: pending,
+        photoField: "photoUrls",
       });
+      if (result.queued) {
+        setSaved("No signal, so the report is saved on this phone. It will be sent to the admin when you are back online.");
+        return;
+      }
+      const report = result.data;
       setDraft((d: any) => ({ ...d, existing: report }));
       setHistory((h) => [report, ...h.filter((r) => r.id !== (report as any).id)]);
       setSaved("Report sent to the admin.");

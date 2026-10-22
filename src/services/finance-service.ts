@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { assertPermission, Role } from "@/lib/permissions";
 import { roundPaise } from "@/lib/financial-math";
+import { companyProfile, gstStateCode } from "@/lib/company";
 
 export interface BillLineInput {
   description: string;
@@ -20,8 +21,23 @@ export interface CreateBillInput {
   lines: BillLineInput[];
   notes?: string;
   costHead?: string | null;
+  /** GST on top of the lines. Supplier in another state → IGST, else CGST + SGST. */
+  gst?: { rate: number; interState?: boolean | null; itcEligible?: boolean } | null;
   userId: string;
   role: Role;
+}
+
+export const BILL_GST_RATES = [0, 5, 12, 18, 28];
+
+/**
+ * Splits GST on a bill. When interState is not given it is worked out from
+ * the first two digits of the supplier's and the company's GSTIN.
+ */
+export function billGst(taxable: number, rate: number, interState: boolean) {
+  const tax = roundPaise((taxable * rate) / 100);
+  if (interState) return { cgst: 0, sgst: 0, igst: tax, tax };
+  const cgst = Math.floor(tax / 2);
+  return { cgst, sgst: tax - cgst, igst: 0, tax };
 }
 
 export interface PaymentAllocationInput {
@@ -113,7 +129,21 @@ export class FinanceService {
       throw new Error(`Bill #${input.billNumber} already exists for this vendor`);
     }
 
-    const calculatedTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
+    const linesTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
+    let gstFields: Record<string, unknown> = {};
+    let calculatedTotal = linesTotal;
+    if (input.gst) {
+      if (!BILL_GST_RATES.includes(input.gst.rate)) throw new Error("GST rate must be 0, 5, 12, 18 or 28%");
+      let interState = input.gst.interState;
+      if (interState === undefined || interState === null) {
+        const ours = gstStateCode((await companyProfile(input.organizationId)).gstin);
+        const theirs = gstStateCode(party.taxIdentifier);
+        interState = !!ours && !!theirs && ours !== theirs;
+      }
+      const split = billGst(linesTotal, input.gst.rate, interState);
+      calculatedTotal = roundPaise(linesTotal + split.tax);
+      gstFields = { gstRate: input.gst.rate, taxableAmount: linesTotal, cgst: split.cgst, sgst: split.sgst, igst: split.igst, itcEligible: input.gst.itcEligible ?? true };
+    }
 
     return await prisma.$transaction(async (tx: any) => {
       const bill = await tx.bill.create({
@@ -125,6 +155,7 @@ export class FinanceService {
           billDate: input.billDate,
           dueDate: input.dueDate ?? null,
           totalAmount: calculatedTotal,
+          ...gstFields,
           costHead: input.costHead ?? null,
           status: "POSTED",
           notes: input.notes ?? null,
@@ -152,6 +183,7 @@ export class FinanceService {
           afterJson: JSON.stringify({
             billNumber: bill.billNumber,
             totalAmount: bill.totalAmount,
+            gstRate: bill.gstRate,
             partyId: bill.partyId,
           }),
         },

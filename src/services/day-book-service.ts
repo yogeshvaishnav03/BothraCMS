@@ -160,7 +160,7 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
   // 6. Money in: customer receipts against bookings
   const moneyIn = (
     await prisma.salesReceipt.findMany({
-      where: { organizationId: orgId, date, booking: { status: "ACTIVE", ...(siteId ? { unit: { project: { siteId } } } : {}) } },
+      where: { organizationId: orgId, date, cancelledAt: null, booking: { status: "ACTIVE", ...(siteId ? { unit: { project: { siteId } } } : {}) } },
       include: {
         booking: { select: { id: true, bookingNumber: true, customerName: true, unit: { select: { unitNumber: true, project: { select: { id: true, name: true } } } } } },
         installment: { select: { label: true } },

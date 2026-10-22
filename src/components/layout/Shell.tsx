@@ -46,6 +46,8 @@ import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
 import InteractiveGuideModal from "@/components/ui/InteractiveGuideModal";
 import QuickActionLauncher from "@/components/ui/QuickActionLauncher";
+import OfflineBar from "@/components/layout/OfflineBar";
+import { clearQueue, listQueued } from "@/lib/offline-queue";
 
 interface ShellProps {
   children: React.ReactNode;
@@ -127,7 +129,10 @@ export default function Shell({ children }: ShellProps) {
           setUser(data.data.user);
         }
       })
-      .catch(() => router.push("/login"))
+      // No signal is not the same as logged out: keep the page (the site app works offline).
+      .catch(() => {
+        if (navigator.onLine) router.push("/login");
+      })
       .finally(() => setLoading(false));
 
     fetch("/api/sites", { cache: "no-store" })
@@ -185,6 +190,12 @@ export default function Shell({ children }: ShellProps) {
   };
 
   const handleLogout = async () => {
+    // Saved updates are sent as whoever is logged in, so they cannot wait for the next person.
+    const waiting = await listQueued().catch(() => []);
+    if (waiting.length > 0 && !window.confirm(`${waiting.length} saved update${waiting.length === 1 ? " has" : "s have"} not been sent yet. Log out and discard ${waiting.length === 1 ? "it" : "them"}?`)) return;
+    await clearQueue().catch(() => {});
+    // Pages kept for offline use belong to this login.
+    if ("caches" in window) await caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => {});
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
   };
@@ -618,6 +629,7 @@ export default function Shell({ children }: ShellProps) {
             </div>
           </div>
 
+          <OfflineBar />
           <div className="page-enter">
             {children}
           </div>

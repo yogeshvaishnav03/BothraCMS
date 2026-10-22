@@ -104,13 +104,36 @@ async function loadPayments(organizationId: string, from: string, to: string) {
 
 async function loadReceipts(organizationId: string, from: string, to: string) {
   return prisma.salesReceipt.findMany({
-    where: { organizationId, date: { gte: from, lte: to }, booking: { status: "ACTIVE" } },
+    where: { organizationId, date: { gte: from, lte: to }, cancelledAt: null, booking: { status: "ACTIVE" } },
     include: {
       booking: { select: { bookingNumber: true, customerName: true, customerPhone: true, gstRate: true, unit: { select: { unitNumber: true, unitType: true, project: { select: { name: true } } } } } },
       installment: { select: { label: true } },
     },
     orderBy: [{ date: "asc" }, { receiptNumber: "asc" }],
   });
+}
+
+const INPUT_TAX = { cgst: "Input CGST", sgst: "Input SGST", igst: "Input IGST" } as const;
+
+type BillTax = { totalAmount: number; taxableAmount: number | null; cgst: number; sgst: number; igst: number; itcEligible: boolean; party: { name: string } };
+
+/**
+ * Dr expense for the taxable value, Dr input GST when the credit can be
+ * claimed (otherwise the tax is part of the cost), Cr the supplier.
+ */
+function purchaseEntries(b: BillTax, expense: string, need: (name: string, group: string) => void) {
+  const tax = b.cgst + b.sgst + b.igst;
+  if (!tax || b.taxableAmount == null || !b.itcEligible) {
+    return [entry(expense, b.totalAmount, true), entry(b.party.name, b.totalAmount, false)];
+  }
+  const out = [entry(expense, b.taxableAmount, true)];
+  for (const k of ["cgst", "sgst", "igst"] as const) {
+    if (!b[k]) continue;
+    need(INPUT_TAX[k], "Duties & Taxes");
+    out.push(entry(INPUT_TAX[k], b[k], true));
+  }
+  out.push(entry(b.party.name, b.totalAmount, false));
+  return out;
 }
 
 export class ExportService {
@@ -151,7 +174,7 @@ export class ExportService {
             reference: b.billNumber,
             party: b.party.name,
             narration: [`Bill ${b.billNumber} from ${b.party.name}`, b.project?.name, b.notes].filter(Boolean).join(" · "),
-            entries: [entry(head.name, b.totalAmount, true), entry(b.party.name, b.totalAmount, false)],
+            entries: purchaseEntries(b, head.name, need),
           })
         );
       }
@@ -276,7 +299,7 @@ export class ExportService {
     const rows = await loadBills(organizationId, from, to);
     const isGstin = (v: string | null) => !!v && /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/i.test(v.trim());
     return csv([
-      ["Bill date", "Bill no.", "Supplier", "GSTIN", "PAN", "Project", "Cost head", "Bill amount", "Paid", "Balance", "Due date"],
+      ["Bill date", "Bill no.", "Supplier", "GSTIN", "PAN", "Project", "Cost head", "Taxable value", "GST rate %", "CGST", "SGST", "IGST", "ITC", "Bill amount", "Paid", "Balance", "Due date"],
       ...rows.map((b) => {
         const paid = b.allocations.reduce((s, a) => s + a.amount, 0);
         return [
@@ -287,13 +310,29 @@ export class ExportService {
           b.party.panNumber || (!isGstin(b.party.taxIdentifier) ? b.party.taxIdentifier : "") || "",
           b.project?.name,
           HEAD_LEDGER[inferBillHead(b)].name,
+          rs(b.taxableAmount ?? b.totalAmount),
+          b.gstRate ?? "",
+          rs(b.cgst),
+          rs(b.sgst),
+          rs(b.igst),
+          b.gstRate == null ? "" : b.itcEligible ? "Yes" : "No",
           rs(b.totalAmount),
           rs(paid),
           rs(b.totalAmount - paid),
           b.dueDate ? istKey(b.dueDate) : "",
         ];
       }),
-      ["Total", "", "", "", "", "", "", rs(rows.reduce((s, b) => s + b.totalAmount, 0)), "", "", ""],
+      [
+        "Total", "", "", "", "", "", "",
+        rs(rows.reduce((s, b) => s + (b.taxableAmount ?? b.totalAmount), 0)),
+        "",
+        rs(rows.reduce((s, b) => s + b.cgst, 0)),
+        rs(rows.reduce((s, b) => s + b.sgst, 0)),
+        rs(rows.reduce((s, b) => s + b.igst, 0)),
+        "",
+        rs(rows.reduce((s, b) => s + b.totalAmount, 0)),
+        "", "", "",
+      ],
     ]);
   }
 

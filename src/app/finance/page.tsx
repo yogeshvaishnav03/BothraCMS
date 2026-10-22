@@ -82,6 +82,9 @@ export default function FinancePage() {
   const [billDate, setBillDate] = useState(new Date().toISOString().split("T")[0]);
   const [billDueDate, setBillDueDate] = useState("");
   const [billNotes, setBillNotes] = useState("");
+  const [billGstRate, setBillGstRate] = useState("");
+  const [billTaxType, setBillTaxType] = useState<"AUTO" | "LOCAL" | "IGST">("AUTO");
+  const [billItc, setBillItc] = useState(true);
   const [billLines, setBillLines] = useState<
     Array<{ description: string; materialId: string; quantity: string; unitRate: string; lineTotal: string }>
   >([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
@@ -406,6 +409,14 @@ export default function FinancePage() {
           billDate: new Date(billDate).toISOString(),
           dueDate: billDueDate ? new Date(billDueDate).toISOString() : undefined,
           notes: billNotes || undefined,
+          gst:
+            billGstRate === ""
+              ? undefined
+              : {
+                  rate: Number(billGstRate),
+                  interState: billTaxType === "AUTO" ? null : billTaxType === "IGST",
+                  itcEligible: billItc,
+                },
           lines: parsedLines,
         }),
       });
@@ -414,12 +425,15 @@ export default function FinancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create bill");
       } else {
-        const totalAmountRupees = (parsedLines.reduce((s: number, l: any) => s + (l.lineTotal || 0), 0) / 100).toFixed(2);
+        const totalAmountRupees = ((data.data?.totalAmount ?? parsedLines.reduce((s: number, l: any) => s + (l.lineTotal || 0), 0)) / 100).toFixed(2);
         setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} posted successfully!`);
         setShowBillModal(false);
         setBillNumber("");
         setBillDueDate("");
         setBillNotes("");
+        setBillGstRate("");
+        setBillTaxType("AUTO");
+        setBillItc(true);
         setBillLines([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
         loadData();
       }
@@ -2549,15 +2563,62 @@ export default function FinancePage() {
                     ))}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-600">Calculated Bill Total:</span>
-                    <span className="font-black font-mono text-sm text-slate-900">
-                      ₹
-                      {billLines
-                        .reduce((sum: number, l: any) => sum + (parseFloat(l.lineTotal) || 0), 0)
-                        .toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
+                  {(() => {
+                    const taxable = billLines.reduce((sum: number, l: any) => sum + (parseFloat(l.lineTotal) || 0), 0);
+                    const rate = billGstRate === "" ? 0 : Number(billGstRate);
+                    const tax = Math.round(taxable * rate) / 100;
+                    const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    return (
+                      <div className="pt-2 border-t border-slate-200 space-y-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <label className="block">
+                            <span className="block font-semibold text-slate-600 mb-1">GST on this bill</span>
+                            <select
+                              value={billGstRate}
+                              onChange={(e) => setBillGstRate(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                            >
+                              <option value="">No GST / composition supplier</option>
+                              {[0, 5, 12, 18, 28].map((r) => (
+                                <option key={r} value={r}>
+                                  {r}% on top of the lines
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          {billGstRate !== "" && (
+                            <label className="block">
+                              <span className="block font-semibold text-slate-600 mb-1">Tax type</span>
+                              <select
+                                value={billTaxType}
+                                onChange={(e) => setBillTaxType(e.target.value as "AUTO" | "LOCAL" | "IGST")}
+                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                              >
+                                <option value="AUTO">Work out from GSTINs</option>
+                                <option value="LOCAL">Same state: CGST + SGST</option>
+                                <option value="IGST">Other state: IGST</option>
+                              </select>
+                            </label>
+                          )}
+                          {billGstRate !== "" && (
+                            <label className="flex items-center gap-2 sm:pt-5">
+                              <input type="checkbox" checked={billItc} onChange={(e) => setBillItc(e.target.checked)} />
+                              <span className="text-slate-600">Claim input tax credit</span>
+                            </label>
+                          )}
+                        </div>
+                        {billGstRate !== "" && (
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span>Taxable value ₹{fmt(taxable)} + GST {rate}% ₹{fmt(tax)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-600">Calculated Bill Total:</span>
+                          <span className="font-black font-mono text-sm text-slate-900">₹{fmt(taxable + tax)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>

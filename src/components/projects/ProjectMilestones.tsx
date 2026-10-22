@@ -15,7 +15,8 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { PhotoPicker, PickedPhoto } from "@/components/ui/PhotoPicker";
+import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
+import { submitOrQueue } from "@/lib/offline-queue";
 
 type Schedule = "ON_TRACK" | "AT_RISK" | "DELAYED" | "DONE" | "UNPLANNED";
 
@@ -77,7 +78,7 @@ async function call(url: string, method: string, body?: unknown) {
   return json.data;
 }
 
-function ProgressPanel({ m, onSaved, onClose }: { m: Milestone; onSaved: (d: Data) => void; onClose: () => void }) {
+function ProgressPanel({ m, onSaved, onClose, onQueued }: { m: Milestone; onSaved: (d: Data) => void; onClose: () => void; onQueued?: (msg: string) => void }) {
   const [progress, setProgress] = useState(m.progressPercent);
   const [note, setNote] = useState("");
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
@@ -89,13 +90,21 @@ function ProgressPanel({ m, onSaved, onClose }: { m: Milestone; onSaved: (d: Dat
     setSaving(true);
     setError(null);
     try {
-      const data = await call(`/api/milestones/${m.id}/progress`, "POST", {
-        progressPercent: progress,
-        note: note || null,
-        photoUrls: photos.map((p) => p.url),
-        status: hold ? "ON_HOLD" : m.status === "ON_HOLD" ? "IN_PROGRESS" : undefined,
+      const { urls, pending } = splitPhotos(photos, { entityType: "MILESTONE", entityId: m.id });
+      const result = await submitOrQueue<Data>({
+        label: `${m.name}: ${progress}%`,
+        url: `/api/milestones/${m.id}/progress`,
+        body: {
+          progressPercent: progress,
+          note: note || null,
+          photoUrls: urls,
+          status: hold ? "ON_HOLD" : m.status === "ON_HOLD" ? "IN_PROGRESS" : undefined,
+        },
+        photos: pending,
+        photoField: "photoUrls",
       });
-      onSaved(data);
+      if (result.queued) onQueued?.(`${m.name} at ${progress}% is saved on this phone. It will be sent when there is signal.`);
+      else onSaved(result.data);
       onClose();
     } catch (e: any) {
       setError(e.message);
@@ -167,6 +176,7 @@ export default function ProjectMilestones({
 }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [queued, setQueued] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openPanel, setOpenPanel] = useState<string | null>(null);
   const [openHistory, setOpenHistory] = useState<string | null>(null);
@@ -223,6 +233,14 @@ export default function ProjectMilestones({
   return (
     <div className="space-y-4">
       {error && <div className="rounded-xl bg-rose-50 p-3 text-xs font-medium text-rose-700">{error}</div>}
+      {queued && (
+        <div className="flex items-start justify-between gap-3 rounded-xl bg-amber-50 p-3 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+          <span>{queued}</span>
+          <button onClick={() => setQueued(null)} className="font-bold text-amber-900">
+            OK
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-chrome p-5 text-white shadow-lg lg:col-span-2">
@@ -493,7 +511,7 @@ export default function ProjectMilestones({
 
                   {openPanel === m.id && (
                     <div className="md:pl-10">
-                      <ProgressPanel m={m} onSaved={setData} onClose={() => setOpenPanel(null)} />
+                      <ProgressPanel m={m} onSaved={setData} onClose={() => setOpenPanel(null)} onQueued={setQueued} />
                     </div>
                   )}
 

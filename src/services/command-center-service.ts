@@ -219,7 +219,7 @@ export class CommandCenterService {
         select: { totalAmount: true, billDate: true },
       }),
       prisma.salesReceipt.findMany({
-        where: { organizationId, date: { gte: trendStart, lte: date }, booking: { status: "ACTIVE" } },
+        where: { organizationId, date: { gte: trendStart, lte: date }, cancelledAt: null, booking: { status: "ACTIVE" } },
         select: { amount: true, date: true },
       }),
     ]);

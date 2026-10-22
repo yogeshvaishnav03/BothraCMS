@@ -5,6 +5,10 @@ import { LanguageProvider } from "@/lib/i18n";
 export const metadata: Metadata = {
   title: "Bothra CMS — Construction & Site Operations",
   description: "Enterprise Construction Project, Site Operations & Financial Management Platform",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Bothra CMS",
+  appleWebApp: { capable: true, title: "Bothra", statusBarStyle: "black-translucent" },
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {

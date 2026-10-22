@@ -49,6 +49,11 @@ export function ReceiptDocument({ receipt }: { receipt: any }) {
   return (
     <div className="rounded-xl bg-white p-8 shadow-sm ring-1 ring-slate-200 print:rounded-none print:shadow-none print:ring-0">
       <Letterhead company={receipt.company} title="Payment receipt" number={receipt.receiptNumber} date={receipt.date} />
+      {receipt.cancelledAt && (
+        <div className="mt-4 rounded-lg border-2 border-rose-400 px-3 py-2 text-center text-sm font-bold uppercase tracking-wider text-rose-600">
+          Cancelled{receipt.cancelReason ? `: ${receipt.cancelReason}` : ""}
+        </div>
+      )}
       <p className="mt-5 text-sm leading-relaxed text-slate-700">
         Received with thanks from <b className="text-slate-900">{b.customerName}</b> the sum of <b className="text-slate-900">{inr(receipt.amount)}</b> (
         {paiseInWords(receipt.amount)}) by {MODES[receipt.mode] || receipt.mode}

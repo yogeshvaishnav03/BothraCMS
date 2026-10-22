@@ -843,7 +843,15 @@ export default function SalesPage() {
                                         <div className="mt-1 flex flex-wrap gap-1">
                                           {i.receipts.map((r: any) =>
                                             r.receiptNumber ? (
-                                              <Link key={r.id} href={`/sales/receipt/${r.id}`} className="inline-flex items-center gap-1 rounded bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100">
+                                              <Link
+                                                key={r.id}
+                                                href={`/sales/receipt/${r.id}`}
+                                                title={r.cancelledAt ? `Cancelled: ${r.cancelReason || ""}` : undefined}
+                                                className={cn(
+                                                  "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1",
+                                                  r.cancelledAt ? "bg-rose-50 text-rose-500 line-through ring-rose-200" : "bg-slate-50 text-slate-600 ring-slate-200 hover:bg-slate-100"
+                                                )}
+                                              >
                                                 <Receipt className="h-3 w-3" /> {r.receiptNumber} · {rupees(r.amount)}
                                               </Link>
                                             ) : (

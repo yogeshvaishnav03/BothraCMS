@@ -413,7 +413,13 @@ model Bill {
   billNumber     String
   billDate       DateTime
   dueDate        DateTime?
-  totalAmount    Float     // minor units / currency
+  totalAmount    Float     // minor units / currency, including GST
+  gstRate        Float?    // % charged by the supplier; null for bills entered without GST
+  taxableAmount  Float?    // paise before GST (sum of the lines)
+  cgst           Float     @default(0) // paise
+  sgst           Float     @default(0)
+  igst           Float     @default(0) // supplier in another state
+  itcEligible    Boolean   @default(true) // input tax credit can be claimed
   costHead       String?   // MATERIAL, LABOUR, CONTRACTOR, EQUIPMENT, DESIGN, APPROVALS, OVERHEADS, OTHER (inferred when empty)
   status         String    @default("POSTED") // DRAFT, POSTED, VOIDED, ARCHIVED
   isArchived     Boolean   @default(false)
@@ -521,6 +527,12 @@ model WorkforceMember {
   phone          String?
   defaultSiteId  String?
   dailyWageRate  Float?   // paise per day
+  pfApplicable   Boolean  @default(false)
+  esiApplicable  Boolean  @default(false)
+  uan            String?
+  esicNumber     String?
+  bankAccount    String?
+  ifsc           String?
   active         Boolean  @default(true)
   isArchived     Boolean   @default(false)
   archivedAt     DateTime?
@@ -1445,6 +1457,9 @@ model SalesReceipt {
   gstAmount      Int       // paise
   mode           String    // NEFT, RTGS, UPI, CHEQUE, CASH, HOME_LOAN
   reference      String?
+  cancelledAt    DateTime? // e.g. a bounced cheque; the amount goes back on the instalment
+  cancelledBy    String?
+  cancelReason   String?
   createdBy      String
   createdAt      DateTime  @default(now())
 

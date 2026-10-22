@@ -1,16 +1,28 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { Camera, Loader2, X } from "lucide-react";
+import { Camera, CloudOff, Loader2, X } from "lucide-react";
+import { isNetworkError, isOffline, type QueuedPhoto } from "@/lib/offline-queue";
 
 export interface PickedPhoto {
   url: string;
   name: string;
+  /** Kept on the phone because there was no signal; uploaded when the form is sent. */
+  file?: Blob;
+}
+
+/** Splits picked photos into uploaded links and ones still on the phone. */
+export function splitPhotos(photos: PickedPhoto[], where: Omit<QueuedPhoto, "blob" | "name">) {
+  return {
+    urls: photos.filter((p) => !p.file).map((p) => p.url),
+    pending: photos.filter((p) => p.file).map((p) => ({ ...where, blob: p.file as Blob, name: p.name })),
+  };
 }
 
 /**
  * Uploads photos to /api/attachments as soon as they are picked and hands
- * back their urls. On a phone the button opens the camera.
+ * back their urls. On a phone the button opens the camera. With no signal the
+ * photo stays on the phone and goes up with the form later.
  */
 export function PhotoPicker({
   value,
@@ -43,6 +55,11 @@ export function PhotoPicker({
     setUploading(picked.length);
     const added: PickedPhoto[] = [];
     for (const file of picked) {
+      if (isOffline()) {
+        added.push({ url: URL.createObjectURL(file), name: file.name, file });
+        setUploading((n) => n - 1);
+        continue;
+      }
       const form = new FormData();
       form.append("file", file);
       form.append("entityType", entityType);
@@ -57,8 +74,9 @@ export function PhotoPicker({
         } else {
           setError(json?.error?.message || json?.message || `Could not upload ${file.name}`);
         }
-      } catch {
-        setError(`Could not upload ${file.name}`);
+      } catch (e) {
+        if (isNetworkError(e)) added.push({ url: URL.createObjectURL(file), name: file.name, file });
+        else setError(`Could not upload ${file.name}`);
       }
       setUploading((n) => n - 1);
     }
@@ -73,6 +91,11 @@ export function PhotoPicker({
           <div key={p.url} className="relative h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-xs">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={p.url} alt={p.name} className="h-full w-full object-cover" />
+            {p.file && (
+              <span className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-0.5 bg-amber-500/90 py-0.5 text-[9px] font-bold text-slate-950" title="Saved on this phone. Uploads when there is signal.">
+                <CloudOff className="h-2.5 w-2.5" /> On phone
+              </span>
+            )}
             <button
               type="button"
               onClick={() => onChange(value.filter((x) => x.url !== p.url))}

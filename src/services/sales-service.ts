@@ -5,6 +5,9 @@ import { getUserAccessibleProjectIds, isOrgOwnerOrAdmin } from "@/lib/server-aut
 import { istDateKey } from "@/lib/ist-date";
 import { randomBytes } from "crypto";
 import { hasPermission } from "@/lib/permissions";
+import { companyProfile } from "@/lib/company";
+
+export { companyProfile };
 
 /**
  * Sales: unit inventory per project, the lead pipeline, bookings and the
@@ -123,18 +126,6 @@ async function nextBookingNumber(organizationId: string) {
   const prefix = `BK-${istDateKey().slice(2, 7).replace("-", "")}-`;
   const count = await prisma.salesBooking.count({ where: { organizationId, bookingNumber: { startsWith: prefix } } });
   return `${prefix}${String(count + 1).padStart(3, "0")}`;
-}
-
-/** Name, address, phone and GSTIN from Settings, for receipts and letters. */
-export async function companyProfile(organizationId: string) {
-  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true, settingsJson: true } });
-  let settings: any = {};
-  try {
-    settings = org?.settingsJson ? JSON.parse(org.settingsJson) : {};
-  } catch {
-    settings = {};
-  }
-  return { name: org?.name || "", address: settings.companyAddress || null, phone: settings.phone || null, gstin: settings.taxId || null };
 }
 
 export class SalesService {
@@ -559,7 +550,7 @@ export class SalesService {
   /** Customer money received between two dates (inclusive), newest first. */
   static async moneyIn(organizationId: string, from: string, to: string) {
     const rows = await prisma.salesReceipt.findMany({
-      where: { organizationId, date: { gte: from, lte: to }, booking: { status: "ACTIVE" } },
+      where: { organizationId, date: { gte: from, lte: to }, cancelledAt: null, booking: { status: "ACTIVE" } },
       include: {
         booking: { select: { id: true, bookingNumber: true, customerName: true, customerPhone: true, gstRate: true, unit: { select: { unitNumber: true, unitType: true, project: { select: { id: true, name: true, siteId: true } } } } } },
         installment: { select: { label: true } },
@@ -623,7 +614,7 @@ export class SalesService {
       where: { portalToken: token },
       include: {
         unit: { include: { project: { select: { id: true, name: true, startDate: true, endDate: true } } } },
-        installments: { orderBy: { sortOrder: "asc" }, include: { receiptRows: { orderBy: { date: "asc" } } } },
+        installments: { orderBy: { sortOrder: "asc" }, include: { receiptRows: { where: { cancelledAt: null }, orderBy: { date: "asc" } } } },
       },
     });
     if (!b || b.status !== "ACTIVE") return null;
@@ -699,8 +690,30 @@ export class SalesService {
   static async portalReceipt(token: string, receiptId: string) {
     const b = await prisma.salesBooking.findUnique({ where: { portalToken: token }, select: { id: true, organizationId: true, status: true } });
     if (!b || b.status !== "ACTIVE") return null;
-    const r = await prisma.salesReceipt.findFirst({ where: { id: receiptId, bookingId: b.id }, select: { id: true } });
+    const r = await prisma.salesReceipt.findFirst({ where: { id: receiptId, bookingId: b.id, cancelledAt: null }, select: { id: true } });
     return r ? SalesService.receipt(b.organizationId, r.id) : null;
+  }
+
+  /**
+   * Takes back a receipt entered by mistake or a bounced cheque. The money
+   * comes off the instalment, the receipt stays on record marked cancelled,
+   * and its number is never reused.
+   */
+  static async cancelReceipt(user: UserContext, receiptId: string, reason: string) {
+    if (!isOrgOwnerOrAdmin(user)) throw new SalesError("Only an admin can cancel a receipt.", 403, "FORBIDDEN");
+    const why = reason.trim();
+    if (why.length < 3) throw new SalesError("Say why the receipt is being cancelled.");
+    const r = await prisma.salesReceipt.findFirst({ where: { id: receiptId, organizationId: user.organizationId }, include: { installment: true, booking: { include: { unit: true } } } });
+    if (!r) throw new SalesError("Receipt not found", 404, "NOT_FOUND");
+    if (r.cancelledAt) throw new SalesError("This receipt is already cancelled.", 409, "ALREADY_CANCELLED");
+    if (r.booking.status !== "ACTIVE") throw new SalesError("This booking is cancelled.", 409, "BOOKING_CANCELLED");
+    await prisma.$transaction(async (tx) => {
+      await tx.salesInstallment.update({ where: { id: r.installmentId }, data: { receivedAmount: Math.max(0, r.installment.receivedAmount - r.amount) } });
+      if (r.booking.unit.status === "SOLD") await tx.salesUnit.update({ where: { id: r.booking.unitId }, data: { status: "BOOKED" } });
+      await tx.salesReceipt.update({ where: { id: r.id }, data: { cancelledAt: new Date(), cancelledBy: user.userId, cancelReason: why } });
+    });
+    await audit(user, "SALES_RECEIPT_CANCELLED", "SALES_BOOKING", r.bookingId, { receipt: r.receiptNumber, amount: r.amount, reason: why });
+    return r.bookingId;
   }
 
   static async cancelBooking(user: UserContext, bookingId: string, reason: string) {

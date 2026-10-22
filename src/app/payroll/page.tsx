@@ -201,9 +201,10 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
   const [pf, setPf] = useState<boolean>(s.pfApplicable);
   const [esi, setEsi] = useState<boolean>(s.esiApplicable);
   const [uan, setUan] = useState(s.uan || "");
+  const [esic, setEsic] = useState(s.esicNumber || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dirty = toPaise(salary) !== s.monthlySalary || pf !== s.pfApplicable || esi !== s.esiApplicable || uan !== (s.uan || "");
+  const dirty = toPaise(salary) !== s.monthlySalary || pf !== s.pfApplicable || esi !== s.esiApplicable || uan !== (s.uan || "") || esic !== (s.esicNumber || "");
   const esiOver = esi && toPaise(salary) > 21_000_00;
   return (
     <tr className="border-t border-slate-100">
@@ -229,6 +230,15 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
               className="w-32 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50"
             />
           )}
+          {esi && (
+            <input
+              disabled={!canEdit}
+              value={esic}
+              onChange={(e) => setEsic(e.target.value.replace(/\D/g, "").slice(0, 17))}
+              placeholder="ESIC number"
+              className="w-32 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50"
+            />
+          )}
         </div>
         {esiOver && <div className="mt-1 text-[11px] text-amber-700">Above ₹21,000, so no ESI is deducted.</div>}
       </td>
@@ -251,7 +261,7 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
                 setSaving(true);
                 setError(null);
                 try {
-                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary), pfApplicable: pf, esiApplicable: esi, uan: uan || null }))).staff);
+                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary), pfApplicable: pf, esiApplicable: esi, uan: uan || null, esicNumber: esic || null }))).staff);
                 } catch (e: any) {
                   setError(e.message);
                 } finally {
@@ -270,6 +280,78 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
   );
 }
 
+function WorkerRow({ w, canEdit, onSaved }: { w: any; canEdit: boolean; onSaved: (workers: any[]) => void }) {
+  const [pf, setPf] = useState<boolean>(w.pfApplicable);
+  const [esi, setEsi] = useState<boolean>(w.esiApplicable);
+  const [uan, setUan] = useState(w.uan || "");
+  const [esic, setEsic] = useState(w.esicNumber || "");
+  const [account, setAccount] = useState("");
+  const [ifsc, setIfsc] = useState(w.ifsc || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dirty = pf !== w.pfApplicable || esi !== w.esiApplicable || uan !== (w.uan || "") || esic !== (w.esicNumber || "") || account !== "" || ifsc !== (w.ifsc || "");
+  const field = "rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50";
+  return (
+    <tr className="border-t border-slate-100 align-top">
+      <td className="px-4 py-2.5">
+        <div className="font-semibold text-slate-900">{w.name}</div>
+        <div className="text-xs text-slate-500">
+          {w.workerType.replace(/_/g, " ").toLowerCase()} · {w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "no wage set"}
+        </div>
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex flex-wrap gap-1.5">
+          <input
+            disabled={!canEdit}
+            value={account}
+            onChange={(e) => setAccount(e.target.value.replace(/\D/g, "").slice(0, 20))}
+            placeholder={w.bankAccountMasked || "Account no."}
+            className={cn(field, "w-32")}
+          />
+          <input disabled={!canEdit} value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase().slice(0, 11))} placeholder="IFSC" className={cn(field, "w-28")} />
+        </div>
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-700">
+          <label className="inline-flex items-center gap-1.5">
+            <input type="checkbox" disabled={!canEdit} checked={pf} onChange={(e) => setPf(e.target.checked)} className="rounded border-slate-300" /> PF
+          </label>
+          <label className="inline-flex items-center gap-1.5" title="ESI applies while 26 days' wages are ₹21,000 or less">
+            <input type="checkbox" disabled={!canEdit} checked={esi} onChange={(e) => setEsi(e.target.checked)} className="rounded border-slate-300" /> ESI
+          </label>
+          {pf && <input disabled={!canEdit} value={uan} onChange={(e) => setUan(e.target.value.replace(/\D/g, "").slice(0, 12))} placeholder="UAN (12 digits)" className={cn(field, "w-32")} />}
+          {esi && <input disabled={!canEdit} value={esic} onChange={(e) => setEsic(e.target.value.replace(/\D/g, "").slice(0, 17))} placeholder="ESIC number" className={cn(field, "w-32")} />}
+        </div>
+        {error && <div className="mt-1 text-xs text-rose-600">{error}</div>}
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        {canEdit && (
+          <button
+            disabled={!dirty || saving}
+            onClick={async () => {
+              setSaving(true);
+              setError(null);
+              try {
+                const body: any = { pfApplicable: pf, esiApplicable: esi, uan: uan || null, esicNumber: esic || null, ifsc: ifsc || null };
+                if (account) body.bankAccount = account;
+                onSaved((await api(`/api/payroll/workers/${w.id}`, put(body))).workers);
+                setAccount("");
+              } catch (e: any) {
+                setError(e.message);
+              } finally {
+                setSaving(false);
+              }
+            }}
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-30"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export default function PayrollPage() {
   const [me, setMe] = useState<any>(null);
   const [tab, setTab] = useState<Tab>("RUN");
@@ -277,6 +359,7 @@ export default function PayrollPage() {
   const [run, setRun] = useState<any>(undefined);
   const [runs, setRuns] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
+  const [workers, setWorkers] = useState<any[]>([]);
   const [people, setPeople] = useState<any[]>([]);
   const [advances, setAdvances] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
@@ -285,6 +368,7 @@ export default function PayrollPage() {
   const [editing, setEditing] = useState<any>(null);
   const [paying, setPaying] = useState(false);
   const [giving, setGiving] = useState(false);
+  const [gaps, setGaps] = useState<{ pf: string[]; esi: string[] } | null>(null);
   const [settings, setSettings] = useState<{ ptState: string; states: { key: string; name: string }[] } | null>(null);
 
   const canWrite = canUser(me, "payroll:write");
@@ -295,6 +379,7 @@ export default function PayrollPage() {
       const d = await api(`/api/payroll?month=${month}`);
       setRun(d.run);
       setRuns(d.runs);
+      setGaps(d.gaps || null);
     } catch (e: any) {
       setError(e.message);
       setRun(null);
@@ -306,6 +391,7 @@ export default function PayrollPage() {
       const [s, a, st] = await Promise.all([api("/api/payroll/salaries"), api("/api/payroll/advances"), api("/api/payroll/settings")]);
       setSettings(st);
       setStaff(s.staff);
+      setWorkers(s.workers || []);
       setPeople(s.people);
       setAdvances(a);
     } catch (e: any) {
@@ -439,6 +525,16 @@ export default function PayrollPage() {
                           <FileText className="h-4 w-4" /> Bank transfer file
                         </a>
                       )}
+                      {run.status !== "DRAFT" && canWrite && run.statutory?.pfEmployee > 0 && (
+                        <a href={`/api/payroll/${month}/statutory-file?kind=pf-ecr`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                          <FileText className="h-4 w-4" /> PF ECR file
+                        </a>
+                      )}
+                      {run.status !== "DRAFT" && canWrite && run.statutory?.esiEmployee > 0 && (
+                        <a href={`/api/payroll/${month}/statutory-file?kind=esi`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                          <FileText className="h-4 w-4" /> ESI file
+                        </a>
+                      )}
                       {run.status === "APPROVED" && canWrite && canUser(me, "finance:write") && (
                         <button onClick={() => setPaying(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-3 py-2 text-xs font-bold text-slate-950">
                           <Banknote className="h-4 w-4" /> Mark as paid
@@ -450,6 +546,13 @@ export default function PayrollPage() {
                     <p className="mt-2 text-xs text-slate-500">
                       Approved by {run.approvedByName} on {shortDate(run.approvedAt)}
                       {run.paidAt && ` · paid ${shortDate(run.paidAt)}`}
+                    </p>
+                  )}
+                  {gaps && (gaps.pf.length > 0 || gaps.esi.length > 0) && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      {gaps.pf.length > 0 && <>No UAN for {gaps.pf.join(", ")}, so they are left out of the PF file. </>}
+                      {gaps.esi.length > 0 && <>No ESIC number for {gaps.esi.join(", ")}, so they are left out of the ESI file. </>}
+                      Add them under Salaries or Workforce.
                     </p>
                   )}
                 </div>
@@ -600,7 +703,7 @@ export default function PayrollPage() {
         {tab === "SALARIES" && (
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
-              <span>Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workforce page.</span>
+              <span>Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workforce page, and their PF and ESI are below.</span>
               {settings && (
                 <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                   Professional tax
@@ -644,6 +747,31 @@ export default function PayrollPage() {
                 </tbody>
               </table>
             </div>
+            {workers.length > 0 && (
+              <>
+                <div className="border-y border-slate-100 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
+                  <span className="font-bold text-slate-900">Site workers.</span> Tick PF or ESI for workers who are covered. PF is 12% of wages up to ₹15,000 a month; ESI is 0.75%
+                  from the worker and 3.25% from you while 26 days&apos; wages are ₹21,000 or less. Professional tax is not cut from daily wages.
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Worker</th>
+                        <th className="px-4 py-2 text-left">Bank</th>
+                        <th className="px-4 py-2 text-left">PF / ESI</th>
+                        <th className="px-4 py-2 text-right" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workers.map((w) => (
+                        <WorkerRow key={w.id} w={w} canEdit={canWrite} onSaved={(list) => { setWorkers(list); setNotice(`Saved for ${w.name}. Refresh a draft payroll to apply it.`); }} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
 
