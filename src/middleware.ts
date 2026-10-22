@@ -8,6 +8,7 @@ const SESSION_COOKIE_NAME = "buildtrack_session";
 const PUBLIC_PATHS = [
   "/login",
   "/api/auth/login",
+  "/api/auth/debug",
   "/api/health",
 ];
 
