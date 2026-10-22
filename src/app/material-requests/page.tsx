@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { cn } from "@/lib/cn";
 import { formatCompactINR } from "@/lib/formatters";
+import { submitOrQueue } from "@/lib/offline-queue";
 import {
   Building2,
   CalendarClock,
@@ -60,7 +61,7 @@ function fmtQty(n: number | null | undefined) {
 
 // ── New request ─────────────────────────────────────────────────────────────
 
-function NewRequestModal({ projects, materials, onClose, onCreated }: { projects: any[]; materials: any[]; onClose: () => void; onCreated: (r: any) => void }) {
+function NewRequestModal({ projects, materials, onClose, onCreated }: { projects: any[]; materials: any[]; onClose: () => void; onCreated: (r: any | null) => void }) {
   const [projectId, setProjectId] = useState(projects[0]?.id || "");
   const [neededBy, setNeededBy] = useState("");
   const [urgent, setUrgent] = useState(false);
@@ -76,9 +77,11 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
     setSaving(true);
     setError(null);
     try {
-      const created = await api(
-        "/api/material-requests",
-        post({
+      const project = projects.find((p) => p.id === projectId);
+      const result = await submitOrQueue<any>({
+        label: `Material request for ${project?.name || "project"}`,
+        url: "/api/material-requests",
+        body: {
           projectId,
           neededBy: neededBy || null,
           priority: urgent ? "URGENT" : "NORMAL",
@@ -91,9 +94,9 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
               quantity: Number(it.quantity),
               unitCode: it.unitCode || null,
             })),
-        })
-      );
-      onCreated(created);
+        },
+      });
+      onCreated(result.queued ? null : result.data);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -635,7 +638,7 @@ export default function MaterialRequestsPage() {
           onClose={() => setShowNew(false)}
           onCreated={(r) => {
             setShowNew(false);
-            setNotice(`${r.requestNumber} sent. The office has been told.`);
+            setNotice(r ? `${r.requestNumber} sent. The office has been told.` : "No signal, so the request is saved on this phone. It will be sent to the office when you are back online.");
             load();
           }}
         />

@@ -135,6 +135,16 @@ async function send(item: QueuedRequest) {
   return json.data;
 }
 
+/**
+ * Every open tab flushes when the signal returns. A browser lock lets only
+ * one tab send at a time, so nothing is sent twice; the next tab then finds
+ * the outbox already empty.
+ */
+function acrossTabs<T>(run: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== "undefined" ? (navigator as Navigator & { locks?: LockManager }).locks : undefined;
+  return locks ? (locks.request("bothra-outbox-flush", run) as Promise<T>) : run();
+}
+
 let flushing: Promise<{ sent: number; failed: number; left: number }> | null = null;
 
 /**
@@ -144,7 +154,7 @@ let flushing: Promise<{ sent: number; failed: number; left: number }> | null = n
  */
 export function flushQueue() {
   if (!flushing) {
-    flushing = (async () => {
+    flushing = acrossTabs(async () => {
       let sent = 0;
       let failed = 0;
       for (const item of await listQueued()) {
@@ -165,7 +175,7 @@ export function flushQueue() {
       }
       changed();
       return { sent, failed, left: (await listQueued()).length };
-    })().finally(() => {
+    }).finally(() => {
       flushing = null;
     });
   }
@@ -183,17 +193,20 @@ export async function submitOrQueue<T = unknown>(req: {
   body: Record<string, unknown>;
   photos?: QueuedPhoto[];
   photoField?: string;
+  /** Extra fields added only when the request is saved for later, e.g. the time it was made. */
+  whenQueued?: Record<string, unknown>;
 }): Promise<{ queued: false; data: T } | { queued: true }> {
   const item = { label: req.label, url: req.url, method: req.method || "POST", body: req.body, photos: req.photos || [], photoField: req.photoField };
+  const later = () => enqueue({ ...item, body: { ...item.body, ...(req.whenQueued || {}) } });
   if (isOffline() && canQueue()) {
-    await enqueue(item);
+    await later();
     return { queued: true };
   }
   try {
     return { queued: false, data: (await send({ ...item, id: "", createdAt: "", tries: 0 })) as T };
   } catch (e) {
     if (isNetworkError(e) && canQueue()) {
-      await enqueue(item);
+      await later();
       return { queued: true };
     }
     throw e;

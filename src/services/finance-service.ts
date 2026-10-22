@@ -8,7 +8,8 @@ export interface BillLineInput {
   materialId?: string;
   quantity?: number;
   unitRate?: number; // paise
-  lineTotal: number; // paise
+  lineTotal: number; // paise, before GST
+  gstRate?: number | null; // % for this line, when it differs from the bill's rate
 }
 
 export interface CreateBillInput {
@@ -21,8 +22,12 @@ export interface CreateBillInput {
   lines: BillLineInput[];
   notes?: string;
   costHead?: string | null;
-  /** GST on top of the lines. Supplier in another state → IGST, else CGST + SGST. */
-  gst?: { rate: number; interState?: boolean | null; itcEligible?: boolean } | null;
+  /**
+   * GST on top of the lines. Supplier in another state → IGST, else CGST + SGST.
+   * `rate` applies to lines without their own rate. Under reverse charge the
+   * supplier is paid the lines only and we pay the GST to the government.
+   */
+  gst?: { rate?: number | null; interState?: boolean | null; itcEligible?: boolean; reverseCharge?: boolean } | null;
   userId: string;
   role: Role;
 }
@@ -132,17 +137,38 @@ export class FinanceService {
     const linesTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
     let gstFields: Record<string, unknown> = {};
     let calculatedTotal = linesTotal;
+    let lineTax: { gstRate: number | null; taxAmount: number }[] = input.lines.map(() => ({ gstRate: null, taxAmount: 0 }));
     if (input.gst) {
-      if (!BILL_GST_RATES.includes(input.gst.rate)) throw new Error("GST rate must be 0, 5, 12, 18 or 28%");
+      const rates = input.lines.map((l) => l.gstRate ?? input.gst!.rate ?? null);
+      if (rates.some((r) => r === null)) throw new Error("Give a GST rate for the bill or for every line");
+      if (rates.some((r) => !BILL_GST_RATES.includes(r as number))) throw new Error("GST rate must be 0, 5, 12, 18 or 28%");
       let interState = input.gst.interState;
       if (interState === undefined || interState === null) {
         const ours = gstStateCode((await companyProfile(input.organizationId)).gstin);
         const theirs = gstStateCode(party.taxIdentifier);
         interState = !!ours && !!theirs && ours !== theirs;
       }
-      const split = billGst(linesTotal, input.gst.rate, interState);
-      calculatedTotal = roundPaise(linesTotal + split.tax);
-      gstFields = { gstRate: input.gst.rate, taxableAmount: linesTotal, cgst: split.cgst, sgst: split.sgst, igst: split.igst, itcEligible: input.gst.itcEligible ?? true };
+      // Tax is worked out line by line, so a bill can mix 5% sand with 18% steel.
+      const split = { cgst: 0, sgst: 0, igst: 0, tax: 0 };
+      lineTax = input.lines.map((l, i) => {
+        const t = billGst(l.lineTotal || 0, rates[i] as number, interState as boolean);
+        split.cgst += t.cgst;
+        split.sgst += t.sgst;
+        split.igst += t.igst;
+        split.tax += t.tax;
+        return { gstRate: rates[i], taxAmount: t.tax };
+      });
+      const reverseCharge = !!input.gst.reverseCharge;
+      calculatedTotal = reverseCharge ? linesTotal : roundPaise(linesTotal + split.tax);
+      gstFields = {
+        gstRate: Math.max(...(rates as number[])),
+        taxableAmount: linesTotal,
+        cgst: split.cgst,
+        sgst: split.sgst,
+        igst: split.igst,
+        itcEligible: input.gst.itcEligible ?? true,
+        reverseCharge,
+      };
     }
 
     return await prisma.$transaction(async (tx: any) => {
@@ -161,12 +187,13 @@ export class FinanceService {
           notes: input.notes ?? null,
           createdBy: input.userId,
           lines: {
-            create: input.lines.map((l) => ({
+            create: input.lines.map((l, i) => ({
               description: l.description,
               materialId: l.materialId ?? null,
               quantity: l.quantity ?? null,
               unitRate: l.unitRate ?? null,
               lineTotal: l.lineTotal,
+              ...lineTax[i],
             })),
           },
         },

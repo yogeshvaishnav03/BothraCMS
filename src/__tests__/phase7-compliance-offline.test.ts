@@ -133,11 +133,11 @@ describe("Phase 7: GST on supplier bills, PF and ESI for site workers, receipt c
 
     const csv = (await (await exportFile(req(`/api/exports/purchases?from=${today}&to=${today}`), { params: { kind: "purchases" } })).text()).replace(/^﻿/, "");
     const rows = csv.split("\r\n");
-    expect(rows[0]).toContain("Taxable value,GST rate %,CGST,SGST,IGST,ITC,Bill amount");
-    expect(rows.find((r) => r.includes("JST/1"))).toContain("100000.00,18,9000.00,9000.00,0.00,Yes,118000.00");
-    expect(rows.find((r) => r.includes("ML/9"))).toContain("200000.00,18,0.00,0.00,36000.00,Yes,236000.00");
-    expect(rows.find((r) => r.includes("JST/2"))).toContain(",No,10500.00");
-    expect(rows[rows.length - 1]).toContain("330000.00,,9250.00,9250.00,36000.00,,384500.00");
+    expect(rows[0]).toContain("Taxable value,GST rate %,CGST,SGST,IGST,ITC,Reverse charge,Bill amount");
+    expect(rows.find((r) => r.includes("JST/1"))).toContain("100000.00,18,9000.00,9000.00,0.00,Yes,,118000.00");
+    expect(rows.find((r) => r.includes("ML/9"))).toContain("200000.00,18,0.00,0.00,36000.00,Yes,,236000.00");
+    expect(rows.find((r) => r.includes("JST/2"))).toContain(",No,,10500.00");
+    expect(rows[rows.length - 1]).toContain("330000.00,,9250.00,9250.00,36000.00,,,384500.00");
   });
 
   it("takes PF and ESI from site workers and makes the PF ECR and ESI files", async () => {

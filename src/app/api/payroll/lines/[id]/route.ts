@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const schema = z.object({
   bonus: z.number().int().min(0).max(1e10).optional(), // paise
   otherDeduction: z.number().int().min(0).max(1e10).optional(), // paise
-  tds: z.number().int().min(0).max(1e10).optional(), // paise
+  tds: z.number().int().min(0).max(1e10).nullable().optional(), // paise; null = work it out again
   note: z.string().max(300).nullable().optional(),
 });
 

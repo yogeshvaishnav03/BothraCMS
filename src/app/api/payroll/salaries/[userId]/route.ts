@@ -14,6 +14,8 @@ const schema = z.object({
   esiApplicable: z.boolean().optional(),
   uan: z.string().regex(/^\d{12}$/, "UAN is 12 digits").nullable().optional().or(z.literal("")),
   esicNumber: z.string().regex(/^\d{10,17}$/, "ESIC number should be 10 to 17 digits").nullable().optional().or(z.literal("")),
+  taxRegime: z.enum(["NEW", "OLD"]).optional(),
+  taxDeclared: z.number().int().min(0).max(1e10).optional(), // paise a year
 });
 
 export async function PUT(req: NextRequest, { params }: { params: { userId: string } }) {

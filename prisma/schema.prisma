@@ -420,6 +420,7 @@ model Bill {
   sgst           Float     @default(0)
   igst           Float     @default(0) // supplier in another state
   itcEligible    Boolean   @default(true) // input tax credit can be claimed
+  reverseCharge  Boolean   @default(false) // we pay the GST to the government, not the supplier
   costHead       String?   // MATERIAL, LABOUR, CONTRACTOR, EQUIPMENT, DESIGN, APPROVALS, OVERHEADS, OTHER (inferred when empty)
   status         String    @default("POSTED") // DRAFT, POSTED, VOIDED, ARCHIVED
   isArchived     Boolean   @default(false)
@@ -452,7 +453,9 @@ model BillLine {
   materialId  String?
   quantity    Float?
   unitRate    Float?   // currency
-  lineTotal   Float    // currency
+  lineTotal   Float    // currency, before GST
+  gstRate     Float?   // % on this line; null when the bill has no GST
+  taxAmount   Float    @default(0) // GST on this line
 
   bill        Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
   material    Material? @relation(fields: [materialId], references: [id])
@@ -1120,6 +1123,8 @@ model PayrollProfile {
   esiApplicable  Boolean  @default(false) // ESI: 0.75% while gross is within the limit
   uan            String?  // PF Universal Account Number
   esicNumber     String?
+  taxRegime      String   @default("NEW") // NEW or OLD income-tax regime, for TDS on salary
+  taxDeclared    Int      @default(0) // paise a year: old-regime deductions claimed (80C beyond PF, 80D, HRA...)
   updatedAt      DateTime @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1188,7 +1193,8 @@ model PayrollLine {
   pfEmployee      Int      @default(0) // statutory deductions (paise)
   esiEmployee     Int      @default(0)
   professionalTax Int      @default(0)
-  tds             Int      @default(0) // entered by hand
+  tds             Int      @default(0) // worked out from the tax regime, or typed in
+  tdsManual       Boolean  @default(false) // true when someone typed the TDS in
   pfEmployer      Int      @default(0) // employer's share, a cost on top of gross
   esiEmployer     Int      @default(0)
   gross           Int      @default(0)

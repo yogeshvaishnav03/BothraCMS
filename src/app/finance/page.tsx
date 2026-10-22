@@ -85,8 +85,9 @@ export default function FinancePage() {
   const [billGstRate, setBillGstRate] = useState("");
   const [billTaxType, setBillTaxType] = useState<"AUTO" | "LOCAL" | "IGST">("AUTO");
   const [billItc, setBillItc] = useState(true);
+  const [billRcm, setBillRcm] = useState(false);
   const [billLines, setBillLines] = useState<
-    Array<{ description: string; materialId: string; quantity: string; unitRate: string; lineTotal: string }>
+    Array<{ description: string; materialId: string; quantity: string; unitRate: string; lineTotal: string; gstRate?: string }>
   >([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
 
   // Reversal Modal state
@@ -386,6 +387,7 @@ export default function FinancePage() {
         quantity: qty,
         unitRate: rate,
         lineTotal: total,
+        gstRate: billGstRate !== "" && l.gstRate ? Number(l.gstRate) : undefined,
       };
     });
 
@@ -416,6 +418,7 @@ export default function FinancePage() {
                   rate: Number(billGstRate),
                   interState: billTaxType === "AUTO" ? null : billTaxType === "IGST",
                   itcEligible: billItc,
+                  reverseCharge: billRcm,
                 },
           lines: parsedLines,
         }),
@@ -434,6 +437,7 @@ export default function FinancePage() {
         setBillGstRate("");
         setBillTaxType("AUTO");
         setBillItc(true);
+        setBillRcm(false);
         setBillLines([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
         loadData();
       }
@@ -2559,6 +2563,23 @@ export default function FinancePage() {
                             />
                           </div>
                         </div>
+                        {billGstRate !== "" && (
+                          <label className="flex items-center gap-2 text-[11px] text-slate-500">
+                            GST on this line
+                            <select
+                              value={line.gstRate || ""}
+                              onChange={(e) => updateBillLine(idx, "gstRate", e.target.value)}
+                              className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[11px]"
+                            >
+                              <option value="">Same as bill ({billGstRate}%)</option>
+                              {[0, 5, 12, 18, 28].map((r) => (
+                                <option key={r} value={r}>
+                                  {r}%
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2566,7 +2587,9 @@ export default function FinancePage() {
                   {(() => {
                     const taxable = billLines.reduce((sum: number, l: any) => sum + (parseFloat(l.lineTotal) || 0), 0);
                     const rate = billGstRate === "" ? 0 : Number(billGstRate);
-                    const tax = Math.round(taxable * rate) / 100;
+                    const lineRate = (l: any) => (billGstRate === "" ? 0 : l.gstRate ? Number(l.gstRate) : rate);
+                    const tax = billLines.reduce((sum: number, l: any) => sum + Math.round((parseFloat(l.lineTotal) || 0) * lineRate(l)) / 100, 0);
+                    const mixed = new Set(billLines.map(lineRate)).size > 1;
                     const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     return (
                       <div className="pt-2 border-t border-slate-200 space-y-2 text-xs">
@@ -2601,20 +2624,29 @@ export default function FinancePage() {
                             </label>
                           )}
                           {billGstRate !== "" && (
-                            <label className="flex items-center gap-2 sm:pt-5">
-                              <input type="checkbox" checked={billItc} onChange={(e) => setBillItc(e.target.checked)} />
-                              <span className="text-slate-600">Claim input tax credit</span>
-                            </label>
+                            <div className="space-y-1 sm:pt-4">
+                              <label className="flex items-center gap-2">
+                                <input type="checkbox" checked={billItc} onChange={(e) => setBillItc(e.target.checked)} />
+                                <span className="text-slate-600">Claim input tax credit</span>
+                              </label>
+                              <label className="flex items-center gap-2" title="For example GTA transport or an unregistered supplier under notified services: you pay the GST to the government, not the supplier.">
+                                <input type="checkbox" checked={billRcm} onChange={(e) => setBillRcm(e.target.checked)} />
+                                <span className="text-slate-600">Reverse charge</span>
+                              </label>
+                            </div>
                           )}
                         </div>
                         {billGstRate !== "" && (
                           <div className="flex items-center justify-between text-slate-600">
-                            <span>Taxable value ₹{fmt(taxable)} + GST {rate}% ₹{fmt(tax)}</span>
+                            <span>
+                              Taxable value ₹{fmt(taxable)} + GST {mixed ? "at line rates" : `${rate}%`} ₹{fmt(tax)}
+                              {billRcm && " (you pay this GST to the government; the supplier is paid the taxable value)"}
+                            </span>
                           </div>
                         )}
                         <div className="flex items-center justify-between">
                           <span className="font-semibold text-slate-600">Calculated Bill Total:</span>
-                          <span className="font-black font-mono text-sm text-slate-900">₹{fmt(taxable + tax)}</span>
+                          <span className="font-black font-mono text-sm text-slate-900">₹{fmt(billRcm ? taxable : taxable + tax)}</span>
                         </div>
                       </div>
                     );

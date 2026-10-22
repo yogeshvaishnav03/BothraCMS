@@ -87,7 +87,7 @@ async function loadBills(organizationId: string, from: string, to: string) {
     include: {
       party: { select: { name: true, partyType: true, taxIdentifier: true, panNumber: true } },
       project: { select: { name: true } },
-      lines: { select: { materialId: true } },
+      lines: { select: { materialId: true, gstRate: true } },
       allocations: { where: { reversedAt: null, payment: { status: "POSTED" } }, select: { amount: true } },
     },
     orderBy: { billDate: "asc" },
@@ -114,26 +114,51 @@ async function loadReceipts(organizationId: string, from: string, to: string) {
 }
 
 const INPUT_TAX = { cgst: "Input CGST", sgst: "Input SGST", igst: "Input IGST" } as const;
+const RCM_TAX = { cgst: "CGST Payable (RCM)", sgst: "SGST Payable (RCM)", igst: "IGST Payable (RCM)" } as const;
 
-type BillTax = { totalAmount: number; taxableAmount: number | null; cgst: number; sgst: number; igst: number; itcEligible: boolean; party: { name: string } };
+type BillTax = {
+  totalAmount: number;
+  taxableAmount: number | null;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  itcEligible: boolean;
+  reverseCharge: boolean;
+  party: { name: string };
+};
 
 /**
  * Dr expense for the taxable value, Dr input GST when the credit can be
  * claimed (otherwise the tax is part of the cost), Cr the supplier.
+ * Under reverse charge the supplier is owed the taxable value only and the
+ * tax is credited to an RCM payable ledger, to be paid to the government.
  */
 function purchaseEntries(b: BillTax, expense: string, need: (name: string, group: string) => void) {
   const tax = b.cgst + b.sgst + b.igst;
-  if (!tax || b.taxableAmount == null || !b.itcEligible) {
+  if (!tax || b.taxableAmount == null) {
     return [entry(expense, b.totalAmount, true), entry(b.party.name, b.totalAmount, false)];
   }
-  const out = [entry(expense, b.taxableAmount, true)];
+  const out = [entry(expense, b.itcEligible ? b.taxableAmount : b.taxableAmount + tax, true)];
   for (const k of ["cgst", "sgst", "igst"] as const) {
     if (!b[k]) continue;
-    need(INPUT_TAX[k], "Duties & Taxes");
-    out.push(entry(INPUT_TAX[k], b[k], true));
+    if (b.itcEligible) {
+      need(INPUT_TAX[k], "Duties & Taxes");
+      out.push(entry(INPUT_TAX[k], b[k], true));
+    }
+    if (b.reverseCharge) {
+      need(RCM_TAX[k], "Duties & Taxes");
+      out.push(entry(RCM_TAX[k], b[k], false));
+    }
   }
   out.push(entry(b.party.name, b.totalAmount, false));
   return out;
+}
+
+/** "18" for a one-rate bill, "5/18" when lines differ. */
+function billRates(b: { gstRate: number | null; lines: { gstRate: number | null }[] }) {
+  if (b.gstRate == null) return "";
+  const rates = Array.from(new Set(b.lines.map((l) => l.gstRate).filter((r): r is number => r != null))).sort((x, y) => x - y);
+  return rates.length ? rates.join("/") : String(b.gstRate);
 }
 
 export class ExportService {
@@ -299,7 +324,7 @@ export class ExportService {
     const rows = await loadBills(organizationId, from, to);
     const isGstin = (v: string | null) => !!v && /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/i.test(v.trim());
     return csv([
-      ["Bill date", "Bill no.", "Supplier", "GSTIN", "PAN", "Project", "Cost head", "Taxable value", "GST rate %", "CGST", "SGST", "IGST", "ITC", "Bill amount", "Paid", "Balance", "Due date"],
+      ["Bill date", "Bill no.", "Supplier", "GSTIN", "PAN", "Project", "Cost head", "Taxable value", "GST rate %", "CGST", "SGST", "IGST", "ITC", "Reverse charge", "Bill amount", "Paid", "Balance", "Due date"],
       ...rows.map((b) => {
         const paid = b.allocations.reduce((s, a) => s + a.amount, 0);
         return [
@@ -311,11 +336,12 @@ export class ExportService {
           b.project?.name,
           HEAD_LEDGER[inferBillHead(b)].name,
           rs(b.taxableAmount ?? b.totalAmount),
-          b.gstRate ?? "",
+          billRates(b),
           rs(b.cgst),
           rs(b.sgst),
           rs(b.igst),
           b.gstRate == null ? "" : b.itcEligible ? "Yes" : "No",
+          b.reverseCharge ? "Yes" : "",
           rs(b.totalAmount),
           rs(paid),
           rs(b.totalAmount - paid),
@@ -329,6 +355,7 @@ export class ExportService {
         rs(rows.reduce((s, b) => s + b.cgst, 0)),
         rs(rows.reduce((s, b) => s + b.sgst, 0)),
         rs(rows.reduce((s, b) => s + b.igst, 0)),
+        "",
         "",
         rs(rows.reduce((s, b) => s + b.totalAmount, 0)),
         "", "", "",

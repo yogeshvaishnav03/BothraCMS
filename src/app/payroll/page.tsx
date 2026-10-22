@@ -30,6 +30,7 @@ function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => v
   const [bonus, setBonus] = useState(line.bonus ? String(line.bonus / 100) : "");
   const [deduction, setDeduction] = useState(line.otherDeduction ? String(line.otherDeduction / 100) : "");
   const [tds, setTds] = useState(line.tds ? String(line.tds / 100) : "");
+  const [tdsAuto, setTdsAuto] = useState(!line.tdsManual);
   const [note, setNote] = useState(line.note || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => v
         setSaving(true);
         setError(null);
         try {
-          const d = await api(`/api/payroll/lines/${line.id}`, patch({ bonus: toPaise(bonus), otherDeduction: toPaise(deduction), tds: toPaise(tds), note: note || null }));
+          const d = await api(`/api/payroll/lines/${line.id}`, patch({ bonus: toPaise(bonus), otherDeduction: toPaise(deduction), tds: line.personType === "STAFF" && tdsAuto ? null : toPaise(tds), note: note || null }));
           onSaved(d.run);
         } catch (e: any) {
           setError(e.message);
@@ -70,10 +71,21 @@ function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => v
         </Field>
         {line.personType === "STAFF" && (
           <Field label="TDS (₹)">
-            <input type="number" min="0" step="1" value={tds} onChange={(e) => setTds(e.target.value)} className={inputCls} />
+            <input type="number" min="0" step="1" value={tds} disabled={tdsAuto} onChange={(e) => setTds(e.target.value)} className={cn(inputCls, tdsAuto && "bg-slate-50 text-slate-500")} />
           </Field>
         )}
       </div>
+      {line.personType === "STAFF" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={tdsAuto} onChange={(e) => setTdsAuto(e.target.checked)} className="rounded border-slate-300" />
+            Work out TDS from their tax regime and pay so far this year
+          </label>
+          <a href={`/payroll/tax/${line.personId}`} className="font-semibold text-amber-700 hover:underline">
+            Tax for the year →
+          </a>
+        </div>
+      )}
       <Field label="Note on the payslip">
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="e.g. Festival bonus, canteen deduction" className={inputCls} />
       </Field>
@@ -202,9 +214,18 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
   const [esi, setEsi] = useState<boolean>(s.esiApplicable);
   const [uan, setUan] = useState(s.uan || "");
   const [esic, setEsic] = useState(s.esicNumber || "");
+  const [regime, setRegime] = useState<string>(s.taxRegime || "NEW");
+  const [declared, setDeclared] = useState(s.taxDeclared ? String(s.taxDeclared / 100) : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dirty = toPaise(salary) !== s.monthlySalary || pf !== s.pfApplicable || esi !== s.esiApplicable || uan !== (s.uan || "") || esic !== (s.esicNumber || "");
+  const dirty =
+    toPaise(salary) !== s.monthlySalary ||
+    pf !== s.pfApplicable ||
+    esi !== s.esiApplicable ||
+    uan !== (s.uan || "") ||
+    esic !== (s.esicNumber || "") ||
+    regime !== (s.taxRegime || "NEW") ||
+    toPaise(declared) !== (s.taxDeclared || 0);
   const esiOver = esi && toPaise(salary) > 21_000_00;
   return (
     <tr className="border-t border-slate-100">
@@ -241,6 +262,29 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
           )}
         </div>
         {esiOver && <div className="mt-1 text-[11px] text-amber-700">Above ₹21,000, so no ESI is deducted.</div>}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-700">
+          <select disabled={!canEdit} value={regime} onChange={(e) => setRegime(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs disabled:bg-slate-50" title="Income-tax regime the person has chosen, for TDS">
+            <option value="NEW">New tax regime</option>
+            <option value="OLD">Old tax regime</option>
+          </select>
+          {regime === "OLD" && (
+            <input
+              disabled={!canEdit}
+              type="number"
+              min="0"
+              value={declared}
+              onChange={(e) => setDeclared(e.target.value)}
+              placeholder="Declared deductions ₹/yr"
+              title="80C beyond PF, 80D, HRA and the like, after their limits"
+              className="w-40 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50"
+            />
+          )}
+          {s.monthlySalary > 0 && (
+            <a href={`/payroll/tax/${s.id}`} className="font-semibold text-amber-700 hover:underline">
+              Tax for the year
+            </a>
+          )}
+        </div>
       </td>
       <td className="px-4 py-2.5">
         <div className="flex items-center justify-end gap-2">
@@ -261,7 +305,7 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
                 setSaving(true);
                 setError(null);
                 try {
-                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary), pfApplicable: pf, esiApplicable: esi, uan: uan || null, esicNumber: esic || null }))).staff);
+                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary), pfApplicable: pf, esiApplicable: esi, uan: uan || null, esicNumber: esic || null, taxRegime: regime, taxDeclared: regime === "OLD" ? toPaise(declared) : 0 }))).staff);
                 } catch (e: any) {
                   setError(e.message);
                 } finally {
@@ -514,7 +558,7 @@ export default function PayrollPage() {
                       {run.status === "DRAFT" && isAdmin && (
                         <button
                           disabled={busy}
-                          onClick={() => act(() => api(`/api/payroll/${month}/approve`, post({})), "Payroll approved. It can be paid now.")}
+                          onClick={() => act(() => api(`/api/payroll/${month}/approve`, post({})), "Payroll approved. It can be paid now. PF, ESI, PT and TDS are added to Finance as bills owed, with their due dates.")}
                           className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                         >
                           <BadgeCheck className="h-4 w-4" /> Approve

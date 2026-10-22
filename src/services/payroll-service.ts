@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import type { UserContext } from "@/lib/auth";
 import { isOrgOwnerOrAdmin } from "@/lib/server-auth";
 import { istDateKey, monthDays } from "@/lib/ist-date";
+import { companyProfile } from "@/lib/company";
+import { fyMonths, fyOf, monthlyTds, monthsLeftInFy, projectYear, type TaxRegime, type YearSoFar } from "@/lib/income-tax";
 
 /**
  * Monthly payroll worked out from attendance.
@@ -136,6 +138,7 @@ interface DraftLine {
   basePay: number;
   overtimePay: number;
   profile?: StatutoryProfile | null;
+  tax?: { regime: TaxRegime; declared: number } | null;
 }
 
 function labourProfile(m: { pfApplicable: boolean; esiApplicable: boolean }, rate: number): StatutoryProfile | null {
@@ -258,6 +261,7 @@ async function staffLines(organizationId: string, month: string): Promise<DraftL
       basePay: Math.round((p.monthlySalary * payableDays) / days.length),
       overtimePay: 0,
       profile: { pfApplicable: p.pfApplicable, esiApplicable: p.esiApplicable, monthlySalary: p.monthlySalary },
+      tax: { regime: p.taxRegime === "OLD" ? "OLD" : "NEW", declared: p.taxDeclared },
     });
   }
   return lines;
@@ -277,6 +281,34 @@ async function statutoryIds(organizationId: string, lines: { personType: string;
   profiles.forEach((p) => out.set(p.userId, { uan: p.uan, esicNumber: p.esicNumber, bankAccount: p.bankAccount, ifsc: p.ifsc }));
   members.forEach((m) => out.set(m.id, { uan: m.uan, esicNumber: m.esicNumber, bankAccount: m.bankAccount, ifsc: m.ifsc }));
   return out;
+}
+
+/** Staff pay, PF, PT and TDS in the financial year before `month`, per person. */
+async function yearSoFar(organizationId: string, month: string, userIds: string[]) {
+  const fy = fyMonths(fyOf(month));
+  const lines = await prisma.payrollLine.findMany({
+    where: { personType: "STAFF", personId: { in: userIds }, run: { organizationId, month: { gte: fy[0], lt: month } } },
+    select: { personId: true, gross: true, pfEmployee: true, professionalTax: true, tds: true },
+  });
+  const out = new Map<string, YearSoFar>();
+  for (const l of lines) {
+    const y = out.get(l.personId) || { gross: 0, pf: 0, pt: 0, tds: 0 };
+    out.set(l.personId, { gross: y.gross + l.gross, pf: y.pf + l.pfEmployee, pt: y.pt + l.professionalTax, tds: y.tds + l.tds });
+  }
+  return out;
+}
+
+const EMPTY_YEAR: YearSoFar = { gross: 0, pf: 0, pt: 0, tds: 0 };
+
+/** TDS on a staff member's salary this month, from their regime and the year so far. */
+function autoTds(tax: { regime: TaxRegime; declared: number }, earlier: YearSoFar, month: string, pay: { gross: number; pfEmployee: number; professionalTax: number }) {
+  return monthlyTds({
+    regime: tax.regime,
+    declared: tax.declared,
+    earlier,
+    month: { gross: pay.gross, pf: pay.pfEmployee, pt: pay.professionalTax },
+    monthsLeft: monthsLeftInFy(month),
+  }).tds;
 }
 
 export const EPS_RATE = 8.33;
@@ -399,6 +431,7 @@ export class PayrollService {
     // Keep manual bonus / deduction / note from the previous draft.
     const previous = existing ? await prisma.payrollLine.findMany({ where: { runId: existing.id } }) : [];
     const kept = new Map(previous.map((l) => [`${l.personType}:${l.personId}`, l]));
+    const earlier = await yearSoFar(orgId, month, drafts.filter((d) => d.personType === "STAFF").map((d) => d.personId));
 
     return prisma.$transaction(async (tx) => {
       const run = existing
@@ -420,7 +453,12 @@ export class PayrollService {
         const prev = kept.get(`${d.personType}:${d.personId}`);
         const bonus = prev?.bonus || 0;
         const otherDeduction = prev?.otherDeduction || 0;
-        const tds = prev?.tds || 0;
+        const tdsManual = !!prev?.tdsManual;
+        let tds = tdsManual ? prev!.tds : 0;
+        if (!tdsManual && d.tax) {
+          const pay = recompute({ basePay: d.basePay, overtimePay: d.overtimePay, bonus, advanceDeduction: 0, otherDeduction, tds: 0 }, d.profile, ptState, month);
+          tds = Math.min(pay.net, autoTds(d.tax, earlier.get(d.personId) || EMPTY_YEAR, month, pay));
+        }
         const before = recompute({ basePay: d.basePay, overtimePay: d.overtimePay, bonus, advanceDeduction: 0, otherDeduction, tds }, d.profile, ptState, month);
         let room = before.net;
         let advanceDeduction = 0;
@@ -432,10 +470,10 @@ export class PayrollService {
             recovered.push(a.id);
           }
         }
-        const { profile: _profile, ...lineData } = d;
+        const { profile: _profile, tax: _tax, ...lineData } = d;
         const { gross, net, ...stat } = recompute({ basePay: d.basePay, overtimePay: d.overtimePay, bonus, advanceDeduction, otherDeduction, tds }, d.profile, ptState, month);
         await tx.payrollLine.create({
-          data: { runId: run.id, ...lineData, bonus, otherDeduction, tds, advanceDeduction, ...stat, gross, net, note: prev?.note || null },
+          data: { runId: run.id, ...lineData, bonus, otherDeduction, tds, tdsManual, advanceDeduction, ...stat, gross, net, note: prev?.note || null },
         });
         if (recovered.length) await tx.payrollAdvance.updateMany({ where: { id: { in: recovered } }, data: { recoveredRunId: run.id } });
         totalGross += gross;
@@ -461,7 +499,8 @@ export class PayrollService {
   }
 
   /** Bonus, extra deduction or note on one line of a draft. */
-  static async editLine(user: UserContext, lineId: string, input: { bonus?: number; otherDeduction?: number; tds?: number; note?: string | null }) {
+  /** `tds` as a number fixes it by hand; `tds: null` goes back to working it out. */
+  static async editLine(user: UserContext, lineId: string, input: { bonus?: number; otherDeduction?: number; tds?: number | null; note?: string | null }) {
     const line = await prisma.payrollLine.findFirst({ where: { id: lineId, run: { organizationId: user.organizationId } }, include: { run: true } });
     if (!line) throw new PayrollError("Payroll line not found", 404, "NOT_FOUND");
     if (line.run.status !== "DRAFT") throw new PayrollError("This payroll is locked. Only a draft can be changed.", 409, "PAYROLL_LOCKED");
@@ -471,46 +510,98 @@ export class PayrollService {
       bonus: input.bonus ?? line.bonus,
       advanceDeduction: line.advanceDeduction,
       otherDeduction: input.otherDeduction ?? line.otherDeduction,
-      tds: input.tds ?? line.tds,
+      tds: typeof input.tds === "number" ? input.tds : line.tds,
     };
+    const tdsManual = typeof input.tds === "number" ? true : input.tds === null ? false : line.tdsManual;
     let profile: StatutoryProfile | null = null;
+    const { ptState } = await payrollSettings(user.organizationId);
     if (line.personType === "STAFF") {
-      profile = await prisma.payrollProfile.findUnique({ where: { organizationId_userId: { organizationId: user.organizationId, userId: line.personId } } });
+      const p = await prisma.payrollProfile.findUnique({ where: { organizationId_userId: { organizationId: user.organizationId, userId: line.personId } } });
+      profile = p;
+      if (!tdsManual && p) {
+        const pay = recompute({ ...next, tds: 0 }, profile, ptState, line.run.month);
+        const earlier = (await yearSoFar(user.organizationId, line.run.month, [line.personId])).get(line.personId) || EMPTY_YEAR;
+        next.tds = Math.min(pay.net, autoTds({ regime: p.taxRegime === "OLD" ? "OLD" : "NEW", declared: p.taxDeclared }, earlier, line.run.month, pay));
+      }
     } else {
       const m = await prisma.workforceMember.findFirst({ where: { id: line.personId, organizationId: user.organizationId } });
       profile = m ? labourProfile(m, line.rate) : null;
     }
-    const { ptState } = await payrollSettings(user.organizationId);
     const { gross, net, ...stat } = recompute(next, profile, ptState, line.run.month);
     const deductions = next.advanceDeduction + next.otherDeduction + next.tds + stat.pfEmployee + stat.esiEmployee + stat.professionalTax;
     if (deductions > gross) throw new PayrollError("Deductions cannot be more than the pay.");
     await prisma.payrollLine.update({
       where: { id: lineId },
-      data: { bonus: next.bonus, otherDeduction: next.otherDeduction, tds: next.tds, ...stat, gross, net, note: input.note === undefined ? line.note : input.note },
+      data: { bonus: next.bonus, otherDeduction: next.otherDeduction, tds: next.tds, tdsManual, ...stat, gross, net, note: input.note === undefined ? line.note : input.note },
     });
     await refreshTotals(line.runId);
     return line.run.month;
   }
 
   /** An admin signs off the draft. */
+  /**
+   * On approval, the month's PF, ESI, professional tax and TDS become bills in
+   * Finance, owed to the government, so they show as payables with their due
+   * dates and are paid like any other bill.
+   */
+  static async postStatutoryBills(tx: any, user: UserContext, run: { id: string; month: string }) {
+    const lines = await tx.payrollLine.findMany({ where: { runId: run.id } });
+    const sum = (f: (l: any) => number) => lines.reduce((s: number, l: any) => s + f(l), 0);
+    const [y, m] = run.month.split("-").map(Number);
+    const next = `${m === 12 ? y + 1 : y}-${String((m % 12) + 1).padStart(2, "0")}`;
+    const nextMonthEnd = monthDays(next).slice(-1)[0];
+    const dues = [
+      { key: "PF", party: "EPFO (Provident Fund)", amount: sum((l) => l.pfEmployee + l.pfEmployer), due: `${next}-15`, what: "PF, staff and company share" },
+      { key: "ESI", party: "ESIC (Employees' State Insurance)", amount: sum((l) => l.esiEmployee + l.esiEmployer), due: `${next}-15`, what: "ESI, staff and company share" },
+      { key: "TDS", party: "Income Tax Department (TDS on salary)", amount: sum((l) => l.tds), due: `${next}-07`, what: "TDS on salary, section 192" },
+      { key: "PT", party: "Professional Tax (State)", amount: sum((l) => l.professionalTax), due: nextMonthEnd, what: "Professional tax" },
+    ].filter((d) => d.amount > 0);
+    const made: string[] = [];
+    for (const d of dues) {
+      let party = await tx.party.findFirst({ where: { organizationId: user.organizationId, name: d.party } });
+      if (!party) party = await tx.party.create({ data: { organizationId: user.organizationId, partyType: "OTHER", name: d.party } });
+      const billNumber = `${d.key}-${run.month}`;
+      const exists = await tx.bill.findFirst({ where: { organizationId: user.organizationId, partyId: party.id, billNumber } });
+      if (exists) continue;
+      await tx.bill.create({
+        data: {
+          organizationId: user.organizationId,
+          partyId: party.id,
+          billNumber,
+          billDate: new Date(`${monthDays(run.month).slice(-1)[0]}T12:00:00+05:30`),
+          dueDate: new Date(`${d.due}T12:00:00+05:30`),
+          totalAmount: d.amount,
+          costHead: "OVERHEADS",
+          status: "POSTED",
+          notes: `${d.what} for ${run.month}, from payroll`,
+          createdBy: user.userId,
+          lines: { create: [{ description: `${d.what}, ${run.month}`, lineTotal: d.amount }] },
+        },
+      });
+      made.push(billNumber);
+    }
+    return made;
+  }
+
   static async approve(user: UserContext, month: string) {
     if (!isOrgOwnerOrAdmin(user)) throw new PayrollError("Only an admin can approve payroll.", 403, "FORBIDDEN");
     const run = await prisma.payrollRun.findUnique({ where: { organizationId_month: { organizationId: user.organizationId, month } } });
     if (!run) throw new PayrollError("Payroll not found", 404, "NOT_FOUND");
     if (run.status !== "DRAFT") throw new PayrollError(`Payroll is already ${run.status.toLowerCase()}.`, 409, "PAYROLL_LOCKED");
-    await prisma.$transaction([
-      prisma.payrollRun.update({ where: { id: run.id }, data: { status: "APPROVED", approvedBy: user.userId, approvedAt: new Date() } }),
-      prisma.auditEvent.create({
+    await prisma.$transaction(async (tx) => {
+      await tx.payrollRun.update({ where: { id: run.id }, data: { status: "APPROVED", approvedBy: user.userId, approvedAt: new Date() } });
+      const bills = await PayrollService.postStatutoryBills(tx, user, run);
+      await tx.auditEvent.create({
         data: {
           organizationId: user.organizationId,
           actorUserId: user.userId,
           action: "PAYROLL_APPROVED",
           entityType: "PAYROLL_RUN",
           entityId: run.id,
-          afterJson: JSON.stringify({ month, totalNet: run.totalNet }),
+          afterJson: JSON.stringify({ month, totalNet: run.totalNet, statutoryBills: bills }),
         },
-      }),
-    ]);
+      });
+    });
   }
 
   /**
@@ -606,6 +697,8 @@ export class PayrollService {
         esiApplicable: p?.esiApplicable || false,
         uan: p?.uan || null,
         esicNumber: p?.esicNumber || null,
+        taxRegime: p?.taxRegime || "NEW",
+        taxDeclared: p?.taxDeclared || 0,
         bankAccountMasked: p?.bankAccount ? `••••${p.bankAccount.slice(-4)}` : null,
         ifsc: p?.ifsc || null,
       };
@@ -615,7 +708,17 @@ export class PayrollService {
   static async saveProfile(
     user: UserContext,
     userId: string,
-    input: { monthlySalary: number; bankAccount?: string | null; ifsc?: string | null; pfApplicable?: boolean; esiApplicable?: boolean; uan?: string | null; esicNumber?: string | null }
+    input: {
+      monthlySalary: number;
+      bankAccount?: string | null;
+      ifsc?: string | null;
+      pfApplicable?: boolean;
+      esiApplicable?: boolean;
+      uan?: string | null;
+      esicNumber?: string | null;
+      taxRegime?: "NEW" | "OLD";
+      taxDeclared?: number;
+    }
   ) {
     const target = await prisma.user.findFirst({ where: { id: userId, organizationId: user.organizationId } });
     if (!target) throw new PayrollError("Staff member not found", 404, "NOT_FOUND");
@@ -626,6 +729,8 @@ export class PayrollService {
     if (input.esiApplicable !== undefined) data.esiApplicable = input.esiApplicable;
     if (input.uan !== undefined) data.uan = input.uan || null;
     if (input.esicNumber !== undefined) data.esicNumber = input.esicNumber || null;
+    if (input.taxRegime !== undefined) data.taxRegime = input.taxRegime;
+    if (input.taxDeclared !== undefined) data.taxDeclared = Math.round(input.taxDeclared);
     await prisma.payrollProfile.upsert({
       where: { organizationId_userId: { organizationId: user.organizationId, userId } },
       create: { organizationId: user.organizationId, userId, ...data },
@@ -678,6 +783,53 @@ export class PayrollService {
         afterJson: JSON.stringify({ pfApplicable: data.pfApplicable, esiApplicable: data.esiApplicable, bankChanged: input.bankAccount !== undefined }),
       },
     });
+  }
+
+  /**
+   * A staff member's salary and tax for a financial year: month by month what
+   * was paid and deducted, and how the year's tax was worked out. A summary in
+   * the shape of Form 16 Part B, not the form itself.
+   */
+  static async taxStatement(organizationId: string, userId: string, fy: string) {
+    const months = fyMonths(fy);
+    const [user, profile, lines, company] = await Promise.all([
+      prisma.user.findFirst({ where: { id: userId, organizationId }, select: { id: true, name: true, jobTitle: true, role: true } }),
+      prisma.payrollProfile.findUnique({ where: { organizationId_userId: { organizationId, userId } } }),
+      prisma.payrollLine.findMany({
+        where: { personType: "STAFF", personId: userId, run: { organizationId, month: { gte: months[0], lte: months[11] } } },
+        include: { run: { select: { month: true, status: true } } },
+      }),
+      companyProfile(organizationId),
+    ]);
+    if (!user) throw new PayrollError("Staff member not found", 404, "NOT_FOUND");
+    const byMonth = new Map(lines.map((l) => [l.run.month, l]));
+    const rows = months.map((m) => {
+      const l = byMonth.get(m);
+      return l
+        ? { month: m, status: l.run.status, gross: l.gross, pf: l.pfEmployee, esi: l.esiEmployee, pt: l.professionalTax, tds: l.tds, tdsManual: l.tdsManual, net: l.net }
+        : { month: m, status: null, gross: 0, pf: 0, esi: 0, pt: 0, tds: 0, tdsManual: false, net: 0 };
+    });
+    const sum = (k: "gross" | "pf" | "esi" | "pt" | "tds" | "net") => rows.reduce((s, r) => s + r[k], 0);
+    const regime: TaxRegime = profile?.taxRegime === "OLD" ? "OLD" : "NEW";
+    const last = [...rows].reverse().find((r) => r.status);
+    // The rest of the year is assumed at the last month's pay.
+    const lastIndex = last ? months.indexOf(last.month) : -1;
+    const done = rows.slice(0, lastIndex + 1);
+    const earlier = done.slice(0, -1).reduce((y, r) => ({ gross: y.gross + r.gross, pf: y.pf + r.pf, pt: y.pt + r.pt, tds: y.tds + r.tds }), { ...EMPTY_YEAR });
+    const year = last
+      ? projectYear({ regime, declared: profile?.taxDeclared || 0, earlier, month: { gross: last.gross, pf: last.pf, pt: last.pt }, monthsLeft: 12 - lastIndex })
+      : projectYear({ regime, declared: profile?.taxDeclared || 0, earlier: EMPTY_YEAR, month: { gross: profile?.monthlySalary || 0, pf: 0, pt: 0 }, monthsLeft: 12 });
+    return {
+      fy,
+      company,
+      person: { ...user, uan: profile?.uan || null },
+      regime,
+      declared: profile?.taxDeclared || 0,
+      rows,
+      totals: { gross: sum("gross"), pf: sum("pf"), esi: sum("esi"), pt: sum("pt"), tds: sum("tds"), net: sum("net") },
+      monthsPaid: done.filter((r) => r.status).length,
+      projected: { ...year, complete: lastIndex === 11, tdsSoFar: sum("tds"), balance: Math.max(0, year.total - sum("tds")) },
+    };
   }
 
   static async saveSettings(user: UserContext, input: { ptState: string }) {
