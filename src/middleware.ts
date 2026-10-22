@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/debug",
   "/api/auth/debug-node",
+  "/api/auth/check-edge-secret",
   "/api/auth/test-verify",
   "/api/health",
 ];
