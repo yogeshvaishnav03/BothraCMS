@@ -5,6 +5,12 @@ import { LanguageProvider } from "@/lib/i18n";
 export const metadata: Metadata = {
   title: "Bothra CMS — Construction & Site Operations",
   description: "Enterprise Construction Project, Site Operations & Financial Management Platform",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export const viewport: Viewport = {
