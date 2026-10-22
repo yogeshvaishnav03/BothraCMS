@@ -47,6 +47,16 @@ model Organization {
   budgetLines             ProjectBudgetLine[]
   milestones              ProjectMilestone[]
   materialRequests        MaterialRequest[]
+  payrollProfiles         PayrollProfile[]
+  payrollAdvances         PayrollAdvance[]
+  payrollRuns             PayrollRun[]
+  drawings                Drawing[]
+  qualityInspections      QualityInspection[]
+  siteIssues              SiteIssue[]
+  equipment               Equipment[]
+  salesUnits              SalesUnit[]
+  salesLeads              SalesLead[]
+  salesBookings           SalesBooking[]
 }
 
 model User {
@@ -157,6 +167,10 @@ model Project {
   budgetLines        ProjectBudgetLine[]
   milestones         ProjectMilestone[]
   materialRequests   MaterialRequest[]
+  drawings           Drawing[]
+  qualityInspections QualityInspection[]
+  siteIssues         SiteIssue[]
+  salesUnits         SalesUnit[]
   assignments        ProjectAssignment[]
   measurementBookEntries MeasurementBookEntry[]
 
@@ -504,7 +518,7 @@ model WorkforceMember {
   workerType     String   // MASON, CARPENTER, ELECTRICIAN, PLUMBER, HELPER, FOREMAN, SITE_ENGINEER
   phone          String?
   defaultSiteId  String?
-  dailyWageRate  Float?   // currency
+  dailyWageRate  Float?   // paise per day
   active         Boolean  @default(true)
   isArchived     Boolean   @default(false)
   archivedAt     DateTime?
@@ -1076,4 +1090,323 @@ model MaterialRequestItem {
   purchaseOrder   PurchaseOrder?  @relation(fields: [purchaseOrderId], references: [id])
 
   @@index([requestId])
+}
+
+// ── Phase 5: payroll ────────────────────────────────────────────────────────
+// Amounts in paise. Person is either a site worker (WorkforceMember) or a staff login (User).
+
+model PayrollProfile {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String   // staff member with a login
+  monthlySalary  Int      // paise
+  bankAccount    String?  // shown masked
+  ifsc           String?
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model PayrollAdvance {
+  id             String    @id @default(uuid())
+  organizationId String
+  personType     String    // LABOUR, STAFF
+  personId       String    // WorkforceMember.id or User.id
+  personName     String
+  amount         Int       // paise
+  givenOn        String    // YYYY-MM-DD
+  note           String?
+  recoveredRunId String?   // payroll run that deducted it
+  createdBy      String
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, personType, personId])
+}
+
+model PayrollRun {
+  id             String    @id @default(uuid())
+  organizationId String
+  month          String    // YYYY-MM
+  status         String    @default("DRAFT") // DRAFT, APPROVED, PAID
+  totalGross     Int       @default(0)
+  totalDeductions Int      @default(0)
+  totalNet       Int       @default(0)
+  createdBy      String
+  approvedBy     String?
+  approvedAt     DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lines          PayrollLine[]
+
+  @@unique([organizationId, month])
+}
+
+model PayrollLine {
+  id              String   @id @default(uuid())
+  runId           String
+  personType      String   // LABOUR, STAFF
+  personId        String
+  personName      String
+  roleLabel       String?  // MASON, Site Engineer...
+  projectId       String?  // where most days were worked (labour cost goes here)
+  daysPresent     Float    @default(0)
+  halfDays        Int      @default(0)
+  leaveDays       Float    @default(0)
+  payableDays     Float    @default(0)
+  overtimeHours   Float    @default(0)
+  rate            Int      // paise: daily wage (labour) or monthly salary (staff)
+  basePay         Int      @default(0)
+  overtimePay     Int      @default(0)
+  bonus           Int      @default(0)
+  advanceDeduction Int     @default(0)
+  otherDeduction  Int      @default(0)
+  gross           Int      @default(0)
+  net             Int      @default(0)
+  note            String?
+  paymentId       String?
+
+  run             PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+// ── Phase 5: drawings register ──────────────────────────────────────────────
+
+model Drawing {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  number         String   // e.g. STR-GF-101
+  title          String
+  discipline     String   @default("ARCHITECTURAL") // ARCHITECTURAL, STRUCTURAL, ELECTRICAL, PLUMBING, HVAC, LANDSCAPE, OTHER
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revisions      DrawingRevision[]
+
+  @@unique([projectId, number])
+  @@index([organizationId, projectId])
+}
+
+model DrawingRevision {
+  id          String    @id @default(uuid())
+  drawingId   String
+  revision    String    // R0, R1...
+  status      String    @default("FOR_APPROVAL") // FOR_APPROVAL, APPROVED, GFC, SUPERSEDED, REJECTED
+  fileUrl     String?
+  fileName    String?
+  notes       String?
+  uploadedBy  String
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  drawing     Drawing   @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+
+  @@unique([drawingId, revision])
+}
+
+// ── Phase 5: quality and safety ─────────────────────────────────────────────
+
+model QualityInspection {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  milestoneId    String?
+  template       String   // key of a built-in checklist, or CUSTOM
+  title          String
+  location       String?  // e.g. "3rd floor slab, grid A-C"
+  itemsJson      String   // [{label, result: PASS|FAIL|NA, note}]
+  result         String   // PASSED, FAILED
+  photoUrls      String?  // JSON array
+  inspectedBy    String
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, projectId])
+}
+
+model SiteIssue {
+  id             String    @id @default(uuid())
+  organizationId String
+  projectId      String
+  issueNumber    String
+  kind           String    // NCR (quality defect), SAFETY_INCIDENT, NEAR_MISS, UNSAFE_ACT, OBSERVATION
+  severity       String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  title          String
+  description    String?
+  location       String?
+  photoUrls      String?
+  inspectionId   String?
+  injuredCount   Int       @default(0)
+  assignedTo     String?
+  dueDate        DateTime?
+  status         String    @default("OPEN") // OPEN, RESOLVED, CLOSED
+  resolution     String?
+  resolutionPhotoUrls String?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  reportedBy     String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, issueNumber])
+  @@index([organizationId, projectId, status])
+}
+
+// ── Phase 5: equipment ──────────────────────────────────────────────────────
+
+model Equipment {
+  id               String   @id @default(uuid())
+  organizationId   String
+  code             String
+  name             String   // e.g. JCB 3DX Backhoe
+  category         String   @default("EARTHMOVING") // EARTHMOVING, LIFTING, CONCRETE, SHUTTERING, POWER, VEHICLE, TOOLS, OTHER
+  ownership        String   @default("OWNED") // OWNED, HIRED
+  vendorPartyId    String?  // hire company
+  hireRate         Int?     // paise
+  hireRateUnit     String?  // HOUR, DAY, MONTH
+  currentProjectId String?
+  status           String   @default("AVAILABLE") // AVAILABLE, IN_USE, UNDER_REPAIR, RETURNED
+  nextServiceDue   String?  // YYYY-MM-DD
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  logs             EquipmentLog[]
+
+  @@unique([organizationId, code])
+}
+
+model EquipmentLog {
+  id           String   @id @default(uuid())
+  equipmentId  String
+  projectId    String?
+  logDate      String   // YYYY-MM-DD
+  kind         String   @default("USAGE") // USAGE, FUEL, MAINTENANCE, BREAKDOWN, MOVE
+  hours        Float?
+  fuelLitres   Float?
+  cost         Int      @default(0) // paise: fuel, repair, or hire for this entry
+  operator     String?
+  note         String?
+  createdBy    String
+  createdAt    DateTime @default(now())
+
+  equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId, logDate])
+}
+
+// ── Phase 5: sales ──────────────────────────────────────────────────────────
+
+model SalesUnit {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  unitNumber     String   // e.g. A-302
+  unitType       String   // 2BHK, 3BHK, SHOP, PLOT, VILLA
+  floor          String?
+  areaSqft       Float?
+  price          Int      // paise, list price
+  status         String   @default("AVAILABLE") // AVAILABLE, HOLD, BOOKED, SOLD
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bookings       SalesBooking[]
+
+  @@unique([projectId, unitNumber])
+}
+
+model SalesLead {
+  id             String    @id @default(uuid())
+  organizationId String
+  projectId      String?
+  name           String
+  phone          String
+  email          String?
+  source         String    @default("WALK_IN") // WALK_IN, REFERRAL, WEBSITE, PORTAL, NEWSPAPER, SOCIAL, BROKER, OTHER
+  interest       String?   // e.g. 3BHK east facing
+  budget         Int?      // paise
+  stage          String    @default("NEW") // NEW, CONTACTED, SITE_VISIT, NEGOTIATION, BOOKED, LOST
+  nextFollowUp   String?   // YYYY-MM-DD
+  lostReason     String?
+  assignedTo     String?
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activities     SalesLeadActivity[]
+
+  @@index([organizationId, stage])
+}
+
+model SalesLeadActivity {
+  id        String   @id @default(uuid())
+  leadId    String
+  kind      String   // CALL, WHATSAPP, SITE_VISIT, MEETING, NOTE, STAGE
+  note      String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  lead      SalesLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+}
+
+model SalesBooking {
+  id              String   @id @default(uuid())
+  organizationId  String
+  unitId          String
+  leadId          String?
+  bookingNumber   String
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  bookingDate     String   // YYYY-MM-DD
+  agreementValue  Int      // paise
+  status          String   @default("ACTIVE") // ACTIVE, CANCELLED
+  createdBy       String
+  createdAt       DateTime @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  unit            SalesUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  installments    SalesInstallment[]
+
+  @@unique([organizationId, bookingNumber])
+}
+
+model SalesInstallment {
+  id             String    @id @default(uuid())
+  bookingId      String
+  sortOrder      Int
+  label          String    // Booking amount, On plinth, On 3rd slab...
+  percent        Float?
+  amount         Int       // paise
+  dueDate        String?   // YYYY-MM-DD; null until the linked stage is reached
+  receivedAmount Int       @default(0)
+  lastReceivedAt DateTime?
+  receipts       String?   // JSON [{amount, date, mode, reference, by}]
+
+  booking        SalesBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
 }

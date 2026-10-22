@@ -28,7 +28,11 @@ export type Permission =
   | "attendance:write"
   | "attendance:correct"
   | "reports:read"
-  | "audit:read";
+  | "audit:read"
+  | "payroll:read"
+  | "payroll:write"
+  | "sales:read"
+  | "sales:write";
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   SUPER_ADMIN: [
@@ -52,6 +56,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "attendance:correct",
     "reports:read",
     "audit:read",
+    "payroll:read",
+    "payroll:write",
+    "sales:read",
+    "sales:write",
   ],
   ORG_ADMIN: [
     "org:settings",
@@ -74,6 +82,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "attendance:correct",
     "reports:read",
     "audit:read",
+    "payroll:read",
+    "payroll:write",
+    "sales:read",
+    "sales:write",
   ],
   PROJECT_MANAGER: [
     "projects:read",
@@ -85,6 +97,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "attendance:read",
     "attendance:correct",
     "reports:read",
+    "sales:read",
+    "sales:write",
   ],
   SITE_SUPERVISOR: [
     "projects:read",
@@ -106,6 +120,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "finance:write",
     "finance:reverse",
     "reports:read",
+    "payroll:read",
+    "payroll:write",
+    "sales:read",
   ],
   STOREKEEPER: [
     "projects:read",
@@ -126,6 +143,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "attendance:write",
     "attendance:correct",
     "reports:read",
+    "payroll:read",
   ],
   AUDITOR: [
     "projects:read",
@@ -135,6 +153,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "attendance:read",
     "reports:read",
     "audit:read",
+    "payroll:read",
+    "sales:read",
   ],
 };
 

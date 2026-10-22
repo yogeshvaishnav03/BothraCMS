@@ -22,7 +22,13 @@ export interface OperationalAlert {
     | "TASK_UPDATE"
     | "WORK_REPORT"
     | "MILESTONE_UPDATE"
-    | "MATERIAL_REQUEST";
+    | "MATERIAL_REQUEST"
+    | "DRAWING_ISSUED"
+    | "QUALITY_ALERT"
+    | "SAFETY_ALERT"
+    | "EQUIPMENT_ALERT"
+    | "SALES_LEAD"
+    | "SALES_BOOKING";
   severity: "CRITICAL" | "WARNING" | "INFO";
   title: string;
   message: string;

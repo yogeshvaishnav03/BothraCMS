@@ -21,7 +21,7 @@ const createWorkerSchema = z.object({
   ]),
   phone: z.string().optional(),
   defaultSiteId: z.string().min(1).optional(),
-  dailyWageRate: z.number().min(0).optional(),
+  dailyWageRate: z.number().min(0).optional(), // paise
 });
 
 export async function GET(req: NextRequest) {
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
             employeeCode: "WRK-1001",
             workerType: "MASON",
             phone: "+91 98765 43210",
-            dailyWageRate: 850,
+            dailyWageRate: 85000,
             defaultSiteId: site.id,
             organizationId: user.organizationId,
           },
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
             employeeCode: "WRK-1002",
             workerType: "CARPENTER",
             phone: "+91 98765 43211",
-            dailyWageRate: 850,
+            dailyWageRate: 85000,
             defaultSiteId: site.id,
             organizationId: user.organizationId,
           },

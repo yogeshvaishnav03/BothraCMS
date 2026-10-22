@@ -62,6 +62,7 @@ interface Overview {
   timeline: TimelineEntry[];
   timelineTotal: number;
   approvals: { paymentsPendingCount: number; paymentsPendingAmount: number; ordersPendingCount: number; materialRequestsPending: number };
+  attention?: { openSafety: number; drawingsWaiting: number; payrollDraft: number; equipmentDown: number; customerOverdue: number };
   projects: {
     projectId: string;
     name: string;
@@ -862,7 +863,25 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             <Building2 className="w-4 h-4 text-amber-500" aria-hidden />
             {hi ? "प्रोजेक्ट की स्थिति" : "Project health"}
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {data?.attention &&
+              [
+                { n: data.attention.openSafety, href: "/quality?kind=SAFETY", en: "open safety issues", one: "open safety issue", hi: "सुरक्षा मुद्दे", tone: "bg-rose-50 text-rose-700 ring-rose-200" },
+                { n: data.attention.drawingsWaiting, href: "/drawings", en: "drawings to approve", one: "drawing to approve", hi: "ड्रॉइंग स्वीकृति बाकी", tone: "bg-blue-50 text-blue-700 ring-blue-200" },
+                { n: data.attention.equipmentDown, href: "/equipment", en: "machines under repair", one: "machine under repair", hi: "मशीन मरम्मत में", tone: "bg-slate-100 text-slate-700 ring-slate-200" },
+                { n: data.attention.payrollDraft, href: "/payroll", en: "payrolls to approve", one: "payroll to approve", hi: "वेतन स्वीकृति बाकी", tone: "bg-violet-50 text-violet-700 ring-violet-200" },
+              ]
+                .filter((c) => c.n > 0)
+                .map((c) => (
+                  <Link key={c.href} href={c.href} className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ring-1 ${c.tone}`}>
+                    {c.n} {hi ? c.hi : c.n === 1 ? c.one : c.en}
+                  </Link>
+                ))}
+            {data?.attention && data.attention.customerOverdue > 0 && (
+              <Link href="/sales?tab=bookings" className="inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-200">
+                {formatCompactINR(data.attention.customerOverdue)} {hi ? "ग्राहक बकाया" : "overdue from customers"}
+              </Link>
+            )}
             {data && data.approvals.materialRequestsPending > 0 && (
               <Link
                 href="/material-requests?status=PENDING"

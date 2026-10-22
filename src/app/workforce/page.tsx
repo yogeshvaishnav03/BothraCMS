@@ -289,7 +289,7 @@ export default function WorkforcePage() {
           workerType,
           phone: workerPhone.trim() || undefined,
           defaultSiteId: selectedSiteId || undefined,
-          dailyWageRate: workerDailyWage ? parseFloat(workerDailyWage) : undefined,
+          dailyWageRate: workerDailyWage ? Math.round(parseFloat(workerDailyWage) * 100) : undefined, // stored in paise
         }),
       });
 
@@ -414,7 +414,7 @@ export default function WorkforcePage() {
       {
         key: "dailyWageRate",
         label: "Daily Wage Rate",
-        accessor: (w) => Number(w.dailyWageRate) || 0,
+        accessor: (w) => (Number(w.dailyWageRate) || 0) / 100,
         type: "currency",
         align: "right",
       },
@@ -860,7 +860,7 @@ export default function WorkforcePage() {
                         )}
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-800 font-bold">
-                        {w.dailyWageRate ? `₹${w.dailyWageRate}/day` : "—"}
+                        {w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "—"}
                       </td>
                       <td className="py-3 px-4 text-slate-600">{w.defaultSite?.name || "Main Site"}</td>
                     </tr>

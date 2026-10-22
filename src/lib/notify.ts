@@ -45,3 +45,12 @@ export async function notifyPeople(params: {
   });
   return result.count;
 }
+
+/** The project's manager plus everyone actively assigned to it. */
+export async function projectTeamIds(projectId: string): Promise<string[]> {
+  const [project, assignments] = await Promise.all([
+    prisma.project.findUnique({ where: { id: projectId }, select: { managerUserId: true } }),
+    prisma.projectAssignment.findMany({ where: { projectId, status: "ACTIVE" }, select: { userId: true } }),
+  ]);
+  return Array.from(new Set([project?.managerUserId, ...assignments.map((a) => a.userId)].filter(Boolean) as string[]));
+}

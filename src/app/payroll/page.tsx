@@ -1,0 +1,592 @@
+"use client";
+
+import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import Shell from "@/components/layout/Shell";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Alert } from "@/components/ui/Alert";
+import { Field, Modal, StatTile, Tabs, inputCls } from "@/components/ui/Modal";
+import { canUser } from "@/lib/permissions";
+import { api, post, patch, put, rupees, shortDate, toPaise } from "@/lib/client-api";
+import { cn } from "@/lib/cn";
+import { BadgeCheck, Banknote, Calculator, CheckCircle2, FileText, HandCoins, Loader2, Pencil, Wallet } from "lucide-react";
+
+type Tab = "RUN" | "SALARIES" | "ADVANCES";
+
+const thisMonth = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 7);
+const monthLabel = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
+
+const STEPS = [
+  { id: "DRAFT", label: "Worked out", hint: "Check days, add bonus or deductions" },
+  { id: "APPROVED", label: "Approved", hint: "An admin has signed off" },
+  { id: "PAID", label: "Paid", hint: "Payments recorded in Finance" },
+];
+
+function days(n: number) {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => void; onSaved: (run: any) => void }) {
+  const [bonus, setBonus] = useState(line.bonus ? String(line.bonus / 100) : "");
+  const [deduction, setDeduction] = useState(line.otherDeduction ? String(line.otherDeduction / 100) : "");
+  const [note, setNote] = useState(line.note || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Modal
+      title={`Adjust pay: ${line.personName}`}
+      icon={Pencil}
+      onClose={onClose}
+      error={error}
+      saving={saving}
+      onSubmit={async () => {
+        setSaving(true);
+        setError(null);
+        try {
+          const d = await api(`/api/payroll/lines/${line.id}`, patch({ bonus: toPaise(bonus), otherDeduction: toPaise(deduction), note: note || null }));
+          onSaved(d.run);
+        } catch (e: any) {
+          setError(e.message);
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+        {days(line.payableDays)} payable days · base {rupees(line.basePay)}
+        {line.overtimePay > 0 && ` · overtime ${rupees(line.overtimePay)}`}
+        {line.advanceDeduction > 0 && ` · advance recovered ${rupees(line.advanceDeduction)}`}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Bonus / incentive (₹)">
+          <input type="number" min="0" step="1" value={bonus} onChange={(e) => setBonus(e.target.value)} className={inputCls} />
+        </Field>
+        <Field label="Other deduction (₹)">
+          <input type="number" min="0" step="1" value={deduction} onChange={(e) => setDeduction(e.target.value)} className={inputCls} />
+        </Field>
+      </div>
+      <Field label="Note on the payslip">
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="e.g. Festival bonus, canteen deduction" className={inputCls} />
+      </Field>
+    </Modal>
+  );
+}
+
+function PayModal({ run, onClose, onPaid }: { run: any; onClose: () => void; onPaid: (run: any) => void }) {
+  const [method, setMethod] = useState("NEFT_RTGS");
+  const [account, setAccount] = useState("");
+  const [date, setDate] = useState(new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const paying = run.lines.filter((l: any) => l.net > 0).length;
+  return (
+    <Modal
+      title={`Pay ${monthLabel(run.month)}`}
+      icon={Banknote}
+      onClose={onClose}
+      error={error}
+      saving={saving}
+      submitLabel={`Record ${paying} payments`}
+      onSubmit={async () => {
+        setSaving(true);
+        setError(null);
+        try {
+          const d = await api(`/api/payroll/${run.month}/pay`, post({ method, payingAccount: account || null, paymentDate: date }));
+          onPaid(d.run);
+        } catch (e: any) {
+          setError(e.message);
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <p className="text-sm text-slate-600">
+        This records one payment of <b>{rupees(run.totalNet)}</b> in total, split across {paying} people. Labour wages go to each worker&apos;s project under the Labour budget head.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Paid by">
+          <select value={method} onChange={(e) => setMethod(e.target.value)} className={inputCls}>
+            <option value="NEFT_RTGS">Bank transfer (NEFT/RTGS)</option>
+            <option value="UPI">UPI</option>
+            <option value="CASH">Cash</option>
+            <option value="CHEQUE">Cheque</option>
+          </select>
+        </Field>
+        <Field label="Payment date">
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+        </Field>
+      </div>
+      <Field label="Paid from account (optional)">
+        <input value={account} onChange={(e) => setAccount(e.target.value)} placeholder="e.g. HDFC current account" className={inputCls} />
+      </Field>
+    </Modal>
+  );
+}
+
+function AdvanceModal({ people, onClose, onSaved }: { people: any[]; onClose: () => void; onSaved: () => void }) {
+  const [person, setPerson] = useState("");
+  const [amount, setAmount] = useState("");
+  const [givenOn, setGivenOn] = useState(new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10));
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Modal
+      title="Give an advance"
+      icon={HandCoins}
+      onClose={onClose}
+      error={error}
+      saving={saving}
+      onSubmit={async () => {
+        const [personType, personId] = person.split(":");
+        if (!personId) return setError("Pick who took the advance.");
+        setSaving(true);
+        setError(null);
+        try {
+          await api("/api/payroll/advances", post({ personType, personId, amount: toPaise(amount), givenOn, note: note || null }));
+          onSaved();
+        } catch (e: any) {
+          setError(e.message);
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <Field label="Person">
+        <select required value={person} onChange={(e) => setPerson(e.target.value)} className={inputCls}>
+          <option value="">Choose…</option>
+          <optgroup label="Site workers">
+            {people.filter((p) => p.personType === "LABOUR").map((p) => (
+              <option key={p.personId} value={`LABOUR:${p.personId}`}>
+                {p.name} ({p.label.toLowerCase()})
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Staff">
+            {people.filter((p) => p.personType === "STAFF").map((p) => (
+              <option key={p.personId} value={`STAFF:${p.personId}`}>
+                {p.name} ({p.label})
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Amount (₹)">
+          <input required type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
+        </Field>
+        <Field label="Given on">
+          <input type="date" value={givenOn} onChange={(e) => setGivenOn(e.target.value)} className={inputCls} />
+        </Field>
+      </div>
+      <Field label="Note">
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Medical emergency" className={inputCls} />
+      </Field>
+      <p className="text-xs text-slate-500">It is taken back from the next payroll, as long as the pay covers it.</p>
+    </Modal>
+  );
+}
+
+function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved: (staff: any[]) => void }) {
+  const [salary, setSalary] = useState(s.monthlySalary ? String(s.monthlySalary / 100) : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dirty = toPaise(salary) !== s.monthlySalary;
+  return (
+    <tr className="border-t border-slate-100">
+      <td className="px-4 py-2.5">
+        <div className="font-semibold text-slate-900">{s.name}</div>
+        <div className="text-xs text-slate-500">{s.jobTitle || s.role.replace(/_/g, " ").toLowerCase()}</div>
+      </td>
+      <td className="px-4 py-2.5 text-xs text-slate-500">{s.bankAccountMasked ? `${s.bankAccountMasked} · ${s.ifsc || ""}` : "—"}</td>
+      <td className="px-4 py-2.5">
+        <div className="flex items-center justify-end gap-2">
+          <span className="text-slate-400">₹</span>
+          <input
+            disabled={!canEdit}
+            type="number"
+            min="0"
+            value={salary}
+            onChange={(e) => setSalary(e.target.value)}
+            placeholder="Not set"
+            className="w-32 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm tabular-nums disabled:bg-slate-50"
+          />
+          {canEdit && (
+            <button
+              disabled={!dirty || saving}
+              onClick={async () => {
+                setSaving(true);
+                setError(null);
+                try {
+                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary) }))).staff);
+                } catch (e: any) {
+                  setError(e.message);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-30"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+            </button>
+          )}
+        </div>
+        {error && <div className="mt-1 text-right text-xs text-rose-600">{error}</div>}
+      </td>
+    </tr>
+  );
+}
+
+export default function PayrollPage() {
+  const [me, setMe] = useState<any>(null);
+  const [tab, setTab] = useState<Tab>("RUN");
+  const [month, setMonth] = useState(thisMonth());
+  const [run, setRun] = useState<any>(undefined);
+  const [runs, setRuns] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [people, setPeople] = useState<any[]>([]);
+  const [advances, setAdvances] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [editing, setEditing] = useState<any>(null);
+  const [paying, setPaying] = useState(false);
+  const [giving, setGiving] = useState(false);
+
+  const canWrite = canUser(me, "payroll:write");
+  const isAdmin = me?.role === "SUPER_ADMIN" || me?.role === "ORG_ADMIN";
+
+  const loadRun = useCallback(async () => {
+    try {
+      const d = await api(`/api/payroll?month=${month}`);
+      setRun(d.run);
+      setRuns(d.runs);
+    } catch (e: any) {
+      setError(e.message);
+      setRun(null);
+    }
+  }, [month]);
+
+  const loadSide = useCallback(async () => {
+    try {
+      const [s, a] = await Promise.all([api("/api/payroll/salaries"), api("/api/payroll/advances")]);
+      setStaff(s.staff);
+      setPeople(s.people);
+      setAdvances(a);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    api("/api/auth/me").then((d: any) => setMe(d.user)).catch(() => {});
+    loadSide();
+  }, [loadSide]);
+  useEffect(() => {
+    setRun(undefined);
+    loadRun();
+  }, [loadRun]);
+
+  const act = async (fn: () => Promise<any>, message: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const d = await fn();
+      if (d?.run !== undefined) setRun(d.run);
+      setNotice(message);
+      loadSide();
+      api(`/api/payroll`).then((x) => setRuns(x.runs)).catch(() => {});
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const stepIndex = run ? STEPS.findIndex((s) => s.id === run.status) : -1;
+  const labour = run?.lines.filter((l: any) => l.personType === "LABOUR") || [];
+  const staffLines = run?.lines.filter((l: any) => l.personType === "STAFF") || [];
+  const openAdvances = advances.filter((a) => !a.recoveredRunId);
+
+  return (
+    <Shell>
+      <div className="space-y-5">
+        <PageHeader icon={Wallet} title="Payroll" subtitle="Wages and salaries worked out from attendance, with advances taken back automatically.">
+          {tab === "RUN" && (
+            <input type="month" value={month} max={thisMonth()} onChange={(e) => e.target.value && setMonth(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" />
+          )}
+          {tab === "ADVANCES" && canWrite && (
+            <button onClick={() => setGiving(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-4 py-2 text-sm font-bold text-slate-950 shadow-glow">
+              <HandCoins className="h-4 w-4" /> Give advance
+            </button>
+          )}
+        </PageHeader>
+
+        {error && <Alert tone="error" onDismiss={() => setError(null)}>{error}</Alert>}
+        {notice && <Alert tone="success" onDismiss={() => setNotice(null)}>{notice}</Alert>}
+
+        <Tabs<Tab>
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { id: "RUN", label: "Monthly payroll" },
+            { id: "SALARIES", label: "Staff salaries", count: staff.filter((s) => s.monthlySalary > 0).length },
+            { id: "ADVANCES", label: "Advances", count: openAdvances.length },
+          ]}
+        />
+
+        {tab === "RUN" && (
+          <>
+            {run === undefined ? (
+              <div className="skeleton h-64 rounded-2xl" />
+            ) : !run ? (
+              <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/50 p-8 text-center">
+                <Calculator className="mx-auto h-10 w-10 text-amber-500" />
+                <h3 className="mt-3 font-display text-lg font-bold text-slate-900">No payroll for {monthLabel(month)} yet</h3>
+                <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
+                  Workers are paid their daily wage for each day marked present on site, half for a half day, plus overtime after 8 hours. Staff get their monthly salary,
+                  less unpaid absences.
+                </p>
+                {canWrite && (
+                  <button
+                    disabled={busy}
+                    onClick={() => act(() => api("/api/payroll", post({ month })), `Payroll for ${monthLabel(month)} worked out.`)}
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-brand px-5 py-2.5 text-sm font-bold text-slate-950 shadow-glow disabled:opacity-50"
+                  >
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />} Work out payroll
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <ol className="flex flex-1 flex-wrap items-center gap-2">
+                      {STEPS.map((s, i) => (
+                        <li key={s.id} className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold",
+                              i <= stepIndex ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"
+                            )}
+                          >
+                            {i <= stepIndex ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                          </span>
+                          <span className="text-sm">
+                            <span className={cn("font-bold", i <= stepIndex ? "text-slate-900" : "text-slate-400")}>{s.label}</span>
+                            <span className="hidden text-xs text-slate-400 lg:inline"> · {s.hint}</span>
+                          </span>
+                          {i < STEPS.length - 1 && <span className="mx-1 h-px w-6 bg-slate-200" />}
+                        </li>
+                      ))}
+                    </ol>
+                    <div className="flex flex-wrap gap-2">
+                      {run.status === "DRAFT" && canWrite && (
+                        <button
+                          disabled={busy}
+                          onClick={() => act(() => api("/api/payroll", post({ month })), "Payroll refreshed from the latest attendance.")}
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          Refresh from attendance
+                        </button>
+                      )}
+                      {run.status === "DRAFT" && isAdmin && (
+                        <button
+                          disabled={busy}
+                          onClick={() => act(() => api(`/api/payroll/${month}/approve`, post({})), "Payroll approved. It can be paid now.")}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                        >
+                          <BadgeCheck className="h-4 w-4" /> Approve
+                        </button>
+                      )}
+                      {run.status === "APPROVED" && canWrite && canUser(me, "finance:write") && (
+                        <button onClick={() => setPaying(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-3 py-2 text-xs font-bold text-slate-950">
+                          <Banknote className="h-4 w-4" /> Mark as paid
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {run.approvedByName && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Approved by {run.approvedByName} on {shortDate(run.approvedAt)}
+                      {run.paidAt && ` · paid ${shortDate(run.paidAt)}`}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <StatTile value={run.lines.length} label="People paid" hint={`${labour.length} workers · ${staffLines.length} staff`} />
+                  <StatTile value={rupees(run.totalGross)} label="Gross pay" />
+                  <StatTile value={rupees(run.totalDeductions)} label="Deductions" tone="rose" hint="Advances and other" />
+                  <StatTile value={rupees(run.totalNet)} label="Net to pay" tone="emerald" />
+                </div>
+
+                {[
+                  { title: "Site workers", rows: labour, labour: true },
+                  { title: "Staff", rows: staffLines, labour: false },
+                ]
+                  .filter((g) => g.rows.length > 0)
+                  .map((g) => (
+                    <div key={g.title} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                        <h3 className="font-display font-bold text-slate-900">{g.title}</h3>
+                        <span className="text-xs text-slate-500">{rupees(g.rows.reduce((s: number, l: any) => s + l.net, 0))} net</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[860px] text-sm">
+                          <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <tr>
+                              <th className="px-4 py-2 text-left">Name</th>
+                              <th className="px-3 py-2 text-right">{g.labour ? "Days" : "Paid days"}</th>
+                              {g.labour ? <th className="px-3 py-2 text-right">OT hrs</th> : <th className="px-3 py-2 text-right">Leave</th>}
+                              <th className="px-3 py-2 text-right">{g.labour ? "Wage/day" : "Salary"}</th>
+                              <th className="px-3 py-2 text-right">Earned</th>
+                              <th className="px-3 py-2 text-right">Bonus</th>
+                              <th className="px-3 py-2 text-right">Deductions</th>
+                              <th className="px-3 py-2 text-right">Net pay</th>
+                              <th className="px-3 py-2" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {g.rows.map((l: any) => (
+                              <tr key={l.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                                <td className="px-4 py-2.5">
+                                  <div className="font-semibold text-slate-900">{l.personName}</div>
+                                  <div className="text-xs text-slate-500">
+                                    {(l.roleLabel || "").toLowerCase()}
+                                    {l.projectName && ` · ${l.projectName}`}
+                                  </div>
+                                  {l.note && <div className="text-xs italic text-slate-500">{l.note}</div>}
+                                </td>
+                                <td className="px-3 py-2.5 text-right tabular-nums">
+                                  {days(l.payableDays)}
+                                  {l.halfDays > 0 && <div className="text-[11px] text-slate-400">{l.halfDays} half</div>}
+                                </td>
+                                <td className="px-3 py-2.5 text-right tabular-nums">{g.labour ? l.overtimeHours || "—" : l.leaveDays || "—"}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{rupees(l.rate)}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums">{rupees(l.basePay + l.overtimePay)}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700">{l.bonus ? rupees(l.bonus) : "—"}</td>
+                                <td className="px-3 py-2.5 text-right tabular-nums text-rose-600">
+                                  {l.advanceDeduction + l.otherDeduction ? rupees(l.advanceDeduction + l.otherDeduction) : "—"}
+                                  {l.advanceDeduction > 0 && <div className="text-[11px] text-slate-400">advance {rupees(l.advanceDeduction)}</div>}
+                                </td>
+                                <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-900">{rupees(l.net)}</td>
+                                <td className="px-3 py-2.5">
+                                  <div className="flex justify-end gap-1">
+                                    {run.status === "DRAFT" && canWrite && (
+                                      <button onClick={() => setEditing(l)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Bonus or deduction">
+                                        <Pencil className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                    <Link href={`/payroll/payslip/${l.id}`} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Payslip">
+                                      <FileText className="h-4 w-4" />
+                                    </Link>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                {run.lines.length === 0 && (
+                  <Alert tone="info">Nobody had attendance or a salary set for {monthLabel(month)}. Set staff salaries in the Staff salaries tab.</Alert>
+                )}
+              </>
+            )}
+
+            {runs.length > 0 && (
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Earlier months</h3>
+                <div className="flex flex-wrap gap-2">
+                  {runs.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => setMonth(r.month)}
+                      className={cn("rounded-xl px-3 py-2 text-left text-xs ring-1", r.month === month ? "bg-slate-900 text-white ring-slate-900" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50")}
+                    >
+                      <div className="font-bold">{monthLabel(r.month)}</div>
+                      <div className={r.month === month ? "text-slate-300" : "text-slate-500"}>
+                        {rupees(r.totalNet)} · {r.status.toLowerCase()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === "SALARIES" && (
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+            <div className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
+              Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workforce page.
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Staff member</th>
+                    <th className="px-4 py-2 text-left">Bank</th>
+                    <th className="px-4 py-2 text-right">Monthly salary</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staff.map((s) => (
+                    <SalaryRow key={s.id} s={s} canEdit={canWrite} onSaved={(list) => { setStaff(list); setNotice(`Salary saved for ${s.name}.`); }} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "ADVANCES" && (
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Person</th>
+                    <th className="px-4 py-2 text-left">Given</th>
+                    <th className="px-4 py-2 text-right">Amount</th>
+                    <th className="px-4 py-2 text-left">Taken back</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {advances.map((a) => (
+                    <tr key={a.id} className="border-t border-slate-100">
+                      <td className="px-4 py-2.5">
+                        <div className="font-semibold text-slate-900">{a.personName}</div>
+                        <div className="text-xs text-slate-500">{a.personType === "LABOUR" ? "Site worker" : "Staff"}{a.note && ` · ${a.note}`}</div>
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-600">{shortDate(a.givenOn)}</td>
+                      <td className="px-4 py-2.5 text-right font-bold tabular-nums">{rupees(a.amount)}</td>
+                      <td className="px-4 py-2.5">
+                        {a.recoveredIn ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">{monthLabel(a.recoveredIn)} payroll</span>
+                        ) : (
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800 ring-1 ring-amber-200">Open</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {advances.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">No advances given yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {editing && <EditLineModal line={editing} onClose={() => setEditing(null)} onSaved={(r) => { setRun(r); setEditing(null); }} />}
+      {paying && run && <PayModal run={run} onClose={() => setPaying(false)} onPaid={(r) => { setRun(r); setPaying(false); setNotice("Payments recorded. They now show in Finance and the Day Book."); }} />}
+      {giving && <AdvanceModal people={people} onClose={() => setGiving(false)} onSaved={() => { setGiving(false); setNotice("Advance recorded."); loadSide(); }} />}
+    </Shell>
+  );
+}

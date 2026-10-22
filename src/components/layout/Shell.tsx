@@ -36,8 +36,13 @@ import {
   UserCog,
   NotebookPen,
   PackagePlus,
+  Layers,
+  Truck,
+  Wallet,
+  Handshake,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
+import { canUser } from "@/lib/permissions";
 import InteractiveGuideModal from "@/components/ui/InteractiveGuideModal";
 import QuickActionLauncher from "@/components/ui/QuickActionLauncher";
 
@@ -203,6 +208,9 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.measurementBook", defaultLabel: "Measurement Book", href: "/measurement-book", icon: BookOpen },
         { key: "nav.materials", defaultLabel: "Materials & Stock", href: "/materials", icon: Boxes },
         { key: "nav.materialRequests", defaultLabel: "Material Requests", href: "/material-requests", icon: PackagePlus },
+        { key: "nav.drawings", defaultLabel: "Drawings", href: "/drawings", icon: Layers },
+        { key: "nav.quality", defaultLabel: "Quality & Safety", href: "/quality", icon: HardHat },
+        { key: "nav.equipment", defaultLabel: "Equipment", href: "/equipment", icon: Truck },
       ],
     },
     {
@@ -211,6 +219,8 @@ export default function Shell({ children }: ShellProps) {
       items: [
         { key: "nav.finance", defaultLabel: "Finance & Bills", href: "/finance", icon: DollarSign },
         { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
+        ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),
+        ...(canUser(user, "sales:read") ? [{ key: "nav.sales", defaultLabel: "Sales", href: "/sales", icon: Handshake }] : []),
       ],
     },
     {

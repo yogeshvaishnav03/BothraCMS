@@ -1,6 +1,6 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 22 Oct 2026
+Last updated: 22 Oct 2026 (after Phase 5)
 Branch: `claude/project-thread-7co71b` (committed locally, **not pushed** to GitHub yet)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
@@ -13,17 +13,17 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 2 | Vendor and contractor bank details, one-click WhatsApp, chat links, team management | Done | `353072e` | `bothra-redesign-phase2.bundle` |
 | 3 | Task history with photos, task updates to admin, daily work reports, staff attendance | Done | `bb493be` | `bothra-redesign-phase3.bundle` |
 | 4 | Budget vs actual, construction stages and progress, material requests | Done | `d81adfc` | `bothra-redesign-phase4.bundle` |
-| 5 | Payroll, drawings register, quality and safety, equipment, sales | **Not started** | n/a | n/a |
+| 5 | Payroll, drawings register, quality and safety, equipment, sales | Done | see `git log` | `bothra-redesign-phase5.bundle` |
 
-Each bundle contains all earlier phases, so `bothra-redesign-phase4.bundle` is the only one you need.
+**All five planned phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase5.bundle` is the only one you need.
 
 ### How to load the latest version
 
 ```bash
-git fetch bothra-redesign-phase4.bundle claude/project-thread-7co71b:claude/redesign-phase4
-git checkout claude/redesign-phase4
+git fetch bothra-redesign-phase5.bundle claude/project-thread-7co71b:claude/redesign-phase5
+git checkout claude/redesign-phase5
 npm install
-npx prisma db push      # required: phases 2 to 4 add new tables and columns
+npx prisma db push      # required: phases 2 to 5 add new tables and columns
 npm run dev
 ```
 
@@ -131,35 +131,102 @@ npm run dev
 
 ---
 
+## Phase 5: Payroll, drawings, quality and safety, equipment, sales (done)
+
+**Payroll** (`/payroll`)
+- Monthly payroll worked out from attendance in one click:
+  - Site workers get their daily wage for each day present and half for a half day. Overtime after 8 hours is paid at the hourly rate (daily wage ÷ 8).
+  - Staff get their monthly salary pro rata. Leave marked by HR is paid. A working day (Monday to Saturday) with no check-in is unpaid.
+  - Each worker's wages are booked to the project where they worked most days.
+- Advances: record an advance for anyone. It is taken back automatically from the next payroll.
+- Bonus, extra deductions and a note can be added per person while the payroll is a draft.
+- Steps: worked out → approved by an admin (locked after this) → marked paid.
+- Marking it paid creates one posted payment per person in Finance. Wages go under the Labour budget head and show in the Day Book.
+- Printable payslips. Staff can open their own payslip.
+- Staff salaries tab to set each staff member's monthly salary.
+
+**Drawings register** (`/drawings`)
+- Every drawing number with all its revisions (R0, R1, R2 and so on). Each revision has its PDF or image and a note on what changed.
+- An admin or the project manager approves a revision, issues it as "Good for construction", or sends it back with a reason.
+- Issuing a revision marks the older ones superseded. The project team gets an alert so nobody builds from an old print.
+- Shows which revision is on site, what is waiting for approval, and drawings never issued.
+
+**Quality & Safety** (`/quality`)
+- Five built-in checklists: pre-concreting (slab or beam), brickwork, plaster, waterproofing and a weekly site safety walk. Each point is marked OK, Not OK or N/A, with photos.
+- Each failed point opens a defect (NCR) for the project manager, due in 3 days.
+- Report safety incidents (with the number of people injured), near misses, unsafe acts and observations, with photos. Safety reports alert all admins straight away.
+- Flow: fixed (with "after" photos) → a manager accepts and closes it, or reopens it.
+- Shows days since the last safety incident, open issues, overdue fixes and the checklist pass rate.
+
+**Equipment** (`/equipment`)
+- Owned and hired machines, with the hire company, the hire rate (per hour, day or month) and which project each machine is on.
+- Daily log: hours run (hire is added automatically), fuel, service or repair costs, breakdowns and moves between sites.
+- A breakdown marks the machine under repair and alerts the office.
+- Service-due warning, a WhatsApp button for the hire company, and running cost this month.
+
+**Sales** (`/sales`)
+- Enquiries pipeline: New → Contacted → Site visit → Negotiation → Booked / Lost, with follow-up dates and a call, visit and WhatsApp history. The same phone number cannot be entered twice.
+- Unit inventory per project (flats, shops, plots), added in ranges such as A-301 to A-308. Each unit shows as available, on hold, booked or fully paid.
+- Booking a unit creates the customer's payment schedule:
+  - "Construction linked": booking, agreement, foundation, plinth, slabs, brickwork, plaster and possession.
+  - "Down payment": 10%, then 80%, then 10%.
+- Stage-linked instalments get a due date when the office clicks "Raise demand".
+- Accounts record receipts (NEFT, UPI, cheque, home loan). Overdue amounts show per customer, with a ready-made WhatsApp reminder.
+
+**Also in Phase 5**
+- The dashboard Project health card shows chips for open safety issues, drawings to approve, machines under repair, payroll to approve and money overdue from customers.
+- New permissions:
+  - Payroll: admins and accountants can run it; HR and auditors can view it.
+  - Sales: admins and project managers can manage it; accountants and auditors can view it.
+  - Site supervisors see neither.
+- Fixed the Workforce page so daily wages are entered and shown in rupees. They were saved inconsistently before.
+
+---
+
 ## Incomplete or still planned
 
-### Phase 5 (not started)
+All five planned phases are built. The items below are not built yet, or work only partly.
+
+### Gaps in Phase 5 features
+
+- **Payroll:**
+  - No statutory deductions (PF, ESI, professional tax or TDS).
+  - Overtime is paid at 1× the hourly rate.
+  - No bank upload file for bulk salary transfer.
+- **Sales:**
+  - Customer receipts are recorded on the booking but not posted to Finance or the Day Book as income.
+  - No GST on sales and no printable receipt or demand letter.
+  - "Raise demand" is a manual click. It is not triggered automatically when a construction stage reaches 100%.
+- **Equipment:** hire and fuel costs logged here are not added to the project budget automatically. Hire bills should still be entered in Finance under the Equipment cost head.
+- **Quality:** the five checklists are fixed. There is no screen yet to make your own checklist.
+- **Drawings:** no markup or side-by-side comparison of revisions. Files are limited to PDF or images up to 10 MB.
+
+### Ideas for a Phase 6 (not started)
 
 | Feature | Notes |
 |---|---|
-| Payroll | Monthly salary and labour wages worked out from the attendance register, with advances and deductions and payslips. Attendance (Phase 3) is ready to feed this. |
-| Drawings register | Drawing numbers, revisions (R0, R1 and so on), approval status, and which revision is current on site. |
-| Quality and safety | Checklists for each stage (for example pre-pour slab checks), inspection photos, non-conformance reports, safety incidents and toolbox talks. |
-| Equipment | Owned and hired machines, usage logs, fuel, maintenance and hire charges linked to the Equipment budget head. |
-| Sales / CRM | Leads, site visits, unit booking, customer payment schedules and collections. |
+| Customer portal | Buyers log in to see their payment schedule, receipts and construction photos. |
+| Tally / GST export | Export bills, payments and sales receipts for the accountant. |
+| Offline mobile app | Supervisors on site with weak signal can fill in reports and photos offline, and they sync later. |
+| Automatic stage demands | When a stage hits 100% on the Progress tab, raise the matching customer demands and WhatsApp the buyers. |
 
-### Known gaps in the finished phases
+### General gaps
 
-- **Nothing is pushed to GitHub yet.** All four phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
+- **Nothing is pushed to GitHub yet.** All five phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
 - **WhatsApp is click-to-chat only.** The buttons open WhatsApp with the number and a message filled in. Automatic WhatsApp messages (for example sending reminders without a click) would need the WhatsApp Business API and an account.
 - **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
-- **Photos are stored on the server's disk** (`storage/uploads/private`). For a live deployment with more than one server, or on Vercel, they should move to cloud storage such as S3.
+- **Photos and drawings are stored on the server's disk** (`storage/uploads/private`), with a backup copy in the database. For heavy use they should move to cloud storage such as S3, so the database stays small.
 - **Check-in has no GPS or selfie check.** Attendance trusts the person checking in.
 - **Material request lines typed as free text** must be matched to a catalogue material before they can be ordered.
 - **Two older tests fail.** These failures existed before this work started and are not caused by it:
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 335 of 337 tests.
+  The rest of the suite passes: 343 of 345 tests.
 
-## Checks run on the latest version (Phase 4)
+## Checks run on the latest version (Phase 5)
 
-- Tests: 335 of 337 pass. The only failures are the 2 older tests listed above. This includes 10 new tests for Phase 4.
+- Tests: 343 of 345 pass. The only failures are the 2 older tests listed above. This includes 8 new tests for Phase 5 and 10 for Phase 4.
 - Type check: clean.
 - Lint: 9 warnings, the same as before the redesign.
 - Production build: succeeds.

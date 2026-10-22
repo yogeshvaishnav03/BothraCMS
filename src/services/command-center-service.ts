@@ -51,6 +51,27 @@ function istDateKey(d: Date): string {
 }
 
 export class CommandCenterService {
+  /** Phase 5 items that need someone's attention today. */
+  static async attention(organizationId: string, date: string) {
+    const [openSafety, drawingsWaiting, payrollDraft, dues, equipmentDown] = await Promise.all([
+      prisma.siteIssue.count({ where: { organizationId, status: "OPEN", kind: { in: ["SAFETY_INCIDENT", "NEAR_MISS", "UNSAFE_ACT"] } } }),
+      prisma.drawingRevision.count({ where: { status: "FOR_APPROVAL", drawing: { organizationId } } }),
+      prisma.payrollRun.count({ where: { organizationId, status: "DRAFT" } }),
+      prisma.salesInstallment.findMany({
+        where: { booking: { organizationId, status: "ACTIVE" }, dueDate: { lt: date } },
+        select: { amount: true, receivedAmount: true },
+      }),
+      prisma.equipment.count({ where: { organizationId, status: "UNDER_REPAIR" } }),
+    ]);
+    return {
+      openSafety,
+      drawingsWaiting,
+      payrollDraft,
+      equipmentDown,
+      customerOverdue: dues.reduce((sum, d) => sum + Math.max(0, d.amount - d.receivedAmount), 0),
+    };
+  }
+
   static async getOverview(organizationId: string, date: string, siteId?: string) {
     const dayBook = await fetchDayBookData(organizationId, date, siteId);
 
@@ -345,6 +366,7 @@ export class CommandCenterService {
       summary: dayBook.summary,
       timeline: timeline.slice(0, 80),
       timelineTotal: timeline.length,
+      attention: await CommandCenterService.attention(organizationId, date),
       approvals: {
         paymentsPendingCount: pendingPayments.length,
         paymentsPendingAmount: roundPaise(pendingPayments.reduce((s, p) => s + p.amount, 0)),
