@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { ContactActions } from "@/components/ui/ContactActions";
 import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
-import { submitOrQueue } from "@/lib/offline-queue";
+import { isOffline, submitOrQueue } from "@/lib/offline-queue";
 import { cn } from "@/lib/cn";
 import {
   CloudOff,
@@ -92,6 +92,33 @@ function getPosition(): Promise<{ lat: number; lng: number } | null> {
   });
 }
 
+/** A camera photo made small (longest side 1024 px, JPEG) so it uploads quickly on site. */
+async function shrinkPhoto(file: File): Promise<Blob> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b || file), "image/jpeg", 0.8));
+  } catch {
+    return file;
+  }
+}
+
+/** Uploads the check-in selfie and returns its /api/uploads link. */
+async function uploadSelfie(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("file", new File([await shrinkPhoto(file)], "selfie.jpg", { type: "image/jpeg" }));
+  form.append("entityType", "ATTENDANCE");
+  form.append("category", "PHOTO");
+  const res = await fetch("/api/uploads", { method: "POST", body: form });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.data?.url) throw new Error(json?.error?.message || "Could not upload the selfie. Try again.");
+  return json.data.url;
+}
+
 const ATT_TONE: Record<string, { label: string; short: string; cell: string; pill: string }> = {
   PRESENT: { label: "Present", short: "P", cell: "bg-emerald-500 text-white", pill: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
   HALF_DAY: { label: "Half day", short: "H", cell: "bg-amber-400 text-slate-900", pill: "bg-amber-50 text-amber-800 ring-amber-200" },
@@ -153,16 +180,23 @@ function AttendanceCard() {
     return () => clearInterval(t);
   }, [load]);
 
-  const act = async (action: "check-in" | "check-out") => {
+  const selfieInput = useRef<HTMLInputElement>(null);
+
+  const act = async (action: "check-in" | "check-out", photo?: File) => {
+    // The company wants a selfie: open the front camera first, and come back here with the photo.
+    if (action === "check-in" && data?.rules?.requireSelfie && !photo && !isOffline()) {
+      selfieInput.current?.click();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const pressed = new Date().toISOString();
-      const pos = await getPosition();
+      const [pos, selfie] = await Promise.all([getPosition(), photo && !isOffline() ? uploadSelfie(photo) : Promise.resolve(null)]);
       const result = await submitOrQueue({
         label: action === "check-in" ? "Check in" : "Check out",
         url: "/api/staff-attendance",
-        body: { action, lat: pos?.lat ?? null, lng: pos?.lng ?? null },
+        body: { action, lat: pos?.lat ?? null, lng: pos?.lng ?? null, ...(selfie ? { selfie } : {}) },
         // Sent later, it still records the time the button was pressed.
         whenQueued: { at: pressed },
       });
@@ -216,13 +250,30 @@ function AttendanceCard() {
               <CloudOff className="h-3 w-3" /> Saved on this phone, sent when there is signal
             </div>
           )}
-          {today?.checkInLat != null && (
-            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
-              <MapPin className="h-3 w-3" /> Location recorded
+          {today?.checkInFlag === "OFF_SITE" ? (
+            <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-300">
+              <MapPin className="h-3 w-3" /> Marked away from site
+              {today.checkInDistanceM != null ? ` (${today.checkInDistanceM < 1000 ? `${today.checkInDistanceM} m` : `${(today.checkInDistanceM / 1000).toFixed(1)} km`} from the nearest)` : ""}
             </div>
-          )}
+          ) : today?.checkInLat != null ? (
+            <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
+              <MapPin className="h-3 w-3" /> {today.checkInSiteId ? "At the site" : "Location recorded"}
+            </div>
+          ) : null}
         </div>
         <div className="flex gap-2">
+          <input
+            ref={selfieInput}
+            type="file"
+            accept="image/*"
+            capture="user"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) act("check-in", f);
+            }}
+          />
           {(!today || onLeave) && (
             <button
               onClick={() => act("check-in")}
@@ -932,9 +983,16 @@ function Register({ canManage }: { canManage: boolean }) {
                         <button
                           disabled={!canManage || future}
                           onClick={() => setEditing({ userId: m.user.id, name: m.user.name, date: d, status: c?.status })}
-                          title={c ? `${tone?.label} · ${timeOf(c.checkInAt)}${c.checkOutAt ? ` – ${timeOf(c.checkOutAt)}` : ""}` : prettyDate(d)}
+                          title={
+                            c
+                              ? `${tone?.label} · ${timeOf(c.checkInAt)}${c.checkOutAt ? ` – ${timeOf(c.checkOutAt)}` : ""}${
+                                  c.flag === "OFF_SITE" ? ` · away from site${c.site && c.distanceM != null ? ` (${c.distanceM} m from ${c.site})` : ""}` : c.flag === "NO_GPS" ? " · no location" : ""
+                                }`
+                              : prettyDate(d)
+                          }
                           className={cn(
                             "mx-auto flex h-6 w-5 items-center justify-center rounded text-[10px] font-bold transition",
+                            c?.flag === "OFF_SITE" && "ring-2 ring-rose-500 ring-offset-1",
                             tone ? tone.cell : future ? "bg-transparent" : "bg-slate-100 text-slate-300",
                             canManage && !future && "hover:ring-2 hover:ring-amber-400"
                           )}

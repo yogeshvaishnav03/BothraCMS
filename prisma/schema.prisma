@@ -26,6 +26,7 @@ model Organization {
   workforceMembers   WorkforceMember[]
   auditEvents        AuditEvent[]
   onlinePayments     OnlinePayment[]
+  pushSubscriptions  PushSubscription[]
   tasks              Task[]
   bills              Bill[]
   payments           Payment[]
@@ -121,6 +122,7 @@ model Site {
   address        String
   latitude       Float?
   longitude      Float?
+  geofenceM      Int? // check-ins further than this many metres are flagged as away from the site (300 when empty)
   status         String   @default("ACTIVE") // ACTIVE, ARCHIVED
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1002,6 +1004,10 @@ model StaffAttendance {
   checkInLat     Float?
   checkInLng     Float?
   checkInNote    String?
+  checkInSiteId    String? // the nearest site with a location
+  checkInDistanceM Int? // metres from that site
+  checkInFlag      String? // OFF_SITE, NO_GPS; empty when on site
+  checkInSelfie    String? // /api/uploads/… photo taken at check-in
   checkOutAt     DateTime?
   checkOutLat    Float?
   checkOutLng    Float?
@@ -1563,6 +1569,9 @@ model OnlinePayment {
   status         String    @default("CREATED") // CREATED, PAID, NOT_BOOKED (paid, but booking the receipt failed), EXPIRED
   paymentId      String? // Razorpay's pay_…
   method         String? // upi, card, netbanking…
+  fee            Int? // paise Razorpay kept, including the GST on its fee
+  feeTax         Int? // paise, the GST part of the fee
+  feeBookedIn    String? // key of the Finance payment the month's fees were booked in (razorpay-fees-YYYY-MM)
   receiptIds     String? // JSON array of SalesReceipt ids
   note           String?
   paidAt         DateTime?
@@ -1572,4 +1581,23 @@ model OnlinePayment {
 
   @@index([organizationId, createdAt])
   @@index([installmentId, status])
+}
+
+/// A phone or browser that asked for push notifications. Alerts in the bell
+/// are also pushed here; an endpoint the push service says is gone is removed.
+model PushSubscription {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String
+  endpoint       String    @unique
+  p256dh         String
+  auth           String
+  userAgent      String?
+  failures       Int       @default(0)
+  lastSentAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId])
 }

@@ -28,10 +28,24 @@ interface Row {
   status: string;
   method: string | null;
   paymentId: string | null;
+  fee: number | null;
   note: string | null;
   buyer: string;
   bookingNumber: string;
 }
+
+interface FeeMonth {
+  month: string;
+  payments: number;
+  amount: number;
+  fee: number;
+  tax: number;
+  unknown: number;
+  booked: number;
+  bookedIn: string | null;
+}
+
+const monthName = (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   CREATED: { label: "Started", cls: "bg-slate-50 text-slate-600 ring-slate-200" },
@@ -53,6 +67,7 @@ function Ready({ ok, label }: { ok: boolean; label: string }) {
 export default function PaymentsSettingsPage() {
   const [s, setS] = useState<Settings | null>(null);
   const [log, setLog] = useState<Row[]>([]);
+  const [fees, setFees] = useState<FeeMonth[]>([]);
   const [keySecret, setKeySecret] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -63,6 +78,25 @@ export default function PaymentsSettingsPage() {
     const d = await api<{ settings: Settings; log: Row[] }>("/api/organization/payments");
     setS(d.settings);
     setLog(d.log);
+    const f = await api<{ months: FeeMonth[] }>("/api/organization/payments/fees");
+    setFees(f.months);
+  };
+
+  const bookFees = async (month: string) => {
+    setBusy(`fees-${month}`);
+    setMsg(null);
+    try {
+      const r = await api<{ fee: number; tax: number; payments: number; waiting: number }>("/api/organization/payments/fees", post({ month }));
+      setMsg({
+        tone: "success",
+        text: `Booked ${rupees(r.fee)} of Razorpay fees for ${monthName(month)} in Finance (${r.payments} payment${r.payments === 1 ? "" : "s"}).${r.waiting ? ` ${r.waiting} more are waiting for Razorpay's figure.` : ""}`,
+      });
+      await load();
+    } catch (e) {
+      setMsg({ tone: "error", text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
   };
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -205,11 +239,49 @@ export default function PaymentsSettingsPage() {
                   <li>Switch on &quot;Pay now&quot; and save. Open a buyer&apos;s page to see the button.</li>
                 </ol>
                 <p className="text-xs text-slate-500">
-                  Receipts are entered as &quot;Online&quot; with the Razorpay payment ID as the reference. Razorpay keeps its fee and pays the rest into the bank a day or two later; enter the
-                  fee as a bank charge in Finance.
+                  Receipts are entered as &quot;Online&quot; with the Razorpay payment ID as the reference. Razorpay keeps its fee and pays the rest into the bank a day or two later; book
+                  each month&apos;s fees below as one bank charge.
                 </p>
               </section>
             </div>
+
+            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <h2 className="border-b border-slate-100 px-5 py-3 text-sm font-bold text-slate-900">Razorpay fees</h2>
+              {fees.length === 0 ? (
+                <p className="px-5 py-6 text-center text-sm text-slate-500">Fees show here once buyers pay online.</p>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {fees.map((m) => {
+                    const left = m.payments - m.booked;
+                    return (
+                      <div key={m.month} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-800">{monthName(m.month)}</div>
+                          <div className="text-xs text-slate-500">
+                            {m.payments} payment{m.payments === 1 ? "" : "s"} of {rupees(m.amount)} · fees {rupees(m.fee)} (GST {rupees(m.tax)})
+                            {m.unknown ? ` · ${m.unknown} fee${m.unknown === 1 ? "" : "s"} not known yet` : ""}
+                          </div>
+                        </div>
+                        {left === 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Booked in Finance
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => bookFees(m.month)}
+                            disabled={!!busy}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                          >
+                            {busy === `fees-${m.month}` && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                            {m.booked ? `Book ${left} more` : "Book in Finance"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
               <h2 className="border-b border-slate-100 px-5 py-3 text-sm font-bold text-slate-900">Recent online payments</h2>
@@ -223,6 +295,7 @@ export default function PaymentsSettingsPage() {
                         <th className="px-4 py-2 text-left">When</th>
                         <th className="px-4 py-2 text-left">Buyer</th>
                         <th className="px-4 py-2 text-right">Amount</th>
+                        <th className="px-4 py-2 text-right">Fee</th>
                         <th className="px-4 py-2 text-left">Status</th>
                         <th className="px-4 py-2 text-left">Razorpay</th>
                       </tr>
@@ -236,6 +309,7 @@ export default function PaymentsSettingsPage() {
                             <div className="text-xs text-slate-500">{r.bookingNumber}</div>
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums">{rupees(r.amount)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">{r.fee != null ? rupees(r.fee) : "—"}</td>
                           <td className="px-4 py-2.5">
                             <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1", STATUS[r.status]?.cls)}>{STATUS[r.status]?.label || r.status}</span>
                             {r.note && <div className="mt-1 text-xs text-rose-600">{r.note}</div>}

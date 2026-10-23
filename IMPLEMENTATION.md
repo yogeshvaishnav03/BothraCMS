@@ -1,7 +1,7 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 23 Oct 2026 (after Phase 12)
-Branch: `claude/phase-12` (pull request to `main`)
+Last updated: 23 Oct 2026 (after Phase 13)
+Branch: `claude/phase-13` (pull request to `main`)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
 
@@ -20,9 +20,10 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 9 | Offline items sent only once, the Site Muster for site workers (works with no signal), TDS return on salary (24Q) with PAN and TAN | Done | `8619060` | `bothra-redesign-phase9.bundle` |
 | 10 | TDS on contractor payments (194C) with the 26Q return, buyer sign-in with a code on their mobile, WhatsApp demand letters and reminders sent by themselves | Done | `fada0ba`, merged in PR #2 | `bothra-redesign-phase10.bundle` |
 | 11 | TDS on professional fees (194J) and rent (194I) next to 194C, WhatsApp alerts for staff (approvals, tasks, site alerts) | Done | see `git log` | merged to `main`, deployed on Vercel |
-| 12 | Photos and drawings in cloud storage (Vercel Blob), "Pay now" for buyers through Razorpay, TDS on large purchases (194Q), Form 16A certificates | Done | see `git log` | pull request to `main` |
+| 12 | Photos and drawings in cloud storage (Vercel Blob), "Pay now" for buyers through Razorpay, TDS on large purchases (194Q), Form 16A certificates | Done | see `git log`, merged in PR #4 | merged to `main` |
+| 13 | Location and selfie on staff check-in, phone push alerts, Razorpay fees booked once a month, Phase 12 and 13 tables in the Postgres auto-migration | Done | see `git log` | pull request to `main` |
 
-**Twelve phases are done.** From Phase 10 on, the work is on GitHub and merged into `main`, so Vercel deploys it by itself. The bundle files are only needed for a copy outside GitHub.
+**Thirteen phases are done.** From Phase 10 on, the work is on GitHub and merged into `main`, so Vercel deploys it by itself. The bundle files are only needed for a copy outside GitHub.
 
 ### How to load the latest version
 
@@ -30,7 +31,7 @@ This file lists every phase of the redesign and feature work. It shows what is f
 git fetch bothra-redesign-phase10.bundle claude/project-thread-7co71b:claude/redesign-phase10
 git checkout claude/redesign-phase10
 npm install
-npx prisma db push      # required: phases 2 to 12 add new tables and columns (Vercel does this on each build)
+npx prisma db push      # required: phases 2 to 13 add new tables and columns (Vercel does this on each build)
 npm run dev
 ```
 
@@ -448,11 +449,40 @@ The WhatsApp token and SMS key are kept on the server. The settings page only sh
 
 ---
 
+## Phase 13: Location and selfie on check-in, phone push alerts and Razorpay fees (done)
+
+**Where staff checked in** (Settings → Staff check-in: location and selfie)
+- Each site can have a location and a radius (100 m to 2 km, 300 m when not set). Stand on the site and press "Use my location here", or paste the point from Google Maps ("26.8549, 75.8243").
+- The phone's location was already saved with each check-in. Now each check-in is matched to the nearest site with a location, with the distance. Further than that site's radius, it is marked "Away from site"; with no location from the phone it is marked "No location" (only once at least one site has a location).
+- By default nothing is refused: the marks are for the office to see. Three switches make it stricter:
+  - "Location must be on": no check-in without the phone's location.
+  - "Only check in at a site": refuse a check-in further than the radius from every site. The person is told how far they are from the nearest one.
+  - "Selfie at check-in": the phone's front camera opens when someone presses Check in. The photo is made smaller on the phone (1024 px), uploaded, and kept with the day. Only a photo the same person just uploaded is taken.
+- A check-in saved on a phone with no signal is never refused when it arrives later, whatever the switches say; it is only marked. The selfie is skipped when there is no signal.
+- The settings page lists today's check-ins with the selfie, the distance, the mark and a link to the spot on Google Maps. On the person's own attendance card a day checked in away from the site has a red ring, and its tooltip says how far.
+
+**Phone push alerts** (the bell → "Alerts on this phone")
+- Anyone can turn on alerts for their phone or computer from the top of the alerts panel. A test alert comes straight away.
+- After that, everything that goes in their bell (approvals, tasks, site alerts, buyer payments) also comes as a phone notification. Tapping it opens the page. Between 9 pm and 8 am only critical alerts are pushed; the rest wait in the bell.
+- No setup is needed. The key pair push needs is made the first time someone turns alerts on and is kept in the company settings; the private key never leaves the server. `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` can be set instead (see `.env.example`).
+- Works in Chrome, Edge and Firefox on Android and computers. On iPhone (iOS 16.4 or later) the app has to be added to the home screen first; the panel says how.
+- A phone the push service says is gone (the app was removed, or alerts turned off in the phone's settings) is dropped, and so is one that fails 5 times in a row.
+
+**Razorpay fees** (Settings → Online payments → Razorpay fees)
+- Razorpay's fee on each payment, and the GST on it, is noted when the webhook comes in, or asked from Razorpay after the receipt is booked. It shows next to each payment.
+- Fees are added up by month. "Book in Finance" enters one payment to "Razorpay" for the month's fees, by bank transfer, under the Overheads cost head, with the GST part in the note. Fees Razorpay has not worked out yet are asked for first.
+- A month can be booked once; payments that come in after it are booked with "Book N more" as a second entry. Each entry can be reversed in Finance like any payment.
+
+**Postgres auto-migration**
+- The Online payments table from Phase 12 was missing from the list of tables the app makes by itself on Postgres. It is added, with the Phase 13 table (phones with alerts on) and the new columns (site radius, check-in site, distance, mark and selfie, Razorpay fee). Both `scripts/apply-postgres-migration.js` and the start-up check have them.
+
+---
+
 ## Incomplete or still planned
 
-All twelve phases are built. The items below are not built yet, or work only partly.
+All thirteen phases are built. The items below are not built yet, or work only partly.
 
-### Gaps in Phase 5 to 12 features
+### Gaps in Phase 5 to 13 features
 
 - **Payroll:**
   - The PF ECR and ESI files are made for upload; filing and paying the challan are still done on the EPFO and ESIC portals.
@@ -487,8 +517,18 @@ All twelve phases are built. The items below are not built yet, or work only par
   - The 26Q page makes CSV sheets, not the FVU file, the same as the salary return.
 - **Online payments:**
   - Only Razorpay is supported. The buyer pays one instalment at a time, the full balance of it.
-  - Razorpay keeps its fee and pays the rest into the bank a day or two later. The receipt is for the full amount; enter the fee as a bank charge in Finance.
+  - Razorpay keeps its fee and pays the rest into the bank a day or two later. The receipt is for the full amount, and the fees are booked once a month from the Online payments page. Settlements (what reached the bank on which day) are not read; match them in the bank statement.
+  - The GST on Razorpay's fee is shown but not claimed as input GST. Razorpay's monthly tax invoice is downloaded from its dashboard.
   - Refunds are made in Razorpay. Then cancel the receipt in the app.
+- **Check-in location and selfie:**
+  - A phone's location can be faked with a mock-location app. The distance and the selfie make it harder, not impossible.
+  - The location is only as good as the phone's GPS. Indoors or in a basement it can be 50 to 100 m out; set the radius with that in mind.
+  - The selfie is not matched to the person's face. Someone looks at it on the settings page.
+  - Check-out is not matched to a site.
+- **Phone push alerts:**
+  - Chat messages and task updates come as push alerts only for the people the bell already tells. Nothing is pushed to buyers.
+  - Push does not work in the in-app browsers of WhatsApp or Instagram, or on iPhone without adding the app to the home screen.
+  - If the push keys in the company settings are deleted, everyone has to turn alerts on again.
 - **Cloud storage:**
   - The move button uploads from the database copies. On a server that kept files only on its own disk (not Vercel), copy that folder to the store by hand.
 - **Staff WhatsApp alerts:**
@@ -510,29 +550,35 @@ All twelve phases are built. The items below are not built yet, or work only par
   - Offline saving works in the installed app and in Chrome or Safari on the phone. The offline page cache only runs on the production build, not in `npm run dev`.
   - Items saved by an older version of the app (before Phase 9) and still waiting on a phone have no id, so they could still arrive twice.
 
-### Ideas for a Phase 13 (not started)
+### Ideas for a Phase 14 (not started)
 
 | Feature | Notes |
 |---|---|
-| FVU file for the TDS returns | Make the upload file for the 24Q and 26Q directly, instead of CSV sheets for the NSDL utility. |
-| Razorpay fees and settlements | Read Razorpay's settlements and post the fee as a bank charge by itself. |
-| Mobile push notifications | Phone push for staff, next to the bell and WhatsApp. |
-| GPS or selfie on check-in | So attendance does not rely only on trust. |
+| FVU file for the TDS returns | Make the upload file for the 24Q and 26Q directly, instead of CSV sheets for the NSDL utility. Needs checking against NSDL's file validation utility. |
+| Razorpay settlements | Read what Razorpay paid into the bank each day and match it to the receipts and fees. |
+| Check-out location | Match check-out to a site too, and show hours per site. |
+| Push choices per person | Let each person pick which kinds of alert come to their phone. |
 
 ### General gaps
 
 - **Automatic WhatsApp covers buyers and staff.** Messages to vendors and contractors are still click-to-chat buttons.
-- **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
+- **No SMS alerts.** Alerts appear in the bell, on WhatsApp for the kinds switched on, and as phone push for people who turned it on.
 - **Photos and drawings stay on the server's disk with a copy in the database until cloud storage is set up** (Settings → File storage). On Vercel, connect a private Blob store and move the older files.
-- **Check-in has no GPS or selfie check.** Attendance trusts the person checking in.
 - **Material request lines typed as free text** must be matched to a catalogue material before they can be ordered.
 - **Two older tests fail.** These failures existed before this work started and are not caused by it:
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 370 of 372 tests.
+  The rest of the suite passes: 386 of 388 tests.
 
-## Checks run on the latest version (Phase 12)
+## Checks run on the latest version (Phase 13)
+
+- Tests: 386 of 388 pass. The only failures are the 2 older tests listed above. This includes 8 new tests for Phase 13: distance to a site; setting a site's location and radius (admins only, both numbers or neither); a check-in near the site, one 5 km away marked "Away from site" and one with no location marked "No location", none refused; with the strict switches on, no location and away-from-site check-ins refused with the site's name, but a late check-in from a phone with no signal taken and marked; a selfie asked for, someone else's photo or a PDF refused, the person's own photo kept; push keys made once with the private key kept off every reply; a subscription saved (https only) with a test alert; a critical bell alert pushed with its page, a phone answering "gone" dropped and one failing a fifth time dropped; Razorpay fees from the webhook and from Razorpay's API, a month booked as one Overheads payment to Razorpay, a second press refused, and a later payment booked as a second entry.
+- Tried on the production build in a browser: Settings with the new card, the Check-in rules page with a site location and a check-in away from the site, a staff check-in on a phone-sized screen standing 110 m from the site ("At the site"), Online payments with the Razorpay fees by month and "Book in Finance" for last month, and the alerts panel with "Alerts on this phone".
+- Not tried here: a real push reaching a phone (the test browser has no push service, so "Turn on" shows the "Could not turn on alerts here" message), and real Razorpay fees. Turn on alerts on a phone after deploying, and book a month's fees after the first live payments.
+- Type check: clean. Lint: 9 warnings, the same as before. Production build: succeeds.
+
+### Phase 12 checks
 
 - Tests: 377 of 379 pass. The only failures are the 2 older tests listed above. This includes 7 new tests for Phase 12: 194Q only above ₹50 lakh with no catch-up, 5% without PAN, suppliers under 194Q only when the company setting is on; 194Q payments, the monthly bill, the Tally ledger, code 94Q on the 26Q; Form 16A before and after the deposit; Razorpay keys kept off every reply and the audit log; a payment link for the balance, reused on a second press; a forged return booking nothing, the real return booking one receipt and the webhook after it booking nothing more; a webhook-only payment spilling onto the next instalment after a cheque; files going to a private Blob store with no database copies; older files moved out of the database.
 - Tried on the production build in a browser: Settings with the 194Q and signatory fields and the new cards, Online payments and File storage pages, a supplier payment with 194Q, the Form 16A page, and the buyer's page on a phone-sized screen with "Pay now" (with no Razorpay connection here, it shows "Could not reach Razorpay").

@@ -4,8 +4,9 @@ import type { UserContext } from "@/lib/auth";
 import { istDateKey } from "@/lib/ist-date";
 import { notifyPeople } from "@/lib/notify";
 import { messagingSettings } from "@/lib/messaging";
-import { canTakePayments, createPaymentLink, paymentSettings, PaymentError, verifyLinkCallback, verifyWebhook } from "@/lib/online-payments";
+import { canTakePayments, createPaymentLink, fetchPaymentFee, paymentSettings, PaymentError, verifyLinkCallback, verifyWebhook } from "@/lib/online-payments";
 import { SalesService } from "@/services/sales-service";
+import { FinanceService } from "@/services/finance-service";
 
 const due = (i: { amount: number; gstAmount: number }) => i.amount + i.gstAmount;
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -70,9 +71,21 @@ export async function paymentBaseUrl(organizationId: string, requestOrigin: stri
  * return and the webhook both call it): only the call that moves the row
  * from CREATED to PAID books anything.
  */
-export async function completeOnlinePayment(input: { linkId: string; paymentId: string; method?: string | null; source: "RETURN" | "WEBHOOK" }) {
+export async function completeOnlinePayment(input: {
+  linkId: string;
+  paymentId: string;
+  method?: string | null;
+  /** Razorpay's fee and the GST on it, in paise, when the webhook carries them. */
+  fee?: number | null;
+  feeTax?: number | null;
+  source: "RETURN" | "WEBHOOK";
+}) {
   const op = await prisma.onlinePayment.findUnique({ where: { linkId: input.linkId } });
   if (!op) return null;
+  // The fee is noted whichever call comes first; it never holds up the receipt.
+  if (op.fee == null && input.fee != null) {
+    await prisma.onlinePayment.update({ where: { id: op.id }, data: { fee: input.fee, feeTax: input.feeTax ?? null } }).catch(() => {});
+  }
   const claimed = await prisma.onlinePayment.updateMany({
     where: { id: op.id, status: { in: ["CREATED", "EXPIRED"] } },
     data: { status: "PAID", paymentId: input.paymentId, method: input.method || null, paidAt: new Date() },
@@ -140,6 +153,16 @@ export async function completeOnlinePayment(input: { linkId: string; paymentId: 
       },
     })
     .catch(() => {});
+  // Ask Razorpay for its fee when the webhook did not bring it; the monthly booking asks again if this fails.
+  if (op.fee == null && input.fee == null) {
+    try {
+      const s = await paymentSettings(op.organizationId);
+      const f = canTakePayments(s) ? await fetchPaymentFee(s, input.paymentId) : null;
+      if (f?.fee != null) await prisma.onlinePayment.update({ where: { id: op.id }, data: { fee: f.fee, feeTax: f.tax } });
+    } catch {
+      // Not needed for the receipt.
+    }
+  }
   return prisma.onlinePayment.findUnique({ where: { id: op.id } });
 }
 
@@ -172,6 +195,121 @@ export async function onlinePaymentWebhook(rawBody: string, signature: string | 
   const s = await paymentSettings(op.organizationId);
   if (!verifyWebhook(s.webhookSecret, rawBody, signature)) throw new PaymentError("Signature does not match", 401, "BAD_SIGNATURE");
   if (body.event !== "payment_link.paid" || !payment?.id) return { handled: false };
-  await completeOnlinePayment({ linkId: op.linkId!, paymentId: String(payment.id), method: payment.method ? String(payment.method) : null, source: "WEBHOOK" });
+  await completeOnlinePayment({
+    linkId: op.linkId!,
+    paymentId: String(payment.id),
+    method: payment.method ? String(payment.method) : null,
+    fee: typeof payment.fee === "number" ? payment.fee : null,
+    feeTax: typeof payment.tax === "number" ? payment.tax : null,
+    source: "WEBHOOK",
+  });
   return { handled: true };
+}
+
+/**
+ * Razorpay's fees, month by month. Razorpay takes its fee (with GST on it)
+ * out of what it pays into the bank, so the receipts are booked in full and
+ * the fees are booked once a month as a bank charge.
+ */
+export async function razorpayFees(organizationId: string) {
+  const paid = await prisma.onlinePayment.findMany({
+    where: { organizationId, status: { in: ["PAID", "NOT_BOOKED"] }, paidAt: { not: null } },
+    select: { id: true, amount: true, fee: true, feeTax: true, feeBookedIn: true, paidAt: true },
+    orderBy: { paidAt: "desc" },
+  });
+  const months = new Map<string, { month: string; payments: number; amount: number; fee: number; tax: number; unknown: number; booked: number; bookedIn: string | null }>();
+  for (const p of paid) {
+    const month = istDateKey(p.paidAt!).slice(0, 7);
+    const m = months.get(month) || { month, payments: 0, amount: 0, fee: 0, tax: 0, unknown: 0, booked: 0, bookedIn: null };
+    m.payments += 1;
+    m.amount += p.amount;
+    if (p.fee == null) m.unknown += 1;
+    else {
+      m.fee += p.fee;
+      m.tax += p.feeTax || 0;
+    }
+    if (p.feeBookedIn) {
+      m.booked += 1;
+      m.bookedIn = p.feeBookedIn;
+    }
+    months.set(month, m);
+  }
+  return Array.from(months.values()).sort((a, b) => b.month.localeCompare(a.month));
+}
+
+/**
+ * Books one month's Razorpay fees as a single payment to "Razorpay" (bank
+ * charges, under overheads). Fees not known yet are asked from Razorpay first.
+ * Booking a month again only adds the payments that came in since.
+ */
+export async function bookRazorpayFees(user: UserContext, month: string) {
+  if (!/^\d{4}-\d{2}$/.test(month)) throw new PaymentError("Pick a month.", 422, "BAD_MONTH");
+  const [y, m] = month.split("-").map(Number);
+  // Months are counted in India time, as the summary is.
+  const from = new Date(Date.UTC(y, m - 1, 1) - 330 * 60000);
+  const to = new Date(Date.UTC(y, m, 1) - 330 * 60000);
+  const rows = await prisma.onlinePayment.findMany({
+    where: { organizationId: user.organizationId, status: { in: ["PAID", "NOT_BOOKED"] }, paidAt: { gte: from, lt: to }, feeBookedIn: null },
+  });
+  if (!rows.length) throw new PaymentError("Nothing left to book for this month.", 409, "NOTHING_TO_BOOK");
+
+  const s = await paymentSettings(user.organizationId);
+  for (const r of rows.filter((r) => r.fee == null && r.paymentId)) {
+    if (!canTakePayments(s)) break;
+    try {
+      const f = await fetchPaymentFee(s, r.paymentId!);
+      if (f.fee != null) {
+        await prisma.onlinePayment.update({ where: { id: r.id }, data: { fee: f.fee, feeTax: f.tax, method: r.method || f.method } });
+        r.fee = f.fee;
+        r.feeTax = f.tax;
+      }
+    } catch {
+      // Left for next time; the rest are still booked.
+    }
+  }
+  const ready = rows.filter((r) => r.fee != null);
+  const fee = ready.reduce((a, r) => a + (r.fee || 0), 0);
+  const tax = ready.reduce((a, r) => a + (r.feeTax || 0), 0);
+  if (!ready.length) throw new PaymentError("Razorpay has not told us the fees for this month yet. Try again tomorrow.", 409, "FEES_UNKNOWN");
+
+  // Each booking of a month gets its own key, so a second run adds only the new fees.
+  const earlier = await prisma.onlinePayment.findMany({
+    where: { organizationId: user.organizationId, feeBookedIn: { startsWith: `razorpay-fees-${month}` } },
+    distinct: ["feeBookedIn"],
+    select: { feeBookedIn: true },
+  });
+  const key = earlier.length ? `razorpay-fees-${month}-${earlier.length + 1}` : `razorpay-fees-${month}`;
+  let paymentRecordId: string | null = null;
+  if (fee > 0) {
+    const lastDay = new Date(Date.UTC(y, m, 0, 6, 30));
+    const r = await FinanceService.recordPayment({
+      organizationId: user.organizationId,
+      recipientType: "VENDOR",
+      recipientName: "Razorpay",
+      paymentDate: lastDay < new Date() ? lastDay : new Date(),
+      amount: fee,
+      method: "BANK_TRANSFER",
+      referenceNumber: `Razorpay fees ${month}`,
+      idempotencyKey: key,
+      costHead: "OVERHEADS",
+      notes: `Razorpay fees on ${ready.length} online payment${ready.length === 1 ? "" : "s"} in ${month}, taken out of the settlements. Includes ${rupees(tax)} GST.`,
+      userId: user.userId,
+      role: user.role as any,
+      autoApprove: true,
+    });
+    paymentRecordId = r.payment.id;
+  }
+  await prisma.onlinePayment.updateMany({ where: { id: { in: ready.map((r) => r.id) } }, data: { feeBookedIn: key } });
+  await prisma.auditEvent.create({
+    data: {
+      organizationId: user.organizationId,
+      actorUserId: user.userId,
+      action: "RAZORPAY_FEES_BOOKED",
+      entityType: "PAYMENT",
+      entityId: paymentRecordId || key,
+      reason: `Razorpay fees for ${month}`,
+      afterJson: JSON.stringify({ month, payments: ready.length, fee, tax, waiting: rows.length - ready.length }),
+    },
+  });
+  return { month, fee, tax, payments: ready.length, waiting: rows.length - ready.length, paymentId: paymentRecordId };
 }
