@@ -1,6 +1,6 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 22 Oct 2026 (after Phase 5)
+Last updated: 23 Oct 2026 (after Phase 10)
 Branch: `claude/project-thread-7co71b` (committed locally, **not pushed** to GitHub yet)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
@@ -13,17 +13,22 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 2 | Vendor and contractor bank details, one-click WhatsApp, chat links, team management | Done | `353072e` | `bothra-redesign-phase2.bundle` |
 | 3 | Task history with photos, task updates to admin, daily work reports, staff attendance | Done | `bb493be` | `bothra-redesign-phase3.bundle` |
 | 4 | Budget vs actual, construction stages and progress, material requests | Done | `d81adfc` | `bothra-redesign-phase4.bundle` |
-| 5 | Payroll, drawings register, quality and safety, equipment, sales | Done | see `git log` | `bothra-redesign-phase5.bundle` |
+| 5 | Payroll, drawings register, quality and safety, equipment, sales | Done | `0cc23cf` | `bothra-redesign-phase5.bundle` |
+| 6 | Buyer portal, automatic stage demands, GST receipts, Tally / GST export, PF / ESI / PT in payroll | Done | `224a2e5` | `bothra-redesign-phase6.bundle` |
+| 7 | GST on supplier bills, PF / ESI for site workers with PF ECR and ESI files, cancelling a receipt, offline site app | Done | `96fec30` | `bothra-redesign-phase7.bundle` |
+| 8 | More offline forms, GST rate per bill line and reverse charge, TDS from the tax regime with a yearly tax statement, statutory dues posted to Finance | Done | `7f7c45a` | `bothra-redesign-phase8.bundle` |
+| 9 | Offline items sent only once, the Site Muster for site workers (works with no signal), TDS return on salary (24Q) with PAN and TAN | Done | `8619060` | `bothra-redesign-phase9.bundle` |
+| 10 | TDS on contractor payments (194C) with the 26Q return, buyer sign-in with a code on their mobile, WhatsApp demand letters and reminders sent by themselves | Done | see `git log` | `bothra-redesign-phase10.bundle` |
 
-**All five planned phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase5.bundle` is the only one you need.
+**Ten phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase10.bundle` is the only one you need.
 
 ### How to load the latest version
 
 ```bash
-git fetch bothra-redesign-phase5.bundle claude/project-thread-7co71b:claude/redesign-phase5
-git checkout claude/redesign-phase5
+git fetch bothra-redesign-phase10.bundle claude/project-thread-7co71b:claude/redesign-phase10
+git checkout claude/redesign-phase10
 npm install
-npx prisma db push      # required: phases 2 to 5 add new tables and columns
+npx prisma db push      # required: phases 2 to 10 add new tables and columns
 npm run dev
 ```
 
@@ -183,37 +188,257 @@ npm run dev
 
 ---
 
+## Phase 6: Buyer side, accounts export and statutory payroll (done)
+
+**Automatic customer demands**
+- Each construction-linked instalment is tied to a project stage by its name: foundation, plinth, slab, brickwork, plaster and possession. The office can pick a different stage for any instalment on the booking.
+- When a stage reaches 100% on the Progress tab, the matching demands for every buyer in that project are raised automatically, due in 15 days. Admins and the person who made the booking get an alert.
+- A buyer who books late owes the stages already finished. Those demands are raised at booking.
+- Sales shows a "demands raised and not yet paid" list with a printable demand letter and a WhatsApp button for each buyer. The message includes the buyer's page link.
+
+**GST and receipts**
+- Each booking has a GST rate: 5% for flats, 12% for shops and offices and 0% for plots by default, and it can be changed.
+- Each instalment shows its price plus GST.
+- Every amount received gets a numbered receipt (RC-YYMM-NNN), split between price and GST.
+- Printable receipt with CGST and SGST, the amount in words and the company GSTIN from Settings.
+- Printable demand letter that adds any earlier instalments still unpaid.
+
+**Money in**
+- Customer receipts show on the Day Book as "Money in from customers".
+- On the dashboard they appear on the timeline, the cash card and a third "Received" bar in the 7-day cash chart.
+- Accountants now see every booking, so they can record receipts for any project.
+
+**Buyer portal** (a private link per booking, no login)
+- The buyer sees their payment schedule, what is due now, their receipts (printable), construction progress by stage and the latest site photos from their own project.
+- The link can be sent on WhatsApp, and reset if it is shared by mistake. Cancelling a booking turns the link off.
+- Photos are only served if they belong to that buyer's project. The link is long and random, and photo requests are rate limited.
+
+**Accounts export** (`/exports`, for finance staff)
+- Quick ranges for this month, last month, this quarter and this financial year, with totals for the range.
+- One Tally import file (XML) with the ledgers it needs and these vouchers:
+  - Supplier bills as Purchase vouchers.
+  - Payments (including wages and salaries) as Payment vouchers.
+  - Each customer receipt as a Sales invoice with CGST and SGST, plus a Receipt.
+- CSV registers: GST sales register (for GSTR-1 and 3B), purchase register with supplier GSTIN (for GSTR-2B matching) and a payments list for the bank reconciliation.
+- Every export is written to the audit log.
+
+**Payroll deductions**
+- For each staff member: PF and ESI switches, plus UAN and ESIC numbers.
+- PF is 12% of basic up to the ₹15,000 wage ceiling. The company's 12% is shown too.
+- ESI is 0.75% (company 3.25%) while the salary is ₹21,000 or less.
+- Professional tax by state: Maharashtra (with ₹300 in February), Karnataka, Gujarat, West Bengal, Telangana and Andhra Pradesh, or none (Rajasthan has none).
+- TDS is typed in per person and kept when the draft is refreshed.
+- Payroll shows what to deposit this month (PF, ESI, PT, TDS). Payslips list each deduction and the company's share.
+- Bank transfer file (CSV) for bulk salary upload once payroll is approved. People with no bank details are listed last, to pay by cash or cheque.
+
+---
+
+## Phase 7: GST on purchases, statutory filings, receipt cancellation and the offline site app (done)
+
+**GST on supplier bills**
+- The bill form has a GST rate (0, 5, 12, 18 or 28%) added on top of the lines, and shows the taxable value, the tax and the total.
+- Tax type is worked out from the GSTINs: a supplier in another state (different first two digits from the company GSTIN in Settings) is IGST, otherwise CGST plus SGST. It can be set by hand.
+- An "input tax credit" tick for each bill. Untick it for blocked credit, such as furniture or food.
+- Bills with no GST work as before.
+
+**GST in the accounts export**
+- Tally purchase vouchers now debit the expense with the taxable value and "Input CGST", "Input SGST" or "Input IGST" (under Duties & Taxes) with the tax, and credit the supplier with the total. When credit is not claimed the tax stays in the expense.
+- The purchase register has taxable value, rate, CGST, SGST, IGST and ITC columns, with totals, ready to match against GSTR-2B.
+
+**PF and ESI for site workers**
+- Payroll → Staff salaries now has a site-workers table: PF and ESI ticks, UAN, ESIC number, bank account and IFSC for each worker. Account numbers are shown masked.
+- PF is 12% of wages up to ₹15,000 a month. ESI is 0.75% (company 3.25%) while 26 days' wages are ₹21,000 or less. Professional tax is not cut from daily wages.
+- The bank transfer file now includes site workers' bank details.
+
+**Statutory files** (after payroll is approved)
+- PF ECR file in the EPFO text format (`#~#` between fields): UAN, name, gross, EPF/EPS/EDLI wages, employee 12%, EPS 8.33%, the difference, non-contributory days and refund. Amounts are in whole rupees.
+- ESI monthly contribution file (CSV) for the ESIC portal: IP number, name, days paid and wages.
+- People ticked for PF or ESI who have no UAN or ESIC number are left out of the file, and Payroll names them so they can be added before filing.
+
+**Cancelling a receipt** (admins only)
+- For a bounced cheque or a receipt entered by mistake. A reason is required.
+- The amount goes back on the instalment, and a sold unit goes back to booked.
+- The receipt stays on record with a "Cancelled" stamp and is struck through on the booking. Its number is not reused.
+- Cancelled receipts are left out of money in, the Day Book, the dashboard, the GST sales register, Tally and the buyer's page.
+
+**Offline site app**
+- The app can be installed on a phone's home screen (Add to Home screen) with its own icon.
+- Pages already opened, such as a project's stages and the daily report, open with no signal. The latest data seen is shown.
+- With no signal, a stage progress update or a daily report is saved on the phone, with its photos. A bar at the top shows "No signal" and how many are waiting.
+- They are sent by themselves when the signal comes back, photos first. "Send now" retries by hand. If the server refuses one (for example the stage was deleted), it is marked so it can be read and discarded.
+- A page never opened before shows a "No signal" page instead of an error.
+- Logging out clears the pages kept on the phone. If anything is still waiting to be sent, it asks first, because saved updates are sent as whoever is logged in.
+
+**Why buyers do not get IGST**
+- GST on an under-construction flat is charged where the property is, not where the buyer lives. So a buyer from another state is still charged CGST plus SGST. IGST for buyers was left out on purpose.
+
+---
+
+## Phase 8: More offline forms, GST per bill line, TDS on salary and statutory dues in Finance (done)
+
+**More forms work with no signal**
+- Material requests, quality inspections and quality issue reports (with photos), and staff check-in and check-out can now be saved on the phone, as stage updates and daily reports already could.
+- A check-in saved offline keeps the time the button was pressed, not the time it reached the server. The record is marked "Saved on phone with no signal, sent later". The server refuses a saved time more than 18 hours old or in the future.
+- If the phone sends the same check-in twice (the signal dropped before the reply came back), it counts once.
+- With two tabs or windows open, only one sends the saved items when the signal returns, so nothing is sent twice.
+- If the person never answers the phone's location prompt, Check in no longer spins; it goes ahead without a location after 8 seconds.
+
+**GST per bill line and reverse charge**
+- Each line of a supplier bill can have its own GST rate ("Same as bill" by default), so steel at 18% and another item at 12% go on one bill. The bill shows the tax at line rates.
+- A "Reverse charge" tick for bills where the company pays the GST itself (for example a goods transport agency or an unregistered supplier). The supplier is owed only the taxable value.
+- Tally: reverse-charge bills credit "CGST / SGST / IGST Payable (RCM)" and, when credit is claimed, debit input GST.
+- The purchase register has a "Reverse charge" column, and a mixed-rate bill shows its rates as, for example, "12/18".
+
+**TDS on salary**
+- Payroll → Staff salaries: each person has a tax regime (new or old). For the old regime, enter their declared deductions (80C, 80D, HRA and so on); PF and professional tax are counted automatically.
+- When payroll is made, TDS is worked out from the year's salary so far plus the rest of the year at this month's pay, less TDS already cut, spread over the months left. Slabs, the standard deduction, the rebate (with marginal relief in the new regime), surcharge and 4% cess follow the Finance Act 2025 rates.
+- A month's TDS can still be typed by hand. Ticking "Work out TDS from their tax regime" again switches it back.
+
+**Yearly tax statement**
+- "Tax for the year" opens a printable statement for each person for any financial year: salary, PF, ESI, professional tax, TDS and net pay month by month, and how the year's tax is worked out.
+- People can see their own; payroll managers can see everyone's.
+- It is a summary in the shape of Form 16 Part B, not Form 16 itself.
+
+**Statutory dues posted to Finance**
+- When payroll is approved, bills are created in Finance for the month: PF (to EPFO, due the 15th of next month), ESI (to ESIC, due the 15th), TDS (to the Income Tax Department, due the 7th) and professional tax (due at the end of next month).
+- Each is paid like any other bill, so what is owed to the government shows in outstanding payables.
+
+---
+
+## Phase 9: Offline items sent once, the Site Muster and the TDS return (done)
+
+**Nothing saved offline is sent twice**
+- Every item saved on a phone now carries its own id. If the signal drops after the server has saved it but before the phone hears back, the phone sends it again and the server recognises it: it returns the first reply and creates nothing new. This covers stage updates, daily reports, check-ins, material requests, quality checks and the muster.
+- Photos already uploaded are remembered on the phone, so a retry does not upload them again.
+- If the server turns an item down (for example a missing field), the id is freed, so the corrected item can still go through.
+
+**Site Muster** (Attendance → Site muster, or People → Site Muster)
+- A supervisor picks the project and the day and marks each site worker P (present), ½ (half day) or A (absent). Tapping the same mark again clears it.
+- Overtime is added in half-hour steps, up to 8 hours.
+- "Rest present" marks everyone not yet marked as present. Workers whose usual site is elsewhere are hidden until asked for, and a worker already marked at another site that day is flagged.
+- The bar at the bottom shows the day's wages from each worker's daily rate, including overtime.
+- It works with no signal: the whole muster is saved on the phone and sent when the signal returns. Saving the same muster again only updates it.
+- Payroll picks it up directly: a full day, half a day, and overtime beyond 8 hours at the hourly rate.
+- Supervisors can fill in today and the last 7 days. Older days need someone who can correct attendance. A day an admin has corrected is not changed by the muster.
+
+**TDS return on salary (Form 24Q)** (Payroll → Staff salaries → TDS return)
+- Choose a quarter. The page shows salary paid, TDS cut, TDS deposited, and the date the return is due (31 Jul, 31 Oct, 31 Jan, 31 May).
+- Challans: one per month, from the TDS bill in Finance and the payments made against it, with the date and the challan number taken from the payment reference. Late deposits are marked, with the interest at 1.5% a month.
+- Annexure I: each person's salary and TDS for each month, with their PAN.
+- Annexure II (in the fourth quarter): each person's salary, deductions, taxable income, tax and TDS for the year, with any shortfall.
+- Each table downloads as a CSV laid out for the NSDL return utility. A missing PAN is written as PANNOTAVBL.
+- "Fix before filing" lists what is missing: the company TAN, PANs, months with payroll not approved, and TDS not deposited or deposited late.
+- New fields: PAN for each staff member (Staff salaries) and the company TAN (Settings).
+
+---
+
+## Phase 10: TDS on contractors, buyer sign-in and automatic WhatsApp (done)
+
+**TDS on contractor payments (section 194C)** (Finance → Record Payment)
+- When paying a contractor, the payment form works out the TDS by itself and shows what is held back and what the bank pays.
+  - 1% for an individual or HUF, 2% for a firm or company, from the 4th letter of the PAN. The PAN is read from the contractor's PAN field, or from inside their GSTIN.
+  - 20% when there is no PAN, with a warning to add it.
+  - Nothing is cut while a payment is ₹30,000 or less and the year's payments to that contractor stay within ₹1 lakh. The payment that crosses ₹1 lakh also catches up the TDS on the earlier small payments.
+  - When paying a bill with GST shown separately, TDS is on the amount before GST.
+- The TDS can be set to "No TDS" (for example a transporter's declaration), which needs a reason, or typed in (for example under a lower-deduction certificate).
+- Suppliers are not touched; only contractors and parties marked as both.
+- The contractor's bill is settled in full. The bank pays the amount less TDS, and the TDS is owed to the government on one bill a month ("TDS194C-2026-10", due the 7th of the next month, 30 April for March). Reversing a payment takes its TDS off that bill.
+- The payments register shows "TDS held" and "Bank paid" under each such payment. Totals of money out (Day Book, dashboard) count what left the bank.
+- Tally export: the bank is credited the net amount and the TDS goes to a "TDS Payable (194C)" ledger. The payments CSV has "TDS held" and "From bank" columns.
+
+**TDS return on contractors (Form 26Q)** (Finance → TDS return (26Q), or Payroll → TDS return → Contractors)
+- Same layout as the salary return: payments and TDS for the quarter, the challans from the monthly TDS bills, the due date (31 Jul, 31 Oct, 31 Jan, 31 May), and "Fix before filing".
+- Each payment shows the contractor, PAN, amount, rate and TDS, with the 26Q remark codes: C (no PAN, 20%), A (lower rate), T (transporter, no TDS).
+- Both tables download as CSV for the NSDL return utility.
+
+**Buyer sign-in with a code on their mobile** (Settings → Messages → "Buyers sign in with a code")
+- When switched on, the buyer's page link asks for a 6-digit code sent to the mobile number on their booking. A forwarded link alone no longer opens the page, the receipts or the site photos.
+- The code goes on WhatsApp (an authentication template) or, if WhatsApp is not set up, by SMS through MSG91.
+- A code works once, for 10 minutes. Five wrong tries end it, and a number can ask for at most 3 codes in 15 minutes.
+- Signing in shows every home booked on that number. The buyer stays signed in on that phone for 30 days and can sign out.
+- When it is switched off, the link works on its own, as before. The sign-in page is at `/portal/sign-in`.
+
+**WhatsApp demand letters and reminders sent by themselves** (Settings → Messages)
+- When a stage is done and a demand is raised, the buyer gets the demand on WhatsApp with the amount, the due date and the link to their page.
+- Then reminders: a few days before the due date (3 by default), and every few days while it is overdue (every 7 days, at most 3 times by default).
+- A buyer gets at most one message a day. Several overdue instalments go in one message with the total.
+- A wrong number is tried 3 times and then left alone. Nothing is sent once the instalment is paid.
+- Messages go out right after a demand is raised, and once a day from the scheduler. There is also a "Send today's messages now" button.
+- Every message is in the "Sent messages" log on the same page, with Meta's reason when one fails.
+- **Test mode** writes messages and sign-in codes into the log instead of sending them, so the whole flow can be tried before WhatsApp is set up.
+
+**Setting it up**
+1. Make a WhatsApp Business account in Meta Business Suite and add a phone number. Copy the phone number ID and make a permanent access token (System user).
+2. Submit three templates for approval: a sign-in code (Authentication), a demand and a reminder (Utility). The text to submit is on the Messages page.
+3. Fill in Settings → Messages, press "Send test" with your own mobile, then switch on what you need.
+4. For SMS sign-in codes instead, add the MSG91 auth key and a DLT-approved OTP template ID.
+5. For the daily run, set `CRON_SECRET` (16 characters or more) on the server. On Vercel the daily job is already in `vercel.json` (10 am IST). Elsewhere, call `GET /api/cron/whatsapp` once a day with the header `Authorization: Bearer <CRON_SECRET>`.
+
+The WhatsApp token and SMS key are kept on the server. The settings page only shows their last 4 characters, and they are left out of the audit log and every other API reply.
+
+---
+
 ## Incomplete or still planned
 
-All five planned phases are built. The items below are not built yet, or work only partly.
+All ten phases are built. The items below are not built yet, or work only partly.
 
-### Gaps in Phase 5 features
+### Gaps in Phase 5 to 10 features
 
 - **Payroll:**
-  - No statutory deductions (PF, ESI, professional tax or TDS).
+  - The PF ECR and ESI files are made for upload; filing and paying the challan are still done on the EPFO and ESIC portals.
+  - The ECR assumes everyone is in the pension scheme (EPS). Members over 58 or not eligible for EPS need their line edited before upload.
+  - The tax statement is not Form 16. Part A (TDS deposited) comes from the TRACES portal after the quarterly return is filed.
+  - The TDS return page gathers the figures and makes CSV sheets, but not the FVU upload file. The return is still prepared in the NSDL utility and filed on the income-tax portal.
+  - The challan number is read from the payment reference; the BSR code and challan serial are not split out. Enter them in the utility.
+  - Interest on late TDS is an estimate; the late-filing fee (₹200 a day) is not worked out.
+  - TDS assumes the rest of the year at the latest month's pay. A raise or a bonus later in the year is picked up only from that month.
+  - Income from a previous employer in the same year is not counted. Add it to the TDS by hand.
+  - Surcharge has no marginal relief (it matters only above ₹50 lakh a year).
+  - Tax slabs and rates are from the Finance Act 2025. Check them each April after the budget.
+  - The statutory bills for PF and ESI include the employee's share, which was already cut from pay; they are booked under the Overheads cost head.
+  - Professional tax ignores the exemption for women in Maharashtra.
   - Overtime is paid at 1× the hourly rate.
-  - No bank upload file for bulk salary transfer.
 - **Sales:**
-  - Customer receipts are recorded on the booking but not posted to Finance or the Day Book as income.
-  - No GST on sales and no printable receipt or demand letter.
-  - "Raise demand" is a manual click. It is not triggered automatically when a construction stage reaches 100%.
+  - No 1% affordable-housing GST check. The rate is set per booking.
+  - A receipt can be cancelled but not edited. To correct one, cancel it and enter it again.
+  - "On each slab" is one instalment raised when the whole superstructure stage is done. It is not one demand per slab.
+  - Automatic WhatsApp needs a WhatsApp Business account and approved templates; until then, use test mode or the click-to-send button.
+  - The messages are in English only. A Hindi template can be set by changing the template language, but the app sends one language to everyone.
+  - Replies from buyers on WhatsApp do not come into the app. They arrive in the WhatsApp Business inbox.
+- **Contractor TDS (194C):**
+  - It covers section 194C only. Professional fees (194J), rent (194I) and purchases over ₹50 lakh (194Q) are not worked out.
+  - The ₹30,000 and ₹1 lakh limits use payments made in the app. Payments to the same contractor made before the app was used are not counted.
+  - TDS is cut when paying, not when the bill is booked. Advances count as paid.
+  - Form 16A certificates are downloaded from TRACES after filing; the app does not make them.
+  - The 26Q page makes CSV sheets, not the FVU file, the same as the salary return.
+- **Exports:**
+  - Reverse charge does not post the "RCM paid" entry; pay the RCM tax in cash through the GST portal and record it as a payment.
+  - Ledger names are fixed (for example "Purchase - Construction Material"). Rename them in Tally, or ask for a mapping screen.
+  - There is no direct sync with Tally. It is an import file.
+- **Site muster:** a shift is recorded as 9 am to 5 pm (or 1 pm for a half day), not the real times. A muster for one project marks the worker at that project's site; a worker who moved between two sites in a day should be marked at the main one.
 - **Equipment:** hire and fuel costs logged here are not added to the project budget automatically. Hire bills should still be entered in Finance under the Equipment cost head.
 - **Quality:** the five checklists are fixed. There is no screen yet to make your own checklist.
 - **Drawings:** no markup or side-by-side comparison of revisions. Files are limited to PDF or images up to 10 MB.
+- **Offline app:**
+  - Stage progress, daily reports, check-in and check-out, the site muster, material requests and quality checks can be saved offline. Payments, bills, payroll and the rest need a signal.
+  - The muster needs the project's worker list to have been opened once with a signal.
+  - A page has to be opened once with a signal before it works offline.
+  - Offline saving works in the installed app and in Chrome or Safari on the phone. The offline page cache only runs on the production build, not in `npm run dev`.
+  - Items saved by an older version of the app (before Phase 9) and still waiting on a phone have no id, so they could still arrive twice.
 
-### Ideas for a Phase 6 (not started)
+### Ideas for a Phase 11 (not started)
 
 | Feature | Notes |
 |---|---|
-| Customer portal | Buyers log in to see their payment schedule, receipts and construction photos. |
-| Tally / GST export | Export bills, payments and sales receipts for the accountant. |
-| Offline mobile app | Supervisors on site with weak signal can fill in reports and photos offline, and they sync later. |
-| Automatic stage demands | When a stage hits 100% on the Progress tab, raise the matching customer demands and WhatsApp the buyers. |
+| Photo storage in the cloud | Move photos and drawings to S3 or similar. Needs a storage account. |
+| WhatsApp for staff | Send task reminders and approval requests to staff on WhatsApp, using the Phase 10 set-up. |
+| Other TDS sections | 194J (professionals such as architects), 194I (rent of equipment or land), 194Q (large purchases). |
+| Online payment for buyers | A "Pay now" button on the buyer's page through a payment gateway (Razorpay or similar). Needs a gateway account. |
 
 ### General gaps
 
-- **Nothing is pushed to GitHub yet.** All five phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
-- **WhatsApp is click-to-chat only.** The buttons open WhatsApp with the number and a message filled in. Automatic WhatsApp messages (for example sending reminders without a click) would need the WhatsApp Business API and an account.
+- **Nothing is pushed to GitHub yet.** All ten phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
+- **Automatic WhatsApp covers buyers only.** Demand letters, reminders and sign-in codes go by themselves once set up (Phase 10). Messages to vendors, contractors and staff are still click-to-chat buttons.
 - **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
 - **Photos and drawings are stored on the server's disk** (`storage/uploads/private`), with a backup copy in the database. For heavy use they should move to cloud storage such as S3, so the database stays small.
 - **Check-in has no GPS or selfie check.** Attendance trusts the person checking in.
@@ -222,11 +447,13 @@ All five planned phases are built. The items below are not built yet, or work on
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 343 of 345 tests.
+  The rest of the suite passes: 369 of 371 tests.
 
-## Checks run on the latest version (Phase 5)
+## Checks run on the latest version (Phase 10)
 
-- Tests: 343 of 345 pass. The only failures are the 2 older tests listed above. This includes 8 new tests for Phase 5 and 10 for Phase 4.
+- Tests: 369 of 371 pass. The only failures are the 2 older tests listed above. This includes 8 new tests for Phase 10 (194C rates, limits and catch-up, GST excluded, no PAN, transporters, the monthly TDS bill and reversal, Tally and CSV, the 26Q return; buyer sign-in with wrong codes, expiry and limits, the page lock; demand, due-soon and overdue messages to the Meta API, one message a day per buyer, a refused template, and the token kept off every reply), 3 for Phase 9 (a request sent twice with the same id is saved once, the muster and its pay in payroll, the TDS return with a late challan and missing PANs), 4 for Phase 8 (tax maths, automatic and manual TDS with the statement and statutory bills, mixed-rate and reverse-charge bills, a late and repeated offline check-in), 4 for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
+- Tried on the production build in a browser: a contractor payment showing the TDS and catch-up, the 26Q page, Settings → Messages in test mode sending one message per buyer, and a buyer signing in on a phone with the code from the log.
+- Offline app, tried in a phone-sized browser on the production build with the server switched off: a muster of 8 workers was saved on the phone and reached the server once when it came back. In Phase 8 a check-in and a material request were tried the same way with two tabs open.
 - Type check: clean.
 - Lint: 9 warnings, the same as before the redesign.
 - Production build: succeeds.

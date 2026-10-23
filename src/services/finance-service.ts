@@ -1,13 +1,19 @@
 import { prisma } from "@/lib/db";
+import { contractorPan, fyStartOf, isContractor, tdsDueDate, work194C, type TdsMode, type TdsResult } from "@/lib/contractor-tds";
+import { istDateKey, istDayBounds } from "@/lib/ist-date";
+import { fyMonths } from "@/lib/income-tax";
+import { challanProblems, returnDueDate, tdsChallans } from "@/services/tds-challans";
 import { assertPermission, Role } from "@/lib/permissions";
 import { roundPaise } from "@/lib/financial-math";
+import { companyProfile, gstStateCode } from "@/lib/company";
 
 export interface BillLineInput {
   description: string;
   materialId?: string;
   quantity?: number;
   unitRate?: number; // paise
-  lineTotal: number; // paise
+  lineTotal: number; // paise, before GST
+  gstRate?: number | null; // % for this line, when it differs from the bill's rate
 }
 
 export interface CreateBillInput {
@@ -20,8 +26,27 @@ export interface CreateBillInput {
   lines: BillLineInput[];
   notes?: string;
   costHead?: string | null;
+  /**
+   * GST on top of the lines. Supplier in another state → IGST, else CGST + SGST.
+   * `rate` applies to lines without their own rate. Under reverse charge the
+   * supplier is paid the lines only and we pay the GST to the government.
+   */
+  gst?: { rate?: number | null; interState?: boolean | null; itcEligible?: boolean; reverseCharge?: boolean } | null;
   userId: string;
   role: Role;
+}
+
+export const BILL_GST_RATES = [0, 5, 12, 18, 28];
+
+/**
+ * Splits GST on a bill. When interState is not given it is worked out from
+ * the first two digits of the supplier's and the company's GSTIN.
+ */
+export function billGst(taxable: number, rate: number, interState: boolean) {
+  const tax = roundPaise((taxable * rate) / 100);
+  if (interState) return { cgst: 0, sgst: 0, igst: tax, tax };
+  const cgst = Math.floor(tax / 2);
+  return { cgst, sgst: tax - cgst, igst: 0, tax };
 }
 
 export interface PaymentAllocationInput {
@@ -50,6 +75,8 @@ export interface RecordPaymentInput {
   role: Role;
   autoApprove?: boolean;
   status?: string;
+  /** TDS on a contractor payment: worked out (AUTO, the default), none with a reason, or typed in. */
+  tds?: { mode: TdsMode; amount?: number; reason?: string | null } | null;
 }
 
 export interface ReversePaymentInput {
@@ -60,7 +87,194 @@ export interface ReversePaymentInput {
   role: Role;
 }
 
+const TDS_194C_PARTY = "Income Tax Department (TDS on contractors)";
+
+/**
+ * Keeps the month's "TDS owed on contractor payments" bill equal to the TDS
+ * held back from posted payments that month, so it shows as owed in Finance
+ * until it is deposited.
+ */
+export async function syncContractorTdsBill(tx: any, organizationId: string, month: string, userId: string) {
+  const { start } = istDayBounds(`${month}-01`);
+  const [y, m] = month.split("-").map(Number);
+  const end = istDayBounds(new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)).end;
+  const held = await tx.payment.aggregate({
+    where: { organizationId, status: "POSTED", reversedAt: null, tdsAmount: { gt: 0 }, paymentDate: { gte: start, lte: end } },
+    _sum: { tdsAmount: true },
+  });
+  const total = Math.round(held._sum.tdsAmount || 0);
+  const billNumber = `TDS194C-${month}`;
+  let party = await tx.party.findFirst({ where: { organizationId, name: TDS_194C_PARTY } });
+  const bill = party ? await tx.bill.findFirst({ where: { organizationId, partyId: party.id, billNumber }, include: { allocations: { where: { reversedAt: null } } } }) : null;
+  const what = `TDS on contractor payments (section 194C), ${month}`;
+  if (bill) {
+    const paid = bill.allocations.reduce((s: number, a: any) => s + a.amount, 0);
+    // Never below what has already been deposited against it.
+    const amount = Math.max(total, paid);
+    await tx.billLine.deleteMany({ where: { billId: bill.id } });
+    await tx.bill.update({
+      where: { id: bill.id },
+      data: { totalAmount: amount, status: amount > 0 ? "POSTED" : "VOIDED", lines: { create: [{ description: what, lineTotal: amount }] } },
+    });
+    return;
+  }
+  if (total <= 0) return;
+  if (!party) party = await tx.party.create({ data: { organizationId, partyType: "OTHER", name: TDS_194C_PARTY } });
+  await tx.bill.create({
+    data: {
+      organizationId,
+      partyId: party.id,
+      billNumber,
+      billDate: end,
+      dueDate: new Date(`${tdsDueDate(month)}T12:00:00+05:30`),
+      totalAmount: total,
+      costHead: "OTHER",
+      statutory: "TDS_194C",
+      status: "POSTED",
+      notes: `${what}. Kept up to date from the payments.`,
+      createdBy: userId,
+      lines: { create: [{ description: what, lineTotal: total }] },
+    },
+  });
+}
+
 export class FinanceService {
+  /**
+   * The quarterly TDS return on contractor payments (Form 26Q): a challan a
+   * month and one row for each payment with TDS held back (or none, with the
+   * reason), laid out for the NSDL return utility.
+   */
+  static async contractorTdsReturn(organizationId: string, fy: string, quarter: 1 | 2 | 3 | 4) {
+    const months = fyMonths(fy).slice((quarter - 1) * 3, quarter * 3);
+    const { start } = istDayBounds(`${months[0]}-01`);
+    const [ly, lm] = months[2].split("-").map(Number);
+    const end = istDayBounds(new Date(Date.UTC(ly, lm, 0)).toISOString().slice(0, 10)).end;
+    const [company, payments] = await Promise.all([
+      companyProfile(organizationId),
+      prisma.payment.findMany({
+        where: { organizationId, status: "POSTED", reversedAt: null, tdsSection: { in: ["194C", "NONE"] }, paymentDate: { gte: start, lte: end } },
+        include: { party: { select: { id: true, name: true, panNumber: true, taxIdentifier: true } } },
+        orderBy: { paymentDate: "asc" },
+      }),
+    ]);
+    const deductees = payments.map((p) => {
+      const pan = p.party ? contractorPan(p.party) : null;
+      const date = istDateKey(p.paymentDate);
+      return {
+        paymentId: p.id,
+        month: date.slice(0, 7),
+        partyId: p.party?.id || null,
+        name: p.party?.name || p.recipientName || "",
+        pan,
+        section: "194C",
+        paidOn: date,
+        amountPaid: Math.round(p.tdsBase + p.tdsCatchUp),
+        rate: p.tdsRate,
+        tds: p.tdsAmount,
+        deductedOn: p.tdsAmount > 0 ? date : null,
+        // Remark codes the return uses: C higher rate (no PAN), A lower deduction (certificate), T transporter.
+        remark: p.tdsSection === "NONE" ? "T" : !pan ? "C" : p.tdsNote && /typed|197|certificate/i.test(p.tdsNote) ? "A" : "",
+        note: p.tdsNote,
+        reference: p.referenceNumber,
+      };
+    });
+    const tdsByMonth = new Map<string, number>();
+    const firstByMonth = new Map<string, string>();
+    for (const d of deductees) {
+      tdsByMonth.set(d.month, (tdsByMonth.get(d.month) || 0) + d.tds);
+      if (d.tds > 0 && !firstByMonth.has(d.month)) firstByMonth.set(d.month, d.paidOn);
+    }
+    const challans = await tdsChallans({
+      organizationId,
+      months,
+      billNumber: (m) => `TDS194C-${m}`,
+      tdsOf: (m) => tdsByMonth.get(m) || 0,
+      deductedOn: (m) => firstByMonth.get(m) || `${m}-01`,
+    });
+    const problems: string[] = [];
+    if (!company.tan) problems.push("Add the company TAN in Settings. The return cannot be filed without it.");
+    const noPan = Array.from(new Set(deductees.filter((d) => !d.pan).map((d) => d.name)));
+    if (noPan.length) problems.push(`No PAN for ${noPan.join(", ")}. Add it on the Vendors & Contractors page; until then TDS is 20%.`);
+    problems.push(...challanProblems(challans, "Nothing recorded"));
+    return {
+      fy,
+      quarter,
+      months,
+      filingDue: returnDueDate(fy, quarter),
+      company: { name: company.name, tan: company.tan, gstin: company.gstin },
+      challans,
+      deductees,
+      totals: {
+        paid: deductees.reduce((s, d) => s + d.amountPaid, 0),
+        tds: deductees.reduce((s, d) => s + d.tds, 0),
+        deposited: challans.reduce((s, c) => s + c.deposited, 0),
+      },
+      problems,
+    };
+  }
+
+  /**
+   * TDS to hold back on a payment to a contractor (section 194C), or null
+   * when the party is not a contractor.
+   */
+  static async contractorTds(input: {
+    organizationId: string;
+    partyId?: string | null;
+    amount: number;
+    paymentDate: Date;
+    allocations?: PaymentAllocationInput[];
+    tds?: RecordPaymentInput["tds"];
+    excludePaymentId?: string;
+  }): Promise<(TdsResult & { pan: string | null }) | null> {
+    if (!input.partyId) return null;
+    const party = await prisma.party.findFirst({ where: { id: input.partyId, organizationId: input.organizationId } });
+    if (!party || !isContractor(party.partyType)) return null;
+    // The part of the payment that is GST is not taxed.
+    let base = input.amount;
+    const allocs = input.allocations || [];
+    if (allocs.length) {
+      const bills = await prisma.bill.findMany({
+        where: { id: { in: allocs.map((a) => a.billId) }, organizationId: input.organizationId },
+        select: { id: true, totalAmount: true, taxableAmount: true, reverseCharge: true },
+      });
+      const byId = new Map(bills.map((b) => [b.id, b]));
+      const allocated = allocs.reduce((s, a) => s + a.amount, 0);
+      base = Math.max(0, input.amount - allocated);
+      for (const a of allocs) {
+        const b = byId.get(a.billId);
+        const share = b && b.taxableAmount != null && b.totalAmount > 0 && !b.reverseCharge ? b.taxableAmount / b.totalAmount : 1;
+        base += a.amount * share;
+      }
+    }
+    const day = istDateKey(input.paymentDate);
+    const earlier = await prisma.payment.findMany({
+      where: {
+        organizationId: input.organizationId,
+        partyId: party.id,
+        status: { in: ["POSTED", "PENDING_APPROVAL"] },
+        reversedAt: null,
+        paymentDate: { gte: istDayBounds(fyStartOf(day)).start, lte: istDayBounds(day).end },
+        ...(input.excludePaymentId ? { id: { not: input.excludePaymentId } } : {}),
+      },
+      select: { amount: true, tdsBase: true, tdsSection: true, tdsCatchUp: true },
+    });
+    const own = (p: { amount: number; tdsBase: number }) => (p.tdsBase > 0 ? p.tdsBase : p.amount);
+    const yearBase = earlier.reduce((s, p) => s + own(p), 0);
+    const untaxed = earlier.filter((p) => !p.tdsSection).reduce((s, p) => s + own(p), 0);
+    const caughtUp = earlier.reduce((s, p) => s + p.tdsCatchUp, 0);
+    const pan = contractorPan(party);
+    const result = work194C({
+      pan,
+      base,
+      yearBefore: { base: yearBase, untaxedBase: Math.max(0, untaxed - caughtUp) },
+      mode: input.tds?.mode,
+      manualAmount: input.tds?.amount,
+      reason: input.tds?.reason,
+    });
+    if (result.amount > input.amount) throw new Error("TDS cannot be more than the payment.");
+    return { ...result, pan };
+  }
+
   /**
    * Create a posted Bill with lines
    */
@@ -113,7 +327,42 @@ export class FinanceService {
       throw new Error(`Bill #${input.billNumber} already exists for this vendor`);
     }
 
-    const calculatedTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
+    const linesTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
+    let gstFields: Record<string, unknown> = {};
+    let calculatedTotal = linesTotal;
+    let lineTax: { gstRate: number | null; taxAmount: number }[] = input.lines.map(() => ({ gstRate: null, taxAmount: 0 }));
+    if (input.gst) {
+      const rates = input.lines.map((l) => l.gstRate ?? input.gst!.rate ?? null);
+      if (rates.some((r) => r === null)) throw new Error("Give a GST rate for the bill or for every line");
+      if (rates.some((r) => !BILL_GST_RATES.includes(r as number))) throw new Error("GST rate must be 0, 5, 12, 18 or 28%");
+      let interState = input.gst.interState;
+      if (interState === undefined || interState === null) {
+        const ours = gstStateCode((await companyProfile(input.organizationId)).gstin);
+        const theirs = gstStateCode(party.taxIdentifier);
+        interState = !!ours && !!theirs && ours !== theirs;
+      }
+      // Tax is worked out line by line, so a bill can mix 5% sand with 18% steel.
+      const split = { cgst: 0, sgst: 0, igst: 0, tax: 0 };
+      lineTax = input.lines.map((l, i) => {
+        const t = billGst(l.lineTotal || 0, rates[i] as number, interState as boolean);
+        split.cgst += t.cgst;
+        split.sgst += t.sgst;
+        split.igst += t.igst;
+        split.tax += t.tax;
+        return { gstRate: rates[i], taxAmount: t.tax };
+      });
+      const reverseCharge = !!input.gst.reverseCharge;
+      calculatedTotal = reverseCharge ? linesTotal : roundPaise(linesTotal + split.tax);
+      gstFields = {
+        gstRate: Math.max(...(rates as number[])),
+        taxableAmount: linesTotal,
+        cgst: split.cgst,
+        sgst: split.sgst,
+        igst: split.igst,
+        itcEligible: input.gst.itcEligible ?? true,
+        reverseCharge,
+      };
+    }
 
     return await prisma.$transaction(async (tx: any) => {
       const bill = await tx.bill.create({
@@ -125,17 +374,19 @@ export class FinanceService {
           billDate: input.billDate,
           dueDate: input.dueDate ?? null,
           totalAmount: calculatedTotal,
+          ...gstFields,
           costHead: input.costHead ?? null,
           status: "POSTED",
           notes: input.notes ?? null,
           createdBy: input.userId,
           lines: {
-            create: input.lines.map((l) => ({
+            create: input.lines.map((l, i) => ({
               description: l.description,
               materialId: l.materialId ?? null,
               quantity: l.quantity ?? null,
               unitRate: l.unitRate ?? null,
               lineTotal: l.lineTotal,
+              ...lineTax[i],
             })),
           },
         },
@@ -152,6 +403,7 @@ export class FinanceService {
           afterJson: JSON.stringify({
             billNumber: bill.billNumber,
             totalAmount: bill.totalAmount,
+            gstRate: bill.gstRate,
             partyId: bill.partyId,
           }),
         },
@@ -268,6 +520,18 @@ export class FinanceService {
       }
     }
 
+    if (input.tds?.mode === "NONE" && !input.tds.reason?.trim()) {
+      throw new Error("Say why no TDS is held back, for example the transporter's declaration.");
+    }
+    const tds = await FinanceService.contractorTds({
+      organizationId: input.organizationId,
+      partyId: party?.id,
+      amount: input.amount,
+      paymentDate: input.paymentDate,
+      allocations: input.allocations,
+      tds: input.tds,
+    });
+
     return await prisma.$transaction(async (tx: any) => {
       // Check each bill's current outstanding balance
       if (input.allocations && input.allocations.length > 0) {
@@ -318,6 +582,16 @@ export class FinanceService {
           approvedBy,
           approvedAt,
           idempotencyKey: input.idempotencyKey,
+          ...(tds
+            ? {
+                tdsSection: tds.section ?? (input.tds?.mode === "NONE" ? "NONE" : null),
+                tdsRate: tds.rate,
+                tdsBase: Math.round(tds.base),
+                tdsCatchUp: Math.round(tds.catchUpBase),
+                tdsAmount: tds.amount,
+                tdsNote: tds.note,
+              }
+            : {}),
           notes: input.notes ?? null,
           createdBy: input.userId,
           allocations: input.allocations
@@ -350,12 +624,17 @@ export class FinanceService {
             referenceNumber: payment.referenceNumber,
             status,
             allocationsCount: payment.allocations.length,
+            ...(payment.tdsAmount ? { tdsSection: payment.tdsSection, tdsAmount: payment.tdsAmount, bankPaid: payment.amount - payment.tdsAmount } : {}),
           }),
           reason: status === "POSTED"
             ? `Payment of ₹${(payment.amount / 100).toFixed(2)} posted directly to ${recipientName} from account ${payingAccount}`
             : `Payment approval query of ₹${(payment.amount / 100).toFixed(2)} raised to Super Admin for ${recipientName} from account ${payingAccount}. Reason: ${approvalQuery}`,
         },
       });
+
+      if (status === "POSTED" && payment.tdsAmount > 0) {
+        await syncContractorTdsBill(tx, input.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
+      }
 
       return {
         payment,
@@ -462,6 +741,10 @@ export class FinanceService {
           reason: `Payment disbursement of ₹${(payment.amount / 100).toFixed(2)} to ${payment.recipientName || payment.party?.name || "payee"} confirmed and approved by ${approverStr} from account ${payment.payingAccount || "Primary Account"}`,
         },
       });
+
+      if (payment.tdsAmount > 0) {
+        await syncContractorTdsBill(tx, payment.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
+      }
 
       return updatedPayment;
     });
@@ -600,6 +883,10 @@ export class FinanceService {
           afterJson: JSON.stringify({ status: "REVERSED", reversedAt: now }),
         },
       });
+
+      if (payment.tdsAmount > 0) {
+        await syncContractorTdsBill(tx, input.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
+      }
 
       return updatedPayment;
     });

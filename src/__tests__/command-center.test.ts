@@ -117,7 +117,7 @@ describe("Admin Command Center API", () => {
     expect(data.approvals.paymentsPendingAmount).toBe(500_000);
     expect(data.finance.outstandingPayables).toBe(3_000_000);
     expect(data.finance.trend).toHaveLength(7);
-    expect(data.finance.trend[6]).toEqual({ date: DATE, paid: 2_000_000, billed: 5_000_000 });
+    expect(data.finance.trend[6]).toEqual({ date: DATE, paid: 2_000_000, billed: 5_000_000, received: 0 });
     expect(data.team).toHaveLength(1);
     expect(data.team[0]).toMatchObject({ userId, actions: 1 });
     expect(data.activity[0].action).toBe("PAYMENT_POSTED");

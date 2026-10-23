@@ -12,11 +12,12 @@ export async function GET(req: NextRequest) {
     const user = await requireUserContext(req);
     requirePermission(user, "payroll:read");
     const month = new URL(req.url).searchParams.get("month");
-    const [runs, run] = await Promise.all([
+    const [runs, run, gaps] = await Promise.all([
       PayrollService.listRuns(user.organizationId),
       isMonthKey(month) ? PayrollService.getRun(user.organizationId, month) : null,
+      isMonthKey(month) ? PayrollService.statutoryGaps(user.organizationId, month) : null,
     ]);
-    return jsonSuccess({ runs, run });
+    return jsonSuccess({ runs, run, gaps });
   } catch (error) {
     return handleApiError(error);
   }

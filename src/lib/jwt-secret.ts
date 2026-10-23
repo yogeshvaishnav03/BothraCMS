@@ -1,81 +1,51 @@
 /**
- * Centralized JWT secret configuration.
- * Shared across server-side auth helpers and Edge middleware.
+ * The key that signs and checks login sessions. Used by the login API
+ * (Node.js) and by the middleware (Edge), which must get the same bytes or
+ * every page sends the user back to the login screen.
  *
- * CRITICAL FOR VERCEL: This function MUST NEVER throw in any runtime.
- * Both the Node.js serverless runtime (login API) and the Edge runtime
- * (middleware) must always return the EXACT SAME secret bytes.
- * Any throw here silently breaks authentication on Vercel.
+ * - SESSION_SECRET (32+ characters) is used when it is set. Set it in the
+ *   Vercel project settings.
+ * - In production without one, the key is derived from the database
+ *   address. Both runtimes see the same environment, so they agree, and the
+ *   address is itself secret, unlike a fixed string in the code.
+ * - It never throws: a throw in the middleware breaks every page.
+ *
+ * Never write SESSION_SECRET into a .env file during the build (see
+ * scripts/prepare-db.js): Next.js copies .env values into the Edge
+ * middleware at build time, but the Node.js functions on Vercel do not read
+ * that file, so the two would disagree.
  */
 
-// Single deterministic fallback used when SESSION_SECRET is missing or invalid.
-// Both Edge middleware and Node.js API routes will resolve to this same value.
-const PRODUCTION_FALLBACK =
-  "bothra_cms_auto_generated_session_secret_2026_vercel_production_key_safe";
+const WEAK = new Set(["build_track_pro_fallback_session_secret_32chars", "bothra_cms_super_secure_production_secret_key_2026_9876543210_token_security"]);
+
+const LAST_RESORT = "bothra_cms_session_key_without_secret_or_database_url_set";
+
+let warned = false;
+function warnOnce(message: string) {
+  if (warned) return;
+  warned = true;
+  console.warn(message);
+}
+
+function strong(secret: string | undefined): string | null {
+  const s = secret?.trim();
+  return s && s.length >= 32 && !WEAK.has(s) ? s : null;
+}
 
 export function getJwtSecret(): Uint8Array {
-  const secret = process.env.SESSION_SECRET;
-  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
-  const isDevelopment = process.env.NODE_ENV !== "production";
+  const secret = strong(process.env.SESSION_SECRET);
+  if (secret) return new TextEncoder().encode(secret);
 
-  // --- Build phase: allow weak fallback to succeed ---
-  if (isBuildPhase) {
-    const buildSecret =
-      secret && secret.trim().length >= 32
-        ? secret
-        : "build_phase_temporary_secret_do_not_use_in_production_12345";
-    return new TextEncoder().encode(buildSecret);
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return new TextEncoder().encode("build_phase_temporary_secret_do_not_use_in_production_12345");
   }
 
-  // --- Development: weak fallback for local convenience ---
-  if (isDevelopment) {
-    const devSecret =
-      secret && secret.trim().length >= 32
-        ? secret
-        : "development_only_insecure_secret_change_in_production_12345678";
-
-    if (!secret || secret.trim().length < 32) {
-      console.warn(
-        "[JWT_SECRET] Development mode: using weak fallback secret. " +
-          "Set SESSION_SECRET environment variable for a strong secret."
-      );
-    }
-
-    return new TextEncoder().encode(devSecret);
+  if (process.env.NODE_ENV !== "production") {
+    warnOnce("[JWT_SECRET] Development mode: using weak fallback secret. Set SESSION_SECRET environment variable for a strong secret.");
+    return new TextEncoder().encode("development_only_insecure_secret_change_in_production_12345678");
   }
 
-  // --- Production runtime (Node.js serverless + Edge middleware) ---
-  // NEVER throw. Any error silently breaks auth on Vercel.
-
-  if (!secret || secret.trim().length === 0) {
-    console.warn(
-      "[JWT_SECRET] Production: SESSION_SECRET not set. Using deterministic fallback."
-    );
-    return new TextEncoder().encode(PRODUCTION_FALLBACK);
-  }
-
-  if (secret.trim().length < 32) {
-    console.warn(
-      "[JWT_SECRET] Production: SESSION_SECRET too short (" +
-        secret.trim().length +
-        " chars). Using deterministic fallback."
-    );
-    return new TextEncoder().encode(PRODUCTION_FALLBACK);
-  }
-
-  // Reject known weak/blocklisted secrets → use fallback instead of crashing
-  const blocklist = [
-    "build_track_pro_fallback_session_secret_32chars",
-    "bothra_cms_super_secure_production_secret_key_2026_9876543210_token_security",
-  ];
-
-  if (blocklist.includes(secret)) {
-    console.warn(
-      "[JWT_SECRET] Production: SESSION_SECRET matches a known weak default. Using deterministic fallback."
-    );
-    return new TextEncoder().encode(PRODUCTION_FALLBACK);
-  }
-
-  // Valid strong secret provided
-  return new TextEncoder().encode(secret.trim());
+  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || "";
+  warnOnce("[JWT_SECRET] Production: SESSION_SECRET is missing or weak. Set a 32+ character SESSION_SECRET in the deployment settings.");
+  return new TextEncoder().encode(dbUrl ? `bothra-session-v1|${dbUrl}` : LAST_RESORT);
 }

@@ -16,6 +16,7 @@ import { statusLabel } from "@/lib/task-notifications";
 
 export type TimelineKind =
   | "PAYMENT"
+  | "MONEY_IN"
   | "BILL"
   | "RECEIPT"
   | "ISSUE"
@@ -90,6 +91,18 @@ export class CommandCenterService {
         amount: p.amount,
         actor: p.creator?.name,
         href: "/finance",
+      });
+    }
+    for (const r of dayBook.moneyIn) {
+      timeline.push({
+        id: `in-${r.id}`,
+        kind: "MONEY_IN",
+        at: iso(r.createdAt),
+        title: `Received from ${r.booking.customerName}`,
+        detail: [r.receiptNumber, r.booking.unit.unitNumber, r.installment.label, r.booking.unit.project.name].join(" · "),
+        amount: r.amount,
+        actor: r.creator?.name,
+        href: `/sales/receipt/${r.id}`,
       });
     }
     for (const b of dayBook.bills as any[]) {
@@ -191,7 +204,7 @@ export class CommandCenterService {
     const rangeStart = new Date(`${trendStart}T00:00:00.000Z`);
     rangeStart.setTime(rangeStart.getTime() - 6 * 3600 * 1000);
     const rangeEnd = new Date(`${date}T23:59:59.999Z`);
-    const [trendPayments, trendBills] = await Promise.all([
+    const [trendPayments, trendBills, trendIn] = await Promise.all([
       prisma.payment.findMany({
         where: {
           organizationId,
@@ -205,12 +218,20 @@ export class CommandCenterService {
         where: { organizationId, isArchived: false, billDate: { gte: rangeStart, lte: rangeEnd } },
         select: { totalAmount: true, billDate: true },
       }),
+      prisma.salesReceipt.findMany({
+        where: { organizationId, date: { gte: trendStart, lte: date }, cancelledAt: null, booking: { status: "ACTIVE" } },
+        select: { amount: true, date: true },
+      }),
     ]);
-    const trend = Array.from({ length: 7 }, (_, i) => ({ date: shiftDate(trendStart, i), paid: 0, billed: 0 }));
+    const trend = Array.from({ length: 7 }, (_, i) => ({ date: shiftDate(trendStart, i), paid: 0, billed: 0, received: 0 }));
     const byDate = new Map(trend.map((t) => [t.date, t]));
     for (const p of trendPayments) {
       const slot = byDate.get(istDateKey(p.paymentDate));
       if (slot) slot.paid = roundPaise(slot.paid + p.amount);
+    }
+    for (const r of trendIn) {
+      const slot = byDate.get(r.date);
+      if (slot) slot.received += r.amount;
     }
     for (const b of trendBills) {
       const slot = byDate.get(istDateKey(b.billDate));

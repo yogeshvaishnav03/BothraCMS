@@ -5,7 +5,8 @@ import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { Field, Modal, StatTile, Tabs, inputCls } from "@/components/ui/Modal";
-import { PhotoPicker, PickedPhoto } from "@/components/ui/PhotoPicker";
+import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
+import { submitOrQueue } from "@/lib/offline-queue";
 import { ContactActions } from "@/components/ui/ContactActions";
 import { api, post, shortDate } from "@/lib/client-api";
 import { canUser } from "@/lib/permissions";
@@ -49,16 +50,22 @@ function InspectionModal({ projects, checklists, onClose, onSaved }: { projects:
         setSaving(true);
         setError(null);
         try {
-          const d = await api(
-            "/api/quality/inspections",
-            post({
+          const { urls, pending } = splitPhotos(photos, { entityType: "QUALITY", projectId });
+          const r = await submitOrQueue<any>({
+            label: `${list.name || "Checklist"}${location ? `, ${location}` : ""}`,
+            url: "/api/quality/inspections",
+            body: {
               projectId,
               template,
               location: location || null,
               items: list.items.map((label: string, i: number) => ({ label, result: results[i].result, note: results[i].note || null })),
-              photoUrls: photos.map((p) => p.url),
-            })
-          );
+              photoUrls: urls,
+            },
+            photos: pending,
+            photoField: "photoUrls",
+          });
+          if (r.queued) return onSaved("No signal, so the inspection is saved on this phone. It will be sent when you are back online.");
+          const d = r.data;
           onSaved(d.issuesOpened ? `Inspection saved. ${d.issuesOpened} point${d.issuesOpened > 1 ? "s" : ""} failed and ${d.issuesOpened > 1 ? "were" : "was"} sent to the project manager to fix.` : "Inspection passed and saved.");
         } catch (e: any) {
           setError(e.message);
@@ -148,10 +155,16 @@ function ReportModal({ projects, onClose, onSaved }: { projects: any[]; onClose:
         setSaving(true);
         setError(null);
         try {
-          const d = await api(
-            "/api/quality/issues",
-            post({ ...form, injuredCount: Number(form.injuredCount) || 0, description: form.description || null, location: form.location || null, dueDate: form.dueDate || null, photoUrls: photos.map((p) => p.url) })
-          );
+          const { urls, pending } = splitPhotos(photos, { entityType: "QUALITY", projectId: form.projectId });
+          const r = await submitOrQueue<any>({
+            label: `Issue: ${form.title || KIND[form.kind].label}`,
+            url: "/api/quality/issues",
+            body: { ...form, injuredCount: Number(form.injuredCount) || 0, description: form.description || null, location: form.location || null, dueDate: form.dueDate || null, photoUrls: urls },
+            photos: pending,
+            photoField: "photoUrls",
+          });
+          if (r.queued) return onSaved("No signal, so the issue is saved on this phone. It will be reported when you are back online.");
+          const d = r.data;
           onSaved(`${d.issueNumber} reported. The project manager${KIND[form.kind].safety ? " and admins have" : " has"} been alerted.`);
         } catch (e: any) {
           setError(e.message);

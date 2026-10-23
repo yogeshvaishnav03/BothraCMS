@@ -29,6 +29,8 @@ function days(n: number) {
 function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => void; onSaved: (run: any) => void }) {
   const [bonus, setBonus] = useState(line.bonus ? String(line.bonus / 100) : "");
   const [deduction, setDeduction] = useState(line.otherDeduction ? String(line.otherDeduction / 100) : "");
+  const [tds, setTds] = useState(line.tds ? String(line.tds / 100) : "");
+  const [tdsAuto, setTdsAuto] = useState(!line.tdsManual);
   const [note, setNote] = useState(line.note || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,7 @@ function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => v
         setSaving(true);
         setError(null);
         try {
-          const d = await api(`/api/payroll/lines/${line.id}`, patch({ bonus: toPaise(bonus), otherDeduction: toPaise(deduction), note: note || null }));
+          const d = await api(`/api/payroll/lines/${line.id}`, patch({ bonus: toPaise(bonus), otherDeduction: toPaise(deduction), tds: line.personType === "STAFF" && tdsAuto ? null : toPaise(tds), note: note || null }));
           onSaved(d.run);
         } catch (e: any) {
           setError(e.message);
@@ -56,15 +58,34 @@ function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => v
         {days(line.payableDays)} payable days · base {rupees(line.basePay)}
         {line.overtimePay > 0 && ` · overtime ${rupees(line.overtimePay)}`}
         {line.advanceDeduction > 0 && ` · advance recovered ${rupees(line.advanceDeduction)}`}
+        {line.pfEmployee > 0 && ` · PF ${rupees(line.pfEmployee)}`}
+        {line.esiEmployee > 0 && ` · ESI ${rupees(line.esiEmployee)}`}
+        {line.professionalTax > 0 && ` · PT ${rupees(line.professionalTax)}`}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${line.personType === "STAFF" ? "grid-cols-3" : "grid-cols-2"}`}>
         <Field label="Bonus / incentive (₹)">
           <input type="number" min="0" step="1" value={bonus} onChange={(e) => setBonus(e.target.value)} className={inputCls} />
         </Field>
         <Field label="Other deduction (₹)">
           <input type="number" min="0" step="1" value={deduction} onChange={(e) => setDeduction(e.target.value)} className={inputCls} />
         </Field>
+        {line.personType === "STAFF" && (
+          <Field label="TDS (₹)">
+            <input type="number" min="0" step="1" value={tds} disabled={tdsAuto} onChange={(e) => setTds(e.target.value)} className={cn(inputCls, tdsAuto && "bg-slate-50 text-slate-500")} />
+          </Field>
+        )}
       </div>
+      {line.personType === "STAFF" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={tdsAuto} onChange={(e) => setTdsAuto(e.target.checked)} className="rounded border-slate-300" />
+            Work out TDS from their tax regime and pay so far this year
+          </label>
+          <a href={`/payroll/tax/${line.personId}`} className="font-semibold text-amber-700 hover:underline">
+            Tax for the year →
+          </a>
+        </div>
+      )}
       <Field label="Note on the payslip">
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder="e.g. Festival bonus, canteen deduction" className={inputCls} />
       </Field>
@@ -189,9 +210,26 @@ function AdvanceModal({ people, onClose, onSaved }: { people: any[]; onClose: ()
 
 function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved: (staff: any[]) => void }) {
   const [salary, setSalary] = useState(s.monthlySalary ? String(s.monthlySalary / 100) : "");
+  const [pf, setPf] = useState<boolean>(s.pfApplicable);
+  const [esi, setEsi] = useState<boolean>(s.esiApplicable);
+  const [uan, setUan] = useState(s.uan || "");
+  const [esic, setEsic] = useState(s.esicNumber || "");
+  const [regime, setRegime] = useState<string>(s.taxRegime || "NEW");
+  const [declared, setDeclared] = useState(s.taxDeclared ? String(s.taxDeclared / 100) : "");
+  const [pan, setPan] = useState(s.pan || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dirty = toPaise(salary) !== s.monthlySalary;
+  const dirty =
+    toPaise(salary) !== s.monthlySalary ||
+    pf !== s.pfApplicable ||
+    esi !== s.esiApplicable ||
+    uan !== (s.uan || "") ||
+    esic !== (s.esicNumber || "") ||
+    regime !== (s.taxRegime || "NEW") ||
+    toPaise(declared) !== (s.taxDeclared || 0) ||
+    pan !== (s.pan || "");
+  const panBad = pan.length > 0 && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan);
+  const esiOver = esi && toPaise(salary) > 21_000_00;
   return (
     <tr className="border-t border-slate-100">
       <td className="px-4 py-2.5">
@@ -199,6 +237,66 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
         <div className="text-xs text-slate-500">{s.jobTitle || s.role.replace(/_/g, " ").toLowerCase()}</div>
       </td>
       <td className="px-4 py-2.5 text-xs text-slate-500">{s.bankAccountMasked ? `${s.bankAccountMasked} · ${s.ifsc || ""}` : "—"}</td>
+      <td className="px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-700">
+          <label className="inline-flex items-center gap-1.5">
+            <input type="checkbox" disabled={!canEdit} checked={pf} onChange={(e) => setPf(e.target.checked)} className="rounded border-slate-300" /> PF
+          </label>
+          <label className="inline-flex items-center gap-1.5" title="ESI applies while the monthly salary is ₹21,000 or less">
+            <input type="checkbox" disabled={!canEdit} checked={esi} onChange={(e) => setEsi(e.target.checked)} className="rounded border-slate-300" /> ESI
+          </label>
+          {pf && (
+            <input
+              disabled={!canEdit}
+              value={uan}
+              onChange={(e) => setUan(e.target.value.replace(/\D/g, "").slice(0, 12))}
+              placeholder="UAN (12 digits)"
+              className="w-32 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50"
+            />
+          )}
+          {esi && (
+            <input
+              disabled={!canEdit}
+              value={esic}
+              onChange={(e) => setEsic(e.target.value.replace(/\D/g, "").slice(0, 17))}
+              placeholder="ESIC number"
+              className="w-32 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50"
+            />
+          )}
+        </div>
+        {esiOver && <div className="mt-1 text-[11px] text-amber-700">Above ₹21,000, so no ESI is deducted.</div>}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-700">
+          <select disabled={!canEdit} value={regime} onChange={(e) => setRegime(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs disabled:bg-slate-50" title="Income-tax regime the person has chosen, for TDS">
+            <option value="NEW">New tax regime</option>
+            <option value="OLD">Old tax regime</option>
+          </select>
+          <input
+            disabled={!canEdit}
+            value={pan}
+            onChange={(e) => setPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))}
+            placeholder="PAN"
+            title="For the TDS return. Without a PAN, TDS must be at least 20%."
+            className={`w-28 rounded-lg border px-2 py-1 font-mono text-xs uppercase disabled:bg-slate-50 ${panBad ? "border-rose-300 bg-rose-50" : !pan && s.monthlySalary > 0 ? "border-amber-300" : "border-slate-200"}`}
+          />
+          {regime === "OLD" && (
+            <input
+              disabled={!canEdit}
+              type="number"
+              min="0"
+              value={declared}
+              onChange={(e) => setDeclared(e.target.value)}
+              placeholder="Declared deductions ₹/yr"
+              title="80C beyond PF, 80D, HRA and the like, after their limits"
+              className="w-40 rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50"
+            />
+          )}
+          {s.monthlySalary > 0 && (
+            <a href={`/payroll/tax/${s.id}`} className="font-semibold text-amber-700 hover:underline">
+              Tax for the year
+            </a>
+          )}
+        </div>
+      </td>
       <td className="px-4 py-2.5">
         <div className="flex items-center justify-end gap-2">
           <span className="text-slate-400">₹</span>
@@ -213,12 +311,12 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
           />
           {canEdit && (
             <button
-              disabled={!dirty || saving}
+              disabled={!dirty || saving || panBad}
               onClick={async () => {
                 setSaving(true);
                 setError(null);
                 try {
-                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary) }))).staff);
+                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary), pfApplicable: pf, esiApplicable: esi, uan: uan || null, esicNumber: esic || null, taxRegime: regime, taxDeclared: regime === "OLD" ? toPaise(declared) : 0, pan: pan || null }))).staff);
                 } catch (e: any) {
                   setError(e.message);
                 } finally {
@@ -237,6 +335,78 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
   );
 }
 
+function WorkerRow({ w, canEdit, onSaved }: { w: any; canEdit: boolean; onSaved: (workers: any[]) => void }) {
+  const [pf, setPf] = useState<boolean>(w.pfApplicable);
+  const [esi, setEsi] = useState<boolean>(w.esiApplicable);
+  const [uan, setUan] = useState(w.uan || "");
+  const [esic, setEsic] = useState(w.esicNumber || "");
+  const [account, setAccount] = useState("");
+  const [ifsc, setIfsc] = useState(w.ifsc || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dirty = pf !== w.pfApplicable || esi !== w.esiApplicable || uan !== (w.uan || "") || esic !== (w.esicNumber || "") || account !== "" || ifsc !== (w.ifsc || "");
+  const field = "rounded-lg border border-slate-200 px-2 py-1 text-xs tabular-nums disabled:bg-slate-50";
+  return (
+    <tr className="border-t border-slate-100 align-top">
+      <td className="px-4 py-2.5">
+        <div className="font-semibold text-slate-900">{w.name}</div>
+        <div className="text-xs text-slate-500">
+          {w.workerType.replace(/_/g, " ").toLowerCase()} · {w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "no wage set"}
+        </div>
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex flex-wrap gap-1.5">
+          <input
+            disabled={!canEdit}
+            value={account}
+            onChange={(e) => setAccount(e.target.value.replace(/\D/g, "").slice(0, 20))}
+            placeholder={w.bankAccountMasked || "Account no."}
+            className={cn(field, "w-32")}
+          />
+          <input disabled={!canEdit} value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase().slice(0, 11))} placeholder="IFSC" className={cn(field, "w-28")} />
+        </div>
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-700">
+          <label className="inline-flex items-center gap-1.5">
+            <input type="checkbox" disabled={!canEdit} checked={pf} onChange={(e) => setPf(e.target.checked)} className="rounded border-slate-300" /> PF
+          </label>
+          <label className="inline-flex items-center gap-1.5" title="ESI applies while 26 days' wages are ₹21,000 or less">
+            <input type="checkbox" disabled={!canEdit} checked={esi} onChange={(e) => setEsi(e.target.checked)} className="rounded border-slate-300" /> ESI
+          </label>
+          {pf && <input disabled={!canEdit} value={uan} onChange={(e) => setUan(e.target.value.replace(/\D/g, "").slice(0, 12))} placeholder="UAN (12 digits)" className={cn(field, "w-32")} />}
+          {esi && <input disabled={!canEdit} value={esic} onChange={(e) => setEsic(e.target.value.replace(/\D/g, "").slice(0, 17))} placeholder="ESIC number" className={cn(field, "w-32")} />}
+        </div>
+        {error && <div className="mt-1 text-xs text-rose-600">{error}</div>}
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        {canEdit && (
+          <button
+            disabled={!dirty || saving}
+            onClick={async () => {
+              setSaving(true);
+              setError(null);
+              try {
+                const body: any = { pfApplicable: pf, esiApplicable: esi, uan: uan || null, esicNumber: esic || null, ifsc: ifsc || null };
+                if (account) body.bankAccount = account;
+                onSaved((await api(`/api/payroll/workers/${w.id}`, put(body))).workers);
+                setAccount("");
+              } catch (e: any) {
+                setError(e.message);
+              } finally {
+                setSaving(false);
+              }
+            }}
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-30"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 export default function PayrollPage() {
   const [me, setMe] = useState<any>(null);
   const [tab, setTab] = useState<Tab>("RUN");
@@ -244,6 +414,7 @@ export default function PayrollPage() {
   const [run, setRun] = useState<any>(undefined);
   const [runs, setRuns] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
+  const [workers, setWorkers] = useState<any[]>([]);
   const [people, setPeople] = useState<any[]>([]);
   const [advances, setAdvances] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
@@ -252,6 +423,8 @@ export default function PayrollPage() {
   const [editing, setEditing] = useState<any>(null);
   const [paying, setPaying] = useState(false);
   const [giving, setGiving] = useState(false);
+  const [gaps, setGaps] = useState<{ pf: string[]; esi: string[] } | null>(null);
+  const [settings, setSettings] = useState<{ ptState: string; states: { key: string; name: string }[] } | null>(null);
 
   const canWrite = canUser(me, "payroll:write");
   const isAdmin = me?.role === "SUPER_ADMIN" || me?.role === "ORG_ADMIN";
@@ -261,6 +434,7 @@ export default function PayrollPage() {
       const d = await api(`/api/payroll?month=${month}`);
       setRun(d.run);
       setRuns(d.runs);
+      setGaps(d.gaps || null);
     } catch (e: any) {
       setError(e.message);
       setRun(null);
@@ -269,8 +443,10 @@ export default function PayrollPage() {
 
   const loadSide = useCallback(async () => {
     try {
-      const [s, a] = await Promise.all([api("/api/payroll/salaries"), api("/api/payroll/advances")]);
+      const [s, a, st] = await Promise.all([api("/api/payroll/salaries"), api("/api/payroll/advances"), api("/api/payroll/settings")]);
+      setSettings(st);
       setStaff(s.staff);
+      setWorkers(s.workers || []);
       setPeople(s.people);
       setAdvances(a);
     } catch (e: any) {
@@ -314,6 +490,11 @@ export default function PayrollPage() {
         <PageHeader icon={Wallet} title="Payroll" subtitle="Wages and salaries worked out from attendance, with advances taken back automatically.">
           {tab === "RUN" && (
             <input type="month" value={month} max={thisMonth()} onChange={(e) => e.target.value && setMonth(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" />
+          )}
+          {tab === "SALARIES" && (
+            <a href="/payroll/tds-return" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <FileText className="h-4 w-4 text-amber-600" /> TDS return (24Q)
+            </a>
           )}
           {tab === "ADVANCES" && canWrite && (
             <button onClick={() => setGiving(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-4 py-2 text-sm font-bold text-slate-950 shadow-glow">
@@ -393,11 +574,26 @@ export default function PayrollPage() {
                       {run.status === "DRAFT" && isAdmin && (
                         <button
                           disabled={busy}
-                          onClick={() => act(() => api(`/api/payroll/${month}/approve`, post({})), "Payroll approved. It can be paid now.")}
+                          onClick={() => act(() => api(`/api/payroll/${month}/approve`, post({})), "Payroll approved. It can be paid now. PF, ESI, PT and TDS are added to Finance as bills owed, with their due dates.")}
                           className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                         >
                           <BadgeCheck className="h-4 w-4" /> Approve
                         </button>
+                      )}
+                      {run.status !== "DRAFT" && canWrite && (
+                        <a href={`/api/payroll/${month}/bank-file`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                          <FileText className="h-4 w-4" /> Bank transfer file
+                        </a>
+                      )}
+                      {run.status !== "DRAFT" && canWrite && run.statutory?.pfEmployee > 0 && (
+                        <a href={`/api/payroll/${month}/statutory-file?kind=pf-ecr`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                          <FileText className="h-4 w-4" /> PF ECR file
+                        </a>
+                      )}
+                      {run.status !== "DRAFT" && canWrite && run.statutory?.esiEmployee > 0 && (
+                        <a href={`/api/payroll/${month}/statutory-file?kind=esi`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                          <FileText className="h-4 w-4" /> ESI file
+                        </a>
                       )}
                       {run.status === "APPROVED" && canWrite && canUser(me, "finance:write") && (
                         <button onClick={() => setPaying(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-3 py-2 text-xs font-bold text-slate-950">
@@ -412,14 +608,45 @@ export default function PayrollPage() {
                       {run.paidAt && ` · paid ${shortDate(run.paidAt)}`}
                     </p>
                   )}
+                  {gaps && (gaps.pf.length > 0 || gaps.esi.length > 0) && (
+                    <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      {gaps.pf.length > 0 && <>No UAN for {gaps.pf.join(", ")}, so they are left out of the PF file. </>}
+                      {gaps.esi.length > 0 && <>No ESIC number for {gaps.esi.join(", ")}, so they are left out of the ESI file. </>}
+                      Add them under Salaries or Workforce.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                   <StatTile value={run.lines.length} label="People paid" hint={`${labour.length} workers · ${staffLines.length} staff`} />
                   <StatTile value={rupees(run.totalGross)} label="Gross pay" />
-                  <StatTile value={rupees(run.totalDeductions)} label="Deductions" tone="rose" hint="Advances and other" />
+                  <StatTile
+                    value={rupees(run.totalDeductions)}
+                    label="Deductions"
+                    tone="rose"
+                    hint={
+                      run.statutory && run.statutory.pfEmployee + run.statutory.esiEmployee + run.statutory.professionalTax + run.statutory.tds > 0
+                        ? `PF ${rupees(run.statutory.pfEmployee)} · ESI ${rupees(run.statutory.esiEmployee)} · PT ${rupees(run.statutory.professionalTax)}${run.statutory.tds ? ` · TDS ${rupees(run.statutory.tds)}` : ""}`
+                        : "Advances and other"
+                    }
+                  />
                   <StatTile value={rupees(run.totalNet)} label="Net to pay" tone="emerald" />
                 </div>
+                {run.statutory && run.statutory.pfEmployer + run.statutory.esiEmployer > 0 && (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm shadow-xs">
+                    <span className="font-semibold text-slate-900">To deposit this month</span>
+                    <span className="text-slate-600">
+                      PF {rupees(run.statutory.pfEmployee + run.statutory.pfEmployer)} <span className="text-xs text-slate-400">(staff {rupees(run.statutory.pfEmployee)} + company {rupees(run.statutory.pfEmployer)}) by the 15th</span>
+                    </span>
+                    {run.statutory.esiEmployee + run.statutory.esiEmployer > 0 && (
+                      <span className="text-slate-600">
+                        ESI {rupees(run.statutory.esiEmployee + run.statutory.esiEmployer)} <span className="text-xs text-slate-400">by the 15th</span>
+                      </span>
+                    )}
+                    {run.statutory.professionalTax > 0 && <span className="text-slate-600">Professional tax {rupees(run.statutory.professionalTax)}</span>}
+                    {run.statutory.tds > 0 && <span className="text-slate-600">TDS {rupees(run.statutory.tds)} by the 7th</span>}
+                  </div>
+                )}
 
                 {[
                   { title: "Site workers", rows: labour, labour: true },
@@ -467,8 +694,23 @@ export default function PayrollPage() {
                                 <td className="px-3 py-2.5 text-right tabular-nums">{rupees(l.basePay + l.overtimePay)}</td>
                                 <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700">{l.bonus ? rupees(l.bonus) : "—"}</td>
                                 <td className="px-3 py-2.5 text-right tabular-nums text-rose-600">
-                                  {l.advanceDeduction + l.otherDeduction ? rupees(l.advanceDeduction + l.otherDeduction) : "—"}
-                                  {l.advanceDeduction > 0 && <div className="text-[11px] text-slate-400">advance {rupees(l.advanceDeduction)}</div>}
+                                  {(() => {
+                                    const statutory = l.pfEmployee + l.esiEmployee + l.professionalTax + l.tds;
+                                    const all = l.advanceDeduction + l.otherDeduction + statutory;
+                                    return (
+                                      <>
+                                        {all ? rupees(all) : "—"}
+                                        {l.advanceDeduction > 0 && <div className="text-[11px] text-slate-400">advance {rupees(l.advanceDeduction)}</div>}
+                                        {statutory > 0 && (
+                                          <div className="text-[11px] text-slate-400">
+                                            {[l.pfEmployee && `PF ${rupees(l.pfEmployee)}`, l.esiEmployee && `ESI ${rupees(l.esiEmployee)}`, l.professionalTax && `PT ${rupees(l.professionalTax)}`, l.tds && `TDS ${rupees(l.tds)}`]
+                                              .filter(Boolean)
+                                              .join(" · ")}
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
                                 </td>
                                 <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-900">{rupees(l.net)}</td>
                                 <td className="px-3 py-2.5">
@@ -520,15 +762,41 @@ export default function PayrollPage() {
 
         {tab === "SALARIES" && (
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-            <div className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
-              Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workforce page.
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
+              <span>Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workforce page, and their PF and ESI are below.</span>
+              {settings && (
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                  Professional tax
+                  <select
+                    disabled={!canWrite}
+                    value={settings.ptState}
+                    onChange={async (e) => {
+                      try {
+                        const d = await api("/api/payroll/settings", put({ ptState: e.target.value }));
+                        setSettings({ ...settings, ptState: d.ptState });
+                        setNotice("Professional tax state saved. Refresh a draft payroll to apply it.");
+                      } catch (err: any) {
+                        setError(err.message);
+                      }
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                  >
+                    {settings.states.map((st) => (
+                      <option key={st.key} value={st.key}>
+                        {st.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-sm">
+              <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-4 py-2 text-left">Staff member</th>
                     <th className="px-4 py-2 text-left">Bank</th>
+                    <th className="px-4 py-2 text-left">PF / ESI</th>
                     <th className="px-4 py-2 text-right">Monthly salary</th>
                   </tr>
                 </thead>
@@ -539,6 +807,31 @@ export default function PayrollPage() {
                 </tbody>
               </table>
             </div>
+            {workers.length > 0 && (
+              <>
+                <div className="border-y border-slate-100 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
+                  <span className="font-bold text-slate-900">Site workers.</span> Tick PF or ESI for workers who are covered. PF is 12% of wages up to ₹15,000 a month; ESI is 0.75%
+                  from the worker and 3.25% from you while 26 days&apos; wages are ₹21,000 or less. Professional tax is not cut from daily wages.
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Worker</th>
+                        <th className="px-4 py-2 text-left">Bank</th>
+                        <th className="px-4 py-2 text-left">PF / ESI</th>
+                        <th className="px-4 py-2 text-right" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workers.map((w) => (
+                        <WorkerRow key={w.id} w={w} canEdit={canWrite} onSaved={(list) => { setWorkers(list); setNotice(`Saved for ${w.name}. Refresh a draft payroll to apply it.`); }} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
 

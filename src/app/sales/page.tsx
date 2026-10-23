@@ -5,12 +5,14 @@ import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { Field, Modal, StatTile, Tabs, inputCls } from "@/components/ui/Modal";
-import { ContactActions } from "@/components/ui/ContactActions";
+import { ContactActions, WhatsAppIcon } from "@/components/ui/ContactActions";
+import { whatsappLink } from "@/lib/contact-links";
+import Link from "next/link";
 import { api, post, rupees, shortDate, toPaise } from "@/lib/client-api";
 import { formatCompactINR } from "@/lib/formatters";
 import { canUser } from "@/lib/permissions";
 import { cn } from "@/lib/cn";
-import { BellRing, Building, CalendarClock, ChevronDown, Handshake, IndianRupee, KeyRound, LayoutGrid, Plus, Target, UserPlus } from "lucide-react";
+import { BellRing, Building, CalendarClock, ChevronDown, ExternalLink, FileText, Handshake, IndianRupee, KeyRound, LayoutGrid, Link2, Plus, Receipt, Target, UserPlus, Zap } from "lucide-react";
 
 type Tab = "leads" | "units" | "bookings";
 
@@ -30,6 +32,14 @@ const UNIT_STATUS: Record<string, { label: string; tile: string }> = {
   SOLD: { label: "Fully paid", tile: "bg-slate-800 ring-slate-800 text-white" },
 };
 const today = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+/** Usual GST on an under-construction unit; the office can change it per booking. */
+const gstFor = (unitType?: string) => (unitType === "SHOP" || unitType === "OFFICE" ? 12 : unitType === "PLOT" ? 0 : 5);
+const firstName = (n: string) => n.split(" ")[0];
+const demandMessage = (b: any, i: any, portal?: string | null) =>
+  `Namaste ${firstName(b.customerName)}, construction of ${b.unit.project.name} has reached the stage for "${i.label}". ` +
+  `${rupees(i.total - i.receivedAmount)} is due for unit ${b.unit.unitNumber} by ${shortDate(i.dueDate)}.` +
+  (portal ? ` See your schedule, receipts and site photos here: ${portal}` : "") +
+  ` Thank you.`;
 
 function LeadModal({ projects, onClose, onSaved }: { projects: any[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({ name: "", phone: "", email: "", source: "WALK_IN", projectId: projects[0]?.id || "", interest: "", budget: "", nextFollowUp: "", note: "" });
@@ -212,7 +222,7 @@ function LeadDetail({ lead, units, plans, onClose, onSaved }: { lead: any; units
 function BookModal({ units, plans, lead, unit, onClose, onSaved }: { units: any[]; plans: any[]; lead?: any; unit?: any; onClose: () => void; onSaved: (msg: string) => void }) {
   const [unitId, setUnitId] = useState(unit?.id || units[0]?.id || "");
   const chosen = unit || units.find((u) => u.id === unitId);
-  const [f, setF] = useState({ customerName: lead?.name || "", customerPhone: lead?.phone || "", customerEmail: lead?.email || "", agreementValue: chosen ? String(chosen.price / 100) : "", plan: plans[0]?.key || "", bookingDate: today() });
+  const [f, setF] = useState({ customerName: lead?.name || "", customerPhone: lead?.phone || "", customerEmail: lead?.email || "", agreementValue: chosen ? String(chosen.price / 100) : "", plan: plans[0]?.key || "", bookingDate: today(), gstRate: String(gstFor(chosen?.unitType)) });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const plan = plans.find((p) => p.key === f.plan);
@@ -228,7 +238,7 @@ function BookModal({ units, plans, lead, unit, onClose, onSaved }: { units: any[
         setSaving(true);
         setError(null);
         try {
-          const b = await api("/api/sales/bookings", post({ unitId: chosen?.id, leadId: lead?.id || null, ...f, customerEmail: f.customerEmail || null, agreementValue: toPaise(f.agreementValue) }));
+          const b = await api("/api/sales/bookings", post({ unitId: chosen?.id, leadId: lead?.id || null, ...f, customerEmail: f.customerEmail || null, agreementValue: toPaise(f.agreementValue), gstRate: Number(f.gstRate || 0) }));
           onSaved(`Booked. Booking number ${b.bookingNumber}, payment schedule created.`);
         } catch (e: any) {
           setError(e.message);
@@ -245,7 +255,7 @@ function BookModal({ units, plans, lead, unit, onClose, onSaved }: { units: any[
             onChange={(e) => {
               setUnitId(e.target.value);
               const u = units.find((x) => x.id === e.target.value);
-              if (u) setF({ ...f, agreementValue: String(u.price / 100) });
+              if (u) setF({ ...f, agreementValue: String(u.price / 100), gstRate: String(gstFor(u.unitType)) });
             }}
             className={inputCls}
           >
@@ -272,15 +282,26 @@ function BookModal({ units, plans, lead, unit, onClose, onSaved }: { units: any[
           <input type="date" value={f.bookingDate} onChange={(e) => setF({ ...f, bookingDate: e.target.value })} className={inputCls} />
         </Field>
       </div>
-      <Field label="Payment plan">
-        <select value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })} className={inputCls}>
-          {plans.map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <div className="grid grid-cols-[1fr_8rem] gap-3">
+        <Field label="Payment plan">
+          <select value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })} className={inputCls}>
+            {plans.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="GST %">
+          <select value={f.gstRate} onChange={(e) => setF({ ...f, gstRate: e.target.value })} className={inputCls}>
+            {["0", "1", "5", "12", "18"].map((r) => (
+              <option key={r} value={r}>
+                {r}%
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
       {plan && (
         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 text-sm">
           {plan.steps.map((s: any) => (
@@ -291,6 +312,7 @@ function BookModal({ units, plans, lead, unit, onClose, onSaved }: { units: any[
               </span>
               <span className="tabular-nums text-slate-900">
                 {s.percent}% · {rupees(Math.round((toPaise(f.agreementValue) * s.percent) / 100))}
+                {Number(f.gstRate) > 0 && <span className="ml-1 text-xs text-slate-400">+ GST</span>}
               </span>
             </li>
           ))}
@@ -374,8 +396,8 @@ function UnitsModal({ projects, onClose, onSaved }: { projects: any[]; onClose: 
   );
 }
 
-function ReceiveModal({ inst, onClose, onSaved }: { inst: any; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ amount: String((inst.amount - inst.receivedAmount) / 100), date: today(), mode: "NEFT_RTGS", reference: "" });
+function ReceiveModal({ inst, onClose, onSaved }: { inst: any; onClose: () => void; onSaved: (r: { receiptId: string; receiptNumber: string }) => void }) {
+  const [f, setF] = useState({ amount: String((inst.total - inst.receivedAmount) / 100), date: today(), mode: "NEFT_RTGS", reference: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -390,8 +412,7 @@ function ReceiveModal({ inst, onClose, onSaved }: { inst: any; onClose: () => vo
         setSaving(true);
         setError(null);
         try {
-          await api(`/api/sales/installments/${inst.id}/receive`, post({ ...f, amount: toPaise(f.amount), reference: f.reference || null }));
-          onSaved();
+          onSaved(await api(`/api/sales/installments/${inst.id}/receive`, post({ ...f, amount: toPaise(f.amount), reference: f.reference || null })));
         } catch (e: any) {
           setError(e.message);
         } finally {
@@ -419,6 +440,7 @@ function ReceiveModal({ inst, onClose, onSaved }: { inst: any; onClose: () => vo
           <input value={f.reference} onChange={(e) => setF({ ...f, reference: e.target.value })} className={inputCls} />
         </Field>
       </div>
+      {inst.gstAmount > 0 && <p className="text-xs text-slate-500">This instalment is {rupees(inst.amount)} plus GST {rupees(inst.gstAmount)}. The receipt splits what you enter between the two.</p>}
     </Modal>
   );
 }
@@ -437,7 +459,9 @@ export default function SalesPage() {
   const [receiving, setReceiving] = useState<any>(null);
   const [openBooking, setOpenBooking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<React.ReactNode>(null);
+  const [portal, setPortal] = useState<Record<string, string>>({});
+  const [showDemands, setShowDemands] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -454,12 +478,13 @@ export default function SalesPage() {
     const t = sp.get("tab");
     if (t === "units" || t === "bookings") setTab(t);
     if (sp.get("id") && t === "bookings") setOpenBooking(sp.get("id"));
+    if (sp.get("demands")) setShowDemands(true);
     api("/api/auth/me").then((d: any) => setMe(d.user)).catch(() => {});
     api<any>("/api/projects").then((d) => setProjects(Array.isArray(d) ? d : d?.projects || [])).catch(() => {});
     load();
   }, [load]);
 
-  const done = (msg: string) => {
+  const done = (msg: React.ReactNode) => {
     setModal(null);
     setLead(null);
     setBookUnit(null);
@@ -473,6 +498,23 @@ export default function SalesPage() {
   const shownUnits = (units || []).filter((u) => !projectFilter || u.projectId === projectFilter);
   const unitsByProject = shownUnits.reduce((m: Record<string, any[]>, u) => ((m[u.project.name] = m[u.project.name] || []).push(u), m), {});
   const bs = bookings?.summary;
+  // Demands raised (by a stage finishing or by hand) that the buyer has not paid anything against yet.
+  const demands = (bookings?.bookings || [])
+    .filter((b: any) => b.status === "ACTIVE")
+    .flatMap((b: any) => b.installments.filter((i: any) => i.demandRaisedAt && i.dueDate && i.receivedAmount === 0 && i.sortOrder > 1).map((i: any) => ({ b, i })));
+
+  const portalLink = async (b: any, reset = false) => {
+    try {
+      const d = await api(`/api/sales/bookings/${b.id}/portal`, post({ reset }));
+      const url = `${window.location.origin}${d.path}`;
+      setPortal((p) => ({ ...p, [b.id]: url }));
+      navigator.clipboard?.writeText(url).catch(() => {});
+      return url;
+    } catch (e: any) {
+      setError(e.message);
+      return null;
+    }
+  };
 
   return (
     <Shell>
@@ -505,6 +547,48 @@ export default function SalesPage() {
             <StatTile value={formatCompactINR(bs.salesValue)} label={`Booked (${bs.bookings} units)`} tone="emerald" />
             <StatTile value={formatCompactINR(bs.received)} label="Collected from customers" />
             <StatTile value={formatCompactINR(bs.overdue)} label="Overdue from customers" tone={bs.overdue ? "rose" : "slate"} hint={bs.overdueCustomers ? `${bs.overdueCustomers} customers` : undefined} />
+          </div>
+        )}
+
+        {demands.length > 0 && canWrite && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+            <button onClick={() => setShowDemands(!showDemands)} className="flex w-full items-center gap-2 text-left text-sm">
+              <Zap className="h-4 w-4 text-amber-600" />
+              <span className="font-semibold text-amber-900">
+                {demands.length} customer demand{demands.length === 1 ? "" : "s"} raised and not yet paid
+              </span>
+              <span className="text-xs text-amber-800">Send the letter and a WhatsApp to each buyer</span>
+              <ChevronDown className={cn("ml-auto h-4 w-4 text-amber-700 transition", showDemands && "rotate-180")} />
+            </button>
+            {showDemands && (
+              <ul className="mt-2 divide-y divide-amber-100 rounded-xl bg-white">
+                {demands.map(({ b, i }: any) => (
+                  <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 text-sm">
+                    <span className="font-mono font-bold text-slate-900">{b.unit.unitNumber}</span>
+                    <span className="font-semibold text-slate-800">{b.customerName}</span>
+                    <span className="text-slate-500">
+                      {i.label} · {rupees(i.total)} due {shortDate(i.dueDate)}
+                      {i.demandAuto && " · raised when the stage was finished"}
+                    </span>
+                    <span className="ml-auto flex gap-1.5">
+                      <Link href={`/sales/demand/${i.id}`} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                        <FileText className="h-3.5 w-3.5" /> Letter
+                      </Link>
+                      <button
+                        onClick={async () => {
+                          const url = portal[b.id] || (await portalLink(b));
+                          const link = whatsappLink(b.customerPhone, demandMessage(b, i, url));
+                          if (link) window.open(link, "_blank", "noopener");
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white"
+                      >
+                        <WhatsAppIcon className="h-3.5 w-3.5" /> Send
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -627,7 +711,7 @@ export default function SalesPage() {
             <div className="space-y-3">
               {bookings.bookings.map((b: any) => {
                 const isOpen = openBooking === b.id;
-                const pct = Math.round((b.received / b.agreementValue) * 100);
+                const pct = b.total ? Math.round((b.received / b.total) * 100) : 0;
                 return (
                   <div key={b.id} className={cn("rounded-2xl border bg-white shadow-xs", b.overdueAmount > 0 ? "border-rose-200" : "border-slate-200/80", b.status === "CANCELLED" && "opacity-60")}>
                     <button onClick={() => setOpenBooking(isOpen ? null : b.id)} className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 p-4 text-left">
@@ -646,7 +730,10 @@ export default function SalesPage() {
                       <div className="w-full sm:w-64">
                         <div className="flex justify-between text-xs">
                           <span className="font-semibold text-slate-700">{rupees(b.received)} received</span>
-                          <span className="text-slate-500">of {rupees(b.agreementValue)}</span>
+                          <span className="text-slate-500">
+                            of {rupees(b.total)}
+                            {b.gstRate ? ` incl. ${b.gstRate}% GST` : ""}
+                          </span>
                         </div>
                         <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
                           <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
@@ -656,7 +743,46 @@ export default function SalesPage() {
                     </button>
                     {isOpen && (
                       <div className="border-t border-slate-100 px-4 pb-4 pt-2">
-                        <div className="mb-2 flex justify-end">
+                        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+                          {b.status === "ACTIVE" && canWrite && (
+                            <div className="mr-auto flex flex-wrap items-center gap-1.5">
+                              {portal[b.id] ? (
+                                <>
+                                  <a href={portal[b.id]} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                                    <ExternalLink className="h-3.5 w-3.5" /> Open buyer page
+                                  </a>
+                                  <a
+                                    href={whatsappLink(b.customerPhone, `Namaste ${firstName(b.customerName)}, here is your private page for unit ${b.unit.unitNumber}: payment schedule, receipts and site photos. ${portal[b.id]}`) || "#"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white"
+                                  >
+                                    <WhatsAppIcon className="h-3.5 w-3.5" /> Send link
+                                  </a>
+                                  <button
+                                    onClick={async () => {
+                                      if (window.confirm("Make a new link? The old link will stop working.")) {
+                                        await portalLink(b, true);
+                                        setNotice("New buyer link made and copied. The old link no longer works.");
+                                      }
+                                    }}
+                                    className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
+                                  >
+                                    Reset link
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={async () => {
+                                    if (await portalLink(b)) setNotice("Buyer page link copied. Send it on WhatsApp so they can see their schedule, receipts and site photos.");
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                >
+                                  <Link2 className="h-3.5 w-3.5" /> {b.hasPortal ? "Buyer page link" : "Make buyer page"}
+                                </button>
+                              )}
+                            </div>
+                          )}
                           <ContactActions
                             phone={b.customerPhone}
                             message={
@@ -680,14 +806,71 @@ export default function SalesPage() {
                             </thead>
                             <tbody>
                               {b.installments.map((i: any) => {
-                                const paid = i.receivedAmount >= i.amount;
+                                const paid = i.receivedAmount >= i.total;
                                 return (
-                                  <tr key={i.id} className="border-t border-slate-100">
+                                  <tr key={i.id} className="border-t border-slate-100 align-top">
                                     <td className="py-2 text-slate-800">
                                       {i.label} <span className="text-xs text-slate-400">{i.percent}%</span>
+                                      {!i.dueDate && b.status === "ACTIVE" && (
+                                        <div className="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
+                                          <Zap className="h-3 w-3 text-amber-500" />
+                                          {canWrite && b.stages.length > 0 ? (
+                                            <select
+                                              value={i.linkedStage?.explicit ? i.linkedStage.id : ""}
+                                              onChange={async (e) => {
+                                                try {
+                                                  await api(`/api/sales/installments/${i.id}/stage`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ milestoneId: e.target.value || null }) });
+                                                  load();
+                                                } catch (err: any) {
+                                                  setError(err.message);
+                                                }
+                                              }}
+                                              className="max-w-[16rem] rounded border-0 bg-transparent p-0 text-[11px] text-slate-600 focus:ring-0"
+                                            >
+                                              <option value="">{i.linkedStage && !i.linkedStage.explicit ? `Auto: when "${i.linkedStage.name}" is done` : "Not linked to a stage"}</option>
+                                              {b.stages.map((m: any) => (
+                                                <option key={m.id} value={m.id}>
+                                                  When &quot;{m.name}&quot; is done ({m.progressPercent}%)
+                                                </option>
+                                              ))}
+                                            </select>
+                                          ) : (
+                                            <span>{i.linkedStage ? `Raised when "${i.linkedStage.name}" is done (${i.linkedStage.progressPercent}%)` : "Raise by hand when reached"}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                      {i.receipts.length > 0 && (
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                          {i.receipts.map((r: any) =>
+                                            r.receiptNumber ? (
+                                              <Link
+                                                key={r.id}
+                                                href={`/sales/receipt/${r.id}`}
+                                                title={r.cancelledAt ? `Cancelled: ${r.cancelReason || ""}` : undefined}
+                                                className={cn(
+                                                  "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1",
+                                                  r.cancelledAt ? "bg-rose-50 text-rose-500 line-through ring-rose-200" : "bg-slate-50 text-slate-600 ring-slate-200 hover:bg-slate-100"
+                                                )}
+                                              >
+                                                <Receipt className="h-3 w-3" /> {r.receiptNumber} · {rupees(r.amount)}
+                                              </Link>
+                                            ) : (
+                                              <span key={r.id} className="rounded bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-500 ring-1 ring-slate-200">
+                                                {shortDate(r.date)} · {rupees(r.amount)}
+                                              </span>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
                                     </td>
-                                    <td className={cn("py-2", i.overdue ? "font-bold text-rose-600" : "text-slate-600")}>{i.dueDate ? shortDate(i.dueDate) : <span className="text-slate-400">When stage is reached</span>}</td>
-                                    <td className="py-2 text-right tabular-nums">{rupees(i.amount)}</td>
+                                    <td className={cn("py-2", i.overdue ? "font-bold text-rose-600" : "text-slate-600")}>
+                                      {i.dueDate ? shortDate(i.dueDate) : <span className="text-slate-400">When stage is reached</span>}
+                                      {i.demandAuto && <div className="text-[11px] font-normal text-amber-700">raised automatically</div>}
+                                    </td>
+                                    <td className="py-2 text-right tabular-nums">
+                                      {rupees(i.total)}
+                                      {i.gstAmount > 0 && <div className="text-[11px] text-slate-400">incl. GST {rupees(i.gstAmount)}</div>}
+                                    </td>
                                     <td className={cn("py-2 text-right tabular-nums", paid ? "text-emerald-700" : "text-slate-700")}>{i.receivedAmount ? rupees(i.receivedAmount) : "—"}</td>
                                     <td className="py-2 text-right">
                                       {b.status === "ACTIVE" && !paid && (
@@ -697,7 +880,14 @@ export default function SalesPage() {
                                               onClick={async () => {
                                                 try {
                                                   const d = await api(`/api/sales/installments/${i.id}/demand`, post({}));
-                                                  setNotice(`Demand raised. Due ${shortDate(d.dueDate)}. Send the customer a reminder from the WhatsApp button.`);
+                                                  setNotice(
+                                                    <>
+                                                      Demand raised, due {shortDate(d.dueDate)}.{" "}
+                                                      <Link href={`/sales/demand/${i.id}`} className="font-bold underline">
+                                                        Print the demand letter
+                                                      </Link>
+                                                    </>
+                                                  );
                                                   load();
                                                 } catch (e: any) {
                                                   setError(e.message);
@@ -707,6 +897,11 @@ export default function SalesPage() {
                                             >
                                               Raise demand
                                             </button>
+                                          )}
+                                          {i.dueDate && (
+                                            <Link href={`/sales/demand/${i.id}`} title="Demand letter" className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                                              <FileText className="h-3.5 w-3.5" />
+                                            </Link>
                                           )}
                                           {canReceive && i.dueDate && (
                                             <button onClick={() => setReceiving(i)} className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-bold text-white">
@@ -737,7 +932,22 @@ export default function SalesPage() {
       {modal === "book" && <BookModal units={(units || []).filter((u) => u.status === "AVAILABLE")} plans={plans} onClose={() => setModal(null)} onSaved={done} />}
       {bookUnit && <BookModal units={[]} unit={bookUnit} plans={plans} onClose={() => setBookUnit(null)} onSaved={done} />}
       {lead && <LeadDetail lead={lead} units={units || []} plans={plans} onClose={() => setLead(null)} onSaved={done} />}
-      {receiving && <ReceiveModal inst={receiving} onClose={() => setReceiving(null)} onSaved={() => done("Receipt recorded.")} />}
+      {receiving && (
+        <ReceiveModal
+          inst={receiving}
+          onClose={() => setReceiving(null)}
+          onSaved={(r) =>
+            done(
+              <>
+                Receipt {r.receiptNumber} recorded.{" "}
+                <Link href={`/sales/receipt/${r.receiptId}`} className="font-bold underline">
+                  Print receipt
+                </Link>
+              </>
+            )
+          }
+        />
+      )}
     </Shell>
   );
 }

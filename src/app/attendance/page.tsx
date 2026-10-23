@@ -2,6 +2,7 @@
 
 import { Alert } from "@/components/ui/Alert";
 import React, { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatDateTime, formatDate } from "@/lib/formatters";
 import {
@@ -556,6 +557,14 @@ export default function AttendancePage() {
           </div>
 
           <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            {["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR", "HR_VIEWER"].includes(currentUser?.role) && (
+              <Link
+                href="/attendance/muster"
+                className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-slate-800"
+              >
+                <Users className="h-3.5 w-3.5" /> Site muster
+              </Link>
+            )}
             <button
               onClick={() => loadData()}
               disabled={loading}

@@ -43,6 +43,9 @@ export class StaffAttendanceService {
     const existing = await prisma.staffAttendance.findUnique({
       where: { organizationId_userId_workDate: { organizationId, userId, workDate } },
     });
+    // A phone that lost signal mid-send tries again with the same press time;
+    // that is the same check-in, not a second one.
+    if (existing?.checkInAt?.getTime() === now.getTime()) return existing;
     if (existing && existing.status !== "LEAVE" && existing.status !== "ABSENT") {
       throw new StaffAttendanceError("You have already checked in today.");
     }
@@ -72,6 +75,7 @@ export class StaffAttendanceService {
     if (!existing || existing.status === "LEAVE" || existing.status === "ABSENT") {
       throw new StaffAttendanceError("Check in first.", 422, "NOT_CHECKED_IN");
     }
+    if (existing.checkOutAt?.getTime() === now.getTime()) return existing;
     if (existing.checkOutAt) throw new StaffAttendanceError("You have already checked out today.");
     const hours = hoursBetween(existing.checkInAt, now) ?? 0;
     return prisma.staffAttendance.update({

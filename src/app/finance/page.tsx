@@ -10,6 +10,7 @@ import {
   DollarSign,
   Plus,
   Receipt,
+  FileText,
   CreditCard,
   RotateCcw,
   CheckCircle2,
@@ -73,6 +74,11 @@ export default function FinancePage() {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [selectedBillId, setSelectedBillId] = useState("");
   const [notes, setNotes] = useState("");
+  // TDS on a contractor payment (section 194C)
+  const [tdsMode, setTdsMode] = useState<"AUTO" | "NONE" | "MANUAL">("AUTO");
+  const [tdsManual, setTdsManual] = useState("");
+  const [tdsReason, setTdsReason] = useState("");
+  const [tdsPreview, setTdsPreview] = useState<any>(null);
 
   // Bill Modal state
   const [showBillModal, setShowBillModal] = useState(false);
@@ -82,8 +88,12 @@ export default function FinancePage() {
   const [billDate, setBillDate] = useState(new Date().toISOString().split("T")[0]);
   const [billDueDate, setBillDueDate] = useState("");
   const [billNotes, setBillNotes] = useState("");
+  const [billGstRate, setBillGstRate] = useState("");
+  const [billTaxType, setBillTaxType] = useState<"AUTO" | "LOCAL" | "IGST">("AUTO");
+  const [billItc, setBillItc] = useState(true);
+  const [billRcm, setBillRcm] = useState(false);
   const [billLines, setBillLines] = useState<
-    Array<{ description: string; materialId: string; quantity: string; unitRate: string; lineTotal: string }>
+    Array<{ description: string; materialId: string; quantity: string; unitRate: string; lineTotal: string; gstRate?: string }>
   >([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
 
   // Reversal Modal state
@@ -151,6 +161,32 @@ export default function FinancePage() {
     loadData();
   }, []);
 
+  // Ask the server what TDS this payment would hold back, as the form changes.
+  useEffect(() => {
+    const paise = Math.round(parseFloat(amount || "0") * 100);
+    if (!showPaymentModal || recipientType === "EMPLOYEE" || !selectedPartyId || !(paise > 0)) {
+      setTdsPreview(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      fetch("/api/finance/payments/tds-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partyId: selectedPartyId,
+          amount: paise,
+          paymentDate: new Date().toISOString(),
+          allocations: selectedBillId ? [{ billId: selectedBillId, amount: paise }] : undefined,
+          tds: { mode: tdsMode, amount: tdsMode === "MANUAL" ? Math.round(parseFloat(tdsManual || "0") * 100) : undefined, reason: tdsReason || null },
+        }),
+      })
+        .then((r) => r.json())
+        .then((d) => setTdsPreview(d?.success ? d.data : null))
+        .catch(() => setTdsPreview(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [showPaymentModal, recipientType, selectedPartyId, amount, selectedBillId, tdsMode, tdsManual, tdsReason]);
+
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -207,6 +243,14 @@ export default function FinancePage() {
         autoApprove: currentUser?.role === "SUPER_ADMIN" ? autoApprove : false,
       };
 
+      if (tdsPreview) {
+        payload.tds = {
+          mode: tdsMode,
+          amount: tdsMode === "MANUAL" ? Math.round(parseFloat(tdsManual || "0") * 100) : undefined,
+          reason: tdsMode === "AUTO" ? null : tdsReason.trim() || null,
+        };
+      }
+
       if (selectedBillId) {
         payload.allocations = [
           {
@@ -241,6 +285,10 @@ export default function FinancePage() {
         setApprovalQuery("");
         setCustomPayingAccount("");
         setNotes("");
+        setTdsMode("AUTO");
+        setTdsManual("");
+        setTdsReason("");
+        setTdsPreview(null);
         loadData();
       }
     } catch {
@@ -383,6 +431,7 @@ export default function FinancePage() {
         quantity: qty,
         unitRate: rate,
         lineTotal: total,
+        gstRate: billGstRate !== "" && l.gstRate ? Number(l.gstRate) : undefined,
       };
     });
 
@@ -406,6 +455,15 @@ export default function FinancePage() {
           billDate: new Date(billDate).toISOString(),
           dueDate: billDueDate ? new Date(billDueDate).toISOString() : undefined,
           notes: billNotes || undefined,
+          gst:
+            billGstRate === ""
+              ? undefined
+              : {
+                  rate: Number(billGstRate),
+                  interState: billTaxType === "AUTO" ? null : billTaxType === "IGST",
+                  itcEligible: billItc,
+                  reverseCharge: billRcm,
+                },
           lines: parsedLines,
         }),
       });
@@ -414,12 +472,16 @@ export default function FinancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create bill");
       } else {
-        const totalAmountRupees = (parsedLines.reduce((s: number, l: any) => s + (l.lineTotal || 0), 0) / 100).toFixed(2);
+        const totalAmountRupees = ((data.data?.totalAmount ?? parsedLines.reduce((s: number, l: any) => s + (l.lineTotal || 0), 0)) / 100).toFixed(2);
         setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} posted successfully!`);
         setShowBillModal(false);
         setBillNumber("");
         setBillDueDate("");
         setBillNotes("");
+        setBillGstRate("");
+        setBillTaxType("AUTO");
+        setBillItc(true);
+        setBillRcm(false);
         setBillLines([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
         loadData();
       }
@@ -431,10 +493,11 @@ export default function FinancePage() {
   };
 
   const totalBilledAll = bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
-  const totalPaidAll = payments
-    .filter((p: any) => p.status === "POSTED")
-    .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-  const totalOutstandingAll = totalBilledAll - totalPaidAll;
+  const posted = payments.filter((p: any) => p.status === "POSTED");
+  // Out of the bank; TDS held back from contractors is counted when it is deposited.
+  const totalPaidAll = posted.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
+  // Bills are settled by the full amount, TDS included.
+  const totalOutstandingAll = totalBilledAll - posted.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
   const partyBills = bills.filter(
     (b) => b.partyId === selectedPartyId && b.outstandingAmount > 0
@@ -910,6 +973,13 @@ export default function FinancePage() {
         <PageHeader icon={DollarSign} title="Payments & Financial Ledger" subtitle="Idempotency-protected payments, automated bill allocations, and reversible settlements with audit logs.">
 
           <div className="flex items-center gap-2">
+            <a
+              href="/payroll/tds-return?kind=contractors"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <FileText className="h-4 w-4 text-indigo-600" />
+              <span>TDS return (26Q)</span>
+            </a>
             {canWriteFinance && (
               <button
                 onClick={() => {
@@ -1748,6 +1818,12 @@ export default function FinancePage() {
                             >
                               {formatCurrency(p.amount)}
                             </span>
+                            {p.tdsAmount > 0 && (
+                              <div className="whitespace-nowrap text-[10px] font-semibold leading-tight text-indigo-700" title={p.tdsNote || undefined}>
+                                <div>TDS {formatCurrency(p.tdsAmount)} held</div>
+                                <div className="text-slate-500">Bank paid {formatCurrency(p.amount - p.tdsAmount)}</div>
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-center">
                             {isPending ? (
@@ -2244,6 +2320,61 @@ export default function FinancePage() {
                   </div>
                 )}
 
+                {/* TDS held back from a contractor (194C) */}
+                {tdsPreview && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-xs text-indigo-950">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold uppercase tracking-wide">TDS on contractor (194C)</span>
+                      <select
+                        value={tdsMode}
+                        onChange={(e) => setTdsMode(e.target.value as any)}
+                        className="rounded-md border border-indigo-200 bg-white px-2 py-1 text-xs font-semibold"
+                        aria-label="How TDS is worked out"
+                      >
+                        <option value="AUTO">Work it out</option>
+                        <option value="NONE">No TDS</option>
+                        <option value="MANUAL">Type the amount</option>
+                      </select>
+                    </div>
+                    {tdsMode === "MANUAL" && (
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={tdsManual}
+                        onChange={(e) => setTdsManual(e.target.value)}
+                        placeholder="TDS ₹, e.g. under a lower-deduction certificate"
+                        className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-2 text-sm font-mono"
+                      />
+                    )}
+                    {tdsMode !== "AUTO" && (
+                      <input
+                        type="text"
+                        value={tdsReason}
+                        onChange={(e) => setTdsReason(e.target.value)}
+                        required={tdsMode === "NONE"}
+                        placeholder={tdsMode === "NONE" ? "Why? e.g. transporter's declaration (10 or fewer trucks)" : "Why? e.g. section 197 certificate no."}
+                        className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-2 text-sm"
+                      />
+                    )}
+                    <div className="mt-2 space-y-0.5">
+                      {tdsPreview.amount > 0 ? (
+                        <>
+                          <div>
+                            {tdsPreview.rate}% of {formatCurrency(tdsPreview.base + tdsPreview.catchUpBase)} ={" "}
+                            <strong>{formatCurrency(tdsPreview.amount)}</strong> held back and paid to the government.
+                          </div>
+                          <div className="text-sm font-bold">Bank pays the contractor {formatCurrency(tdsPreview.bankAmount)}</div>
+                        </>
+                      ) : (
+                        <div>No TDS on this payment.</div>
+                      )}
+                      {tdsPreview.note && <div className="text-indigo-800">{tdsPreview.note}</div>}
+                      {!tdsPreview.pan && <div className="font-semibold text-rose-700">No PAN for this contractor. Add it on the Vendors &amp; Contractors page.</div>}
+                    </div>
+                  </div>
+                )}
+
                 {/* 8. Super Admin Auto-Approve Checkbox or Normal User Alert */}
                 {currentUser?.role === "SUPER_ADMIN" ? (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
@@ -2545,19 +2676,94 @@ export default function FinancePage() {
                             />
                           </div>
                         </div>
+                        {billGstRate !== "" && (
+                          <label className="flex items-center gap-2 text-[11px] text-slate-500">
+                            GST on this line
+                            <select
+                              value={line.gstRate || ""}
+                              onChange={(e) => updateBillLine(idx, "gstRate", e.target.value)}
+                              className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[11px]"
+                            >
+                              <option value="">Same as bill ({billGstRate}%)</option>
+                              {[0, 5, 12, 18, 28].map((r) => (
+                                <option key={r} value={r}>
+                                  {r}%
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </div>
                     ))}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-600">Calculated Bill Total:</span>
-                    <span className="font-black font-mono text-sm text-slate-900">
-                      ₹
-                      {billLines
-                        .reduce((sum: number, l: any) => sum + (parseFloat(l.lineTotal) || 0), 0)
-                        .toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
+                  {(() => {
+                    const taxable = billLines.reduce((sum: number, l: any) => sum + (parseFloat(l.lineTotal) || 0), 0);
+                    const rate = billGstRate === "" ? 0 : Number(billGstRate);
+                    const lineRate = (l: any) => (billGstRate === "" ? 0 : l.gstRate ? Number(l.gstRate) : rate);
+                    const tax = billLines.reduce((sum: number, l: any) => sum + Math.round((parseFloat(l.lineTotal) || 0) * lineRate(l)) / 100, 0);
+                    const mixed = new Set(billLines.map(lineRate)).size > 1;
+                    const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    return (
+                      <div className="pt-2 border-t border-slate-200 space-y-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <label className="block">
+                            <span className="block font-semibold text-slate-600 mb-1">GST on this bill</span>
+                            <select
+                              value={billGstRate}
+                              onChange={(e) => setBillGstRate(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                            >
+                              <option value="">No GST / composition supplier</option>
+                              {[0, 5, 12, 18, 28].map((r) => (
+                                <option key={r} value={r}>
+                                  {r}% on top of the lines
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          {billGstRate !== "" && (
+                            <label className="block">
+                              <span className="block font-semibold text-slate-600 mb-1">Tax type</span>
+                              <select
+                                value={billTaxType}
+                                onChange={(e) => setBillTaxType(e.target.value as "AUTO" | "LOCAL" | "IGST")}
+                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                              >
+                                <option value="AUTO">Work out from GSTINs</option>
+                                <option value="LOCAL">Same state: CGST + SGST</option>
+                                <option value="IGST">Other state: IGST</option>
+                              </select>
+                            </label>
+                          )}
+                          {billGstRate !== "" && (
+                            <div className="space-y-1 sm:pt-4">
+                              <label className="flex items-center gap-2">
+                                <input type="checkbox" checked={billItc} onChange={(e) => setBillItc(e.target.checked)} />
+                                <span className="text-slate-600">Claim input tax credit</span>
+                              </label>
+                              <label className="flex items-center gap-2" title="For example GTA transport or an unregistered supplier under notified services: you pay the GST to the government, not the supplier.">
+                                <input type="checkbox" checked={billRcm} onChange={(e) => setBillRcm(e.target.checked)} />
+                                <span className="text-slate-600">Reverse charge</span>
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                        {billGstRate !== "" && (
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span>
+                              Taxable value ₹{fmt(taxable)} + GST {mixed ? "at line rates" : `${rate}%`} ₹{fmt(tax)}
+                              {billRcm && " (you pay this GST to the government; the supplier is paid the taxable value)"}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-600">Calculated Bill Total:</span>
+                          <span className="font-black font-mono text-sm text-slate-900">₹{fmt(billRcm ? taxable : taxable + tax)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>

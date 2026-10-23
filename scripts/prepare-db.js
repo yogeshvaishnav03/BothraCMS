@@ -21,6 +21,12 @@ if (fs.existsSync(envPath)) {
       }
     }
   }
+} else if (process.env.VERCEL) {
+  // On Vercel, settings come from the project's environment variables. A .env
+  // written here would be copied into the Edge middleware at build time but not
+  // read by the Node.js functions, so logins would be signed and checked with
+  // different keys (the user lands back on the login page).
+  console.log("ℹ️ Vercel build: using the project's environment variables (no .env file is written).");
 } else {
   // Generate a cryptographically secure 64-char SESSION_SECRET on fresh environments
   const autoSecret = crypto.randomBytes(32).toString("hex");

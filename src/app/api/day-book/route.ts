@@ -4,6 +4,7 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { fetchDayBookData } from "@/services/day-book-service";
 import { DayBookSeedService } from "@/services/day-book-seed-service";
 import { checkDemoSeedAllowed } from "@/lib/demo-seed-guard";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,12 @@ export async function GET(req: NextRequest) {
     // Days with no activity simply return empty data. Demo data is only
     // ever created through the explicit Super Admin POST below.
     const data = await fetchDayBookData(orgId, date, siteId);
+    // Customer receipts are for people who see sales or finance.
+    if (!hasPermission(user.role, "finance:read") && !hasPermission(user.role, "sales:read")) {
+      data.moneyIn = [];
+      data.summary.totalMoneyInAmount = 0;
+      data.summary.moneyInCount = 0;
+    }
 
     return jsonSuccess(data);
   } catch (error) {

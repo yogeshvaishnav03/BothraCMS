@@ -5,9 +5,11 @@ import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { ContactActions } from "@/components/ui/ContactActions";
-import { PhotoPicker, PickedPhoto } from "@/components/ui/PhotoPicker";
+import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
+import { submitOrQueue } from "@/lib/offline-queue";
 import { cn } from "@/lib/cn";
 import {
+  CloudOff,
   AlertTriangle,
   CalendarDays,
   Check,
@@ -73,9 +75,18 @@ async function api<T = any>(url: string, init?: RequestInit): Promise<T> {
 function getPosition(): Promise<{ lat: number; lng: number } | null> {
   if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
   return new Promise((resolve) => {
+    // The browser's timeout does not start until the person answers the
+    // location prompt, so give up on our own if they never do.
+    const giveUp = setTimeout(() => resolve(null), 8000);
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => resolve(null),
+      (p) => {
+        clearTimeout(giveUp);
+        resolve({ lat: p.coords.latitude, lng: p.coords.longitude });
+      },
+      () => {
+        clearTimeout(giveUp);
+        resolve(null);
+      },
       { timeout: 5000, maximumAge: 60000 }
     );
   });
@@ -146,13 +157,24 @@ function AttendanceCard() {
     setBusy(true);
     setError(null);
     try {
+      const pressed = new Date().toISOString();
       const pos = await getPosition();
-      await api("/api/staff-attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, lat: pos?.lat ?? null, lng: pos?.lng ?? null }),
+      const result = await submitOrQueue({
+        label: action === "check-in" ? "Check in" : "Check out",
+        url: "/api/staff-attendance",
+        body: { action, lat: pos?.lat ?? null, lng: pos?.lng ?? null },
+        // Sent later, it still records the time the button was pressed.
+        whenQueued: { at: pressed },
       });
-      load();
+      if (!result.queued) return load();
+      // No signal: show the day as it will be once the phone sends it.
+      setData((d: any) => ({
+        ...d,
+        today:
+          action === "check-in"
+            ? { status: "PRESENT", checkInAt: pressed, checkOutAt: null, pending: true }
+            : { ...d.today, checkOutAt: pressed, pending: true },
+      }));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -189,6 +211,11 @@ function AttendanceCard() {
               ? `Worked ${timeOf(today.checkInAt)} – ${timeOf(today.checkOutAt)} · ${duration(today.checkInAt, new Date(today.checkOutAt).getTime())}`
               : `Checked in at ${timeOf(today.checkInAt)} · ${duration(today.checkInAt, now)} so far`}
           </div>
+          {today?.pending && (
+            <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+              <CloudOff className="h-3 w-3" /> Saved on this phone, sent when there is signal
+            </div>
+          )}
           {today?.checkInLat != null && (
             <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
               <MapPin className="h-3 w-3" /> Location recorded
@@ -322,19 +349,27 @@ function MyReport({ initialDate }: { initialDate: string }) {
     setSaving(true);
     setError(null);
     try {
-      const report = await api("/api/work-reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { urls, pending } = splitPhotos(photos, { entityType: "WORK_REPORT" });
+      const result = await submitOrQueue<any>({
+        label: `Daily report for ${date}`,
+        url: "/api/work-reports",
+        body: {
           reportDate: date,
           summary,
           hoursWorked: hours === "" ? null : Number(hours),
           projectId: projectId || null,
           blockers: blockers || null,
           tomorrowPlan: tomorrowPlan || null,
-          photoUrls: photos.map((p) => p.url),
-        }),
+          photoUrls: urls,
+        },
+        photos: pending,
+        photoField: "photoUrls",
       });
+      if (result.queued) {
+        setSaved("No signal, so the report is saved on this phone. It will be sent to the admin when you are back online.");
+        return;
+      }
+      const report = result.data;
       setDraft((d: any) => ({ ...d, existing: report }));
       setHistory((h) => [report, ...h.filter((r) => r.id !== (report as any).id)]);
       setSaved("Report sent to the admin.");

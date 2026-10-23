@@ -16,6 +16,15 @@ const createBillSchema = z.object({
   dueDate: z.string().optional(),
   costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
   notes: z.string().optional(),
+  gst: z
+    .object({
+      rate: z.number().min(0).max(28).nullable().optional(),
+      interState: z.boolean().nullable().optional(),
+      itcEligible: z.boolean().optional(),
+      reverseCharge: z.boolean().optional(),
+    })
+    .nullable()
+    .optional(),
   lines: z.array(
     z.object({
       description: z.string().min(1),
@@ -23,6 +32,7 @@ const createBillSchema = z.object({
       quantity: z.number().optional(),
       unitRate: z.number().optional(),
       lineTotal: z.number().positive(),
+      gstRate: z.number().min(0).max(28).nullable().optional(),
     })
   ).min(1),
 });
@@ -96,6 +106,7 @@ export async function POST(req: NextRequest) {
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       costHead: data.costHead,
       notes: data.notes,
+      gst: data.gst,
       lines: data.lines,
       userId: user.userId,
       role: user.role,

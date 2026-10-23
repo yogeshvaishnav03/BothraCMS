@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Building2,
   Clock,
+  ClipboardCheck,
   ArrowRightLeft,
   Receipt,
   PlusCircle,
@@ -40,11 +41,14 @@ import {
   Truck,
   Wallet,
   Handshake,
+  Landmark,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
 import InteractiveGuideModal from "@/components/ui/InteractiveGuideModal";
 import QuickActionLauncher from "@/components/ui/QuickActionLauncher";
+import OfflineBar from "@/components/layout/OfflineBar";
+import { clearQueue, listQueued } from "@/lib/offline-queue";
 
 interface ShellProps {
   children: React.ReactNode;
@@ -126,7 +130,10 @@ export default function Shell({ children }: ShellProps) {
           setUser(data.data.user);
         }
       })
-      .catch(() => router.push("/login"))
+      // No signal is not the same as logged out: keep the page (the site app works offline).
+      .catch(() => {
+        if (navigator.onLine) router.push("/login");
+      })
       .finally(() => setLoading(false));
 
     fetch("/api/sites", { cache: "no-store" })
@@ -184,6 +191,12 @@ export default function Shell({ children }: ShellProps) {
   };
 
   const handleLogout = async () => {
+    // Saved updates are sent as whoever is logged in, so they cannot wait for the next person.
+    const waiting = await listQueued().catch(() => []);
+    if (waiting.length > 0 && !window.confirm(`${waiting.length} saved update${waiting.length === 1 ? " has" : "s have"} not been sent yet. Log out and discard ${waiting.length === 1 ? "it" : "them"}?`)) return;
+    await clearQueue().catch(() => {});
+    // Pages kept for offline use belong to this login.
+    if ("caches" in window) await caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => {});
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
   };
@@ -221,6 +234,7 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
         ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),
         ...(canUser(user, "sales:read") ? [{ key: "nav.sales", defaultLabel: "Sales", href: "/sales", icon: Handshake }] : []),
+        ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Accounts export", href: "/exports", icon: Landmark }] : []),
       ],
     },
     {
@@ -230,6 +244,7 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.myDay", defaultLabel: "Daily Work", href: "/work-reports", icon: NotebookPen },
         { key: "nav.workforce", defaultLabel: "Workforce", href: "/workforce", icon: Users },
         { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
+        ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Muster", href: "/attendance/muster", icon: ClipboardCheck }] : []),
         { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
       ],
     },
@@ -249,8 +264,11 @@ export default function Shell({ children }: ShellProps) {
     },
   ];
   const navItemsDef = navGroups.flatMap((g) => g.items);
-  const isActiveHref = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href));
-  const currentNav = navItemsDef.find((i) => isActiveHref(i.href));
+  // The longest matching link wins, so /attendance/muster lights up Site Muster, not Attendance.
+  const currentNav = navItemsDef
+    .filter((i) => pathname === i.href || (i.href !== "/" && pathname.startsWith(i.href + "/")))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  const isActiveHref = (href: string) => currentNav?.href === href;
   const roleLabel = (user?.role || "").toLowerCase().replace(/_/g, " ");
   const userInitials =
     (user?.name || "U")
@@ -616,6 +634,7 @@ export default function Shell({ children }: ShellProps) {
             </div>
           </div>
 
+          <OfflineBar />
           <div className="page-enter">
             {children}
           </div>

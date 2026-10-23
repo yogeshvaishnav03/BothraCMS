@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { notifyPeople } from "@/lib/notify";
 import { parsePhotoUrls } from "@/services/task-timeline-service";
+import { SalesService } from "@/services/sales-service";
 
 /**
  * Construction stages for a project: planned dates, % done, and a history of
@@ -275,7 +276,13 @@ export class MilestoneService {
       href: `/projects/${m.project.id}?tab=MILESTONES`,
     });
 
-    return updated;
+    // A finished stage raises the buyers' construction-linked demands.
+    const demandsRaised =
+      status === "COMPLETED" && m.status !== "COMPLETED"
+        ? await SalesService.autoRaiseForStage(organizationId, { id: m.id, projectId: m.projectId, name: m.name }, actor.userId)
+        : 0;
+
+    return { ...updated, demandsRaised };
   }
 
   /** Overall progress and delayed stage count per project. */
