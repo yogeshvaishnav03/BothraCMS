@@ -198,7 +198,7 @@ describe("Phase 9: one-time offline sends, site muster, TDS return", () => {
     expect(april).toMatchObject({ month: "2026-04", tds: 12_567 * R, deposited: 12_567 * R, depositedOn: "2026-05-10", due: "2026-05-07", state: "LATE", reference: "CIN 0510260001234" });
     // 1.5% a month for April and May (deducted 30 April, paid 10 May).
     expect(april.interest).toBe(Math.round(12_567 * R * 0.015 * 2));
-    expect(q1.challans[1].state).toBe("NO_PAYROLL");
+    expect(q1.challans[1].state).toBe("NO_DATA");
     expect(q1.deductees).toHaveLength(1);
     expect(q1.deductees[0]).toMatchObject({ name: "Sunil Supervisor", pan: null, section: "192", amountPaid: 1_50_000 * R, tds: 12_567 * R, paidOn: "2026-04-30" });
     expect(q1.problems.join(" ")).toContain("No PAN for Sunil Supervisor");

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { bankAmount } from "@/lib/contractor-tds";
 import { istDayBounds } from "@/lib/ist-date";
 import { inferBillHead, inferPaymentHead, type CostHead } from "@/services/project-budget-service";
 import { companyProfile } from "@/services/sales-service";
@@ -97,7 +98,11 @@ async function loadBills(organizationId: string, from: string, to: string) {
 async function loadPayments(organizationId: string, from: string, to: string) {
   return prisma.payment.findMany({
     where: { organizationId, status: "POSTED", isArchived: false, paymentDate: { gte: istDayBounds(from).start, lte: istDayBounds(to).end } },
-    include: { party: { select: { name: true, partyType: true } }, project: { select: { name: true } } },
+    include: {
+      party: { select: { name: true, partyType: true } },
+      project: { select: { name: true } },
+      allocations: { where: { reversedAt: null }, select: { bill: { select: { statutory: true } } } },
+    },
     orderBy: { paymentDate: "asc" },
   });
 }
@@ -112,6 +117,9 @@ async function loadReceipts(organizationId: string, from: string, to: string) {
     orderBy: [{ date: "asc" }, { receiptNumber: "asc" }],
   });
 }
+
+/** Contractor TDS held back on payments, until it is deposited. */
+const TDS_194C_LEDGER = "TDS Payable (194C)";
 
 const INPUT_TAX = { cgst: "Input CGST", sgst: "Input SGST", igst: "Input IGST" } as const;
 const RCM_TAX = { cgst: "CGST Payable (RCM)", sgst: "SGST Payable (RCM)", igst: "IGST Payable (RCM)" } as const;
@@ -188,6 +196,8 @@ export class ExportService {
 
     if (parts.includes("bills")) {
       for (const b of await loadBills(organizationId, from, to)) {
+        // Contractor TDS is credited to its ledger in the payment voucher, not bought.
+        if (b.statutory === "TDS_194C") continue;
         const head = HEAD_LEDGER[inferBillHead(b)];
         need(b.party.name, "Sundry Creditors");
         need(head.name, head.group);
@@ -209,11 +219,15 @@ export class ExportService {
       for (const p of await loadPayments(organizationId, from, to)) {
         const head = HEAD_LEDGER[inferPaymentHead(p)];
         // Paid against a supplier's account, or straight to an expense (wages, petty cash).
-        const debit = p.party ? p.party.name : head.name;
-        if (p.party) need(p.party.name, "Sundry Creditors");
+        // Depositing contractor TDS clears the TDS ledger instead.
+        const tdsDeposit = p.allocations.length > 0 && p.allocations.every((a) => a.bill.statutory === "TDS_194C");
+        const debit = tdsDeposit ? TDS_194C_LEDGER : p.party ? p.party.name : head.name;
+        if (tdsDeposit) need(TDS_194C_LEDGER, "Duties & Taxes");
+        else if (p.party) need(p.party.name, "Sundry Creditors");
         else need(head.name, head.group);
         const credit = paidFrom(p);
         need(credit, p.method === "CASH" && !p.payingAccount ? "Cash-in-Hand" : "Bank Accounts");
+        if (p.tdsAmount > 0) need(TDS_194C_LEDGER, "Duties & Taxes");
         vouchers.push(
           voucher({
             type: "Payment",
@@ -222,7 +236,11 @@ export class ExportService {
             reference: p.referenceNumber,
             party: debit,
             narration: [`Paid ${p.recipientName || p.party?.name || "payee"} by ${p.method.replace(/_/g, " ")}`, p.project?.name, p.notes].filter(Boolean).join(" · "),
-            entries: [entry(debit, p.amount, true), entry(credit, p.amount, false)],
+            entries: [
+              entry(debit, p.amount, true),
+              entry(credit, bankAmount(p), false),
+              ...(p.tdsAmount > 0 ? [entry(TDS_194C_LEDGER, p.tdsAmount, false)] : []),
+            ],
           })
         );
       }
@@ -367,7 +385,7 @@ export class ExportService {
   static async paymentsCsv(organizationId: string, from: string, to: string) {
     const rows = await loadPayments(organizationId, from, to);
     return csv([
-      ["Date", "Reference", "Paid to", "Type", "Project", "Cost head", "Method", "Paid from", "Amount"],
+      ["Date", "Reference", "Paid to", "Type", "Project", "Cost head", "Method", "Paid from", "Amount", "TDS held", "From bank"],
       ...rows.map((p) => [
         istKey(p.paymentDate),
         p.referenceNumber,
@@ -378,8 +396,15 @@ export class ExportService {
         p.method.replace(/_/g, " "),
         paidFrom(p),
         rs(p.amount),
+        p.tdsAmount ? rs(p.tdsAmount) : "",
+        rs(bankAmount(p)),
       ]),
-      ["Total", "", "", "", "", "", "", "", rs(rows.reduce((s, p) => s + p.amount, 0))],
+      [
+        "Total", "", "", "", "", "", "", "",
+        rs(rows.reduce((s, p) => s + p.amount, 0)),
+        rs(rows.reduce((s, p) => s + p.tdsAmount, 0)),
+        rs(rows.reduce((s, p) => s + bankAmount(p), 0)),
+      ],
     ]);
   }
 }

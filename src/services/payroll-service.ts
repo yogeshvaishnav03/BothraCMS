@@ -3,6 +3,7 @@ import type { UserContext } from "@/lib/auth";
 import { isOrgOwnerOrAdmin } from "@/lib/server-auth";
 import { istDateKey, monthDays } from "@/lib/ist-date";
 import { companyProfile } from "@/lib/company";
+import { challanProblems, returnDueDate, tdsChallans } from "@/services/tds-challans";
 import { fyMonths, fyOf, monthlyTds, monthsLeftInFy, projectYear, type TaxRegime, type YearSoFar } from "@/lib/income-tax";
 
 /**
@@ -573,6 +574,7 @@ export class PayrollService {
           dueDate: new Date(`${d.due}T12:00:00+05:30`),
           totalAmount: d.amount,
           costHead: "OVERHEADS",
+          statutory: d.key === "TDS" ? "TDS_192" : d.key,
           status: "POSTED",
           notes: `${d.what} for ${run.month}, from payroll`,
           createdBy: user.userId,
@@ -845,17 +847,13 @@ export class PayrollService {
    */
   static async tdsReturn(organizationId: string, fy: string, quarter: 1 | 2 | 3 | 4) {
     const months = fyMonths(fy).slice((quarter - 1) * 3, quarter * 3);
-    const [company, runs, profiles, bills] = await Promise.all([
+    const [company, runs, profiles] = await Promise.all([
       companyProfile(organizationId),
       prisma.payrollRun.findMany({
         where: { organizationId, month: { in: months }, status: { in: ["APPROVED", "PAID"] } },
         include: { lines: { where: { personType: "STAFF" } } },
       }),
       prisma.payrollProfile.findMany({ where: { organizationId }, select: { userId: true, pan: true, taxRegime: true } }),
-      prisma.bill.findMany({
-        where: { organizationId, billNumber: { in: months.map((m) => `TDS-${m}`) }, status: { not: "VOIDED" } },
-        include: { allocations: { where: { reversedAt: null }, include: { payment: { select: { paymentDate: true, referenceNumber: true, status: true } } } } },
-      }),
     ]);
     const staffIds = Array.from(new Set(runs.flatMap((r) => r.lines.map((l) => l.personId))));
     const users = await prisma.user.findMany({ where: { id: { in: staffIds }, organizationId }, select: { id: true, name: true } });
@@ -863,42 +861,20 @@ export class PayrollService {
     const panOf = new Map(profiles.map((p) => [p.userId, p.pan || null]));
     const regimeOf = new Map(profiles.map((p) => [p.userId, p.taxRegime]));
     const runOf = new Map(runs.map((r) => [r.month, r]));
-    const billOf = new Map(bills.map((b) => [b.billNumber, b]));
     const monthEnd = (m: string) => monthDays(m).slice(-1)[0];
-    const nextMonth = (m: string) => {
-      const [y, mo] = m.split("-").map(Number);
-      return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
-    };
-    // TDS is due by the 7th of the next month; for March, by 30 April.
-    const dueOf = (m: string) => (m.endsWith("-03") ? `${m.slice(0, 4)}-04-30` : `${nextMonth(m)}-07`);
 
-    const challans = months.map((m) => {
-      const run = runOf.get(m);
-      const tds = run ? run.lines.reduce((s, l) => s + l.tds, 0) : 0;
-      const bill = billOf.get(`TDS-${m}`);
-      const paid = (bill?.allocations || []).filter((a) => a.payment.status === "POSTED");
-      const deposited = Math.round(paid.reduce((s, a) => s + a.amount, 0));
-      const lastPaid = paid.map((a) => istDateKey(a.payment.paymentDate)).sort().slice(-1)[0] || null;
-      const due = dueOf(m);
-      const deducted = run?.paidAt ? istDateKey(run.paidAt) : monthEnd(m);
-      // Late deposit: interest at 1.5% a month or part of a month, from deduction to deposit (section 201(1A)).
-      let lateMonths = 0;
-      if (lastPaid && lastPaid > due) {
-        const [y1, m1] = deducted.split("-").map(Number);
-        const [y2, m2] = lastPaid.split("-").map(Number);
-        lateMonths = (y2 - y1) * 12 + (m2 - m1) + 1;
-      }
-      return {
-        month: m,
-        payrollApproved: !!run,
-        tds,
-        deposited,
-        depositedOn: lastPaid,
-        reference: paid.map((a) => a.payment.referenceNumber).filter(Boolean).join(", ") || null,
-        due,
-        state: m > istDateKey().slice(0, 7) ? "FUTURE" : !run ? "NO_PAYROLL" : tds === 0 ? "NIL" : deposited >= tds ? (lastPaid! > due ? "LATE" : "PAID") : deposited > 0 ? "PART_PAID" : "NOT_PAID",
-        interest: lateMonths ? Math.round(tds * 0.015 * lateMonths) : 0,
-      };
+    const challans = await tdsChallans({
+      organizationId,
+      months,
+      billNumber: (m) => `TDS-${m}`,
+      tdsOf: (m) => {
+        const run = runOf.get(m);
+        return run ? run.lines.reduce((s, l) => s + l.tds, 0) : null;
+      },
+      deductedOn: (m) => {
+        const run = runOf.get(m);
+        return run?.paidAt ? istDateKey(run.paidAt) : monthEnd(m);
+      },
     });
 
     const deductees = runs
@@ -950,22 +926,14 @@ export class PayrollService {
         : null;
 
     const problems: string[] = [];
-    const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
-    const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-    const money = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
     if (!company.tan) problems.push("Add the company TAN in Settings. The return cannot be filed without it.");
     const names = (rows: typeof deductees) => Array.from(new Set(rows.map((d) => d.name))).join(", ");
     const taxedNoPan = deductees.filter((d) => !d.pan && d.tds > 0);
     if (taxedNoPan.length) problems.push(`No PAN for ${names(taxedNoPan)}. Add it under Staff salaries; without a PAN, TDS must be at least 20% (section 206AA).`);
     const otherNoPan = deductees.filter((d) => !d.pan && d.tds === 0 && !taxedNoPan.some((t) => t.userId === d.userId));
     if (otherNoPan.length) problems.push(`Add the PAN for ${names(otherNoPan)} too. No TDS was cut, but the return lists everyone paid a salary.`);
-    for (const c of challans) {
-      if (c.state === "NO_PAYROLL") problems.push(`Payroll for ${monthName(c.month)} is not approved yet.`);
-      else if (c.state === "NOT_PAID" || c.state === "PART_PAID") problems.push(`TDS for ${monthName(c.month)} is not fully deposited: ${money(c.tds - c.deposited)} still to pay, due ${day(c.due)}.`);
-      else if (c.state === "LATE") problems.push(`TDS for ${monthName(c.month)} was deposited late, on ${day(c.depositedOn!)}. Interest of about ${money(c.interest)} is payable.`);
-    }
-    const fyStart = Number(fy.slice(0, 4));
-    const filingDue = [`${fyStart}-07-31`, `${fyStart}-10-31`, `${fyStart + 1}-01-31`, `${fyStart + 1}-05-31`][quarter - 1];
+    problems.push(...challanProblems(challans, "Payroll is not approved yet"));
+    const filingDue = returnDueDate(fy, quarter);
 
     return {
       fy,

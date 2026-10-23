@@ -22,7 +22,7 @@ const NO_CACHE_HEADERS: Record<string, string> = {
  * they are nested (e.g. a vendor's full bank account number inside a payment).
  * Routes that must return them pass `{ allowSensitive: true }` and audit the read.
  */
-const SENSITIVE_KEYS = new Set(["bankAccountNumber", "passwordHash"]);
+const SENSITIVE_KEYS = new Set(["bankAccountNumber", "passwordHash", "settingsJson", "codeHash"]);
 
 function stripSensitive(_key: string, value: unknown) {
   return SENSITIVE_KEYS.has(_key) ? undefined : value;

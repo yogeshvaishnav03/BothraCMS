@@ -10,6 +10,7 @@ import {
   DollarSign,
   Plus,
   Receipt,
+  FileText,
   CreditCard,
   RotateCcw,
   CheckCircle2,
@@ -73,6 +74,11 @@ export default function FinancePage() {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [selectedBillId, setSelectedBillId] = useState("");
   const [notes, setNotes] = useState("");
+  // TDS on a contractor payment (section 194C)
+  const [tdsMode, setTdsMode] = useState<"AUTO" | "NONE" | "MANUAL">("AUTO");
+  const [tdsManual, setTdsManual] = useState("");
+  const [tdsReason, setTdsReason] = useState("");
+  const [tdsPreview, setTdsPreview] = useState<any>(null);
 
   // Bill Modal state
   const [showBillModal, setShowBillModal] = useState(false);
@@ -155,6 +161,32 @@ export default function FinancePage() {
     loadData();
   }, []);
 
+  // Ask the server what TDS this payment would hold back, as the form changes.
+  useEffect(() => {
+    const paise = Math.round(parseFloat(amount || "0") * 100);
+    if (!showPaymentModal || recipientType === "EMPLOYEE" || !selectedPartyId || !(paise > 0)) {
+      setTdsPreview(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      fetch("/api/finance/payments/tds-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partyId: selectedPartyId,
+          amount: paise,
+          paymentDate: new Date().toISOString(),
+          allocations: selectedBillId ? [{ billId: selectedBillId, amount: paise }] : undefined,
+          tds: { mode: tdsMode, amount: tdsMode === "MANUAL" ? Math.round(parseFloat(tdsManual || "0") * 100) : undefined, reason: tdsReason || null },
+        }),
+      })
+        .then((r) => r.json())
+        .then((d) => setTdsPreview(d?.success ? d.data : null))
+        .catch(() => setTdsPreview(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [showPaymentModal, recipientType, selectedPartyId, amount, selectedBillId, tdsMode, tdsManual, tdsReason]);
+
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -211,6 +243,14 @@ export default function FinancePage() {
         autoApprove: currentUser?.role === "SUPER_ADMIN" ? autoApprove : false,
       };
 
+      if (tdsPreview) {
+        payload.tds = {
+          mode: tdsMode,
+          amount: tdsMode === "MANUAL" ? Math.round(parseFloat(tdsManual || "0") * 100) : undefined,
+          reason: tdsMode === "AUTO" ? null : tdsReason.trim() || null,
+        };
+      }
+
       if (selectedBillId) {
         payload.allocations = [
           {
@@ -245,6 +285,10 @@ export default function FinancePage() {
         setApprovalQuery("");
         setCustomPayingAccount("");
         setNotes("");
+        setTdsMode("AUTO");
+        setTdsManual("");
+        setTdsReason("");
+        setTdsPreview(null);
         loadData();
       }
     } catch {
@@ -449,10 +493,11 @@ export default function FinancePage() {
   };
 
   const totalBilledAll = bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
-  const totalPaidAll = payments
-    .filter((p: any) => p.status === "POSTED")
-    .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-  const totalOutstandingAll = totalBilledAll - totalPaidAll;
+  const posted = payments.filter((p: any) => p.status === "POSTED");
+  // Out of the bank; TDS held back from contractors is counted when it is deposited.
+  const totalPaidAll = posted.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
+  // Bills are settled by the full amount, TDS included.
+  const totalOutstandingAll = totalBilledAll - posted.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
   const partyBills = bills.filter(
     (b) => b.partyId === selectedPartyId && b.outstandingAmount > 0
@@ -928,6 +973,13 @@ export default function FinancePage() {
         <PageHeader icon={DollarSign} title="Payments & Financial Ledger" subtitle="Idempotency-protected payments, automated bill allocations, and reversible settlements with audit logs.">
 
           <div className="flex items-center gap-2">
+            <a
+              href="/payroll/tds-return?kind=contractors"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <FileText className="h-4 w-4 text-indigo-600" />
+              <span>TDS return (26Q)</span>
+            </a>
             {canWriteFinance && (
               <button
                 onClick={() => {
@@ -1766,6 +1818,12 @@ export default function FinancePage() {
                             >
                               {formatCurrency(p.amount)}
                             </span>
+                            {p.tdsAmount > 0 && (
+                              <div className="whitespace-nowrap text-[10px] font-semibold leading-tight text-indigo-700" title={p.tdsNote || undefined}>
+                                <div>TDS {formatCurrency(p.tdsAmount)} held</div>
+                                <div className="text-slate-500">Bank paid {formatCurrency(p.amount - p.tdsAmount)}</div>
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-center">
                             {isPending ? (
@@ -2259,6 +2317,61 @@ export default function FinancePage() {
                         </option>
                       ))}
                     </select>
+                  </div>
+                )}
+
+                {/* TDS held back from a contractor (194C) */}
+                {tdsPreview && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-xs text-indigo-950">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold uppercase tracking-wide">TDS on contractor (194C)</span>
+                      <select
+                        value={tdsMode}
+                        onChange={(e) => setTdsMode(e.target.value as any)}
+                        className="rounded-md border border-indigo-200 bg-white px-2 py-1 text-xs font-semibold"
+                        aria-label="How TDS is worked out"
+                      >
+                        <option value="AUTO">Work it out</option>
+                        <option value="NONE">No TDS</option>
+                        <option value="MANUAL">Type the amount</option>
+                      </select>
+                    </div>
+                    {tdsMode === "MANUAL" && (
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={tdsManual}
+                        onChange={(e) => setTdsManual(e.target.value)}
+                        placeholder="TDS ₹, e.g. under a lower-deduction certificate"
+                        className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-2 text-sm font-mono"
+                      />
+                    )}
+                    {tdsMode !== "AUTO" && (
+                      <input
+                        type="text"
+                        value={tdsReason}
+                        onChange={(e) => setTdsReason(e.target.value)}
+                        required={tdsMode === "NONE"}
+                        placeholder={tdsMode === "NONE" ? "Why? e.g. transporter's declaration (10 or fewer trucks)" : "Why? e.g. section 197 certificate no."}
+                        className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-2 text-sm"
+                      />
+                    )}
+                    <div className="mt-2 space-y-0.5">
+                      {tdsPreview.amount > 0 ? (
+                        <>
+                          <div>
+                            {tdsPreview.rate}% of {formatCurrency(tdsPreview.base + tdsPreview.catchUpBase)} ={" "}
+                            <strong>{formatCurrency(tdsPreview.amount)}</strong> held back and paid to the government.
+                          </div>
+                          <div className="text-sm font-bold">Bank pays the contractor {formatCurrency(tdsPreview.bankAmount)}</div>
+                        </>
+                      ) : (
+                        <div>No TDS on this payment.</div>
+                      )}
+                      {tdsPreview.note && <div className="text-indigo-800">{tdsPreview.note}</div>}
+                      {!tdsPreview.pan && <div className="font-semibold text-rose-700">No PAN for this contractor. Add it on the Vendors &amp; Contractors page.</div>}
+                    </div>
                   </div>
                 )}
 

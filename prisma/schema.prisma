@@ -58,6 +58,8 @@ model Organization {
   salesLeads              SalesLead[]
   salesBookings           SalesBooking[]
   salesReceipts           SalesReceipt[]
+  messageLogs             MessageLog[]
+  buyerCodes              BuyerSignInCode[]
 }
 
 model User {
@@ -421,6 +423,7 @@ model Bill {
   igst           Float     @default(0) // supplier in another state
   itcEligible    Boolean   @default(true) // input tax credit can be claimed
   reverseCharge  Boolean   @default(false) // we pay the GST to the government, not the supplier
+  statutory      String?   // set on dues to the government made by the app, e.g. TDS_194C
   costHead       String?   // MATERIAL, LABOUR, CONTRACTOR, EQUIPMENT, DESIGN, APPROVALS, OVERHEADS, OTHER (inferred when empty)
   status         String    @default("POSTED") // DRAFT, POSTED, VOIDED, ARCHIVED
   isArchived     Boolean   @default(false)
@@ -483,6 +486,14 @@ model Payment {
   referenceNumber String
   status          String    @default("PENDING_APPROVAL") // PENDING_APPROVAL, POSTED, REJECTED, REVERSED
   idempotencyKey  String
+  // TDS held back from a contractor (section 194C). amount is what settles their
+  // bills; the bank pays amount - tdsAmount and the rest is owed to the government.
+  tdsSection      String?
+  tdsRate         Float     @default(0) // %
+  tdsBase         Float     @default(0) // paise the TDS is worked on (before GST)
+  tdsAmount       Float     @default(0) // paise
+  tdsCatchUp      Float     @default(0) // paise of earlier payments this year whose TDS is taken in this one
+  tdsNote         String?   // why it is what it is, e.g. "No PAN: 20%" or "Transporter declaration"
   reversedAt      DateTime?
   reversalReason  String?
   isArchived      Boolean   @default(false)
@@ -1493,4 +1504,42 @@ model OfflineSend {
   createdAt      DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// Every WhatsApp or SMS the system sends by itself: sign-in codes, demands and reminders.
+model MessageLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  channel        String // WHATSAPP, SMS
+  provider       String // META, MSG91, TEST
+  kind           String // OTP, DEMAND, DUE_SOON, OVERDUE, TEST
+  to             String // 91XXXXXXXXXX
+  text           String // what the message says, for the log
+  status         String // SENT, FAILED, TEST (test mode: kept here, not sent)
+  error          String?
+  providerRef    String? // the provider's message id
+  refType        String? // SALES_INSTALLMENT
+  refId          String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([refType, refId, kind])
+}
+
+/// A one-time code sent to a buyer's mobile to sign in to their page.
+model BuyerSignInCode {
+  id             String    @id @default(uuid())
+  organizationId String
+  phone          String // last 10 digits
+  codeHash       String
+  expiresAt      DateTime
+  attempts       Int       @default(0)
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([phone, createdAt])
 }

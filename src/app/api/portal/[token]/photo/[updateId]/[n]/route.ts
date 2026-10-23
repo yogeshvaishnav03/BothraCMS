@@ -2,15 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimitSync } from "@/lib/rate-limiter";
 import { readUploadedImage } from "@/lib/upload-read";
 import { SalesService } from "@/services/sales-service";
+import { BUYER_COOKIE, buyerPhone, portalGate } from "@/services/buyer-sign-in";
 
 export const dynamic = "force-dynamic";
 
 /** A site photo on the buyer portal. Public, but only for photos of the buyer's own project. */
-export async function GET(_req: NextRequest, { params }: { params: { token: string; updateId: string; n: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { token: string; updateId: string; n: string } }) {
   const notFound = () => new NextResponse("Not found", { status: 404 });
   if (!checkRateLimitSync(`portal-photo:${params.token}`, 120, 60_000).allowed) return new NextResponse("Too many requests", { status: 429 });
   const n = Number(params.n);
   if (!Number.isInteger(n) || n < 0 || n > 20) return notFound();
+  const gate = await portalGate(params.token, await buyerPhone(req.cookies.get(BUYER_COOKIE)?.value));
+  if (gate !== "OK") return gate ? new NextResponse("Sign in first", { status: 401 }) : notFound();
   const url = await SalesService.portalPhotoUrl(params.token, params.updateId, n);
   if (!url) return notFound();
   const file = await readUploadedImage(url);

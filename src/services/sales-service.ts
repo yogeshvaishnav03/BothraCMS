@@ -5,6 +5,7 @@ import { getUserAccessibleProjectIds, isOrgOwnerOrAdmin } from "@/lib/server-aut
 import { istDateKey } from "@/lib/ist-date";
 import { randomBytes } from "crypto";
 import { hasPermission } from "@/lib/permissions";
+import { sendDemandMessages } from "@/services/demand-messages";
 import { companyProfile } from "@/lib/company";
 
 export { companyProfile };
@@ -102,6 +103,15 @@ async function nextReceiptNumber(organizationId: string, tx: any = prisma) {
 }
 
 const due = (i: { amount: number; gstAmount: number }) => i.amount + i.gstAmount;
+
+/** WhatsApp the demand letters at once when that is switched on. A failed send never stops the demand. */
+async function sendDemandsNow(organizationId: string) {
+  try {
+    await sendDemandMessages(organizationId);
+  } catch (e) {
+    console.error("[WHATSAPP_DEMANDS]", e);
+  }
+}
 
 /** Receipts saved as JSON before Phase 6, in the same shape as SalesReceipt rows. */
 function legacyReceipts(inst: { id: string; receipts: string | null }) {
@@ -427,6 +437,7 @@ export class SalesService {
     const date = dueDate || addDays(istDateKey(), DEMAND_DAYS);
     await prisma.salesInstallment.update({ where: { id: inst.id }, data: { dueDate: date, demandRaisedAt: new Date(), demandAuto: false } });
     await audit(user, "SALES_DEMAND_RAISED", "SALES_BOOKING", inst.bookingId, { label: inst.label, amount: due(inst), dueDate: date });
+    await sendDemandsNow(user.organizationId);
     return date;
   }
 
@@ -486,6 +497,7 @@ export class SalesService {
       entityType: "PROJECT_MILESTONE",
       entityId: milestone.id,
     });
+    await sendDemandsNow(organizationId);
     return hits.length;
   }
 

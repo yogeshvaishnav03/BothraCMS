@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { bankAmount } from "@/lib/contractor-tds";
 import { WorkforceHeadcountService } from "@/services/workforce-headcount-service";
 
 // Shared by GET /api/day-book and the admin Command Center.
@@ -171,7 +172,8 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
   );
 
   // Summaries
-  const totalPaymentsAmount = payments.reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
+  // Money that left the bank: TDS held back from a contractor stays until it is deposited.
+  const totalPaymentsAmount = payments.reduce((acc: number, p: any) => acc + bankAmount(p), 0);
   const totalBillsAmount = bills.reduce((acc: number, b: any) => acc + (b.totalAmount || 0), 0);
 
   const totalHeadcount = headcountRecords.reduce((s, r) => s + (r.grandTotal || 0), 0);

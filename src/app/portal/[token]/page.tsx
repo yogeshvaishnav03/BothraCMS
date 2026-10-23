@@ -5,12 +5,15 @@ import { notFound } from "next/navigation";
 import { Building2, CalendarClock, CheckCircle2, Camera, Receipt, Phone } from "lucide-react";
 import { SalesService } from "@/services/sales-service";
 import { rupees, shortDate } from "@/lib/client-api";
+import { requireBuyerAccess } from "@/lib/buyer-gate";
+import { BuyerSignOut } from "@/components/sales/BuyerSignOut";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your home", robots: { index: false, follow: false } };
 
 /** The buyer's own page: payment schedule, receipts, construction progress and site photos. */
 export default async function BuyerPortal({ params }: { params: { token: string } }) {
+  const signedIn = await requireBuyerAccess(params.token, `/portal/${params.token}`);
   const view = await SalesService.portalView(params.token);
   if (!view) notFound();
   const { company, booking, unit, project, installments } = view;
@@ -33,6 +36,7 @@ export default async function BuyerPortal({ params }: { params: { token: string 
           <p className="mt-0.5 text-xs text-slate-400">
             Booking {booking.bookingNumber} on {shortDate(booking.bookingDate)}
           </p>
+          {signedIn && <BuyerSignOut />}
         </div>
       </header>
 

@@ -73,9 +73,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // WhatsApp and SMS keys stay on the server; Settings → Messages has its own route.
+    const { messaging: _messaging, ...settings } = parsedSettings as any;
     return jsonSuccess({
       ...organization,
-      settings: parsedSettings,
+      settingsJson: undefined,
+      settings,
     });
   } catch (error) {
     return handleApiError(error);
@@ -136,7 +139,7 @@ export async function PATCH(req: NextRequest) {
             name: saved.name,
             currency: saved.currency,
             timezone: saved.timezone,
-            settings: mergedSettings,
+            settings: { ...mergedSettings, messaging: undefined },
           }),
         },
       });
@@ -144,9 +147,11 @@ export async function PATCH(req: NextRequest) {
       return saved;
     });
 
+    const { messaging: _messaging, ...settings } = mergedSettings;
     return jsonSuccess({
       ...updated,
-      settings: mergedSettings,
+      settingsJson: undefined,
+      settings,
     });
   } catch (error) {
     return handleApiError(error);

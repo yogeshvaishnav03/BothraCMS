@@ -26,7 +26,10 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  MessageCircle,
+  ChevronRight,
 } from "lucide-react";
+import Link from "next/link";
 
 interface LanguageOption {
   code: string;
@@ -586,6 +589,22 @@ export default function SettingsPage() {
                   </div>
                 )}
               </form>
+
+              {canManageSettings && (
+                <Link
+                  href="/settings/messages"
+                  className="flex items-center gap-3 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-amber-300 transition"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                    <MessageCircle className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-slate-900">Messages: WhatsApp and SMS</div>
+                    <div className="text-xs text-slate-500">Send demand letters and reminders by themselves, and let buyers sign in with a code.</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </Link>
+              )}
 
               {/* Account Security & Password Change Card */}
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">

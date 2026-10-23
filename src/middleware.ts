@@ -12,6 +12,8 @@ const PUBLIC_PATHS = [
   // Buyer portal: a secret link per booking, read-only.
   "/portal",
   "/api/portal",
+  // Scheduled jobs check their own secret (CRON_SECRET).
+  "/api/cron",
   // Installable site app: the service worker, its manifest and icons, and the no-signal page.
   "/sw.js",
   "/manifest.webmanifest",

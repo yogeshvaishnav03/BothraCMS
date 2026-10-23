@@ -24,6 +24,14 @@ const createPaymentSchema = z.object({
   costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
   notes: z.string().optional(),
   autoApprove: z.boolean().optional(),
+  tds: z
+    .object({
+      mode: z.enum(["AUTO", "NONE", "MANUAL"]),
+      amount: z.number().min(0).optional(),
+      reason: z.string().max(200).nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   allocations: z
     .array(
       z.object({
@@ -115,6 +123,7 @@ export async function POST(req: NextRequest) {
       role: user.role,
       autoApprove: data.autoApprove,
       allocations: data.allocations,
+      tds: data.tds,
     });
 
     return jsonSuccess(result, result.idempotentReplay ? 200 : 201);

@@ -6,11 +6,13 @@ import { ArrowLeft } from "lucide-react";
 import { SalesService } from "@/services/sales-service";
 import { ReceiptDocument } from "@/components/sales/SalesDocuments";
 import { PrintButton } from "@/components/sales/PrintButton";
+import { requireBuyerAccess } from "@/lib/buyer-gate";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Payment receipt", robots: { index: false, follow: false } };
 
 export default async function PortalReceipt({ params }: { params: { token: string; id: string } }) {
+  await requireBuyerAccess(params.token, `/portal/${params.token}/receipt/${params.id}`);
   const receipt = await SalesService.portalReceipt(params.token, params.id);
   if (!receipt) notFound();
   return (

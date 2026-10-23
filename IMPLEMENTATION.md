@@ -1,6 +1,6 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 23 Oct 2026 (after Phase 9)
+Last updated: 23 Oct 2026 (after Phase 10)
 Branch: `claude/project-thread-7co71b` (committed locally, **not pushed** to GitHub yet)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
@@ -17,17 +17,18 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 6 | Buyer portal, automatic stage demands, GST receipts, Tally / GST export, PF / ESI / PT in payroll | Done | `224a2e5` | `bothra-redesign-phase6.bundle` |
 | 7 | GST on supplier bills, PF / ESI for site workers with PF ECR and ESI files, cancelling a receipt, offline site app | Done | `96fec30` | `bothra-redesign-phase7.bundle` |
 | 8 | More offline forms, GST rate per bill line and reverse charge, TDS from the tax regime with a yearly tax statement, statutory dues posted to Finance | Done | `7f7c45a` | `bothra-redesign-phase8.bundle` |
-| 9 | Offline items sent only once, the Site Muster for site workers (works with no signal), TDS return on salary (24Q) with PAN and TAN | Done | see `git log` | `bothra-redesign-phase9.bundle` |
+| 9 | Offline items sent only once, the Site Muster for site workers (works with no signal), TDS return on salary (24Q) with PAN and TAN | Done | `8619060` | `bothra-redesign-phase9.bundle` |
+| 10 | TDS on contractor payments (194C) with the 26Q return, buyer sign-in with a code on their mobile, WhatsApp demand letters and reminders sent by themselves | Done | see `git log` | `bothra-redesign-phase10.bundle` |
 
-**Nine phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase9.bundle` is the only one you need.
+**Ten phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase10.bundle` is the only one you need.
 
 ### How to load the latest version
 
 ```bash
-git fetch bothra-redesign-phase9.bundle claude/project-thread-7co71b:claude/redesign-phase9
-git checkout claude/redesign-phase9
+git fetch bothra-redesign-phase10.bundle claude/project-thread-7co71b:claude/redesign-phase10
+git checkout claude/redesign-phase10
 npm install
-npx prisma db push      # required: phases 2 to 9 add new tables and columns
+npx prisma db push      # required: phases 2 to 10 add new tables and columns
 npm run dev
 ```
 
@@ -331,11 +332,57 @@ npm run dev
 
 ---
 
+## Phase 10: TDS on contractors, buyer sign-in and automatic WhatsApp (done)
+
+**TDS on contractor payments (section 194C)** (Finance → Record Payment)
+- When paying a contractor, the payment form works out the TDS by itself and shows what is held back and what the bank pays.
+  - 1% for an individual or HUF, 2% for a firm or company, from the 4th letter of the PAN. The PAN is read from the contractor's PAN field, or from inside their GSTIN.
+  - 20% when there is no PAN, with a warning to add it.
+  - Nothing is cut while a payment is ₹30,000 or less and the year's payments to that contractor stay within ₹1 lakh. The payment that crosses ₹1 lakh also catches up the TDS on the earlier small payments.
+  - When paying a bill with GST shown separately, TDS is on the amount before GST.
+- The TDS can be set to "No TDS" (for example a transporter's declaration), which needs a reason, or typed in (for example under a lower-deduction certificate).
+- Suppliers are not touched; only contractors and parties marked as both.
+- The contractor's bill is settled in full. The bank pays the amount less TDS, and the TDS is owed to the government on one bill a month ("TDS194C-2026-10", due the 7th of the next month, 30 April for March). Reversing a payment takes its TDS off that bill.
+- The payments register shows "TDS held" and "Bank paid" under each such payment. Totals of money out (Day Book, dashboard) count what left the bank.
+- Tally export: the bank is credited the net amount and the TDS goes to a "TDS Payable (194C)" ledger. The payments CSV has "TDS held" and "From bank" columns.
+
+**TDS return on contractors (Form 26Q)** (Finance → TDS return (26Q), or Payroll → TDS return → Contractors)
+- Same layout as the salary return: payments and TDS for the quarter, the challans from the monthly TDS bills, the due date (31 Jul, 31 Oct, 31 Jan, 31 May), and "Fix before filing".
+- Each payment shows the contractor, PAN, amount, rate and TDS, with the 26Q remark codes: C (no PAN, 20%), A (lower rate), T (transporter, no TDS).
+- Both tables download as CSV for the NSDL return utility.
+
+**Buyer sign-in with a code on their mobile** (Settings → Messages → "Buyers sign in with a code")
+- When switched on, the buyer's page link asks for a 6-digit code sent to the mobile number on their booking. A forwarded link alone no longer opens the page, the receipts or the site photos.
+- The code goes on WhatsApp (an authentication template) or, if WhatsApp is not set up, by SMS through MSG91.
+- A code works once, for 10 minutes. Five wrong tries end it, and a number can ask for at most 3 codes in 15 minutes.
+- Signing in shows every home booked on that number. The buyer stays signed in on that phone for 30 days and can sign out.
+- When it is switched off, the link works on its own, as before. The sign-in page is at `/portal/sign-in`.
+
+**WhatsApp demand letters and reminders sent by themselves** (Settings → Messages)
+- When a stage is done and a demand is raised, the buyer gets the demand on WhatsApp with the amount, the due date and the link to their page.
+- Then reminders: a few days before the due date (3 by default), and every few days while it is overdue (every 7 days, at most 3 times by default).
+- A buyer gets at most one message a day. Several overdue instalments go in one message with the total.
+- A wrong number is tried 3 times and then left alone. Nothing is sent once the instalment is paid.
+- Messages go out right after a demand is raised, and once a day from the scheduler. There is also a "Send today's messages now" button.
+- Every message is in the "Sent messages" log on the same page, with Meta's reason when one fails.
+- **Test mode** writes messages and sign-in codes into the log instead of sending them, so the whole flow can be tried before WhatsApp is set up.
+
+**Setting it up**
+1. Make a WhatsApp Business account in Meta Business Suite and add a phone number. Copy the phone number ID and make a permanent access token (System user).
+2. Submit three templates for approval: a sign-in code (Authentication), a demand and a reminder (Utility). The text to submit is on the Messages page.
+3. Fill in Settings → Messages, press "Send test" with your own mobile, then switch on what you need.
+4. For SMS sign-in codes instead, add the MSG91 auth key and a DLT-approved OTP template ID.
+5. For the daily run, set `CRON_SECRET` (16 characters or more) on the server. On Vercel the daily job is already in `vercel.json` (10 am IST). Elsewhere, call `GET /api/cron/whatsapp` once a day with the header `Authorization: Bearer <CRON_SECRET>`.
+
+The WhatsApp token and SMS key are kept on the server. The settings page only shows their last 4 characters, and they are left out of the audit log and every other API reply.
+
+---
+
 ## Incomplete or still planned
 
-All nine phases are built. The items below are not built yet, or work only partly.
+All ten phases are built. The items below are not built yet, or work only partly.
 
-### Gaps in Phase 5 to 9 features
+### Gaps in Phase 5 to 10 features
 
 - **Payroll:**
   - The PF ECR and ESI files are made for upload; filing and paying the challan are still done on the EPFO and ESIC portals.
@@ -355,7 +402,15 @@ All nine phases are built. The items below are not built yet, or work only partl
   - No 1% affordable-housing GST check. The rate is set per booking.
   - A receipt can be cancelled but not edited. To correct one, cancel it and enter it again.
   - "On each slab" is one instalment raised when the whole superstructure stage is done. It is not one demand per slab.
-  - The demand WhatsApp is still sent by a click per buyer.
+  - Automatic WhatsApp needs a WhatsApp Business account and approved templates; until then, use test mode or the click-to-send button.
+  - The messages are in English only. A Hindi template can be set by changing the template language, but the app sends one language to everyone.
+  - Replies from buyers on WhatsApp do not come into the app. They arrive in the WhatsApp Business inbox.
+- **Contractor TDS (194C):**
+  - It covers section 194C only. Professional fees (194J), rent (194I) and purchases over ₹50 lakh (194Q) are not worked out.
+  - The ₹30,000 and ₹1 lakh limits use payments made in the app. Payments to the same contractor made before the app was used are not counted.
+  - TDS is cut when paying, not when the bill is booked. Advances count as paid.
+  - Form 16A certificates are downloaded from TRACES after filing; the app does not make them.
+  - The 26Q page makes CSV sheets, not the FVU file, the same as the salary return.
 - **Exports:**
   - Reverse charge does not post the "RCM paid" entry; pay the RCM tax in cash through the GST portal and record it as a payment.
   - Ledger names are fixed (for example "Purchase - Construction Material"). Rename them in Tally, or ask for a mapping screen.
@@ -371,21 +426,19 @@ All nine phases are built. The items below are not built yet, or work only partl
   - Offline saving works in the installed app and in Chrome or Safari on the phone. The offline page cache only runs on the production build, not in `npm run dev`.
   - Items saved by an older version of the app (before Phase 9) and still waiting on a phone have no id, so they could still arrive twice.
 
-### Ideas for a Phase 10 (not started)
-
-These need an outside account, so they cannot be finished from here alone.
+### Ideas for a Phase 11 (not started)
 
 | Feature | Notes |
 |---|---|
-| Automatic WhatsApp | Send demand letters and reminders without a click. Needs a WhatsApp Business API account (for example through Meta or a provider such as Gupshup or Interakt). |
-| Buyer login | A proper sign-in for buyers with an OTP on their mobile, in place of the secret link. Needs an SMS or WhatsApp provider to send the OTP. |
-| TDS on contractor bills (26Q) | TDS under section 194C on contractor payments, with its own quarterly return. |
 | Photo storage in the cloud | Move photos and drawings to S3 or similar. Needs a storage account. |
+| WhatsApp for staff | Send task reminders and approval requests to staff on WhatsApp, using the Phase 10 set-up. |
+| Other TDS sections | 194J (professionals such as architects), 194I (rent of equipment or land), 194Q (large purchases). |
+| Online payment for buyers | A "Pay now" button on the buyer's page through a payment gateway (Razorpay or similar). Needs a gateway account. |
 
 ### General gaps
 
-- **Nothing is pushed to GitHub yet.** All nine phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
-- **WhatsApp is click-to-chat only.** The buttons open WhatsApp with the number and a message filled in. Automatic WhatsApp messages (for example sending reminders without a click) would need the WhatsApp Business API and an account.
+- **Nothing is pushed to GitHub yet.** All ten phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
+- **Automatic WhatsApp covers buyers only.** Demand letters, reminders and sign-in codes go by themselves once set up (Phase 10). Messages to vendors, contractors and staff are still click-to-chat buttons.
 - **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
 - **Photos and drawings are stored on the server's disk** (`storage/uploads/private`), with a backup copy in the database. For heavy use they should move to cloud storage such as S3, so the database stays small.
 - **Check-in has no GPS or selfie check.** Attendance trusts the person checking in.
@@ -394,11 +447,12 @@ These need an outside account, so they cannot be finished from here alone.
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 361 of 363 tests.
+  The rest of the suite passes: 369 of 371 tests.
 
-## Checks run on the latest version (Phase 9)
+## Checks run on the latest version (Phase 10)
 
-- Tests: 361 of 363 pass. The only failures are the 2 older tests listed above. This includes 3 new tests for Phase 9 (a request sent twice with the same id is saved once, the muster and its pay in payroll, the TDS return with a late challan and missing PANs), 4 for Phase 8 (tax maths, automatic and manual TDS with the statement and statutory bills, mixed-rate and reverse-charge bills, a late and repeated offline check-in), 4 for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
+- Tests: 369 of 371 pass. The only failures are the 2 older tests listed above. This includes 8 new tests for Phase 10 (194C rates, limits and catch-up, GST excluded, no PAN, transporters, the monthly TDS bill and reversal, Tally and CSV, the 26Q return; buyer sign-in with wrong codes, expiry and limits, the page lock; demand, due-soon and overdue messages to the Meta API, one message a day per buyer, a refused template, and the token kept off every reply), 3 for Phase 9 (a request sent twice with the same id is saved once, the muster and its pay in payroll, the TDS return with a late challan and missing PANs), 4 for Phase 8 (tax maths, automatic and manual TDS with the statement and statutory bills, mixed-rate and reverse-charge bills, a late and repeated offline check-in), 4 for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
+- Tried on the production build in a browser: a contractor payment showing the TDS and catch-up, the 26Q page, Settings → Messages in test mode sending one message per buyer, and a buyer signing in on a phone with the code from the log.
 - Offline app, tried in a phone-sized browser on the production build with the server switched off: a muster of 8 workers was saved on the phone and reached the server once when it came back. In Phase 8 a check-in and a material request were tried the same way with two tabs open.
 - Type check: clean.
 - Lint: 9 warnings, the same as before the redesign.

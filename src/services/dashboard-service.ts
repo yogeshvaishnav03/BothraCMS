@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { bankAmount } from "@/lib/contractor-tds";
 import { roundPaise } from "@/lib/financial-math";
 import { UserContext } from "@/lib/auth";
 import { canReadFinance, isOrgOwnerOrAdmin, getUserAccessibleProjectIds } from "@/lib/server-auth";
@@ -201,7 +202,7 @@ export class DashboardService {
       });
 
       paymentsMadeTodayAmount = roundPaise(
-        paymentsToday.reduce((sum: number, p: any) => sum + (p.amount ?? 0), 0)
+        paymentsToday.reduce((sum: number, p: any) => sum + bankAmount(p), 0)
       );
       paymentsTodayList = paymentsToday.map((p) => ({
         id: p.id,
