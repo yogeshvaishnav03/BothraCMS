@@ -69,12 +69,13 @@ const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN"
 export const money = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 
 /** Plain-words warnings for the challan rows. */
-export function challanProblems(rows: Awaited<ReturnType<typeof tdsChallans>>, noData: string) {
+export function challanProblems(rows: (Awaited<ReturnType<typeof tdsChallans>>[number] & { section?: string })[], noData: string) {
   const out: string[] = [];
   for (const c of rows) {
+    const tag = c.section ? ` (${c.section})` : "";
     if (c.state === "NO_DATA") out.push(`${noData} for ${monthName(c.month)}.`);
-    else if (c.state === "NOT_PAID" || c.state === "PART_PAID") out.push(`TDS for ${monthName(c.month)} is not fully deposited: ${money(c.tds - c.deposited)} still to pay, due ${day(c.due)}.`);
-    else if (c.state === "LATE") out.push(`TDS for ${monthName(c.month)} was deposited late, on ${day(c.depositedOn!)}. Interest of about ${money(c.interest)} is payable.`);
+    else if (c.state === "NOT_PAID" || c.state === "PART_PAID") out.push(`TDS${tag} for ${monthName(c.month)} is not fully deposited: ${money(c.tds - c.deposited)} still to pay, due ${day(c.due)}.`);
+    else if (c.state === "LATE") out.push(`TDS${tag} for ${monthName(c.month)} was deposited late, on ${day(c.depositedOn!)}. Interest of about ${money(c.interest)} is payable.`);
   }
   return out;
 }

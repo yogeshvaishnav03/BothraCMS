@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { alertStaffNow } from "@/services/staff-alerts";
 import {
   formatNotificationMessage,
   buildWhatsAppUrl,
@@ -293,6 +294,8 @@ export async function POST(req: NextRequest) {
       orderedByName: user.name,
       approvedByName: shouldApproveImmediately ? `${user.name} (${user.role})` : null,
     });
+
+    if (initialStatus === "PENDING_APPROVAL") await alertStaffNow(user.organizationId);
 
     const whatsappUrl = buildWhatsAppUrl(vendor.phone, notificationMessage);
     const mailtoUrl = buildMailtoUrl(

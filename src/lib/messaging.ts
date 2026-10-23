@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db";
 
 /**
- * Messages the system sends by itself: sign-in codes to buyers, and demand
- * letters and payment reminders on WhatsApp.
+ * Messages the system sends by itself: sign-in codes to buyers, demand
+ * letters and payment reminders on WhatsApp, and alerts to staff.
  *
  * - WhatsApp goes through the WhatsApp Business (Meta Cloud) API with approved
  *   templates. Meta only lets a business start a chat with a template.
@@ -36,6 +36,13 @@ export interface MessagingSettings {
   buyerSignIn: boolean;
   /** Web address of this app, for the buyer's link in messages, e.g. https://cms.bothra.in */
   siteUrl: string;
+  /** WhatsApp alerts to staff: approvals waiting, tasks due, site alerts. */
+  staffAlerts: boolean;
+  /** Template "Hi {{1}}, {{2}}. Open Bothra CMS: {{3}}" (utility). */
+  waStaffTemplate: string;
+  staffApprovals: boolean;
+  staffTasks: boolean;
+  staffSiteAlerts: boolean;
 }
 
 export const MESSAGING_DEFAULTS: MessagingSettings = {
@@ -54,6 +61,11 @@ export const MESSAGING_DEFAULTS: MessagingSettings = {
   maxOverdueReminders: 3,
   buyerSignIn: false,
   siteUrl: "",
+  staffAlerts: false,
+  waStaffTemplate: "",
+  staffApprovals: true,
+  staffTasks: true,
+  staffSiteAlerts: true,
 };
 
 export const SECRET_KEYS = ["waToken", "smsAuthKey"] as const;
@@ -78,6 +90,7 @@ export function channels(s: MessagingSettings) {
     sms,
     otp: s.testMode || (whatsapp && !!s.waOtpTemplate) || sms,
     demands: s.testMode || (whatsapp && !!s.waDemandTemplate),
+    staff: s.testMode || (whatsapp && !!s.waStaffTemplate),
   };
 }
 

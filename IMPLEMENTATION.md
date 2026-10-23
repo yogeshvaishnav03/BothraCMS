@@ -18,9 +18,10 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 7 | GST on supplier bills, PF / ESI for site workers with PF ECR and ESI files, cancelling a receipt, offline site app | Done | `96fec30` | `bothra-redesign-phase7.bundle` |
 | 8 | More offline forms, GST rate per bill line and reverse charge, TDS from the tax regime with a yearly tax statement, statutory dues posted to Finance | Done | `7f7c45a` | `bothra-redesign-phase8.bundle` |
 | 9 | Offline items sent only once, the Site Muster for site workers (works with no signal), TDS return on salary (24Q) with PAN and TAN | Done | `8619060` | `bothra-redesign-phase9.bundle` |
-| 10 | TDS on contractor payments (194C) with the 26Q return, buyer sign-in with a code on their mobile, WhatsApp demand letters and reminders sent by themselves | Done | see `git log` | `bothra-redesign-phase10.bundle` |
+| 10 | TDS on contractor payments (194C) with the 26Q return, buyer sign-in with a code on their mobile, WhatsApp demand letters and reminders sent by themselves | Done | `fada0ba`, merged in PR #2 | `bothra-redesign-phase10.bundle` |
+| 11 | TDS on professional fees (194J) and rent (194I) next to 194C, WhatsApp alerts for staff (approvals, tasks, site alerts) | Done | see `git log` | merged to `main`, deployed on Vercel |
 
-**Ten phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase10.bundle` is the only one you need.
+**Eleven phases are done.** From Phase 10 on, the work is on GitHub and merged into `main`, so Vercel deploys it by itself. The bundle files are only needed for a copy outside GitHub.
 
 ### How to load the latest version
 
@@ -28,7 +29,7 @@ This file lists every phase of the redesign and feature work. It shows what is f
 git fetch bothra-redesign-phase10.bundle claude/project-thread-7co71b:claude/redesign-phase10
 git checkout claude/redesign-phase10
 npm install
-npx prisma db push      # required: phases 2 to 10 add new tables and columns
+npx prisma db push      # required: phases 2 to 11 add new tables and columns (Vercel does this on each build)
 npm run dev
 ```
 
@@ -378,9 +379,42 @@ The WhatsApp token and SMS key are kept on the server. The settings page only sh
 
 ---
 
+## Phase 11: TDS on fees and rent, and WhatsApp alerts for staff (done)
+
+**TDS on professional fees (194J) and rent (194I)** (Vendors & Contractors → Edit → "TDS on payments")
+- Each party now has a TDS section. "Automatic" means 194C for contractors and no TDS for goods suppliers, as in Phase 10.
+
+  | Choice | Rate | No TDS while | 26Q code |
+  |---|---|---|---|
+  | Contractor (194C) | 1% individual or HUF, 2% others | a payment is ₹30,000 or less and the year stays within ₹1 lakh | 94C |
+  | Professional fees (194J), e.g. architect, structural engineer, CA, lawyer | 10% | the year's fees stay within ₹50,000 | 94J-B |
+  | Technical services (194J), e.g. soil testing, lab tests | 2% | the year stays within ₹50,000 | 94J-A |
+  | Rent of land or building (194I), e.g. site office, godown | 10% | the month's rent stays within ₹50,000 | 4IB |
+  | Machinery on hire (194I), e.g. crane, JCB, shuttering on rent | 2% | the month stays within ₹50,000 | 4IA |
+  | No TDS | | | |
+
+- No PAN means 20%, as before. The payment that crosses the limit also catches up the TDS on earlier payments in the year (or month, for rent).
+- The payment form shows the section by name ("TDS · Professional fees (194J)") and works the same way: automatic, "No TDS" with a reason, or a typed amount.
+- The TDS is owed on one bill a month per section: "TDS194C-2026-10", "TDS194J-2026-10" and "TDS194I-2026-10", all to the Income Tax Department (TDS). Pay each with its own challan.
+- Tally export: a ledger for each, "TDS Payable (194C)", "TDS Payable (194J)" and "TDS Payable (194I)". Depositing a TDS bill clears its own ledger.
+- The 26Q page (now "Contractors, fees & rent") lists every payment with its section and code, and the challans per section and month. The CSV sheets have the section code column the NSDL utility asks for. A party marked "No TDS" is left out of the return.
+
+**WhatsApp alerts for staff** (Settings → Messages → "Alert staff on WhatsApp")
+- Staff get what needs them on WhatsApp as well as in the bell in the app. Three kinds, each with its own tick box:
+  - **Approvals waiting:** admins hear about payments and purchase orders waiting for approval. Material requests go to the people they are meant for.
+  - **Tasks:** task reminders, and each morning (10 am) a list of a person's overdue tasks.
+  - **Site alerts:** quality, safety and equipment alerts, and anything marked critical.
+- Everything waiting for a person goes in one message. Each person gets at most one message every 15 minutes, and none between 9 pm and 8 am. Anything held back goes with the next message or the 10 am run.
+- An approval is sent once; reading an alert in the app first means it is not sent on WhatsApp.
+- Staff need a mobile number on the Team page. The settings page shows how many have none.
+- It uses the same WhatsApp number as the buyer messages. Submit one more Utility template to Meta: `Hi {{1}}, {{2}}. Open Bothra CMS: {{3}}`, and put its name in "Staff alert template". Test mode works here too.
+- "Send today's messages now" also sends staff alerts and the overdue-task list.
+
+---
+
 ## Incomplete or still planned
 
-All ten phases are built. The items below are not built yet, or work only partly.
+All eleven phases are built. The items below are not built yet, or work only partly.
 
 ### Gaps in Phase 5 to 10 features
 
@@ -405,12 +439,17 @@ All ten phases are built. The items below are not built yet, or work only partly
   - Automatic WhatsApp needs a WhatsApp Business account and approved templates; until then, use test mode or the click-to-send button.
   - The messages are in English only. A Hindi template can be set by changing the template language, but the app sends one language to everyone.
   - Replies from buyers on WhatsApp do not come into the app. They arrive in the WhatsApp Business inbox.
-- **Contractor TDS (194C):**
-  - It covers section 194C only. Professional fees (194J), rent (194I) and purchases over ₹50 lakh (194Q) are not worked out.
-  - The ₹30,000 and ₹1 lakh limits use payments made in the app. Payments to the same contractor made before the app was used are not counted.
+- **TDS on payments (194C, 194J, 194I):**
+  - Purchases over ₹50 lakh a year from one supplier (194Q) and payments to non-residents are not worked out.
+  - Directors' fees under 194J (no limit) are not a separate choice; use "typed in" for them.
+  - The limits use payments made in the app. Payments to the same party made before the app was used are not counted.
   - TDS is cut when paying, not when the bill is booked. Advances count as paid.
   - Form 16A certificates are downloaded from TRACES after filing; the app does not make them.
   - The 26Q page makes CSV sheets, not the FVU file, the same as the salary return.
+- **Staff WhatsApp alerts:**
+  - Task updates and chat messages stay in the app; only reminders, the morning overdue list, approvals and site alerts go on WhatsApp.
+  - On the Vercel Hobby plan the scheduled run is once a day, so an alert held overnight goes at 10 am. Alerts during the day go straight away.
+  - Replies on WhatsApp do not come back into the app.
 - **Exports:**
   - Reverse charge does not post the "RCM paid" entry; pay the RCM tax in cash through the GST portal and record it as a payment.
   - Ledger names are fixed (for example "Purchase - Construction Material"). Rename them in Tally, or ask for a mapping screen.
@@ -426,19 +465,18 @@ All ten phases are built. The items below are not built yet, or work only partly
   - Offline saving works in the installed app and in Chrome or Safari on the phone. The offline page cache only runs on the production build, not in `npm run dev`.
   - Items saved by an older version of the app (before Phase 9) and still waiting on a phone have no id, so they could still arrive twice.
 
-### Ideas for a Phase 11 (not started)
+### Ideas for a Phase 12 (not started)
 
 | Feature | Notes |
 |---|---|
-| Photo storage in the cloud | Move photos and drawings to S3 or similar. Needs a storage account. |
-| WhatsApp for staff | Send task reminders and approval requests to staff on WhatsApp, using the Phase 10 set-up. |
-| Other TDS sections | 194J (professionals such as architects), 194I (rent of equipment or land), 194Q (large purchases). |
+| Photo storage in the cloud | Move photos and drawings to S3, Vercel Blob or similar. On Vercel the server disk is not kept between deploys, so this matters there. Needs a storage account. |
 | Online payment for buyers | A "Pay now" button on the buyer's page through a payment gateway (Razorpay or similar). Needs a gateway account. |
+| TDS on large purchases (194Q) | 0.1% on purchases over ₹50 lakh a year from one supplier. |
+| Form 16A | Make the TDS certificates in the app instead of downloading them from TRACES. |
 
 ### General gaps
 
-- **Nothing is pushed to GitHub yet.** All ten phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
-- **Automatic WhatsApp covers buyers only.** Demand letters, reminders and sign-in codes go by themselves once set up (Phase 10). Messages to vendors, contractors and staff are still click-to-chat buttons.
+- **Automatic WhatsApp covers buyers and staff.** Messages to vendors and contractors are still click-to-chat buttons.
 - **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
 - **Photos and drawings are stored on the server's disk** (`storage/uploads/private`), with a backup copy in the database. For heavy use they should move to cloud storage such as S3, so the database stays small.
 - **Check-in has no GPS or selfie check.** Attendance trusts the person checking in.
@@ -447,12 +485,13 @@ All ten phases are built. The items below are not built yet, or work only partly
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 369 of 371 tests.
+  The rest of the suite passes: 370 of 372 tests.
 
-## Checks run on the latest version (Phase 10)
+## Checks run on the latest version (Phase 11)
 
-- Tests: 369 of 371 pass. The only failures are the 2 older tests listed above. This includes 8 new tests for Phase 10 (194C rates, limits and catch-up, GST excluded, no PAN, transporters, the monthly TDS bill and reversal, Tally and CSV, the 26Q return; buyer sign-in with wrong codes, expiry and limits, the page lock; demand, due-soon and overdue messages to the Meta API, one message a day per buyer, a refused template, and the token kept off every reply), 3 for Phase 9 (a request sent twice with the same id is saved once, the muster and its pay in payroll, the TDS return with a late challan and missing PANs), 4 for Phase 8 (tax maths, automatic and manual TDS with the statement and statutory bills, mixed-rate and reverse-charge bills, a late and repeated offline check-in), 4 for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
-- Tried on the production build in a browser: a contractor payment showing the TDS and catch-up, the 26Q page, Settings → Messages in test mode sending one message per buyer, and a buyer signing in on a phone with the code from the log.
+- Tests: 370 of 372 pass. The only failures are the 2 older tests listed above. This includes 5 new tests for Phase 11 (194J yearly limit and catch-up, 2% technical services, 194I monthly rent, a supplier with a section, an exempt party, one TDS bill per section, Tally ledgers per section and a deposit, the 26Q with section codes and challans per section; staff alerts grouped per person, an approval sent once, chat left in the app, the 15-minute gap, quiet hours, the morning overdue list once a day, and the call to the Meta API), 8 for Phase 10 (194C rates, limits and catch-up, GST excluded, no PAN, transporters, the monthly TDS bill and reversal, Tally and CSV, the 26Q return; buyer sign-in with wrong codes, expiry and limits, the page lock; demand, due-soon and overdue messages to the Meta API, one message a day per buyer, a refused template, and the token kept off every reply), 3 for Phase 9 (a request sent twice with the same id is saved once, the muster and its pay in payroll, the TDS return with a late challan and missing PANs), 4 for Phase 8 (tax maths, automatic and manual TDS with the statement and statutory bills, mixed-rate and reverse-charge bills, a late and repeated offline check-in), 4 for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
+- Tried on the production build in a browser (Phase 11): the TDS choice on a party, a payment to an architect showing 10% under 194J, the 26Q page with 194C, 194J and 194I, and Settings → Messages with staff alerts in test mode.
+- Tried on the production build in a browser (Phase 10): a contractor payment showing the TDS and catch-up, the 26Q page, Settings → Messages in test mode sending one message per buyer, and a buyer signing in on a phone with the code from the log.
 - Offline app, tried in a phone-sized browser on the production build with the server switched off: a muster of 8 workers was saved on the phone and reached the server once when it came back. In Phase 8 a check-in and a material request were tried the same way with two tabs open.
 - Type check: clean.
 - Lint: 9 warnings, the same as before the redesign.

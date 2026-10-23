@@ -12,7 +12,7 @@ const rs = (paise: number) => Math.round(paise / 100);
 const ddmmyyyy = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : "");
 
 /**
- * Quarterly TDS return on contractor payments (Form 26Q, section 194C).
+ * Quarterly TDS return on payments other than salary (Form 26Q: 194C, 194J, 194I).
  * ?fy=2026-27&quarter=3, plus &format=csv&part=deductees|challans for a sheet.
  */
 export async function GET(req: NextRequest) {
@@ -31,12 +31,12 @@ export async function GET(req: NextRequest) {
     const rows: (string | number | null)[][] =
       part === "challans"
         ? [
-            ["Month", "TDS deducted (₹)", "Deposited (₹)", "Date deposited", "Challan / reference", "Due date", "Interest if late (₹)"],
-            ...data.challans.map((c) => [c.month, rs(c.tds), rs(c.deposited), ddmmyyyy(c.depositedOn), c.reference, ddmmyyyy(c.due), c.interest ? rs(c.interest) : ""]),
+            ["Section", "Month", "TDS deducted (₹)", "Deposited (₹)", "Date deposited", "Challan / reference", "Due date", "Interest if late (₹)"],
+            ...data.challans.map((c) => [c.section, c.month, rs(c.tds), rs(c.deposited), ddmmyyyy(c.depositedOn), c.reference, ddmmyyyy(c.due), c.interest ? rs(c.interest) : ""]),
           ]
         : [
-            ["Month", "Contractor", "PAN", "Section", "Date paid / credited", "Amount (₹)", "Rate %", "TDS (₹)", "Date deducted", "Remark code", "Payment reference"],
-            ...data.deductees.map((d) => [d.month, d.name, d.pan || "PANNOTAVBL", d.section, ddmmyyyy(d.paidOn), rs(d.amountPaid), d.rate, rs(d.tds), ddmmyyyy(d.deductedOn), d.remark, d.reference]),
+            ["Month", "Deductee", "PAN", "Section", "Section code", "Date paid / credited", "Amount (₹)", "Rate %", "TDS (₹)", "Date deducted", "Remark code", "Payment reference"],
+            ...data.deductees.map((d) => [d.month, d.name, d.pan || "PANNOTAVBL", d.section, d.sectionCode, ddmmyyyy(d.paidOn), rs(d.amountPaid), d.rate, rs(d.tds), ddmmyyyy(d.deductedOn), d.remark, d.reference]),
           ];
     return new Response("﻿" + csv(rows), {
       headers: {

@@ -4,6 +4,7 @@ import { COST_HEAD_KEYS } from "@/services/project-budget-service";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission, requireProjectAccess } from "@/lib/server-auth";
 import { FinanceService } from "@/services/finance-service";
+import { alertStaffNow } from "@/services/staff-alerts";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -125,6 +126,9 @@ export async function POST(req: NextRequest) {
       allocations: data.allocations,
       tds: data.tds,
     });
+
+    // Tell the admins on WhatsApp that a payment is waiting for them.
+    if (!result.idempotentReplay && result.payment.status === "PENDING_APPROVAL") await alertStaffNow(user.organizationId);
 
     return jsonSuccess(result, result.idempotentReplay ? 200 : 201);
   } catch (error) {

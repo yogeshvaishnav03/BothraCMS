@@ -51,6 +51,7 @@ const EMPTY_FORM = {
   rating: "",
   taxIdentifier: "",
   panNumber: "",
+  tdsSection: "",
   contractValueRupees: "",
   bankAccountName: "",
   bankAccountNumber: "",
@@ -293,6 +294,7 @@ export default function PartiesPage() {
       rating: p.rating ? String(p.rating) : "",
       taxIdentifier: p.taxIdentifier || "",
       panNumber: p.panNumber || "",
+      tdsSection: p.tdsSection || "",
       contractValueRupees: p.contractValue ? paiseToRupees(p.contractValue).toString() : "",
       bankAccountName: p.bankAccountName || "",
       bankAccountNumber: "", // never pre-filled; leave empty to keep the number on file
@@ -346,6 +348,7 @@ export default function PartiesPage() {
       category: form.category,
       rating: form.rating ? Number(form.rating) : null,
       panNumber: form.panNumber,
+      tdsSection: form.tdsSection,
       bankAccountName: form.bankAccountName,
       bankIfsc: form.bankIfsc,
       bankName: form.bankName,
@@ -927,6 +930,18 @@ export default function PartiesPage() {
                     <div>
                       <label className={labelCls}>PAN</label>
                       <input type="text" maxLength={10} placeholder="ABCDE1234F" value={form.panNumber} onChange={setField("panNumber")} className={cn(inputCls, "font-mono uppercase")} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>TDS on payments</label>
+                      <select value={form.tdsSection} onChange={setField("tdsSection")} className={inputCls}>
+                        <option value="">{form.partyType === "VENDOR" ? "None (goods supplier)" : "Automatic: contractor (194C)"}</option>
+                        <option value="194C">Contractor (194C)</option>
+                        <option value="194J_PROF">Professional fees, 10% (194J)</option>
+                        <option value="194J_TECH">Technical services, 2% (194J)</option>
+                        <option value="194I_LB">Rent of land or building, 10% (194I)</option>
+                        <option value="194I_PM">Machinery on hire, 2% (194I)</option>
+                        <option value="NONE">No TDS</option>
+                      </select>
                     </div>
                     {form.partyType !== "VENDOR" && (
                       <div>

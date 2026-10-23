@@ -386,6 +386,7 @@ model Party {
   category      String?  // trade or supply line, e.g. Cement, Steel, RCC work, Shuttering
   rating        Int?     // 1-5, internal vendor rating
   panNumber     String?
+  tdsSection    String?   // TDS on payments: 194C, 194J_PROF, 194J_TECH, 194I_PM, 194I_LB, NONE; empty = 194C for contractors
   // Bank details for payments. Full account numbers are only returned by
   // GET /api/parties/[id]/bank (finance:write, audited); lists show the last 4 digits.
   bankAccountName   String?
@@ -862,6 +863,7 @@ model Notification {
   href           String?
   readAt         DateTime?
   deliveredAt    DateTime  @default(now())
+  whatsappAt     DateTime? // sent to the person on WhatsApp (Settings → Messages → staff alerts)
   createdAt      DateTime  @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

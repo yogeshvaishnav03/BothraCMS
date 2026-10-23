@@ -21,6 +21,12 @@ export const partyProfileSchema = z.object({
   panNumber: optionalText(10)
     .transform(upper)
     .refine((v) => !v || /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v), "PAN must look like ABCDE1234F"),
+  // TDS on payments to this party; "" or null = the default (194C for contractors).
+  tdsSection: z
+    .enum(["", "194C", "194J_PROF", "194J_TECH", "194I_PM", "194I_LB", "NONE"])
+    .nullable()
+    .optional()
+    .transform((v) => (v === "" ? null : v)),
   bankAccountName: optionalText(),
   bankAccountNumber: optionalText(18)
     .transform((v) => (typeof v === "string" ? v.replace(/\s/g, "") : v))
@@ -60,6 +66,7 @@ export function publicPartyProfile(p: any) {
     category: p.category ?? null,
     rating: p.rating ?? null,
     panNumber: p.panNumber ?? null,
+    tdsSection: p.tdsSection ?? null,
     bankAccountName: p.bankAccountName ?? null,
     bankAccountMasked: maskAccountNumber(p.bankAccountNumber),
     bankIfsc: p.bankIfsc ?? null,

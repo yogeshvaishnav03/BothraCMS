@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const user = await requireUserContext(req);
     requirePermission(user, "finance:write");
     const body = schema.parse(await req.json());
-    const tds = await FinanceService.contractorTds({ organizationId: user.organizationId, ...body, paymentDate: new Date(body.paymentDate) });
+    const tds = await FinanceService.paymentTds({ organizationId: user.organizationId, ...body, paymentDate: new Date(body.paymentDate) });
     return jsonSuccess(tds ? { ...tds, bankAmount: body.amount - tds.amount } : null);
   } catch (error) {
     return handleApiError(error);
