@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { canTakePayments, paymentSettings } from "@/lib/online-payments";
 import type { UserContext } from "@/lib/auth";
 import { notifyPeople } from "@/lib/notify";
 import { getUserAccessibleProjectIds, isOrgOwnerOrAdmin } from "@/lib/server-auth";
@@ -630,13 +631,14 @@ export class SalesService {
       },
     });
     if (!b || b.status !== "ACTIVE") return null;
-    const [stages, company] = await Promise.all([
+    const [stages, company, payments] = await Promise.all([
       prisma.projectMilestone.findMany({
         where: { projectId: b.unit.projectId },
         orderBy: { sortOrder: "asc" },
         include: { updates: { where: { photoUrls: { not: null } }, orderBy: { createdAt: "desc" }, take: 6, select: { id: true, createdAt: true, note: true, photoUrls: true, progressTo: true } } },
       }),
       companyProfile(b.organizationId),
+      paymentSettings(b.organizationId),
     ]);
     const today = istDateKey();
     const totalWeight = stages.reduce((s, m) => s + (m.weight > 0 ? m.weight : 0), 0);
@@ -679,6 +681,8 @@ export class SalesService {
       balance: total - received,
       dueNow: installments.filter((i) => i.dueDate && i.dueDate <= addDays(today, DEMAND_DAYS)).reduce((s, i) => s + Math.max(0, i.total - i.receivedAmount), 0),
       progress,
+      /** "Pay now" on instalments that are due, through Razorpay. */
+      payOnline: canTakePayments(payments),
       stages: stages.map((m) => ({ name: m.name, progressPercent: m.progressPercent, status: m.status })),
       photos,
     };

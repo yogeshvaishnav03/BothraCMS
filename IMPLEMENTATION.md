@@ -1,7 +1,7 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 23 Oct 2026 (after Phase 10)
-Branch: `claude/project-thread-7co71b` (committed locally, **not pushed** to GitHub yet)
+Last updated: 23 Oct 2026 (after Phase 12)
+Branch: `claude/phase-12` (pull request to `main`)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
 
@@ -20,8 +20,9 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 9 | Offline items sent only once, the Site Muster for site workers (works with no signal), TDS return on salary (24Q) with PAN and TAN | Done | `8619060` | `bothra-redesign-phase9.bundle` |
 | 10 | TDS on contractor payments (194C) with the 26Q return, buyer sign-in with a code on their mobile, WhatsApp demand letters and reminders sent by themselves | Done | `fada0ba`, merged in PR #2 | `bothra-redesign-phase10.bundle` |
 | 11 | TDS on professional fees (194J) and rent (194I) next to 194C, WhatsApp alerts for staff (approvals, tasks, site alerts) | Done | see `git log` | merged to `main`, deployed on Vercel |
+| 12 | Photos and drawings in cloud storage (Vercel Blob), "Pay now" for buyers through Razorpay, TDS on large purchases (194Q), Form 16A certificates | Done | see `git log` | pull request to `main` |
 
-**Eleven phases are done.** From Phase 10 on, the work is on GitHub and merged into `main`, so Vercel deploys it by itself. The bundle files are only needed for a copy outside GitHub.
+**Twelve phases are done.** From Phase 10 on, the work is on GitHub and merged into `main`, so Vercel deploys it by itself. The bundle files are only needed for a copy outside GitHub.
 
 ### How to load the latest version
 
@@ -29,7 +30,7 @@ This file lists every phase of the redesign and feature work. It shows what is f
 git fetch bothra-redesign-phase10.bundle claude/project-thread-7co71b:claude/redesign-phase10
 git checkout claude/redesign-phase10
 npm install
-npx prisma db push      # required: phases 2 to 11 add new tables and columns (Vercel does this on each build)
+npx prisma db push      # required: phases 2 to 12 add new tables and columns (Vercel does this on each build)
 npm run dev
 ```
 
@@ -412,11 +413,46 @@ The WhatsApp token and SMS key are kept on the server. The settings page only sh
 
 ---
 
+## Phase 12: Cloud storage, online payment for buyers, TDS on purchases (194Q) and Form 16A (done)
+
+**Photos and drawings in cloud storage** (Settings → File storage)
+- When a **private** Vercel Blob store is connected to the Vercel project (Storage → Create → Blob), Vercel sets `BLOB_READ_WRITE_TOKEN` and every new upload (site photos, drawings, bills, task photos) goes to the store. Amazon S3 and Cloudflare R2 still work with their own settings and come first if set.
+- With cloud storage on, uploads are no longer copied into the database. Without it nothing changes: the file goes to the server disk with a copy in the database, as before.
+- Files are still opened only through the app (`/api/uploads/…`), which checks who is asking. The store is private, so a file's own address does not open without the key.
+- Files uploaded before stay where they are and keep opening. "Move files to Vercel Blob" on the File storage page moves them out of the database in batches and deletes the database copies; it can be stopped and started again.
+
+**"Pay now" for buyers** (Settings → Online payments)
+- With Razorpay set up, the buyer's page shows "Pay ₹… now" next to each instalment that is due. It opens Razorpay's page (UPI, cards, net banking) for the balance of that instalment, GST included.
+- When the payment goes through, the receipt is entered by itself: mode "Online", the Razorpay payment ID as the reference, in the name of the person who made the booking. The buyer is sent back to their page, which says the payment is received and shows the receipt. Admins get a notification.
+- Razorpay also calls a webhook (`/api/portal/pay/webhook`, event `payment_link.paid`), so the receipt is entered even when the buyer closes the page before coming back. Whichever comes first books it; the second does nothing. Both are checked with Razorpay's signature.
+- If the office entered part of the instalment by hand meanwhile, the extra goes on the next instalments. Anything over the whole booking is flagged on the Online payments page to refund or keep as an advance.
+- A payment link is good for 30 minutes; pressing "Pay now" again within that time opens the same one.
+- The key secret and webhook secret stay on the server; the settings page shows their last 4 characters. Test keys (`rzp_test_…`) take Razorpay's test payments and move no money.
+
+**Setting up Razorpay**
+1. Open a Razorpay account and finish the business KYC.
+2. Account & Settings → API keys: make a key and put the key ID and secret on the Online payments page. Start with the test keys.
+3. Account & Settings → Webhooks: add the address shown on the page, tick `payment_link.paid`, type a secret and put the same secret on the page.
+4. Switch on "Pay now", save, and press "Check the keys". Switch to the live keys when a test payment works.
+
+**TDS on large purchases (194Q)** (Settings → "Turnover last year was over ₹10 crore")
+- 194Q applies only to a buyer whose turnover last year was over ₹10 crore, so it is a company setting. When it is ticked, goods suppliers with no TDS choice of their own come under 194Q. A supplier can also be put under it by hand ("Goods over ₹50 lakh a year, 0.1% (194Q)") or kept out with "No TDS".
+- 0.1% on what is paid to one supplier above ₹50 lakh in the financial year, on the amount before GST. Unlike 194C there is no catch-up: only the part above ₹50 lakh is taxed. No PAN means 5%.
+- Same as the other sections: a monthly bill "TDS194Q-2026-10" to the Income Tax Department, a "TDS Payable (194Q)" ledger in the Tally export, and code 94Q on the 26Q page and its CSV sheets.
+
+**Form 16A certificates** (Payroll → TDS return → Contractors, fees & rent → "TDS certificates (Form 16A)")
+- One certificate per party per quarter, made from the 26Q figures: the deductor's and the party's name, address, PAN and TAN, the assessment year, each payment with its section and code, the TDS, and the challans that deposited it.
+- The verification is signed by the person set in Settings ("Signs TDS certificates"). Print or save it as a PDF, or open WhatsApp with a short message to the party.
+- The page warns when the TDS is not yet deposited, the party has no PAN, or the TAN or signatory is missing. Certificates are due 15 days after the 26Q (15 Aug, 15 Nov, 15 Feb, 15 Jun).
+- This is the office's own copy. The certificate the party claims credit with is the one from TRACES once the 26Q is filed; it carries the TRACES certificate number.
+
+---
+
 ## Incomplete or still planned
 
-All eleven phases are built. The items below are not built yet, or work only partly.
+All twelve phases are built. The items below are not built yet, or work only partly.
 
-### Gaps in Phase 5 to 10 features
+### Gaps in Phase 5 to 12 features
 
 - **Payroll:**
   - The PF ECR and ESI files are made for upload; filing and paying the challan are still done on the EPFO and ESIC portals.
@@ -440,12 +476,21 @@ All eleven phases are built. The items below are not built yet, or work only par
   - The messages are in English only. A Hindi template can be set by changing the template language, but the app sends one language to everyone.
   - Replies from buyers on WhatsApp do not come into the app. They arrive in the WhatsApp Business inbox.
 - **TDS on payments (194C, 194J, 194I):**
-  - Purchases over ₹50 lakh a year from one supplier (194Q) and payments to non-residents are not worked out.
+  - Payments to non-residents are not worked out.
+  - 194Q is cut when paying, the same as the other sections; the law says at payment or when the bill is booked, whichever is earlier. Advances count as paid.
+  - The ₹10 crore turnover setting is ticked by hand. Check it each April.
+  - If the supplier collects TCS on the same sale (206C(1H)), 194Q comes first and the supplier should not collect; the app does not check this.
   - Directors' fees under 194J (no limit) are not a separate choice; use "typed in" for them.
   - The limits use payments made in the app. Payments to the same party made before the app was used are not counted.
   - TDS is cut when paying, not when the bill is booked. Advances count as paid.
-  - Form 16A certificates are downloaded from TRACES after filing; the app does not make them.
+  - The Form 16A from the app has no TRACES certificate number and is not a substitute for the TRACES download. The challan is shown as the payment reference; the BSR code and serial are not split out.
   - The 26Q page makes CSV sheets, not the FVU file, the same as the salary return.
+- **Online payments:**
+  - Only Razorpay is supported. The buyer pays one instalment at a time, the full balance of it.
+  - Razorpay keeps its fee and pays the rest into the bank a day or two later. The receipt is for the full amount; enter the fee as a bank charge in Finance.
+  - Refunds are made in Razorpay. Then cancel the receipt in the app.
+- **Cloud storage:**
+  - The move button uploads from the database copies. On a server that kept files only on its own disk (not Vercel), copy that folder to the store by hand.
 - **Staff WhatsApp alerts:**
   - Task updates and chat messages stay in the app; only reminders, the morning overdue list, approvals and site alerts go on WhatsApp.
   - On the Vercel Hobby plan the scheduled run is once a day, so an alert held overnight goes at 10 am. Alerts during the day go straight away.
@@ -465,20 +510,20 @@ All eleven phases are built. The items below are not built yet, or work only par
   - Offline saving works in the installed app and in Chrome or Safari on the phone. The offline page cache only runs on the production build, not in `npm run dev`.
   - Items saved by an older version of the app (before Phase 9) and still waiting on a phone have no id, so they could still arrive twice.
 
-### Ideas for a Phase 12 (not started)
+### Ideas for a Phase 13 (not started)
 
 | Feature | Notes |
 |---|---|
-| Photo storage in the cloud | Move photos and drawings to S3, Vercel Blob or similar. On Vercel the server disk is not kept between deploys, so this matters there. Needs a storage account. |
-| Online payment for buyers | A "Pay now" button on the buyer's page through a payment gateway (Razorpay or similar). Needs a gateway account. |
-| TDS on large purchases (194Q) | 0.1% on purchases over ₹50 lakh a year from one supplier. |
-| Form 16A | Make the TDS certificates in the app instead of downloading them from TRACES. |
+| FVU file for the TDS returns | Make the upload file for the 24Q and 26Q directly, instead of CSV sheets for the NSDL utility. |
+| Razorpay fees and settlements | Read Razorpay's settlements and post the fee as a bank charge by itself. |
+| Mobile push notifications | Phone push for staff, next to the bell and WhatsApp. |
+| GPS or selfie on check-in | So attendance does not rely only on trust. |
 
 ### General gaps
 
 - **Automatic WhatsApp covers buyers and staff.** Messages to vendors and contractors are still click-to-chat buttons.
 - **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
-- **Photos and drawings are stored on the server's disk** (`storage/uploads/private`), with a backup copy in the database. For heavy use they should move to cloud storage such as S3, so the database stays small.
+- **Photos and drawings stay on the server's disk with a copy in the database until cloud storage is set up** (Settings → File storage). On Vercel, connect a private Blob store and move the older files.
 - **Check-in has no GPS or selfie check.** Attendance trusts the person checking in.
 - **Material request lines typed as free text** must be matched to a catalogue material before they can be ordered.
 - **Two older tests fail.** These failures existed before this work started and are not caused by it:
@@ -487,7 +532,14 @@ All eleven phases are built. The items below are not built yet, or work only par
 
   The rest of the suite passes: 370 of 372 tests.
 
-## Checks run on the latest version (Phase 11)
+## Checks run on the latest version (Phase 12)
+
+- Tests: 377 of 379 pass. The only failures are the 2 older tests listed above. This includes 7 new tests for Phase 12: 194Q only above ₹50 lakh with no catch-up, 5% without PAN, suppliers under 194Q only when the company setting is on; 194Q payments, the monthly bill, the Tally ledger, code 94Q on the 26Q; Form 16A before and after the deposit; Razorpay keys kept off every reply and the audit log; a payment link for the balance, reused on a second press; a forged return booking nothing, the real return booking one receipt and the webhook after it booking nothing more; a webhook-only payment spilling onto the next instalment after a cheque; files going to a private Blob store with no database copies; older files moved out of the database.
+- Tried on the production build in a browser: Settings with the 194Q and signatory fields and the new cards, Online payments and File storage pages, a supplier payment with 194Q, the Form 16A page, and the buyer's page on a phone-sized screen with "Pay now" (with no Razorpay connection here, it shows "Could not reach Razorpay").
+- Not tried against the real Razorpay or Vercel Blob services from here; both are covered by tests that stand in for them. Try a test payment with Razorpay test keys after deploying.
+- Type check: clean. Lint: 9 warnings, the same as before. Production build: succeeds.
+
+### Phase 11 checks
 
 - Tests: 370 of 372 pass. The only failures are the 2 older tests listed above. This includes 5 new tests for Phase 11 (194J yearly limit and catch-up, 2% technical services, 194I monthly rent, a supplier with a section, an exempt party, one TDS bill per section, Tally ledgers per section and a deposit, the 26Q with section codes and challans per section; staff alerts grouped per person, an approval sent once, chat left in the app, the 15-minute gap, quiet hours, the morning overdue list once a day, and the call to the Meta API), 8 for Phase 10 (194C rates, limits and catch-up, GST excluded, no PAN, transporters, the monthly TDS bill and reversal, Tally and CSV, the 26Q return; buyer sign-in with wrong codes, expiry and limits, the page lock; demand, due-soon and overdue messages to the Meta API, one message a day per buyer, a refused template, and the token kept off every reply), 3 for Phase 9 (a request sent twice with the same id is saved once, the muster and its pay in payroll, the TDS return with a late challan and missing PANs), 4 for Phase 8 (tax maths, automatic and manual TDS with the statement and statutory bills, mixed-rate and reverse-charge bills, a late and repeated offline check-in), 4 for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
 - Tried on the production build in a browser (Phase 11): the TDS choice on a party, a payment to an architect showing 10% under 194J, the 26Q page with 194C, 194J and 194I, and Settings → Messages with staff alerts in test mode.

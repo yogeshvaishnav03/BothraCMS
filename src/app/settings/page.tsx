@@ -28,6 +28,8 @@ import {
   EyeOff,
   MessageCircle,
   ChevronRight,
+  CreditCard,
+  HardDrive,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -71,6 +73,9 @@ interface OrgData {
   settings: {
     taxId?: string;
     tan?: string;
+    tds194Q?: boolean;
+    tdsSignatory?: string;
+    tdsSignatoryDesignation?: string;
     companyAddress?: string;
     phone?: string;
     workDayHours?: number;
@@ -109,6 +114,9 @@ export default function SettingsPage() {
   const [timezone, setTimezone] = useState("Asia/Kolkata");
   const [taxId, setTaxId] = useState("");
   const [tan, setTan] = useState("");
+  const [tds194Q, setTds194Q] = useState(false);
+  const [tdsSignatory, setTdsSignatory] = useState("");
+  const [tdsSignatoryDesignation, setTdsSignatoryDesignation] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [workDayHours, setWorkDayHours] = useState(8);
@@ -149,6 +157,9 @@ export default function SettingsPage() {
         setTimezone(data.timezone);
         setTaxId(data.settings?.taxId || "");
         setTan(data.settings?.tan || "");
+        setTds194Q(!!data.settings?.tds194Q);
+        setTdsSignatory(data.settings?.tdsSignatory || "");
+        setTdsSignatoryDesignation(data.settings?.tdsSignatoryDesignation || "");
         setCompanyAddress(data.settings?.companyAddress || "");
         setPhone(data.settings?.phone || "");
         setWorkDayHours(data.settings?.workDayHours || 8);
@@ -196,6 +207,9 @@ export default function SettingsPage() {
           settings: {
             taxId,
             tan,
+            tds194Q,
+            tdsSignatory,
+            tdsSignatoryDesignation,
             companyAddress,
             phone,
             workDayHours: Number(workDayHours),
@@ -448,6 +462,40 @@ export default function SettingsPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Signs TDS certificates (Form 16A)
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Name"
+                        value={tdsSignatory}
+                        onChange={(e) => setTdsSignatory(e.target.value.slice(0, 80))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Designation, e.g. Partner"
+                        value={tdsSignatoryDesignation}
+                        onChange={(e) => setTdsSignatoryDesignation(e.target.value.slice(0, 60))}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="flex items-start gap-2 text-sm text-slate-700">
+                      <input type="checkbox" checked={tds194Q} onChange={(e) => setTds194Q(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-slate-300" />
+                      <span>
+                        <span className="font-semibold">Turnover last year was over ₹10 crore (TDS on purchases, 194Q)</span>
+                        <span className="block text-[11px] text-slate-500">
+                          Then payments to goods suppliers hold back 0.1% on what is paid to one supplier above ₹50 lakh in the year (5% with no PAN). Tick it again each April if it still applies.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                       Company Contact Phone
                     </label>
                     <div className="relative">
@@ -601,6 +649,38 @@ export default function SettingsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold text-slate-900">Messages: WhatsApp and SMS</div>
                     <div className="text-xs text-slate-500">Send demand letters and reminders by themselves, and let buyers sign in with a code.</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </Link>
+              )}
+
+              {canManageSettings && (
+                <Link
+                  href="/settings/payments"
+                  className="flex items-center gap-3 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-amber-300 transition"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-slate-900">Online payments: Razorpay</div>
+                    <div className="text-xs text-slate-500">A &quot;Pay now&quot; button on the buyer&apos;s page, with the receipt entered by itself.</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </Link>
+              )}
+
+              {canManageSettings && (
+                <Link
+                  href="/settings/storage"
+                  className="flex items-center gap-3 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-amber-300 transition"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600 shrink-0">
+                    <HardDrive className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-slate-900">File storage</div>
+                    <div className="text-xs text-slate-500">Keep photos and drawings in cloud storage (Vercel Blob, S3 or R2), and move older files there.</div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </Link>

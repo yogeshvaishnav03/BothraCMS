@@ -118,7 +118,7 @@ async function loadReceipts(organizationId: string, from: string, to: string) {
   });
 }
 
-/** TDS held back on payments, one ledger per act (194C, 194J, 194I), until it is deposited. */
+/** TDS held back on payments, one ledger per act (194C, 194J, 194I, 194Q), until it is deposited. */
 const tdsLedger = (act: string) => `TDS Payable (${act})`;
 const TDS_BILL = /^TDS_(19\d[A-Z]?)$/;
 

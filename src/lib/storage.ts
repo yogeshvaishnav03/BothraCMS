@@ -3,6 +3,7 @@ import path from "path";
 import crypto from "crypto";
 
 import os from "os";
+import { put as blobPut, get as blobGet, del as blobDel } from "@vercel/blob";
 import { prisma } from "@/lib/db";
 
 export interface StorageMetadata {
@@ -11,12 +12,14 @@ export interface StorageMetadata {
   mimeType: string;
   sizeBytes: number;
   uploadedAt: string;
-  provider: "LOCAL" | "S3" | "R2";
+  provider: StorageName;
   url?: string;
 }
 
+export type StorageName = "LOCAL" | "S3" | "R2" | "BLOB";
+
 export interface IStorageProvider {
-  name: "LOCAL" | "S3" | "R2";
+  name: StorageName;
   put(key: string, buffer: Buffer, mimeType: string): Promise<{ key: string; url?: string }>;
   get(key: string): Promise<Buffer | null>;
   delete(key: string): Promise<boolean>;
@@ -460,7 +463,85 @@ export class S3CompatibleStorageProvider implements IStorageProvider {
 }
 
 /**
- * Storage Provider Factory
+ * Vercel Blob, in a private store. Linking a Blob store to the Vercel project
+ * sets BLOB_READ_WRITE_TOKEN, and files then live in the store instead of the
+ * server disk (which Vercel does not keep between deploys) and the database.
+ * Files are read back through /api/uploads, which checks who is asking; the
+ * store is private, so a blob's own URL does not open without the token.
+ */
+export class VercelBlobStorageProvider implements IStorageProvider {
+  name: "BLOB" = "BLOB";
+
+  constructor(private token: string) {}
+
+  private pathname(key: string) {
+    return `uploads/${path.basename(key)}`;
+  }
+
+  async put(key: string, buffer: Buffer, mimeType: string): Promise<{ key: string; url?: string }> {
+    const safeKey = path.basename(key);
+    await blobPut(this.pathname(safeKey), buffer, {
+      access: "private",
+      token: this.token,
+      contentType: mimeType || "application/octet-stream",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    });
+    return { key: safeKey, url: `/api/uploads/${safeKey}` };
+  }
+
+  async get(key: string): Promise<Buffer | null> {
+    try {
+      const res = await blobGet(this.pathname(key), { access: "private", token: this.token, useCache: false });
+      if (!res || res.statusCode !== 200) return null;
+      return Buffer.from(await new Response(res.stream).arrayBuffer());
+    } catch (err) {
+      // Not found, or the store cannot be reached: callers fall back to the database copy.
+      console.warn("Notice: Vercel Blob read failed:", (err as Error)?.message);
+      return null;
+    }
+  }
+
+  async delete(key: string): Promise<boolean> {
+    try {
+      await blobDel(this.pathname(key), { token: this.token });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getSignedDownloadUrl(key: string): Promise<string> {
+    return `/api/uploads/${path.basename(key)}`;
+  }
+}
+
+/** True when files go to cloud storage (S3, R2 or Vercel Blob) rather than the server disk. */
+export function isCloudStorage(): boolean {
+  return getStorageProvider().name !== "LOCAL";
+}
+
+/**
+ * Keeps a copy of an uploaded file in the database, so it survives on a
+ * server whose disk is wiped (Vercel without cloud storage). With cloud
+ * storage set up the file is safe there, so nothing is copied and the
+ * database stays small.
+ */
+export async function backupFileToDatabase(organizationId: string, keys: string[], buffer: Buffer): Promise<void> {
+  if (isCloudStorage()) return;
+  const b64 = buffer.toString("base64");
+  for (const key of Array.from(new Set(keys))) {
+    await prisma.idempotencyRecord.upsert({
+      where: { organizationId_key: { organizationId, key } },
+      create: { organizationId, key, operation: "FILE_BLOB", responseCode: 200, responseBodyJson: b64 },
+      update: { responseBodyJson: b64 },
+    });
+  }
+}
+
+/**
+ * Storage Provider Factory: S3 / R2 when their keys are set, else Vercel Blob
+ * when a Blob store is linked, else the server disk with a database copy.
  */
 export function getStorageProvider(): IStorageProvider {
   const s3Bucket = process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || process.env.R2_BUCKET;
@@ -478,6 +559,10 @@ export function getStorageProvider(): IStorageProvider {
       region,
       providerName: endpoint?.includes("r2.cloudflarestorage.com") ? "R2" : "S3",
     });
+  }
+
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    return new VercelBlobStorageProvider(process.env.BLOB_READ_WRITE_TOKEN);
   }
 
   return new LocalStorageProvider();

@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { getUserContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { getStorageProvider } from "@/lib/storage";
+import { backupFileToDatabase, getStorageProvider } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -102,46 +102,9 @@ export async function POST(req: NextRequest) {
     const storage = getStorageProvider();
     await storage.put(diskFileName, fileBuffer, file.type);
 
-    // Ensure 100% database persistence on serverless environments (Vercel)
+    // A copy in the database when there is no cloud storage, so the file survives on Vercel.
     try {
-      const b64 = fileBuffer.toString("base64");
-      await prisma.idempotencyRecord.upsert({
-        where: {
-          organizationId_key: {
-            organizationId: user.organizationId,
-            key: `FILE_BLOB_${fileId}`,
-          },
-        },
-        create: {
-          organizationId: user.organizationId,
-          key: `FILE_BLOB_${fileId}`,
-          operation: "FILE_BLOB",
-          responseCode: 200,
-          responseBodyJson: b64,
-        },
-        update: {
-          responseBodyJson: b64,
-        },
-      });
-
-      await prisma.idempotencyRecord.upsert({
-        where: {
-          organizationId_key: {
-            organizationId: user.organizationId,
-            key: `FILE_BLOB_${diskFileName}`,
-          },
-        },
-        create: {
-          organizationId: user.organizationId,
-          key: `FILE_BLOB_${diskFileName}`,
-          operation: "FILE_BLOB",
-          responseCode: 200,
-          responseBodyJson: b64,
-        },
-        update: {
-          responseBodyJson: b64,
-        },
-      });
+      await backupFileToDatabase(user.organizationId, [`FILE_BLOB_${fileId}`, `FILE_BLOB_${diskFileName}`], fileBuffer);
     } catch (err) {
       console.warn("Notice: Blob database backup skipped in uploads POST:", err);
     }

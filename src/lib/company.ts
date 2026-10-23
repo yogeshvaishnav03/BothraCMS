@@ -15,6 +15,10 @@ export async function companyProfile(organizationId: string) {
     phone: settings.phone || null,
     gstin: settings.taxId || null,
     tan: settings.tan || null,
+    /** Turnover last year over ₹10 crore, so 194Q applies to goods suppliers. */
+    buyer194Q: !!settings.tds194Q,
+    tdsSignatory: settings.tdsSignatory || null,
+    tdsSignatoryDesignation: settings.tdsSignatoryDesignation || null,
   };
 }
 

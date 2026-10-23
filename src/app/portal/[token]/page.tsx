@@ -7,12 +7,13 @@ import { SalesService } from "@/services/sales-service";
 import { rupees, shortDate } from "@/lib/client-api";
 import { requireBuyerAccess } from "@/lib/buyer-gate";
 import { BuyerSignOut } from "@/components/sales/BuyerSignOut";
+import { PayNowButton } from "@/components/sales/PayNowButton";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your home", robots: { index: false, follow: false } };
 
 /** The buyer's own page: payment schedule, receipts, construction progress and site photos. */
-export default async function BuyerPortal({ params }: { params: { token: string } }) {
+export default async function BuyerPortal({ params, searchParams }: { params: { token: string }; searchParams?: { payment?: string } }) {
   const signedIn = await requireBuyerAccess(params.token, `/portal/${params.token}`);
   const view = await SalesService.portalView(params.token);
   if (!view) notFound();
@@ -41,6 +42,19 @@ export default async function BuyerPortal({ params }: { params: { token: string 
       </header>
 
       <main className="mx-auto -mt-10 max-w-3xl space-y-4 px-4">
+        {searchParams?.payment && (
+          <div
+            className={`rounded-2xl p-4 text-sm font-semibold shadow-sm ring-1 ${
+              searchParams.payment === "paid" ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-amber-50 text-amber-900 ring-amber-200"
+            }`}
+          >
+            {searchParams.payment === "paid"
+              ? "Thank you. Your payment is received and the receipt is below."
+              : searchParams.payment === "not-paid"
+                ? "The payment was not completed. No money was taken; you can try again."
+                : "We could not confirm the payment yet. If money left your account, the receipt will appear here shortly."}
+          </div>
+        )}
         <section className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
             <div className="text-xs font-semibold text-slate-500">Construction</div>
@@ -103,6 +117,7 @@ export default async function BuyerPortal({ params }: { params: { token: string 
                       </span>
                     </div>
                   </div>
+                  {view.payOnline && !paid && i.dueDate && <PayNowButton token={params.token} installmentId={i.id} label={`Pay ${rupees(i.total - i.receivedAmount)} now`} />}
                   {i.receipts.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {i.receipts.map((r) =>

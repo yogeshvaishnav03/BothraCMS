@@ -20,6 +20,11 @@ const updateOrgSchema = z.object({
         .refine((v) => v === "" || /^[A-Z]{4}\d{5}[A-Z]$/.test(v), "TAN looks wrong: 4 letters, 5 digits, 1 letter")
         .optional(),
       companyAddress: z.string().optional(),
+      // Turnover last year over ₹10 crore: TDS on large purchases of goods (194Q) applies.
+      tds194Q: z.boolean().optional(),
+      // The person who signs TDS certificates (Form 16A), and their designation.
+      tdsSignatory: z.string().trim().max(80).optional(),
+      tdsSignatoryDesignation: z.string().trim().max(60).optional(),
       phone: z.string().optional(),
       lowStockThresholdMultiplier: z.number().min(0.5).max(5).optional(),
       workDayHours: z.number().min(4).max(16).optional(),
@@ -73,8 +78,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // WhatsApp and SMS keys stay on the server; Settings → Messages has its own route.
-    const { messaging: _messaging, ...settings } = parsedSettings as any;
+    // WhatsApp, SMS and Razorpay keys stay on the server; Settings → Messages and Online payments have their own routes.
+    const { messaging: _messaging, payments: _payments, ...settings } = parsedSettings as any;
     return jsonSuccess({
       ...organization,
       settingsJson: undefined,
@@ -139,7 +144,7 @@ export async function PATCH(req: NextRequest) {
             name: saved.name,
             currency: saved.currency,
             timezone: saved.timezone,
-            settings: { ...mergedSettings, messaging: undefined },
+            settings: { ...mergedSettings, messaging: undefined, payments: undefined },
           }),
         },
       });
@@ -147,7 +152,7 @@ export async function PATCH(req: NextRequest) {
       return saved;
     });
 
-    const { messaging: _messaging, ...settings } = mergedSettings;
+    const { messaging: _messaging, payments: _payments, ...settings } = mergedSettings;
     return jsonSuccess({
       ...updated,
       settingsJson: undefined,
