@@ -15,6 +15,8 @@ import {
 
 export type SortDirection = "asc" | "desc" | null;
 
+const EMPTY_DISTINCT_VALUES: Array<{ value: string; count: number }> = [];
+
 export interface ExcelColumn<T = any> {
   key: string;
   label: string;
@@ -360,7 +362,7 @@ export function ExcelColumnHeader<T = any>({
   const isSorted = table.sortColumnKey === column.key && table.sortDirection !== null;
   const isFiltered = Boolean(table.columnFilters[column.key]);
 
-  const distinctValues = table.distinctValuesMap[column.key] || [];
+  const distinctValues = table.distinctValuesMap[column.key] || EMPTY_DISTINCT_VALUES;
   const colSearch = table.filterSearchQueries[column.key] || "";
 
   // Values visible according to the column search query in popover
