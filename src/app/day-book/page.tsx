@@ -327,7 +327,13 @@ export default function DayBookPage() {
   );
 
     const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
-  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("date");
+      if (p && /^\d{4}-\d{2}-\d{2}$/.test(p)) return p;
+    }
+    return todayStr;
+  });
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"ALL" | "PAYMENTS" | "BILLS" | "ATTENDANCE" | "REPORTS">("ALL");
