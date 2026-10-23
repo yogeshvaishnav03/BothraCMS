@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { bankAmount } from "@/lib/contractor-tds";
+import { bankAmount, paymentSection } from "@/lib/contractor-tds";
 import { istDayBounds } from "@/lib/ist-date";
 import { inferBillHead, inferPaymentHead, type CostHead } from "@/services/project-budget-service";
 import { companyProfile } from "@/services/sales-service";
@@ -118,8 +118,9 @@ async function loadReceipts(organizationId: string, from: string, to: string) {
   });
 }
 
-/** Contractor TDS held back on payments, until it is deposited. */
-const TDS_194C_LEDGER = "TDS Payable (194C)";
+/** TDS held back on payments, one ledger per act (194C, 194J, 194I), until it is deposited. */
+const tdsLedger = (act: string) => `TDS Payable (${act})`;
+const TDS_BILL = /^TDS_(19\d[A-Z]?)$/;
 
 const INPUT_TAX = { cgst: "Input CGST", sgst: "Input SGST", igst: "Input IGST" } as const;
 const RCM_TAX = { cgst: "CGST Payable (RCM)", sgst: "SGST Payable (RCM)", igst: "IGST Payable (RCM)" } as const;
@@ -196,8 +197,8 @@ export class ExportService {
 
     if (parts.includes("bills")) {
       for (const b of await loadBills(organizationId, from, to)) {
-        // Contractor TDS is credited to its ledger in the payment voucher, not bought.
-        if (b.statutory === "TDS_194C") continue;
+        // TDS bills are credited to their ledger in the payment voucher, not bought.
+        if (b.statutory && TDS_BILL.test(b.statutory)) continue;
         const head = HEAD_LEDGER[inferBillHead(b)];
         need(b.party.name, "Sundry Creditors");
         need(head.name, head.group);
@@ -219,15 +220,17 @@ export class ExportService {
       for (const p of await loadPayments(organizationId, from, to)) {
         const head = HEAD_LEDGER[inferPaymentHead(p)];
         // Paid against a supplier's account, or straight to an expense (wages, petty cash).
-        // Depositing contractor TDS clears the TDS ledger instead.
-        const tdsDeposit = p.allocations.length > 0 && p.allocations.every((a) => a.bill.statutory === "TDS_194C");
-        const debit = tdsDeposit ? TDS_194C_LEDGER : p.party ? p.party.name : head.name;
-        if (tdsDeposit) need(TDS_194C_LEDGER, "Duties & Taxes");
+        // Depositing TDS clears that act's TDS ledger instead.
+        const depositActs = new Set(p.allocations.map((a) => TDS_BILL.exec(a.bill.statutory ?? "")?.[1] ?? ""));
+        const depositAct = p.allocations.length > 0 && depositActs.size === 1 ? [...depositActs][0] : "";
+        const debit = depositAct ? tdsLedger(depositAct) : p.party ? p.party.name : head.name;
+        const heldLedger = tdsLedger(paymentSection(p.tdsSection)?.act ?? "194C");
+        if (depositAct) need(debit, "Duties & Taxes");
         else if (p.party) need(p.party.name, "Sundry Creditors");
         else need(head.name, head.group);
         const credit = paidFrom(p);
         need(credit, p.method === "CASH" && !p.payingAccount ? "Cash-in-Hand" : "Bank Accounts");
-        if (p.tdsAmount > 0) need(TDS_194C_LEDGER, "Duties & Taxes");
+        if (p.tdsAmount > 0) need(heldLedger, "Duties & Taxes");
         vouchers.push(
           voucher({
             type: "Payment",
@@ -239,7 +242,7 @@ export class ExportService {
             entries: [
               entry(debit, p.amount, true),
               entry(credit, bankAmount(p), false),
-              ...(p.tdsAmount > 0 ? [entry(TDS_194C_LEDGER, p.tdsAmount, false)] : []),
+              ...(p.tdsAmount > 0 ? [entry(heldLedger, p.tdsAmount, false)] : []),
             ],
           })
         );

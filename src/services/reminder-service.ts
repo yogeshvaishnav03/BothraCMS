@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { alertStaffNow } from "@/services/staff-alerts";
 
 export class ReminderService {
   /**
@@ -89,6 +90,11 @@ export class ReminderService {
 
         deliveredCount++;
       });
+    }
+
+    // WhatsApp the reminders too, where staff alerts are on.
+    if (deliveredCount > 0) {
+      for (const orgId of new Set(dueTasks.map((t: any) => t.organizationId as string))) await alertStaffNow(orgId);
     }
 
     return deliveredCount;

@@ -25,9 +25,14 @@ interface Settings {
   maxOverdueReminders: number;
   buyerSignIn: boolean;
   siteUrl: string;
+  staffAlerts: boolean;
+  waStaffTemplate: string;
+  staffApprovals: boolean;
+  staffTasks: boolean;
+  staffSiteAlerts: boolean;
   hasWaToken: boolean;
   hasSmsAuthKey: boolean;
-  can: { whatsapp: boolean; sms: boolean; otp: boolean; demands: boolean };
+  can: { whatsapp: boolean; sms: boolean; otp: boolean; demands: boolean; staff: boolean };
 }
 
 interface LogRow {
@@ -42,7 +47,7 @@ interface LogRow {
   createdAt: string;
 }
 
-const KIND: Record<string, string> = { OTP: "Sign-in code", DEMAND: "Demand", DUE_SOON: "Due soon", OVERDUE: "Overdue", TEST: "Test" };
+const KIND: Record<string, string> = { OTP: "Sign-in code", DEMAND: "Demand", DUE_SOON: "Due soon", OVERDUE: "Overdue", TEST: "Test", STAFF: "Staff alert", STAFF_DIGEST: "Overdue tasks" };
 const STATUS: Record<string, string> = {
   SENT: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   TEST: "bg-sky-50 text-sky-700 ring-sky-200",
@@ -87,6 +92,7 @@ export default function MessagesSettingsPage() {
   const [s, setS] = useState<Settings | null>(null);
   const [log, setLog] = useState<LogRow[]>([]);
   const [cronReady, setCronReady] = useState(false);
+  const [staff, setStaff] = useState({ count: 0, noPhone: 0 });
   const [waToken, setWaToken] = useState("");
   const [smsKey, setSmsKey] = useState("");
   const [testPhone, setTestPhone] = useState("");
@@ -94,10 +100,11 @@ export default function MessagesSettingsPage() {
   const [msg, setMsg] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
 
   const load = async () => {
-    const d = await api<{ settings: Settings; log: LogRow[]; cronReady: boolean }>("/api/organization/messaging");
+    const d = await api<{ settings: Settings; log: LogRow[]; cronReady: boolean; staffCount: number; staffNoPhone: number }>("/api/organization/messaging");
     setS(d.settings);
     setLog(d.log);
     setCronReady(d.cronReady);
+    setStaff({ count: d.staffCount ?? 0, noPhone: d.staffNoPhone ?? 0 });
   };
   useEffect(() => {
     load().catch((e) => setMsg({ tone: "error", text: e.message }));
@@ -150,11 +157,13 @@ export default function MessagesSettingsPage() {
     setBusy("run");
     setMsg(null);
     try {
-      const r = await api<{ sent: number; failed: number; off: boolean }>("/api/organization/messaging/run", post({}));
+      const r = await api<{ sent: number; failed: number; off: boolean; staff: { sent: number; failed: number; off: boolean } }>("/api/organization/messaging/run", post({}));
+      const sent = r.sent + (r.staff?.sent ?? 0);
+      const failed = r.failed + (r.staff?.failed ?? 0);
       setMsg(
-        r.off
-          ? { tone: "info", text: "Automatic demands are off. Switch them on and save first." }
-          : { tone: r.failed ? "error" : "success", text: `${r.sent} sent${r.failed ? `, ${r.failed} could not be sent (see the log)` : ""}. Nothing else is due today.` }
+        r.off && (r.staff?.off ?? true)
+          ? { tone: "info", text: "Automatic demands and staff alerts are off. Switch one on and save first." }
+          : { tone: failed ? "error" : "success", text: `${sent} sent${failed ? `, ${failed} could not be sent (see the log)` : ""}. Nothing else is due today.` }
       );
       await load();
     } catch (e: any) {
@@ -170,7 +179,7 @@ export default function MessagesSettingsPage() {
         <Link href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" /> Settings
         </Link>
-        <PageHeader icon={MessageCircle} title="Messages" subtitle="WhatsApp demand letters and reminders sent by themselves, and sign-in codes for buyers.">
+        <PageHeader icon={MessageCircle} title="Messages" subtitle="WhatsApp demand letters and reminders, sign-in codes for buyers, and alerts to staff.">
           <button
             onClick={save}
             disabled={!s || busy !== null}
@@ -191,6 +200,7 @@ export default function MessagesSettingsPage() {
               <Ready ok={s.can.sms} label="SMS connected" />
               <Ready ok={s.autoDemands && s.can.demands} label="Automatic demands on" />
               <Ready ok={s.buyerSignIn} label="Buyer sign-in on" />
+              <Ready ok={s.staffAlerts && s.can.staff} label="Staff alerts on" />
               <Ready ok={cronReady} label="Daily run scheduled" />
               {s.testMode && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
@@ -219,6 +229,40 @@ export default function MessagesSettingsPage() {
                     <input type="number" min={0} max={10} className={input} value={s.maxOverdueReminders} onChange={(e) => set("maxOverdueReminders", Number(e.target.value))} />
                   </Field>
                 </div>
+                <Toggle
+                  on={s.staffAlerts}
+                  onChange={(v) => set("staffAlerts", v)}
+                  title="Alert staff on WhatsApp"
+                  text="Staff get what needs them on WhatsApp as well as in the app: one message at a time, at most every 15 minutes, never between 9 pm and 8 am."
+                />
+                {s.staffAlerts && (
+                  <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+                    {(
+                      [
+                        ["staffApprovals", "Approvals waiting", "Admins: payments and orders to approve. Store: material requests."],
+                        ["staffTasks", "Tasks", "Task reminders, and each morning a list of a person's overdue tasks."],
+                        ["staffSiteAlerts", "Site alerts", "Quality, safety and equipment alerts, and anything marked critical."],
+                      ] as const
+                    ).map(([key, title, text]) => (
+                      <label key={key} className="flex cursor-pointer items-start gap-2.5 text-sm">
+                        <input type="checkbox" className="mt-0.5 h-4 w-4 accent-amber-600" checked={s[key]} onChange={(e) => set(key, e.target.checked)} />
+                        <span>
+                          <span className="font-semibold text-slate-800">{title}</span>
+                          <span className="block text-xs text-slate-500">{text}</span>
+                        </span>
+                      </label>
+                    ))}
+                    {staff.noPhone > 0 && (
+                      <p className="text-xs font-semibold text-amber-700">
+                        {staff.noPhone} of {staff.count} staff have no mobile number, so they get alerts only in the app. Add numbers on the{" "}
+                        <Link href="/team" className="underline">
+                          Team
+                        </Link>{" "}
+                        page.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <Toggle
                   on={s.buyerSignIn}
                   onChange={(v) => set("buyerSignIn", v)}
@@ -268,6 +312,9 @@ export default function MessagesSettingsPage() {
                   <Field label="Reminder template" hint="Leave empty to use the demand template">
                     <input className={input} value={s.waReminderTemplate} onChange={(e) => set("waReminderTemplate", e.target.value)} placeholder="payment_reminder" />
                   </Field>
+                  <Field label="Staff alert template">
+                    <input className={input} value={s.waStaffTemplate} onChange={(e) => set("waStaffTemplate", e.target.value)} placeholder="staff_alert" />
+                  </Field>
                 </div>
                 <details className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
                   <summary className="cursor-pointer font-semibold text-slate-700">Template text to submit to Meta</summary>
@@ -278,6 +325,10 @@ export default function MessagesSettingsPage() {
                   <p className="mt-2">Reminder (Utility):</p>
                   <p className="mt-1 rounded-lg bg-white p-2 font-mono ring-1 ring-slate-200">
                     Dear {"{{1}}"}, a reminder about {"{{4}}"} for the {"{{3}}"} instalment of {"{{2}}"}, due on {"{{5}}"}. Details: {"{{6}}"}
+                  </p>
+                  <p className="mt-2">Staff alert (Utility):</p>
+                  <p className="mt-1 rounded-lg bg-white p-2 font-mono ring-1 ring-slate-200">
+                    Hi {"{{1}}"}, {"{{2}}"}. Open Bothra CMS: {"{{3}}"}
                   </p>
                   <p className="mt-2">Sign-in code: an Authentication template with a &quot;Copy code&quot; button.</p>
                 </details>

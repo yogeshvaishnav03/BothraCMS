@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { contractorPan, fyStartOf, isContractor, tdsDueDate, work194C, type TdsMode, type TdsResult } from "@/lib/contractor-tds";
+import { contractorPan, fyStartOf, partySection, paymentSection, sectionsOf, tdsDueDate, TDS_ACTS, TDS_SECTIONS, workTds, type TdsAct, type TdsMode, type TdsResult } from "@/lib/contractor-tds";
 import { istDateKey, istDayBounds } from "@/lib/ist-date";
 import { fyMonths } from "@/lib/income-tax";
 import { challanProblems, returnDueDate, tdsChallans } from "@/services/tds-challans";
@@ -87,62 +87,76 @@ export interface ReversePaymentInput {
   role: Role;
 }
 
-const TDS_194C_PARTY = "Income Tax Department (TDS on contractors)";
+const TDS_PARTY = "Income Tax Department (TDS)";
+const OLD_TDS_PARTY = "Income Tax Department (TDS on contractors)"; // name used before 194J and 194I
+const ACT_TEXT: Record<TdsAct, string> = {
+  "194C": "TDS on contractor payments (section 194C)",
+  "194J": "TDS on professional and technical fees (section 194J)",
+  "194I": "TDS on rent (section 194I)",
+};
 
 /**
- * Keeps the month's "TDS owed on contractor payments" bill equal to the TDS
- * held back from posted payments that month, so it shows as owed in Finance
- * until it is deposited.
+ * Keeps each month's "TDS owed" bills (one per section: 194C, 194J, 194I)
+ * equal to the TDS held back from posted payments that month, so it shows
+ * as owed in Finance until it is deposited.
  */
-export async function syncContractorTdsBill(tx: any, organizationId: string, month: string, userId: string) {
+export async function syncTdsBills(tx: any, organizationId: string, month: string, userId: string) {
   const { start } = istDayBounds(`${month}-01`);
   const [y, m] = month.split("-").map(Number);
   const end = istDayBounds(new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)).end;
-  const held = await tx.payment.aggregate({
-    where: { organizationId, status: "POSTED", reversedAt: null, tdsAmount: { gt: 0 }, paymentDate: { gte: start, lte: end } },
-    _sum: { tdsAmount: true },
-  });
-  const total = Math.round(held._sum.tdsAmount || 0);
-  const billNumber = `TDS194C-${month}`;
-  let party = await tx.party.findFirst({ where: { organizationId, name: TDS_194C_PARTY } });
-  const bill = party ? await tx.bill.findFirst({ where: { organizationId, partyId: party.id, billNumber }, include: { allocations: { where: { reversedAt: null } } } }) : null;
-  const what = `TDS on contractor payments (section 194C), ${month}`;
-  if (bill) {
-    const paid = bill.allocations.reduce((s: number, a: any) => s + a.amount, 0);
-    // Never below what has already been deposited against it.
-    const amount = Math.max(total, paid);
-    await tx.billLine.deleteMany({ where: { billId: bill.id } });
-    await tx.bill.update({
-      where: { id: bill.id },
-      data: { totalAmount: amount, status: amount > 0 ? "POSTED" : "VOIDED", lines: { create: [{ description: what, lineTotal: amount }] } },
+  let party = await tx.party.findFirst({ where: { organizationId, name: { in: [TDS_PARTY, OLD_TDS_PARTY] } } });
+  for (const act of TDS_ACTS) {
+    const held = await tx.payment.aggregate({
+      where: { organizationId, status: "POSTED", reversedAt: null, tdsAmount: { gt: 0 }, tdsSection: { in: sectionsOf(act) }, paymentDate: { gte: start, lte: end } },
+      _sum: { tdsAmount: true },
     });
-    return;
+    const total = Math.round(held._sum.tdsAmount || 0);
+    const billNumber = `TDS${act}-${month}`;
+    const bill = party ? await tx.bill.findFirst({ where: { organizationId, partyId: party.id, billNumber }, include: { allocations: { where: { reversedAt: null } } } }) : null;
+    const what = `${ACT_TEXT[act]}, ${month}`;
+    if (bill) {
+      const paid = bill.allocations.reduce((s: number, a: any) => s + a.amount, 0);
+      // Never below what has already been deposited against it.
+      const amount = Math.max(total, paid);
+      if (amount === bill.totalAmount && (amount > 0) === (bill.status === "POSTED")) continue;
+      await tx.billLine.deleteMany({ where: { billId: bill.id } });
+      await tx.bill.update({
+        where: { id: bill.id },
+        data: { totalAmount: amount, status: amount > 0 ? "POSTED" : "VOIDED", lines: { create: [{ description: what, lineTotal: amount }] } },
+      });
+      continue;
+    }
+    if (total <= 0) continue;
+    if (!party) party = await tx.party.create({ data: { organizationId, partyType: "OTHER", name: TDS_PARTY } });
+    await tx.bill.create({
+      data: {
+        organizationId,
+        partyId: party.id,
+        billNumber,
+        billDate: end,
+        dueDate: new Date(`${tdsDueDate(month)}T12:00:00+05:30`),
+        totalAmount: total,
+        costHead: "OTHER",
+        statutory: `TDS_${act}`,
+        status: "POSTED",
+        notes: `${what}. Kept up to date from the payments.`,
+        createdBy: userId,
+        lines: { create: [{ description: what, lineTotal: total }] },
+      },
+    });
   }
-  if (total <= 0) return;
-  if (!party) party = await tx.party.create({ data: { organizationId, partyType: "OTHER", name: TDS_194C_PARTY } });
-  await tx.bill.create({
-    data: {
-      organizationId,
-      partyId: party.id,
-      billNumber,
-      billDate: end,
-      dueDate: new Date(`${tdsDueDate(month)}T12:00:00+05:30`),
-      totalAmount: total,
-      costHead: "OTHER",
-      statutory: "TDS_194C",
-      status: "POSTED",
-      notes: `${what}. Kept up to date from the payments.`,
-      createdBy: userId,
-      lines: { create: [{ description: what, lineTotal: total }] },
-    },
-  });
 }
+
+/** @deprecated the name from Phase 10; keeps every section's bill now. */
+export const syncContractorTdsBill = syncTdsBills;
 
 export class FinanceService {
   /**
-   * The quarterly TDS return on contractor payments (Form 26Q): a challan a
-   * month and one row for each payment with TDS held back (or none, with the
-   * reason), laid out for the NSDL return utility.
+   * The quarterly TDS return on payments other than salary (Form 26Q):
+   * contractors (194C), professional and technical fees (194J) and rent
+   * (194I). A challan a month for each section with TDS, and one row for
+   * each payment with TDS held back (or none, with the reason), laid out for
+   * the NSDL return utility.
    */
   static async contractorTdsReturn(organizationId: string, fy: string, quarter: 1 | 2 | 3 | 4) {
     const months = fyMonths(fy).slice((quarter - 1) * 3, quarter * 3);
@@ -152,56 +166,59 @@ export class FinanceService {
     const [company, payments] = await Promise.all([
       companyProfile(organizationId),
       prisma.payment.findMany({
-        where: { organizationId, status: "POSTED", reversedAt: null, tdsSection: { in: ["194C", "NONE"] }, paymentDate: { gte: start, lte: end } },
-        include: { party: { select: { id: true, name: true, panNumber: true, taxIdentifier: true } } },
+        where: { organizationId, status: "POSTED", reversedAt: null, tdsSection: { in: [...Object.keys(TDS_SECTIONS), "NONE"] }, paymentDate: { gte: start, lte: end } },
+        include: { party: { select: { id: true, name: true, panNumber: true, taxIdentifier: true, partyType: true, tdsSection: true } } },
         orderBy: { paymentDate: "asc" },
       }),
     ]);
     const deductees = payments.map((p) => {
       const pan = p.party ? contractorPan(p.party) : null;
       const date = istDateKey(p.paymentDate);
+      // A payment let off TDS is reported under the party's own section.
+      const sec = paymentSection(p.tdsSection) || (p.party ? partySection(p.party) : null) || TDS_SECTIONS["194C"];
       return {
         paymentId: p.id,
         month: date.slice(0, 7),
         partyId: p.party?.id || null,
         name: p.party?.name || p.recipientName || "",
         pan,
-        section: "194C",
+        section: sec.act,
+        sectionCode: sec.code,
+        sectionLabel: sec.label,
         paidOn: date,
         amountPaid: Math.round(p.tdsBase + p.tdsCatchUp),
         rate: p.tdsRate,
         tds: p.tdsAmount,
         deductedOn: p.tdsAmount > 0 ? date : null,
-        // Remark codes the return uses: C higher rate (no PAN), A lower deduction (certificate), T transporter.
-        remark: p.tdsSection === "NONE" ? "T" : !pan ? "C" : p.tdsNote && /typed|197|certificate/i.test(p.tdsNote) ? "A" : "",
+        // Remark codes the return uses: C higher rate (no PAN), A lower deduction (certificate),
+        // T transporter (194C), Y below the limit.
+        remark: p.tdsSection === "NONE" ? (sec.act === "194C" ? "T" : "Y") : !pan ? "C" : p.tdsNote && /typed|197|certificate/i.test(p.tdsNote) ? "A" : "",
         note: p.tdsNote,
         reference: p.referenceNumber,
       };
     });
-    const tdsByMonth = new Map<string, number>();
-    const firstByMonth = new Map<string, string>();
-    for (const d of deductees) {
-      tdsByMonth.set(d.month, (tdsByMonth.get(d.month) || 0) + d.tds);
-      if (d.tds > 0 && !firstByMonth.has(d.month)) firstByMonth.set(d.month, d.paidOn);
+    // A challan table for every section with TDS this quarter (contractors at least).
+    const acts = TDS_ACTS.filter((act) => act === "194C" || deductees.some((d) => d.section === act));
+    const challans = [];
+    for (const act of acts) {
+      const mine = deductees.filter((d) => d.section === act);
+      const tdsOf = (m: string) => mine.filter((d) => d.month === m).reduce((s, d) => s + d.tds, 0);
+      const firstOf = (m: string) => mine.find((d) => d.month === m && d.tds > 0)?.paidOn || `${m}-01`;
+      const rows = await tdsChallans({ organizationId, months, billNumber: (m) => `TDS${act}-${m}`, tdsOf, deductedOn: firstOf });
+      challans.push(...rows.map((r) => ({ ...r, section: act })));
     }
-    const challans = await tdsChallans({
-      organizationId,
-      months,
-      billNumber: (m) => `TDS194C-${m}`,
-      tdsOf: (m) => tdsByMonth.get(m) || 0,
-      deductedOn: (m) => firstByMonth.get(m) || `${m}-01`,
-    });
     const problems: string[] = [];
     if (!company.tan) problems.push("Add the company TAN in Settings. The return cannot be filed without it.");
     const noPan = Array.from(new Set(deductees.filter((d) => !d.pan).map((d) => d.name)));
     if (noPan.length) problems.push(`No PAN for ${noPan.join(", ")}. Add it on the Vendors & Contractors page; until then TDS is 20%.`);
-    problems.push(...challanProblems(challans, "Nothing recorded"));
+    problems.push(...challanProblems(acts.length > 1 ? challans : challans.map(({ section: _s, ...c }) => c), "Nothing recorded"));
     return {
       fy,
       quarter,
       months,
       filingDue: returnDueDate(fy, quarter),
       company: { name: company.name, tan: company.tan, gstin: company.gstin },
+      sections: acts,
       challans,
       deductees,
       totals: {
@@ -214,10 +231,11 @@ export class FinanceService {
   }
 
   /**
-   * TDS to hold back on a payment to a contractor (section 194C), or null
-   * when the party is not a contractor.
+   * TDS to hold back on a payment: 194C for contractors, or the section set
+   * on the party (194J fees, 194I rent). Null when the party's payments are
+   * not taxed (suppliers of goods).
    */
-  static async contractorTds(input: {
+  static async paymentTds(input: {
     organizationId: string;
     partyId?: string | null;
     amount: number;
@@ -225,10 +243,11 @@ export class FinanceService {
     allocations?: PaymentAllocationInput[];
     tds?: RecordPaymentInput["tds"];
     excludePaymentId?: string;
-  }): Promise<(TdsResult & { pan: string | null }) | null> {
+  }): Promise<(TdsResult & { pan: string | null; sectionKey: string; label: string }) | null> {
     if (!input.partyId) return null;
     const party = await prisma.party.findFirst({ where: { id: input.partyId, organizationId: input.organizationId } });
-    if (!party || !isContractor(party.partyType)) return null;
+    const section = party ? partySection(party) : null;
+    if (!party || !section) return null;
     // The part of the payment that is GST is not taxed.
     let base = input.amount;
     const allocs = input.allocations || [];
@@ -246,33 +265,41 @@ export class FinanceService {
         base += a.amount * share;
       }
     }
+    // The limit counts the financial year's payments, or the month's for rent.
     const day = istDateKey(input.paymentDate);
+    const from = section.period === "MONTH" ? `${day.slice(0, 7)}-01` : fyStartOf(day);
     const earlier = await prisma.payment.findMany({
       where: {
         organizationId: input.organizationId,
         partyId: party.id,
         status: { in: ["POSTED", "PENDING_APPROVAL"] },
         reversedAt: null,
-        paymentDate: { gte: istDayBounds(fyStartOf(day)).start, lte: istDayBounds(day).end },
+        paymentDate: { gte: istDayBounds(from).start, lte: istDayBounds(day).end },
         ...(input.excludePaymentId ? { id: { not: input.excludePaymentId } } : {}),
       },
       select: { amount: true, tdsBase: true, tdsSection: true, tdsCatchUp: true },
     });
     const own = (p: { amount: number; tdsBase: number }) => (p.tdsBase > 0 ? p.tdsBase : p.amount);
-    const yearBase = earlier.reduce((s, p) => s + own(p), 0);
+    const periodBase = earlier.reduce((s, p) => s + own(p), 0);
     const untaxed = earlier.filter((p) => !p.tdsSection).reduce((s, p) => s + own(p), 0);
     const caughtUp = earlier.reduce((s, p) => s + p.tdsCatchUp, 0);
     const pan = contractorPan(party);
-    const result = work194C({
+    const result = workTds({
+      section,
       pan,
       base,
-      yearBefore: { base: yearBase, untaxedBase: Math.max(0, untaxed - caughtUp) },
+      before: { base: periodBase, untaxedBase: Math.max(0, untaxed - caughtUp) },
       mode: input.tds?.mode,
       manualAmount: input.tds?.amount,
       reason: input.tds?.reason,
     });
     if (result.amount > input.amount) throw new Error("TDS cannot be more than the payment.");
-    return { ...result, pan };
+    return { ...result, pan, sectionKey: section.key, label: section.label };
+  }
+
+  /** @deprecated Phase 10 name; every section now. */
+  static contractorTds(input: Parameters<typeof FinanceService.paymentTds>[0]) {
+    return FinanceService.paymentTds(input);
   }
 
   /**
@@ -523,7 +550,7 @@ export class FinanceService {
     if (input.tds?.mode === "NONE" && !input.tds.reason?.trim()) {
       throw new Error("Say why no TDS is held back, for example the transporter's declaration.");
     }
-    const tds = await FinanceService.contractorTds({
+    const tds = await FinanceService.paymentTds({
       organizationId: input.organizationId,
       partyId: party?.id,
       amount: input.amount,
@@ -633,7 +660,7 @@ export class FinanceService {
       });
 
       if (status === "POSTED" && payment.tdsAmount > 0) {
-        await syncContractorTdsBill(tx, input.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
+        await syncTdsBills(tx, input.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
       }
 
       return {
@@ -743,7 +770,7 @@ export class FinanceService {
       });
 
       if (payment.tdsAmount > 0) {
-        await syncContractorTdsBill(tx, payment.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
+        await syncTdsBills(tx, payment.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
       }
 
       return updatedPayment;
@@ -885,7 +912,7 @@ export class FinanceService {
       });
 
       if (payment.tdsAmount > 0) {
-        await syncContractorTdsBill(tx, input.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
+        await syncTdsBills(tx, input.organizationId, istDateKey(payment.paymentDate).slice(0, 7), input.userId);
       }
 
       return updatedPayment;

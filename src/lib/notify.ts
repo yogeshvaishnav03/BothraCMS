@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { alertStaffNow } from "@/services/staff-alerts";
 
 /**
  * Creates in-app notifications for a set of people, optionally every active
@@ -43,6 +44,8 @@ export async function notifyPeople(params: {
       href: params.href,
     })),
   });
+  // WhatsApp too, for the kinds the builder has switched on.
+  await alertStaffNow(params.organizationId, Array.from(recipients));
   return result.count;
 }
 

@@ -74,7 +74,7 @@ export default function FinancePage() {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [selectedBillId, setSelectedBillId] = useState("");
   const [notes, setNotes] = useState("");
-  // TDS on a contractor payment (section 194C)
+  // TDS on a payment to a contractor (194C), professional (194J) or landlord (194I)
   const [tdsMode, setTdsMode] = useState<"AUTO" | "NONE" | "MANUAL">("AUTO");
   const [tdsManual, setTdsManual] = useState("");
   const [tdsReason, setTdsReason] = useState("");
@@ -2320,11 +2320,11 @@ export default function FinancePage() {
                   </div>
                 )}
 
-                {/* TDS held back from a contractor (194C) */}
+                {/* TDS held back on this payment (194C, 194J or 194I) */}
                 {tdsPreview && (
                   <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-xs text-indigo-950">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold uppercase tracking-wide">TDS on contractor (194C)</span>
+                      <span className="font-bold uppercase tracking-wide">TDS · {tdsPreview.label || "Contractor (194C)"}</span>
                       <select
                         value={tdsMode}
                         onChange={(e) => setTdsMode(e.target.value as any)}
@@ -2353,7 +2353,7 @@ export default function FinancePage() {
                         value={tdsReason}
                         onChange={(e) => setTdsReason(e.target.value)}
                         required={tdsMode === "NONE"}
-                        placeholder={tdsMode === "NONE" ? "Why? e.g. transporter's declaration (10 or fewer trucks)" : "Why? e.g. section 197 certificate no."}
+                        placeholder={tdsMode === "NONE" ? "Why? e.g. transporter's declaration, or the yearly total stays under the limit" : "Why? e.g. section 197 certificate no."}
                         className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-2 text-sm"
                       />
                     )}
@@ -2364,13 +2364,13 @@ export default function FinancePage() {
                             {tdsPreview.rate}% of {formatCurrency(tdsPreview.base + tdsPreview.catchUpBase)} ={" "}
                             <strong>{formatCurrency(tdsPreview.amount)}</strong> held back and paid to the government.
                           </div>
-                          <div className="text-sm font-bold">Bank pays the contractor {formatCurrency(tdsPreview.bankAmount)}</div>
+                          <div className="text-sm font-bold">Bank pays {formatCurrency(tdsPreview.bankAmount)}</div>
                         </>
                       ) : (
                         <div>No TDS on this payment.</div>
                       )}
                       {tdsPreview.note && <div className="text-indigo-800">{tdsPreview.note}</div>}
-                      {!tdsPreview.pan && <div className="font-semibold text-rose-700">No PAN for this contractor. Add it on the Vendors &amp; Contractors page.</div>}
+                      {!tdsPreview.pan && <div className="font-semibold text-rose-700">No PAN for this party, so TDS is 20%. Add it on the Vendors &amp; Contractors page.</div>}
                     </div>
                   </div>
                 )}

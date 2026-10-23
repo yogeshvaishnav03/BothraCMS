@@ -1,5 +1,8 @@
 /**
- * TDS on payments to contractors, section 194C of the Income-tax Act.
+ * TDS held back on payments to parties (not salary): contractors (194C),
+ * professionals and technical services (194J) and rent (194I).
+ *
+ * Section 194C, contractors:
  *
  * - 1% when the contractor is an individual or HUF (4th letter of the PAN is
  *   P or H), 2% for anyone else (firm, company, trust...).
@@ -55,11 +58,101 @@ export interface TdsResult {
 const rupees = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 
 /**
- * TDS on one payment.
- * `base` is this payment's amount before GST; `yearBefore` is the year's
- * earlier payments to the same contractor (their base, and the part of it that
- * had no TDS).
+ * The sections a party can come under. A party with none set is 194C when it
+ * is a contractor and is not taxed otherwise (supplies of goods).
+ *
+ * - 194J: professional fees (architect, structural consultant, CA, lawyer)
+ *   10%; technical services 2%. Due once the year's fees pass ₹50,000.
+ * - 194I: rent of plant and machinery (cranes, JCB, shuttering on hire) 2%;
+ *   land or building 10%. Due once the month's rent passes ₹50,000.
+ *
+ * `code` is the section code the 26Q return uses. Limits are from the
+ * Finance Act 2025; check them each April.
  */
+export interface TdsSection {
+  key: string;
+  label: string;
+  act: "194C" | "194J" | "194I";
+  code: string;
+  rate: (pan: string) => number;
+  /** A single payment above this is taxed even under the period limit. */
+  single?: number;
+  /** TDS starts once the period's payments pass this, on the whole period. */
+  limit: number;
+  period: "YEAR" | "MONTH";
+}
+
+export const TDS_SECTIONS: Record<string, TdsSection> = {
+  "194C": { key: "194C", label: "Contractor (194C)", act: "194C", code: "94C", rate: (pan) => (pan[3] === "P" || pan[3] === "H" ? 1 : 2), single: SINGLE_LIMIT, limit: YEAR_LIMIT, period: "YEAR" },
+  "194J_PROF": { key: "194J_PROF", label: "Professional fees (194J)", act: "194J", code: "94J-B", rate: () => 10, limit: 50_000_00, period: "YEAR" },
+  "194J_TECH": { key: "194J_TECH", label: "Technical services (194J)", act: "194J", code: "94J-A", rate: () => 2, limit: 50_000_00, period: "YEAR" },
+  "194I_PM": { key: "194I_PM", label: "Machinery on hire (194I)", act: "194I", code: "4IA", rate: () => 2, limit: 50_000_00, period: "MONTH" },
+  "194I_LB": { key: "194I_LB", label: "Rent of land or building (194I)", act: "194I", code: "4IB", rate: () => 10, limit: 50_000_00, period: "MONTH" },
+};
+
+/** The acts a monthly TDS bill is kept for, and the payment sections under each. */
+export const TDS_ACTS = ["194C", "194J", "194I"] as const;
+export type TdsAct = (typeof TDS_ACTS)[number];
+export const sectionsOf = (act: TdsAct) => Object.values(TDS_SECTIONS).filter((s) => s.act === act).map((s) => s.key);
+
+/** The section that applies to a party, or null when its payments are not taxed. */
+export function partySection(party: { partyType?: string | null; tdsSection?: string | null }): TdsSection | null {
+  if (party.tdsSection === "NONE") return null;
+  if (party.tdsSection && TDS_SECTIONS[party.tdsSection]) return TDS_SECTIONS[party.tdsSection];
+  return isContractor(party.partyType) ? TDS_SECTIONS["194C"] : null;
+}
+
+/** The section a payment was taxed under (old payments say "194C"). */
+export const paymentSection = (key: string | null | undefined) => (key && TDS_SECTIONS[key]) || null;
+
+/**
+ * TDS on one payment.
+ * `base` is this payment's amount before GST; `before` is the earlier
+ * payments to the same party in the section's period (the financial year,
+ * or the month for rent), and the part of them that had no TDS.
+ */
+export function workTds(input: {
+  section: TdsSection;
+  pan: string | null;
+  base: number;
+  before: { base: number; untaxedBase: number };
+  mode?: TdsMode;
+  manualAmount?: number;
+  reason?: string | null;
+}): TdsResult {
+  const sec = input.section;
+  const base = Math.max(0, Math.round(input.base));
+  const rate = input.pan ? sec.rate(input.pan) : NO_PAN_RATE;
+  const mode = input.mode || "AUTO";
+  if (mode === "NONE") {
+    return { section: null, rate: 0, base, catchUpBase: 0, amount: 0, note: input.reason?.trim() || "No TDS" };
+  }
+  if (mode === "MANUAL") {
+    const amount = Math.max(0, Math.min(base, Math.round(input.manualAmount || 0)));
+    return {
+      section: sec.key,
+      rate: base ? Math.round((amount / base) * 10000) / 100 : 0,
+      base,
+      catchUpBase: 0,
+      amount,
+      note: input.reason?.trim() || "Typed in",
+    };
+  }
+  const after = input.before.base + base;
+  const crosses = after > sec.limit;
+  const period = sec.period === "MONTH" ? "this month" : "this year";
+  if (!crosses && !(sec.single && base > sec.single)) {
+    const under = sec.single ? `Under ${rupees(sec.single)} and ${rupees(after)} so far ${period}` : `${rupees(after)} so far ${period}`;
+    return { section: null, rate: 0, base, catchUpBase: 0, amount: 0, note: `${under} (TDS starts above ${rupees(sec.limit)})` };
+  }
+  const catchUpBase = crosses ? input.before.untaxedBase : 0;
+  const amount = Math.round(((base + catchUpBase) * rate) / 100);
+  const notes = [input.pan ? null : "No PAN, so 20%"];
+  if (catchUpBase) notes.push(`includes ${rupees(catchUpBase)} paid earlier ${period} without TDS`);
+  return { section: sec.key, rate, base, catchUpBase, amount, note: notes.filter(Boolean).join("; ") || null };
+}
+
+/** TDS on a payment to a contractor (section 194C). */
 export function work194C(input: {
   pan: string | null;
   base: number;
@@ -68,40 +161,7 @@ export function work194C(input: {
   manualAmount?: number;
   reason?: string | null;
 }): TdsResult {
-  const base = Math.max(0, Math.round(input.base));
-  const rate = rate194C(input.pan);
-  const mode = input.mode || "AUTO";
-  if (mode === "NONE") {
-    return { section: null, rate: 0, base, catchUpBase: 0, amount: 0, note: input.reason?.trim() || "No TDS" };
-  }
-  if (mode === "MANUAL") {
-    const amount = Math.max(0, Math.min(base, Math.round(input.manualAmount || 0)));
-    return {
-      section: SECTION_194C,
-      rate: base ? Math.round((amount / base) * 10000) / 100 : 0,
-      base,
-      catchUpBase: 0,
-      amount,
-      note: input.reason?.trim() || "Typed in",
-    };
-  }
-  const yearAfter = input.yearBefore.base + base;
-  const crossesYear = yearAfter > YEAR_LIMIT;
-  if (base <= SINGLE_LIMIT && !crossesYear) {
-    return {
-      section: null,
-      rate: 0,
-      base,
-      catchUpBase: 0,
-      amount: 0,
-      note: `Under ${rupees(SINGLE_LIMIT)} and ${rupees(yearAfter)} so far this year (TDS starts above ${rupees(YEAR_LIMIT)})`,
-    };
-  }
-  const catchUpBase = crossesYear ? input.yearBefore.untaxedBase : 0;
-  const amount = Math.round(((base + catchUpBase) * rate) / 100);
-  const notes = [input.pan ? null : "No PAN, so 20%"];
-  if (catchUpBase) notes.push(`includes ${rupees(catchUpBase)} paid earlier this year without TDS`);
-  return { section: SECTION_194C, rate, base, catchUpBase, amount, note: notes.filter(Boolean).join("; ") || null };
+  return workTds({ ...input, section: TDS_SECTIONS["194C"], before: input.yearBefore });
 }
 
 /** What actually leaves the bank for a payment: the TDS held back stays with us until it is deposited. */

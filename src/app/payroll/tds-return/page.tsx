@@ -80,9 +80,9 @@ const KINDS: Record<Kind, { api: string; title: string; subtitle: string; paid: 
   },
   contractors: {
     api: "/api/finance/tds-return",
-    title: "TDS Return on Contractors (26Q)",
-    subtitle: "TDS held back from contractor payments under section 194C, and the challans.",
-    paid: "Paid to contractors",
+    title: "TDS Return on Contractors, Fees and Rent (26Q)",
+    subtitle: "TDS held back from payments to contractors (194C), professionals (194J) and landlords (194I), and the challans.",
+    paid: "Paid to parties",
     noData: "Nothing recorded",
   },
 };
@@ -90,6 +90,7 @@ const REMARK: Record<string, string> = {
   C: "No PAN, 20%",
   A: "Lower rate (certificate)",
   T: "Transporter, no TDS",
+  Y: "Under the limit, no TDS",
 };
 
 export default function TdsReturnPage() {
@@ -153,7 +154,7 @@ export default function TdsReturnPage() {
           }}
           tabs={[
             { id: "salary", label: "Salary (24Q)" },
-            { id: "contractors", label: "Contractors (26Q)" },
+            { id: "contractors", label: "Contractors, fees & rent (26Q)" },
           ]}
         />
 
@@ -229,8 +230,11 @@ export default function TdsReturnPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {doc.challans.map((c: any) => (
-                        <tr key={c.month}>
-                          <td className="px-4 py-2.5 font-semibold text-slate-800">{monthLabel(c.month)}</td>
+                        <tr key={`${c.section ?? ""}-${c.month}`}>
+                          <td className="px-4 py-2.5 font-semibold text-slate-800">
+                            {monthLabel(c.month)}
+                            {c.section && <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{c.section}</span>}
+                          </td>
                           <td className="px-4 py-2.5 text-right tabular-nums">{rupees(c.tds)}</td>
                           <td className="px-4 py-2.5 text-right tabular-nums">{rupees(c.deposited)}</td>
                           <td className="px-4 py-2.5 text-slate-600">{shortDate(c.depositedOn) || "—"}</td>
@@ -255,7 +259,7 @@ export default function TdsReturnPage() {
               {kind === "contractors" && (
                 <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs">
                   <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-                    <h2 className="text-[15px] font-bold text-slate-900">Payments and TDS for each contractor</h2>
+                    <h2 className="text-[15px] font-bold text-slate-900">Payments and TDS for each party</h2>
                     <a href={csv("deductees")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline">
                       <Download className="h-3.5 w-3.5" /> CSV
                     </a>
@@ -265,8 +269,9 @@ export default function TdsReturnPage() {
                       <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                         <tr>
                           <th className="px-4 py-2 text-left">Date</th>
-                          <th className="px-4 py-2 text-left">Contractor</th>
+                          <th className="px-4 py-2 text-left">Party</th>
                           <th className="px-4 py-2 text-left">PAN</th>
+                          <th className="px-4 py-2 text-left">Section</th>
                           <th className="px-4 py-2 text-right">Amount</th>
                           <th className="px-4 py-2 text-right">Rate</th>
                           <th className="px-4 py-2 text-right">TDS</th>
@@ -276,8 +281,8 @@ export default function TdsReturnPage() {
                       <tbody className="divide-y divide-slate-100">
                         {doc.deductees.length === 0 && (
                           <tr>
-                            <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
-                              No contractor payments with TDS in this quarter.
+                            <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
+                              No payments with TDS in this quarter.
                             </td>
                           </tr>
                         )}
@@ -286,6 +291,9 @@ export default function TdsReturnPage() {
                             <td className="px-4 py-2.5 text-slate-600">{shortDate(d.paidOn)}</td>
                             <td className="px-4 py-2.5 font-semibold text-slate-800">{d.name}</td>
                             <td className="px-4 py-2.5 font-mono text-xs">{d.pan || <span className="font-sans font-semibold text-rose-600">Missing</span>}</td>
+                            <td className="whitespace-nowrap px-4 py-2.5 text-xs text-slate-600" title={d.sectionLabel}>
+                              {d.section ? `${d.section} · ${d.sectionCode}` : "—"}
+                            </td>
                             <td className="px-4 py-2.5 text-right tabular-nums">{rupees(d.amountPaid)}</td>
                             <td className="px-4 py-2.5 text-right tabular-nums">{d.rate ? `${d.rate}%` : "—"}</td>
                             <td className="px-4 py-2.5 text-right tabular-nums">{rupees(d.tds)}</td>

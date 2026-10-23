@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { channels, MESSAGING_DEFAULTS, messagingSettings, publicSettings } from "@/lib/messaging";
+import { channels, indianMobile, MESSAGING_DEFAULTS, messagingSettings, publicSettings } from "@/lib/messaging";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
     ]);
     // A message covering several instalments is logged once per instalment; show it once.
     const shown = log.filter((m, n) => !(n > 0 && log[n - 1].to === m.to && log[n - 1].kind === m.kind && log[n - 1].text === m.text));
-    return jsonSuccess({ settings: publicSettings(settings), log: shown, cronReady: !!process.env.CRON_SECRET });
+    // Staff who cannot get WhatsApp alerts until a mobile number is on their profile.
+    const staff = await prisma.user.findMany({ where: { organizationId: user.organizationId, status: "ACTIVE" }, select: { phone: true } });
+    const staffNoPhone = staff.filter((u) => !indianMobile(u.phone)).length;
+    return jsonSuccess({ settings: publicSettings(settings), log: shown, cronReady: !!process.env.CRON_SECRET, staffCount: staff.length, staffNoPhone });
   } catch (error) {
     return handleApiError(error);
   }
@@ -41,6 +44,11 @@ const schema = z.object({
   remindEveryDays: z.number().int().min(1).max(30).optional(),
   maxOverdueReminders: z.number().int().min(0).max(10).optional(),
   buyerSignIn: z.boolean().optional(),
+  staffAlerts: z.boolean().optional(),
+  waStaffTemplate: text(100).optional(),
+  staffApprovals: z.boolean().optional(),
+  staffTasks: z.boolean().optional(),
+  staffSiteAlerts: z.boolean().optional(),
   siteUrl: z
     .string()
     .trim()
@@ -67,6 +75,7 @@ export async function PATCH(req: NextRequest) {
     const can = channels(next);
     if (next.buyerSignIn && !can.otp) return jsonError("Set up WhatsApp (with a sign-in code template) or SMS first, or buyers could not sign in.", "MESSAGING_OFF", 400);
     if (next.autoDemands && !can.demands) return jsonError("Set up WhatsApp with a demand template first.", "MESSAGING_OFF", 400);
+    if (next.staffAlerts && !can.staff) return jsonError("Set up WhatsApp with a staff alert template first.", "MESSAGING_OFF", 400);
     await prisma.$transaction([
       prisma.organization.update({ where: { id: user.organizationId }, data: { settingsJson: JSON.stringify({ ...all, messaging: next }) } }),
       prisma.auditEvent.create({
