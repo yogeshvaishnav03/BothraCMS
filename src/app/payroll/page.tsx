@@ -216,6 +216,7 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
   const [esic, setEsic] = useState(s.esicNumber || "");
   const [regime, setRegime] = useState<string>(s.taxRegime || "NEW");
   const [declared, setDeclared] = useState(s.taxDeclared ? String(s.taxDeclared / 100) : "");
+  const [pan, setPan] = useState(s.pan || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dirty =
@@ -225,7 +226,9 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
     uan !== (s.uan || "") ||
     esic !== (s.esicNumber || "") ||
     regime !== (s.taxRegime || "NEW") ||
-    toPaise(declared) !== (s.taxDeclared || 0);
+    toPaise(declared) !== (s.taxDeclared || 0) ||
+    pan !== (s.pan || "");
+  const panBad = pan.length > 0 && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan);
   const esiOver = esi && toPaise(salary) > 21_000_00;
   return (
     <tr className="border-t border-slate-100">
@@ -267,6 +270,14 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
             <option value="NEW">New tax regime</option>
             <option value="OLD">Old tax regime</option>
           </select>
+          <input
+            disabled={!canEdit}
+            value={pan}
+            onChange={(e) => setPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))}
+            placeholder="PAN"
+            title="For the TDS return. Without a PAN, TDS must be at least 20%."
+            className={`w-28 rounded-lg border px-2 py-1 font-mono text-xs uppercase disabled:bg-slate-50 ${panBad ? "border-rose-300 bg-rose-50" : !pan && s.monthlySalary > 0 ? "border-amber-300" : "border-slate-200"}`}
+          />
           {regime === "OLD" && (
             <input
               disabled={!canEdit}
@@ -300,12 +311,12 @@ function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved:
           />
           {canEdit && (
             <button
-              disabled={!dirty || saving}
+              disabled={!dirty || saving || panBad}
               onClick={async () => {
                 setSaving(true);
                 setError(null);
                 try {
-                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary), pfApplicable: pf, esiApplicable: esi, uan: uan || null, esicNumber: esic || null, taxRegime: regime, taxDeclared: regime === "OLD" ? toPaise(declared) : 0 }))).staff);
+                  onSaved((await api(`/api/payroll/salaries/${s.id}`, put({ monthlySalary: toPaise(salary), pfApplicable: pf, esiApplicable: esi, uan: uan || null, esicNumber: esic || null, taxRegime: regime, taxDeclared: regime === "OLD" ? toPaise(declared) : 0, pan: pan || null }))).staff);
                 } catch (e: any) {
                   setError(e.message);
                 } finally {
@@ -479,6 +490,11 @@ export default function PayrollPage() {
         <PageHeader icon={Wallet} title="Payroll" subtitle="Wages and salaries worked out from attendance, with advances taken back automatically.">
           {tab === "RUN" && (
             <input type="month" value={month} max={thisMonth()} onChange={(e) => e.target.value && setMonth(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" />
+          )}
+          {tab === "SALARIES" && (
+            <a href="/payroll/tds-return" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              <FileText className="h-4 w-4 text-amber-600" /> TDS return (24Q)
+            </a>
           )}
           {tab === "ADVANCES" && canWrite && (
             <button onClick={() => setGiving(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-4 py-2 text-sm font-bold text-slate-950 shadow-glow">

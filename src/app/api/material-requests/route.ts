@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUserContext } from "@/lib/server-auth";
 import { jsonSuccess, handleApiError } from "@/lib/api-response";
 import { MaterialRequestService } from "@/services/material-request-service";
+import { onceOnly } from "@/lib/offline-send";
 
 export const dynamic = "force-dynamic";
 
@@ -43,8 +44,7 @@ const createSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
-    const body = createSchema.parse(await req.json());
-    return jsonSuccess(await MaterialRequestService.create(user, body), 201);
+    return await onceOnly(req, user, async () => jsonSuccess(await MaterialRequestService.create(user, createSchema.parse(await req.json())), 201));
   } catch (error) {
     return handleApiError(error);
   }

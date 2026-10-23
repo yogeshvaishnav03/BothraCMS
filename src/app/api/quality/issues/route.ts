@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUserContext, requirePermission } from "@/lib/server-auth";
 import { jsonSuccess, handleApiError } from "@/lib/api-response";
 import { ISSUE_KINDS, QualitySafetyService, SEVERITIES } from "@/services/quality-safety-service";
+import { onceOnly } from "@/lib/offline-send";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
     requirePermission(user, "tasks:write");
-    return jsonSuccess(await QualitySafetyService.reportIssue(user, schema.parse(await req.json())), 201);
+    return await onceOnly(req, user, async () => jsonSuccess(await QualitySafetyService.reportIssue(user, schema.parse(await req.json())), 201));
   } catch (error) {
     return handleApiError(error);
   }

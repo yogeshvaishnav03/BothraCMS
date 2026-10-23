@@ -24,7 +24,8 @@ import { fyMonths, fyOf, monthlyTds, monthsLeftInFy, projectYear, type TaxRegime
  * Statutory deductions apply to staff: PF (12% of basic up to the wage
  * ceiling) and ESI (0.75% while gross is within the limit) when switched on in
  * their salary record, and professional tax by the state set for payroll.
- * TDS is typed in per person.
+ * TDS is worked out from each person's tax regime (see income-tax.ts) unless
+ * it is typed in by hand.
  */
 
 export class PayrollError extends Error {
@@ -698,6 +699,7 @@ export class PayrollService {
         uan: p?.uan || null,
         esicNumber: p?.esicNumber || null,
         taxRegime: p?.taxRegime || "NEW",
+        pan: p?.pan || null,
         taxDeclared: p?.taxDeclared || 0,
         bankAccountMasked: p?.bankAccount ? `••••${p.bankAccount.slice(-4)}` : null,
         ifsc: p?.ifsc || null,
@@ -718,6 +720,7 @@ export class PayrollService {
       esicNumber?: string | null;
       taxRegime?: "NEW" | "OLD";
       taxDeclared?: number;
+      pan?: string | null;
     }
   ) {
     const target = await prisma.user.findFirst({ where: { id: userId, organizationId: user.organizationId } });
@@ -731,6 +734,7 @@ export class PayrollService {
     if (input.esicNumber !== undefined) data.esicNumber = input.esicNumber || null;
     if (input.taxRegime !== undefined) data.taxRegime = input.taxRegime;
     if (input.taxDeclared !== undefined) data.taxDeclared = Math.round(input.taxDeclared);
+    if (input.pan !== undefined) data.pan = input.pan ? input.pan.toUpperCase() : null;
     await prisma.payrollProfile.upsert({
       where: { organizationId_userId: { organizationId: user.organizationId, userId } },
       create: { organizationId: user.organizationId, userId, ...data },
@@ -829,6 +833,155 @@ export class PayrollService {
       totals: { gross: sum("gross"), pf: sum("pf"), esi: sum("esi"), pt: sum("pt"), tds: sum("tds"), net: sum("net") },
       monthsPaid: done.filter((r) => r.status).length,
       projected: { ...year, complete: lastIndex === 11, tdsSoFar: sum("tds"), balance: Math.max(0, year.total - sum("tds")) },
+    };
+  }
+
+  /**
+   * What goes into the quarterly TDS return on salary (Form 24Q): one challan
+   * a month (the TDS bill in Finance and the payments against it) and each
+   * person's salary and TDS that month. Q4 also has each person's salary for
+   * the year (Annexure II). It is laid out to be typed or pasted into the
+   * NSDL return utility; the app does not make the FVU file itself.
+   */
+  static async tdsReturn(organizationId: string, fy: string, quarter: 1 | 2 | 3 | 4) {
+    const months = fyMonths(fy).slice((quarter - 1) * 3, quarter * 3);
+    const [company, runs, profiles, bills] = await Promise.all([
+      companyProfile(organizationId),
+      prisma.payrollRun.findMany({
+        where: { organizationId, month: { in: months }, status: { in: ["APPROVED", "PAID"] } },
+        include: { lines: { where: { personType: "STAFF" } } },
+      }),
+      prisma.payrollProfile.findMany({ where: { organizationId }, select: { userId: true, pan: true, taxRegime: true } }),
+      prisma.bill.findMany({
+        where: { organizationId, billNumber: { in: months.map((m) => `TDS-${m}`) }, status: { not: "VOIDED" } },
+        include: { allocations: { where: { reversedAt: null }, include: { payment: { select: { paymentDate: true, referenceNumber: true, status: true } } } } },
+      }),
+    ]);
+    const staffIds = Array.from(new Set(runs.flatMap((r) => r.lines.map((l) => l.personId))));
+    const users = await prisma.user.findMany({ where: { id: { in: staffIds }, organizationId }, select: { id: true, name: true } });
+    const nameOf = new Map(users.map((u) => [u.id, u.name]));
+    const panOf = new Map(profiles.map((p) => [p.userId, p.pan || null]));
+    const regimeOf = new Map(profiles.map((p) => [p.userId, p.taxRegime]));
+    const runOf = new Map(runs.map((r) => [r.month, r]));
+    const billOf = new Map(bills.map((b) => [b.billNumber, b]));
+    const monthEnd = (m: string) => monthDays(m).slice(-1)[0];
+    const nextMonth = (m: string) => {
+      const [y, mo] = m.split("-").map(Number);
+      return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
+    };
+    // TDS is due by the 7th of the next month; for March, by 30 April.
+    const dueOf = (m: string) => (m.endsWith("-03") ? `${m.slice(0, 4)}-04-30` : `${nextMonth(m)}-07`);
+
+    const challans = months.map((m) => {
+      const run = runOf.get(m);
+      const tds = run ? run.lines.reduce((s, l) => s + l.tds, 0) : 0;
+      const bill = billOf.get(`TDS-${m}`);
+      const paid = (bill?.allocations || []).filter((a) => a.payment.status === "POSTED");
+      const deposited = Math.round(paid.reduce((s, a) => s + a.amount, 0));
+      const lastPaid = paid.map((a) => istDateKey(a.payment.paymentDate)).sort().slice(-1)[0] || null;
+      const due = dueOf(m);
+      const deducted = run?.paidAt ? istDateKey(run.paidAt) : monthEnd(m);
+      // Late deposit: interest at 1.5% a month or part of a month, from deduction to deposit (section 201(1A)).
+      let lateMonths = 0;
+      if (lastPaid && lastPaid > due) {
+        const [y1, m1] = deducted.split("-").map(Number);
+        const [y2, m2] = lastPaid.split("-").map(Number);
+        lateMonths = (y2 - y1) * 12 + (m2 - m1) + 1;
+      }
+      return {
+        month: m,
+        payrollApproved: !!run,
+        tds,
+        deposited,
+        depositedOn: lastPaid,
+        reference: paid.map((a) => a.payment.referenceNumber).filter(Boolean).join(", ") || null,
+        due,
+        state: m > istDateKey().slice(0, 7) ? "FUTURE" : !run ? "NO_PAYROLL" : tds === 0 ? "NIL" : deposited >= tds ? (lastPaid! > due ? "LATE" : "PAID") : deposited > 0 ? "PART_PAID" : "NOT_PAID",
+        interest: lateMonths ? Math.round(tds * 0.015 * lateMonths) : 0,
+      };
+    });
+
+    const deductees = runs
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .flatMap((run) =>
+        run.lines
+          .filter((l) => l.gross > 0)
+          .map((l) => {
+            const paidOn = run.paidAt ? istDateKey(run.paidAt) : monthEnd(run.month);
+            return {
+              month: run.month,
+              userId: l.personId,
+              name: nameOf.get(l.personId) || l.personName,
+              pan: panOf.get(l.personId) || null,
+              section: "192",
+              paidOn,
+              amountPaid: l.gross,
+              tds: l.tds,
+              deductedOn: l.tds > 0 ? paidOn : null,
+              newRegime: (regimeOf.get(l.personId) || "NEW") !== "OLD",
+            };
+          })
+      )
+      .sort((a, b) => a.month.localeCompare(b.month) || a.name.localeCompare(b.name));
+
+    const salaryForYear =
+      quarter === 4
+        ? await Promise.all(
+            Array.from(new Set((await prisma.payrollLine.findMany({
+              where: { personType: "STAFF", run: { organizationId, month: { in: fyMonths(fy) }, status: { in: ["APPROVED", "PAID"] } } },
+              select: { personId: true },
+            })).map((l) => l.personId))).map(async (id) => {
+              const st = await PayrollService.taxStatement(organizationId, id, fy);
+              return {
+                userId: id,
+                name: st.person.name,
+                pan: panOf.get(id) || null,
+                regime: st.regime,
+                gross: st.totals.gross,
+                professionalTax: st.totals.pt,
+                deductions: st.projected.deductions,
+                taxable: st.projected.taxable,
+                tax: st.projected.total,
+                tdsDeducted: st.totals.tds,
+                shortfall: Math.max(0, st.projected.total - st.totals.tds),
+              };
+            })
+          )
+        : null;
+
+    const problems: string[] = [];
+    const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
+    const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    const money = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
+    if (!company.tan) problems.push("Add the company TAN in Settings. The return cannot be filed without it.");
+    const names = (rows: typeof deductees) => Array.from(new Set(rows.map((d) => d.name))).join(", ");
+    const taxedNoPan = deductees.filter((d) => !d.pan && d.tds > 0);
+    if (taxedNoPan.length) problems.push(`No PAN for ${names(taxedNoPan)}. Add it under Staff salaries; without a PAN, TDS must be at least 20% (section 206AA).`);
+    const otherNoPan = deductees.filter((d) => !d.pan && d.tds === 0 && !taxedNoPan.some((t) => t.userId === d.userId));
+    if (otherNoPan.length) problems.push(`Add the PAN for ${names(otherNoPan)} too. No TDS was cut, but the return lists everyone paid a salary.`);
+    for (const c of challans) {
+      if (c.state === "NO_PAYROLL") problems.push(`Payroll for ${monthName(c.month)} is not approved yet.`);
+      else if (c.state === "NOT_PAID" || c.state === "PART_PAID") problems.push(`TDS for ${monthName(c.month)} is not fully deposited: ${money(c.tds - c.deposited)} still to pay, due ${day(c.due)}.`);
+      else if (c.state === "LATE") problems.push(`TDS for ${monthName(c.month)} was deposited late, on ${day(c.depositedOn!)}. Interest of about ${money(c.interest)} is payable.`);
+    }
+    const fyStart = Number(fy.slice(0, 4));
+    const filingDue = [`${fyStart}-07-31`, `${fyStart}-10-31`, `${fyStart + 1}-01-31`, `${fyStart + 1}-05-31`][quarter - 1];
+
+    return {
+      fy,
+      quarter,
+      months,
+      filingDue,
+      company: { name: company.name, tan: company.tan, gstin: company.gstin },
+      challans,
+      deductees,
+      salaryForYear,
+      totals: {
+        paid: deductees.reduce((s, d) => s + d.amountPaid, 0),
+        tds: deductees.reduce((s, d) => s + d.tds, 0),
+        deposited: challans.reduce((s, c) => s + c.deposited, 0),
+      },
+      problems,
     };
   }
 

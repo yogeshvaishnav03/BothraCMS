@@ -5,6 +5,7 @@ import { requireUserContext } from "@/lib/server-auth";
 import { jsonSuccess, handleApiError } from "@/lib/api-response";
 import { istDateKey, monthDays } from "@/lib/ist-date";
 import { StaffAttendanceError, StaffAttendanceService, hoursBetween } from "@/services/staff-attendance-service";
+import { onceOnly } from "@/lib/offline-send";
 
 export const dynamic = "force-dynamic";
 
@@ -54,14 +55,16 @@ function pressedAt(at: string | undefined) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
-    const body = actionSchema.parse(await req.json());
-    const { now, offline } = pressedAt(body.at);
-    const note = offline ? [body.note?.trim(), "Saved on phone with no signal, sent later"].filter(Boolean).join(" · ") : body.note;
-    const row =
-      body.action === "check-in"
-        ? await StaffAttendanceService.checkIn(user.organizationId, user.userId, { ...body, note }, now)
-        : await StaffAttendanceService.checkOut(user.organizationId, user.userId, body, now);
-    return jsonSuccess({ ...row, hours: hoursBetween(row.checkInAt, row.checkOutAt) }, body.action === "check-in" ? 201 : 200);
+    return await onceOnly(req, user, async () => {
+      const body = actionSchema.parse(await req.json());
+      const { now, offline } = pressedAt(body.at);
+      const note = offline ? [body.note?.trim(), "Saved on phone with no signal, sent later"].filter(Boolean).join(" · ") : body.note;
+      const row =
+        body.action === "check-in"
+          ? await StaffAttendanceService.checkIn(user.organizationId, user.userId, { ...body, note }, now)
+          : await StaffAttendanceService.checkOut(user.organizationId, user.userId, body, now);
+      return jsonSuccess({ ...row, hours: hoursBetween(row.checkInAt, row.checkOutAt) }, body.action === "check-in" ? 201 : 200);
+    });
   } catch (error) {
     return handleApiError(error);
   }

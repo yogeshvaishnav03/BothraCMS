@@ -14,6 +14,11 @@ const updateOrgSchema = z.object({
   settings: z
     .object({
       taxId: z.string().optional(),
+      tan: z
+        .string()
+        .transform((v) => v.trim().toUpperCase())
+        .refine((v) => v === "" || /^[A-Z]{4}\d{5}[A-Z]$/.test(v), "TAN looks wrong: 4 letters, 5 digits, 1 letter")
+        .optional(),
       companyAddress: z.string().optional(),
       phone: z.string().optional(),
       lowStockThresholdMultiplier: z.number().min(0.5).max(5).optional(),

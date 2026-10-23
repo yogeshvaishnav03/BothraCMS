@@ -1,6 +1,6 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 23 Oct 2026 (after Phase 8)
+Last updated: 23 Oct 2026 (after Phase 9)
 Branch: `claude/project-thread-7co71b` (committed locally, **not pushed** to GitHub yet)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
@@ -16,17 +16,18 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 5 | Payroll, drawings register, quality and safety, equipment, sales | Done | `0cc23cf` | `bothra-redesign-phase5.bundle` |
 | 6 | Buyer portal, automatic stage demands, GST receipts, Tally / GST export, PF / ESI / PT in payroll | Done | `224a2e5` | `bothra-redesign-phase6.bundle` |
 | 7 | GST on supplier bills, PF / ESI for site workers with PF ECR and ESI files, cancelling a receipt, offline site app | Done | `96fec30` | `bothra-redesign-phase7.bundle` |
-| 8 | More offline forms, GST rate per bill line and reverse charge, TDS from the tax regime with a yearly tax statement, statutory dues posted to Finance | Done | see `git log` | `bothra-redesign-phase8.bundle` |
+| 8 | More offline forms, GST rate per bill line and reverse charge, TDS from the tax regime with a yearly tax statement, statutory dues posted to Finance | Done | `7f7c45a` | `bothra-redesign-phase8.bundle` |
+| 9 | Offline items sent only once, the Site Muster for site workers (works with no signal), TDS return on salary (24Q) with PAN and TAN | Done | see `git log` | `bothra-redesign-phase9.bundle` |
 
-**Eight phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase8.bundle` is the only one you need.
+**Nine phases are done.** Each bundle contains all earlier phases, so `bothra-redesign-phase9.bundle` is the only one you need.
 
 ### How to load the latest version
 
 ```bash
-git fetch bothra-redesign-phase8.bundle claude/project-thread-7co71b:claude/redesign-phase8
-git checkout claude/redesign-phase8
+git fetch bothra-redesign-phase9.bundle claude/project-thread-7co71b:claude/redesign-phase9
+git checkout claude/redesign-phase9
 npm install
-npx prisma db push      # required: phases 2 to 8 add new tables and columns
+npx prisma db push      # required: phases 2 to 9 add new tables and columns
 npm run dev
 ```
 
@@ -303,16 +304,46 @@ npm run dev
 
 ---
 
+## Phase 9: Offline items sent once, the Site Muster and the TDS return (done)
+
+**Nothing saved offline is sent twice**
+- Every item saved on a phone now carries its own id. If the signal drops after the server has saved it but before the phone hears back, the phone sends it again and the server recognises it: it returns the first reply and creates nothing new. This covers stage updates, daily reports, check-ins, material requests, quality checks and the muster.
+- Photos already uploaded are remembered on the phone, so a retry does not upload them again.
+- If the server turns an item down (for example a missing field), the id is freed, so the corrected item can still go through.
+
+**Site Muster** (Attendance → Site muster, or People → Site Muster)
+- A supervisor picks the project and the day and marks each site worker P (present), ½ (half day) or A (absent). Tapping the same mark again clears it.
+- Overtime is added in half-hour steps, up to 8 hours.
+- "Rest present" marks everyone not yet marked as present. Workers whose usual site is elsewhere are hidden until asked for, and a worker already marked at another site that day is flagged.
+- The bar at the bottom shows the day's wages from each worker's daily rate, including overtime.
+- It works with no signal: the whole muster is saved on the phone and sent when the signal returns. Saving the same muster again only updates it.
+- Payroll picks it up directly: a full day, half a day, and overtime beyond 8 hours at the hourly rate.
+- Supervisors can fill in today and the last 7 days. Older days need someone who can correct attendance. A day an admin has corrected is not changed by the muster.
+
+**TDS return on salary (Form 24Q)** (Payroll → Staff salaries → TDS return)
+- Choose a quarter. The page shows salary paid, TDS cut, TDS deposited, and the date the return is due (31 Jul, 31 Oct, 31 Jan, 31 May).
+- Challans: one per month, from the TDS bill in Finance and the payments made against it, with the date and the challan number taken from the payment reference. Late deposits are marked, with the interest at 1.5% a month.
+- Annexure I: each person's salary and TDS for each month, with their PAN.
+- Annexure II (in the fourth quarter): each person's salary, deductions, taxable income, tax and TDS for the year, with any shortfall.
+- Each table downloads as a CSV laid out for the NSDL return utility. A missing PAN is written as PANNOTAVBL.
+- "Fix before filing" lists what is missing: the company TAN, PANs, months with payroll not approved, and TDS not deposited or deposited late.
+- New fields: PAN for each staff member (Staff salaries) and the company TAN (Settings).
+
+---
+
 ## Incomplete or still planned
 
-All eight phases are built. The items below are not built yet, or work only partly.
+All nine phases are built. The items below are not built yet, or work only partly.
 
-### Gaps in Phase 5 to 8 features
+### Gaps in Phase 5 to 9 features
 
 - **Payroll:**
   - The PF ECR and ESI files are made for upload; filing and paying the challan are still done on the EPFO and ESIC portals.
   - The ECR assumes everyone is in the pension scheme (EPS). Members over 58 or not eligible for EPS need their line edited before upload.
-  - The tax statement is not Form 16. Part A (TDS deposited) comes from the TRACES portal after the quarterly TDS returns (24Q) are filed, which is still done outside the app.
+  - The tax statement is not Form 16. Part A (TDS deposited) comes from the TRACES portal after the quarterly return is filed.
+  - The TDS return page gathers the figures and makes CSV sheets, but not the FVU upload file. The return is still prepared in the NSDL utility and filed on the income-tax portal.
+  - The challan number is read from the payment reference; the BSR code and challan serial are not split out. Enter them in the utility.
+  - Interest on late TDS is an estimate; the late-filing fee (₹200 a day) is not worked out.
   - TDS assumes the rest of the year at the latest month's pay. A raise or a bonus later in the year is picked up only from that month.
   - Income from a previous employer in the same year is not counted. Add it to the TDS by hand.
   - Surcharge has no marginal relief (it matters only above ₹50 lakh a year).
@@ -329,28 +360,31 @@ All eight phases are built. The items below are not built yet, or work only part
   - Reverse charge does not post the "RCM paid" entry; pay the RCM tax in cash through the GST portal and record it as a payment.
   - Ledger names are fixed (for example "Purchase - Construction Material"). Rename them in Tally, or ask for a mapping screen.
   - There is no direct sync with Tally. It is an import file.
+- **Site muster:** a shift is recorded as 9 am to 5 pm (or 1 pm for a half day), not the real times. A muster for one project marks the worker at that project's site; a worker who moved between two sites in a day should be marked at the main one.
 - **Equipment:** hire and fuel costs logged here are not added to the project budget automatically. Hire bills should still be entered in Finance under the Equipment cost head.
 - **Quality:** the five checklists are fixed. There is no screen yet to make your own checklist.
 - **Drawings:** no markup or side-by-side comparison of revisions. Files are limited to PDF or images up to 10 MB.
 - **Offline app:**
-  - Stage progress, daily reports, check-in and check-out, material requests and quality checks can be saved offline. Payments, bills, payroll and the rest need a signal.
+  - Stage progress, daily reports, check-in and check-out, the site muster, material requests and quality checks can be saved offline. Payments, bills, payroll and the rest need a signal.
+  - The muster needs the project's worker list to have been opened once with a signal.
   - A page has to be opened once with a signal before it works offline.
   - Offline saving works in the installed app and in Chrome or Safari on the phone. The offline page cache only runs on the production build, not in `npm run dev`.
-  - If the signal drops just after the server saved an item but before the phone heard back, the phone sends it again. For check-in and check-out this is handled. A stage update, report, material request or quality check can show twice and the extra one has to be deleted.
+  - Items saved by an older version of the app (before Phase 9) and still waiting on a phone have no id, so they could still arrive twice.
 
-### Ideas for a Phase 9 (not started)
+### Ideas for a Phase 10 (not started)
+
+These need an outside account, so they cannot be finished from here alone.
 
 | Feature | Notes |
 |---|---|
-| Automatic WhatsApp | Send demand letters and reminders without a click, using the WhatsApp Business API. |
-| Buyer login | A proper sign-in for buyers (OTP on their mobile) in place of the secret link. |
-| Site-worker attendance offline | Mark the labour muster with no signal, as staff check-in now can. |
-| Duplicate-proof offline sends | Give every saved item an id so a resend after a dropped reply is ignored for all forms, not only check-in. |
-| TDS return (24Q) | Make the quarterly TDS return file for upload. |
+| Automatic WhatsApp | Send demand letters and reminders without a click. Needs a WhatsApp Business API account (for example through Meta or a provider such as Gupshup or Interakt). |
+| Buyer login | A proper sign-in for buyers with an OTP on their mobile, in place of the secret link. Needs an SMS or WhatsApp provider to send the OTP. |
+| TDS on contractor bills (26Q) | TDS under section 194C on contractor payments, with its own quarterly return. |
+| Photo storage in the cloud | Move photos and drawings to S3 or similar. Needs a storage account. |
 
 ### General gaps
 
-- **Nothing is pushed to GitHub yet.** All eight phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
+- **Nothing is pushed to GitHub yet.** All nine phases are committed locally on `claude/project-thread-7co71b` and delivered as bundle files. A pull request still needs to be opened and merged when you are ready.
 - **WhatsApp is click-to-chat only.** The buttons open WhatsApp with the number and a message filled in. Automatic WhatsApp messages (for example sending reminders without a click) would need the WhatsApp Business API and an account.
 - **No mobile push notifications.** Alerts appear inside the app (the bell icon). There is no phone push or SMS.
 - **Photos and drawings are stored on the server's disk** (`storage/uploads/private`), with a backup copy in the database. For heavy use they should move to cloud storage such as S3, so the database stays small.
@@ -360,12 +394,12 @@ All eight phases are built. The items below are not built yet, or work only part
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 358 of 360 tests.
+  The rest of the suite passes: 361 of 363 tests.
 
-## Checks run on the latest version (Phase 8)
+## Checks run on the latest version (Phase 9)
 
-- Tests: 358 of 360 pass. The only failures are the 2 older tests listed above. This includes 4 new tests for Phase 8 (tax maths, automatic and manual TDS with the statement and statutory bills, mixed-rate and reverse-charge bills, a late and repeated offline check-in), 4 for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
-- Offline app, tried in a phone-sized browser on the production build with the server switched off and two tabs open: a check-in and a material request were saved on the phone and each reached the server exactly once when it came back, the check-in with the time it was pressed.
+- Tests: 361 of 363 pass. The only failures are the 2 older tests listed above. This includes 3 new tests for Phase 9 (a request sent twice with the same id is saved once, the muster and its pay in payroll, the TDS return with a late challan and missing PANs), 4 for Phase 8 (tax maths, automatic and manual TDS with the statement and statutory bills, mixed-rate and reverse-charge bills, a late and repeated offline check-in), 4 for Phase 7, 7 for Phase 6, 8 for Phase 5 and 10 for Phase 4.
+- Offline app, tried in a phone-sized browser on the production build with the server switched off: a muster of 8 workers was saved on the phone and reached the server once when it came back. In Phase 8 a check-in and a material request were tried the same way with two tabs open.
 - Type check: clean.
 - Lint: 9 warnings, the same as before the redesign.
 - Production build: succeeds.

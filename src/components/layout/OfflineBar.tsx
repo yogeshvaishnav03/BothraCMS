@@ -73,7 +73,7 @@ export default function OfflineBar() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           {online ? <UploadCloud className="h-4 w-4 shrink-0" /> : <CloudOff className="h-4 w-4 shrink-0" />}
           <span className="font-semibold">{online ? (note && items.length === 0 ? note : "Back online") : "No signal"}</span>
-          {!online && <span className="text-xs">Stage updates, daily reports, check-ins, material requests and quality checks are saved on this phone and sent when you are back online.</span>}
+          {!online && <span className="text-xs">Stage updates, daily reports, check-ins, the site muster, material requests and quality checks are saved on this phone and sent when you are back online.</span>}
           {items.length > 0 && (
             <button onClick={() => setOpen((o) => !o)} className="text-xs font-bold underline underline-offset-2">
               {waiting.length > 0 && `${waiting.length} waiting to send`}

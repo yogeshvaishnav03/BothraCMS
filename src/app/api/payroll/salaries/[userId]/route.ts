@@ -16,6 +16,12 @@ const schema = z.object({
   esicNumber: z.string().regex(/^\d{10,17}$/, "ESIC number should be 10 to 17 digits").nullable().optional().or(z.literal("")),
   taxRegime: z.enum(["NEW", "OLD"]).optional(),
   taxDeclared: z.number().int().min(0).max(1e10).optional(), // paise a year
+  pan: z
+    .string()
+    .transform((v) => v.trim().toUpperCase())
+    .refine((v) => v === "" || /^[A-Z]{5}\d{4}[A-Z]$/.test(v), "PAN looks wrong: 5 letters, 4 digits, 1 letter")
+    .nullable()
+    .optional(),
 });
 
 export async function PUT(req: NextRequest, { params }: { params: { userId: string } }) {

@@ -29,6 +29,8 @@ export interface QueuedRequest {
   tries: number;
   /** Set when the server refused it, so it is not retried forever. */
   failed?: string | null;
+  /** Sent as X-Offline-Ref so the server handles it once, however many times it arrives. */
+  ref?: string;
 }
 
 export const QUEUE_EVENT = "bothra-outbox-changed";
@@ -83,8 +85,13 @@ export async function listQueued(): Promise<QueuedRequest[]> {
   return rows.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
 }
 
+export function newRef() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export async function enqueue(item: Omit<QueuedRequest, "id" | "createdAt" | "tries">) {
-  const row: QueuedRequest = { ...item, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), tries: 0 };
+  const row: QueuedRequest = { ref: newRef(), ...item, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), tries: 0 };
   await tx("readwrite", (s) => s.put(row));
   changed();
   return row;
@@ -123,13 +130,27 @@ class RefusedError extends Error {
   }
 }
 
-/** Sends one saved request: photos first, then the request itself. */
-async function send(item: QueuedRequest) {
-  const urls: string[] = [];
-  for (const p of item.photos) urls.push(await uploadPhoto(p));
-  const body = { ...item.body };
-  if (item.photoField && urls.length) body[item.photoField] = [...((body[item.photoField] as string[]) || []), ...urls];
-  const res = await fetch(item.url, { method: item.method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+/**
+ * Sends one saved request: photos first, then the request itself. Each photo
+ * that goes up is moved into the saved request as a link straight away, so a
+ * retry after the signal drops does not upload it again.
+ */
+async function send(item: QueuedRequest, onStep?: (now: QueuedRequest) => void) {
+  let current = item;
+  while (current.photos.length) {
+    const url = await uploadPhoto(current.photos[0]);
+    const body = { ...current.body };
+    if (current.photoField) body[current.photoField] = [...((body[current.photoField] as string[]) || []), url];
+    current = { ...current, body, photos: current.photos.slice(1) };
+    onStep?.(current);
+    if (current.id) {
+      const saved = current;
+      await tx("readwrite", (s) => s.put(saved));
+    }
+  }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (current.ref) headers["X-Offline-Ref"] = current.ref;
+  const res = await fetch(current.url, { method: current.method, headers, body: JSON.stringify(current.body) });
   const json = await res.json().catch(() => null);
   if (!res.ok || !json?.success) throw new RefusedError(json?.error?.message || "The server did not accept it", res.status);
   return json.data;
@@ -164,12 +185,14 @@ export function flushQueue() {
           await tx("readwrite", (s) => s.delete(item.id));
           sent++;
         } catch (e) {
+          // Read it back: photos sent before the failure are now links in it.
+          const latest = (await tx<QueuedRequest | undefined>("readonly", (s) => s.get(item.id) as IDBRequest<QueuedRequest | undefined>)) || item;
           if (e instanceof RefusedError && e.status !== 401 && e.status < 500) {
-            await tx("readwrite", (s) => s.put({ ...item, tries: item.tries + 1, failed: e.message }));
+            await tx("readwrite", (s) => s.put({ ...latest, tries: latest.tries + 1, failed: e.message }));
             failed++;
             continue;
           }
-          await tx("readwrite", (s) => s.put({ ...item, tries: item.tries + 1 }));
+          await tx("readwrite", (s) => s.put({ ...latest, tries: latest.tries + 1 }));
           break;
         }
       }
@@ -196,14 +219,17 @@ export async function submitOrQueue<T = unknown>(req: {
   /** Extra fields added only when the request is saved for later, e.g. the time it was made. */
   whenQueued?: Record<string, unknown>;
 }): Promise<{ queued: false; data: T } | { queued: true }> {
-  const item = { label: req.label, url: req.url, method: req.method || "POST", body: req.body, photos: req.photos || [], photoField: req.photoField };
-  const later = () => enqueue({ ...item, body: { ...item.body, ...(req.whenQueued || {}) } });
+  // The same id is used if a send that may have reached the server is saved for a retry.
+  const item = { label: req.label, url: req.url, method: req.method || "POST", body: req.body, photos: req.photos || [], photoField: req.photoField, ref: newRef() };
+  let progress: Omit<QueuedRequest, "id" | "createdAt" | "tries"> = item;
+  const later = () => enqueue({ ...progress, body: { ...progress.body, ...(req.whenQueued || {}) } });
   if (isOffline() && canQueue()) {
     await later();
     return { queued: true };
   }
   try {
-    return { queued: false, data: (await send({ ...item, id: "", createdAt: "", tries: 0 })) as T };
+    const data = await send({ ...item, id: "", createdAt: "", tries: 0 }, ({ id, createdAt, tries, ...rest }) => (progress = rest));
+    return { queued: false, data: data as T };
   } catch (e) {
     if (isNetworkError(e) && canQueue()) {
       await later();

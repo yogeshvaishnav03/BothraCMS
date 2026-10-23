@@ -1125,6 +1125,7 @@ model PayrollProfile {
   esicNumber     String?
   taxRegime      String   @default("NEW") // NEW or OLD income-tax regime, for TDS on salary
   taxDeclared    Int      @default(0) // paise a year: old-regime deductions claimed (80C beyond PF, 80D, HRA...)
+  pan            String?  // for the TDS return; without it TDS is 20% (section 206AA)
   updatedAt      DateTime @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1476,4 +1477,20 @@ model SalesReceipt {
 
   @@unique([organizationId, receiptNumber])
   @@index([organizationId, date])
+}
+
+/// A request saved on a phone with no signal carries an id. The first time it
+/// arrives its reply is kept here, so if the phone sends it again (the signal
+/// dropped before the reply got back) the same reply is returned and nothing
+/// is created twice.
+model OfflineSend {
+  ref            String   @id
+  organizationId String
+  userId         String
+  route          String
+  status         Int      @default(0) // 0 while it is being handled, then the HTTP status
+  response       String?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
 }

@@ -66,7 +66,7 @@ function ledger(name: string, group: string) {
 const customerLedger = (b: { customerName: string; unit: { unitNumber: string } }) => `${b.customerName} (${b.unit.unitNumber})`;
 const paidFrom = (p: { payingAccount: string | null; method: string }) => p.payingAccount?.trim() || (p.method === "CASH" ? "Cash" : "Bank Account");
 
-function csv(rows: (string | number | null | undefined)[][]) {
+export function csv(rows: (string | number | null | undefined)[][]) {
   return rows
     .map((r) =>
       r

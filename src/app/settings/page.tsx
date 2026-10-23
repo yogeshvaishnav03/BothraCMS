@@ -67,6 +67,7 @@ interface OrgData {
   status: string;
   settings: {
     taxId?: string;
+    tan?: string;
     companyAddress?: string;
     phone?: string;
     workDayHours?: number;
@@ -104,6 +105,7 @@ export default function SettingsPage() {
   const [currency, setCurrency] = useState("INR");
   const [timezone, setTimezone] = useState("Asia/Kolkata");
   const [taxId, setTaxId] = useState("");
+  const [tan, setTan] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [workDayHours, setWorkDayHours] = useState(8);
@@ -143,6 +145,7 @@ export default function SettingsPage() {
         setCurrency(data.currency);
         setTimezone(data.timezone);
         setTaxId(data.settings?.taxId || "");
+        setTan(data.settings?.tan || "");
         setCompanyAddress(data.settings?.companyAddress || "");
         setPhone(data.settings?.phone || "");
         setWorkDayHours(data.settings?.workDayHours || 8);
@@ -189,6 +192,7 @@ export default function SettingsPage() {
           timezone,
           settings: {
             taxId,
+            tan,
             companyAddress,
             phone,
             workDayHours: Number(workDayHours),
@@ -423,6 +427,20 @@ export default function SettingsPage() {
                       />
                       <FileText className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      TAN (for TDS)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. JPRA12345B"
+                      value={tan}
+                      onChange={(e) => setTan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">Tax deduction account number. Needed on the quarterly TDS return.</p>
                   </div>
 
                   <div>

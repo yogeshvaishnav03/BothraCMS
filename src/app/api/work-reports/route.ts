@@ -5,6 +5,7 @@ import { jsonSuccess, handleApiError } from "@/lib/api-response";
 import { isDateKey } from "@/lib/ist-date";
 import { sanitizePhotoUrls } from "@/services/task-timeline-service";
 import { WorkReportService } from "@/services/work-report-service";
+import { onceOnly } from "@/lib/offline-send";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +33,14 @@ const reportSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
-    const body = reportSchema.parse(await req.json());
-    const report = await WorkReportService.upsert(user.organizationId, user.userId, {
-      ...body,
-      photoUrls: sanitizePhotoUrls(body.photoUrls),
+    return await onceOnly(req, user, async () => {
+      const body = reportSchema.parse(await req.json());
+      const report = await WorkReportService.upsert(user.organizationId, user.userId, {
+        ...body,
+        photoUrls: sanitizePhotoUrls(body.photoUrls),
+      });
+      return jsonSuccess(report, 201);
     });
-    return jsonSuccess(report, 201);
   } catch (error) {
     return handleApiError(error);
   }

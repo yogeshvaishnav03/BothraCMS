@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Building2,
   Clock,
+  ClipboardCheck,
   ArrowRightLeft,
   Receipt,
   PlusCircle,
@@ -243,6 +244,7 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.myDay", defaultLabel: "Daily Work", href: "/work-reports", icon: NotebookPen },
         { key: "nav.workforce", defaultLabel: "Workforce", href: "/workforce", icon: Users },
         { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
+        ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Muster", href: "/attendance/muster", icon: ClipboardCheck }] : []),
         { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
       ],
     },
@@ -262,8 +264,11 @@ export default function Shell({ children }: ShellProps) {
     },
   ];
   const navItemsDef = navGroups.flatMap((g) => g.items);
-  const isActiveHref = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href));
-  const currentNav = navItemsDef.find((i) => isActiveHref(i.href));
+  // The longest matching link wins, so /attendance/muster lights up Site Muster, not Attendance.
+  const currentNav = navItemsDef
+    .filter((i) => pathname === i.href || (i.href !== "/" && pathname.startsWith(i.href + "/")))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  const isActiveHref = (href: string) => currentNav?.href === href;
   const roleLabel = (user?.role || "").toLowerCase().replace(/_/g, " ");
   const userInitials =
     (user?.name || "U")
