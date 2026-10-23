@@ -1,7 +1,9 @@
 import { PrismaClient } from "@prisma/client";
+import { autoMigrateDatabase } from "./db-auto-migrate";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  hasAutoMigrated?: boolean;
 };
 
 const dbUrl =
@@ -28,3 +30,12 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+// Auto-heal PostgreSQL database schema on container startup (idempotent & non-blocking)
+if (!globalForPrisma.hasAutoMigrated) {
+  globalForPrisma.hasAutoMigrated = true;
+  autoMigrateDatabase(prisma).catch((err) => {
+    console.error("[AUTO_MIGRATE_STARTUP_NOTICE]", err);
+  });
+}
+

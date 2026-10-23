@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   applicationName: "Bothra CMS",
   appleWebApp: { capable: true, title: "Bothra", statusBarStyle: "black-translucent" },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },

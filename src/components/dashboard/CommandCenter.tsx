@@ -516,8 +516,30 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
       </div>
 
       {error && (
-        <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-sm px-4 py-3">
-          {error}
+        <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-sm px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div>{error}</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => load()}
+              className="px-3 py-1 bg-white border border-rose-300 rounded-lg text-rose-700 font-medium hover:bg-rose-100 text-xs shadow-sm transition"
+            >
+              Retry
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch("/api/admin/db-sync");
+                  const json = await res.json();
+                  if (json.success) {
+                    await load();
+                  }
+                } catch {}
+              }}
+              className="px-3 py-1 bg-rose-700 text-white rounded-lg font-medium hover:bg-rose-800 text-xs shadow-sm transition"
+            >
+              Sync Database Schema
+            </button>
+          </div>
         </div>
       )}
 
