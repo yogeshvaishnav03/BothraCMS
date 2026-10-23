@@ -90,6 +90,19 @@ export async function checkRazorpayKeys(s: PaymentSettings) {
   return true;
 }
 
+/**
+ * What Razorpay kept from one payment, in paise. `fee` already includes the
+ * GST on it (`tax`). Null until Razorpay has worked it out.
+ */
+export async function fetchPaymentFee(s: PaymentSettings, paymentId: string): Promise<{ fee: number | null; tax: number | null; method: string | null }> {
+  const p = await razorpay(s, `/payments/${encodeURIComponent(paymentId)}`);
+  return {
+    fee: typeof p.fee === "number" ? p.fee : null,
+    tax: typeof p.tax === "number" ? p.tax : null,
+    method: p.method ? String(p.method) : null,
+  };
+}
+
 export interface PaymentLink {
   id: string;
   short_url: string;

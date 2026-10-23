@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
           status: r.status,
           method: r.method,
           paymentId: r.paymentId,
+          fee: r.fee,
           note: r.note,
           buyer: b ? `${b.customerName} · ${b.unit.unitNumber}` : "",
           bookingNumber: b?.bookingNumber || "",

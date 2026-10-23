@@ -4,8 +4,10 @@
  *   used when there is no signal, and /offline when there is none.
  * - Nothing that changes data is cached; saves made offline wait in the
  *   app's own outbox (IndexedDB) instead.
+ * - Alerts pushed by the server show as phone notifications; tapping one
+ *   opens its page.
  */
-const VERSION = "bothra-v3";
+const VERSION = "bothra-v4";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const SHELL = ["/offline", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
@@ -76,4 +78,37 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/uploads/")) {
     event.respondWith(networkFirst(request));
   }
+});
+
+// Phone alerts: the server sends {title, body, href, tag}.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Bothra CMS", {
+      body: data.body || "",
+      tag: data.tag || undefined,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { href: data.href || "/" },
+    })
+  );
+});
+
+// Tapping an alert opens its page, in the app window if one is already open.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const href = new URL((event.notification.data && event.notification.data.href) || "/", self.location.origin);
+  if (href.origin !== self.location.origin) return;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
+      if (win) return win.focus().then((w) => (w && "navigate" in w ? w.navigate(href.href) : null));
+      return self.clients.openWindow(href.href);
+    })
+  );
 });

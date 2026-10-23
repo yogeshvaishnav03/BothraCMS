@@ -686,6 +686,22 @@ export default function SettingsPage() {
                 </Link>
               )}
 
+              {canManageSettings && (
+                <Link
+                  href="/settings/attendance"
+                  className="flex items-center gap-3 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-amber-300 transition"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-slate-900">Staff check-in: location and selfie</div>
+                    <div className="text-xs text-slate-500">Set where each site is, flag check-ins made away from it, and ask for a selfie.</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </Link>
+              )}
+
               {/* Account Security & Password Change Card */}
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">

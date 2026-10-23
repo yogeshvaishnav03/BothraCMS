@@ -63,6 +63,15 @@ const POSTGRES_COLUMNS = [
   `ALTER TABLE "PayrollProfile" ADD COLUMN IF NOT EXISTS "esiApplicable" BOOLEAN DEFAULT false;`,
   `ALTER TABLE "PayrollLine" ADD COLUMN IF NOT EXISTS "tdsManual" BOOLEAN DEFAULT false;`,
   `ALTER TABLE "PayrollLine" ADD COLUMN IF NOT EXISTS "tds" INTEGER DEFAULT 0;`,
+  // Phase 13: staff check-in location and selfie, Razorpay fees
+  `ALTER TABLE "Site" ADD COLUMN IF NOT EXISTS "geofenceM" INTEGER;`,
+  `ALTER TABLE "StaffAttendance" ADD COLUMN IF NOT EXISTS "checkInSiteId" TEXT;`,
+  `ALTER TABLE "StaffAttendance" ADD COLUMN IF NOT EXISTS "checkInDistanceM" INTEGER;`,
+  `ALTER TABLE "StaffAttendance" ADD COLUMN IF NOT EXISTS "checkInFlag" TEXT;`,
+  `ALTER TABLE "StaffAttendance" ADD COLUMN IF NOT EXISTS "checkInSelfie" TEXT;`,
+  `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "fee" INTEGER;`,
+  `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "feeTax" INTEGER;`,
+  `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "feeBookedIn" TEXT;`,
 ];
 
 const POSTGRES_TABLES = [
@@ -485,6 +494,48 @@ const POSTGRES_TABLES = [
     "response" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   );`,
+  // Phase 12: payments buyers start from their page
+  `CREATE TABLE IF NOT EXISTS "OnlinePayment" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "bookingId" TEXT NOT NULL,
+    "installmentId" TEXT NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "referenceId" TEXT NOT NULL,
+    "linkId" TEXT,
+    "shortUrl" TEXT,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'CREATED',
+    "paymentId" TEXT,
+    "method" TEXT,
+    "fee" INTEGER,
+    "feeTax" INTEGER,
+    "feeBookedIn" TEXT,
+    "receiptIds" TEXT,
+    "note" TEXT,
+    "paidAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "OnlinePayment_referenceId_key" ON "OnlinePayment"("referenceId");`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "OnlinePayment_linkId_key" ON "OnlinePayment"("linkId");`,
+  `CREATE INDEX IF NOT EXISTS "OnlinePayment_organizationId_createdAt_idx" ON "OnlinePayment"("organizationId", "createdAt");`,
+  `CREATE INDEX IF NOT EXISTS "OnlinePayment_installmentId_status_idx" ON "OnlinePayment"("installmentId", "status");`,
+
+  // Phase 13: phones that turned on push alerts
+  `CREATE TABLE IF NOT EXISTS "PushSubscription" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "endpoint" TEXT NOT NULL,
+    "p256dh" TEXT NOT NULL,
+    "auth" TEXT NOT NULL,
+    "userAgent" TEXT,
+    "failures" INTEGER NOT NULL DEFAULT 0,
+    "lastSentAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "PushSubscription_endpoint_key" ON "PushSubscription"("endpoint");`,
+  `CREATE INDEX IF NOT EXISTS "PushSubscription_organizationId_userId_idx" ON "PushSubscription"("organizationId", "userId");`,
 ];
 
 async function applyMigration() {

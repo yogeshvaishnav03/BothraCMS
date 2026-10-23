@@ -6,6 +6,7 @@ import { jsonSuccess, handleApiError } from "@/lib/api-response";
 import { istDateKey, monthDays } from "@/lib/ist-date";
 import { StaffAttendanceError, StaffAttendanceService, hoursBetween } from "@/services/staff-attendance-service";
 import { onceOnly } from "@/lib/offline-send";
+import { attendanceRules } from "@/lib/attendance-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -15,16 +16,18 @@ export async function GET(req: NextRequest) {
     const user = await requireUserContext(req);
     const today = istDateKey();
     const days = monthDays(today.slice(0, 7));
-    const [todayRow, monthRows] = await Promise.all([
+    const [todayRow, monthRows, rules] = await Promise.all([
       StaffAttendanceService.today(user.organizationId, user.userId),
       prisma.staffAttendance.findMany({
         where: { organizationId: user.organizationId, userId: user.userId, workDate: { gte: days[0], lte: days[days.length - 1] } },
         orderBy: { workDate: "asc" },
       }),
+      attendanceRules(user.organizationId),
     ]);
     return jsonSuccess({
       date: today,
       today: todayRow,
+      rules,
       month: monthRows.map((r) => ({ ...r, hours: hoursBetween(r.checkInAt, r.checkOutAt) })),
     });
   } catch (error) {
@@ -37,6 +40,8 @@ const actionSchema = z.object({
   lat: z.number().min(-90).max(90).nullable().optional(),
   lng: z.number().min(-180).max(180).nullable().optional(),
   note: z.string().max(500).nullable().optional(),
+  /** A photo taken at check-in, uploaded first: /api/uploads/<id>. */
+  selfie: z.string().max(200).nullable().optional(),
   /** When the phone had no signal: the time the button was pressed, sent later. */
   at: z.string().datetime({ offset: true }).optional(),
 });
@@ -61,7 +66,7 @@ export async function POST(req: NextRequest) {
       const note = offline ? [body.note?.trim(), "Saved on phone with no signal, sent later"].filter(Boolean).join(" · ") : body.note;
       const row =
         body.action === "check-in"
-          ? await StaffAttendanceService.checkIn(user.organizationId, user.userId, { ...body, note }, now)
+          ? await StaffAttendanceService.checkIn(user.organizationId, user.userId, { ...body, note, offline }, now)
           : await StaffAttendanceService.checkOut(user.organizationId, user.userId, body, now);
       return jsonSuccess({ ...row, hours: hoursBetween(row.checkInAt, row.checkOutAt) }, body.action === "check-in" ? 201 : 200);
     });

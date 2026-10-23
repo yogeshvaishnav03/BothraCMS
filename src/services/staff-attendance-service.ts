@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { istDateKey, monthDays } from "@/lib/ist-date";
+import { attendanceRules, distanceText, placeCheckIn } from "@/lib/attendance-rules";
 
 /**
  * Check-in / check-out for staff who use the CMS. One row per person per
@@ -26,6 +27,17 @@ export function isReportingRole(role: string): boolean {
   return role !== "SUPER_ADMIN" && role !== "ORG_ADMIN" && role !== "AUDITOR";
 }
 
+/** A selfie must be a photo this person uploaded to this company, or it is ignored. */
+async function ownSelfie(organizationId: string, userId: string, url: string | null | undefined) {
+  const m = url ? /^\/api\/uploads\/([\w.-]+)$/.exec(url) : null;
+  if (!m) return null;
+  const photo = await prisma.attachment.findFirst({
+    where: { organizationId, uploadedById: userId, fileId: m[1], mimeType: { startsWith: "image/" } },
+    select: { fileId: true },
+  });
+  return photo ? `/api/uploads/${photo.fileId}` : null;
+}
+
 export class StaffAttendanceService {
   static async today(organizationId: string, userId: string, now = new Date()) {
     return prisma.staffAttendance.findUnique({
@@ -36,7 +48,7 @@ export class StaffAttendanceService {
   static async checkIn(
     organizationId: string,
     userId: string,
-    input: { lat?: number | null; lng?: number | null; note?: string | null },
+    input: { lat?: number | null; lng?: number | null; note?: string | null; selfie?: string | null; offline?: boolean },
     now = new Date()
   ) {
     const workDate = istDateKey(now);
@@ -49,11 +61,30 @@ export class StaffAttendanceService {
     if (existing && existing.status !== "LEAVE" && existing.status !== "ABSENT") {
       throw new StaffAttendanceError("You have already checked in today.");
     }
+    const [rules, place] = await Promise.all([attendanceRules(organizationId), placeCheckIn(organizationId, input)]);
+    const selfie = await ownSelfie(organizationId, userId, input.selfie);
+    // A check-in saved on a phone with no signal is never refused when it
+    // finally arrives (the person was there at the time); it is only flagged.
+    if (!input.offline) {
+      if (rules.requireGps && (input.lat == null || input.lng == null)) {
+        throw new StaffAttendanceError("Turn on location for this site and try again. Your company needs it to check in.", 422, "LOCATION_REQUIRED");
+      }
+      if (rules.blockOffSite && place.flag === "OFF_SITE") {
+        throw new StaffAttendanceError(`You are ${distanceText(place.distanceM!)} from ${place.siteName}. Check in when you reach the site.`, 422, "OFF_SITE");
+      }
+      if (rules.requireSelfie && !selfie) {
+        throw new StaffAttendanceError("Take a selfie to check in.", 422, "SELFIE_REQUIRED");
+      }
+    }
     const data = {
       checkInAt: now,
       checkInLat: input.lat ?? null,
       checkInLng: input.lng ?? null,
       checkInNote: input.note?.trim() || null,
+      checkInSiteId: place.siteId,
+      checkInDistanceM: place.distanceM,
+      checkInFlag: place.flag,
+      checkInSelfie: selfie,
       checkOutAt: null,
       status: "PRESENT",
     };
@@ -118,7 +149,11 @@ export class StaffAttendanceService {
       }),
     ]);
 
-    const byUser = new Map<string, Record<string, { status: string; checkInAt: string; checkOutAt: string | null; hours: number | null }>>();
+    const sites = new Map((await prisma.site.findMany({ where: { organizationId }, select: { id: true, name: true } })).map((x) => [x.id, x.name]));
+    const byUser = new Map<
+      string,
+      Record<string, { status: string; checkInAt: string; checkOutAt: string | null; hours: number | null; flag: string | null; site: string | null; distanceM: number | null; selfie: string | null }>
+    >();
     for (const r of rows) {
       const cells = byUser.get(r.userId) || {};
       cells[r.workDate] = {
@@ -126,6 +161,10 @@ export class StaffAttendanceService {
         checkInAt: r.checkInAt.toISOString(),
         checkOutAt: r.checkOutAt ? r.checkOutAt.toISOString() : null,
         hours: hoursBetween(r.checkInAt, r.checkOutAt),
+        flag: r.checkInFlag,
+        site: r.checkInSiteId ? sites.get(r.checkInSiteId) || null : null,
+        distanceM: r.checkInDistanceM,
+        selfie: r.checkInSelfie,
       };
       byUser.set(r.userId, cells);
     }
@@ -140,6 +179,7 @@ export class StaffAttendanceService {
           present: values.filter((c) => c.status === "PRESENT").length,
           halfDay: values.filter((c) => c.status === "HALF_DAY").length,
           leave: values.filter((c) => c.status === "LEAVE").length,
+          away: values.filter((c) => c.flag === "OFF_SITE").length,
           hours: Math.round(values.reduce((s, c) => s + (c.hours || 0), 0) * 10) / 10,
         },
       };

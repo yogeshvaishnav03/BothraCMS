@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { PushToggle } from "@/components/layout/PushToggle";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -665,6 +666,7 @@ export default function Shell({ children }: ShellProps) {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <PushToggle />
             <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 p-2">
               {notifications.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-xs">
