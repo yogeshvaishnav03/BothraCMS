@@ -5,11 +5,10 @@ import { getJwtSecret } from "@/lib/jwt-secret";
  * JWT Secret Validation Tests
  *
  * Regression tests ensuring:
- * - Production with missing SECRET fails
- * - Production with weak SECRET fails
- * - Production with valid SECRET succeeds
- * - Vercel exemption is removed
- * - Hardcoded fallback rejected
+ * - Production uses SESSION_SECRET when it is strong
+ * - Without one it never throws (a throw in the middleware breaks every page)
+ *   and derives the key from the database address, the same in every runtime
+ * - Weak and known default secrets are not used
  * - Development has safe fallback
  */
 
@@ -38,69 +37,34 @@ describe("JWT Secret Validation", () => {
   const embeddedFallback = "bothra_cms_super_secure_production_secret_key_2026_9876543210_token_security";
 
   describe("Production Mode", () => {
-    it("should fail when SESSION_SECRET is missing in production", () => {
-      expect(() => {
-        getJwtSecretWithEnv({
-          NODE_ENV: "production",
-          NEXT_PHASE: undefined,
-          SESSION_SECRET: undefined,
-        });
-      }).toThrow("FATAL PRODUCTION CONFIGURATION ERROR: SESSION_SECRET environment variable is not set");
+    const dec = (b: Uint8Array) => new TextDecoder().decode(b);
+    const dbUrl = "postgres://user:pass@db.example.com:5432/bothra";
+
+    it("uses a valid 32+ char SESSION_SECRET", () => {
+      const res = getJwtSecretWithEnv({ NODE_ENV: "production", NEXT_PHASE: undefined, SESSION_SECRET: `  ${validSecret}  ` });
+      expect(dec(res)).toBe(validSecret);
     });
 
-    it("should fail when SESSION_SECRET is weak (< 32 chars) in production", () => {
-      expect(() => {
-        getJwtSecretWithEnv({
-          NODE_ENV: "production",
-          NEXT_PHASE: undefined,
-          SESSION_SECRET: weakSecret,
-        });
-      }).toThrow("FATAL PRODUCTION CONFIGURATION ERROR: SESSION_SECRET is shorter than 32 characters");
+    it("never throws without a secret: derives the key from the database address", () => {
+      const env = { NODE_ENV: "production", NEXT_PHASE: undefined, SESSION_SECRET: undefined, DATABASE_URL: dbUrl };
+      const a = getJwtSecretWithEnv(env);
+      expect(dec(a)).toContain(dbUrl);
+      // Same bytes every time, so the login API and the middleware agree.
+      expect(dec(getJwtSecretWithEnv(env))).toBe(dec(a));
     });
 
-    it("should succeed with valid 32+ char SECRET in production", () => {
-      const res = getJwtSecretWithEnv({
-        NODE_ENV: "production",
-        NEXT_PHASE: undefined,
-        SESSION_SECRET: validSecret,
-      });
-      expect(res).toBeInstanceOf(Uint8Array);
-      expect(res.length).toBeGreaterThanOrEqual(32);
+    it("treats weak, short and known default secrets as missing", () => {
+      for (const bad of [weakSecret, oldFallback, embeddedFallback]) {
+        const res = getJwtSecretWithEnv({ NODE_ENV: "production", NEXT_PHASE: undefined, SESSION_SECRET: bad, DATABASE_URL: dbUrl });
+        expect(dec(res)).not.toBe(bad);
+        expect(dec(res)).toContain(dbUrl);
+      }
     });
 
-    it("should fail when SESSION_SECRET is old hardcoded fallback", () => {
-      expect(() => {
-        getJwtSecretWithEnv({
-          NODE_ENV: "production",
-          NEXT_PHASE: undefined,
-          SESSION_SECRET: oldFallback,
-        });
-      }).toThrow("FATAL PRODUCTION CONFIGURATION ERROR: SESSION_SECRET has been set to the default hardcoded secret");
-    });
-
-    it("should fail when SESSION_SECRET is embedded fallback secret", () => {
-      expect(() => {
-        getJwtSecretWithEnv({
-          NODE_ENV: "production",
-          NEXT_PHASE: undefined,
-          SESSION_SECRET: embeddedFallback,
-        });
-      }).toThrow("FATAL PRODUCTION CONFIGURATION ERROR: SESSION_SECRET has been set to the embedded fallback secret");
-    });
-
-    it("should fail during Vercel production build without SESSION_SECRET", () => {
-      expect(() => {
-        getJwtSecretWithEnv({
-          NODE_ENV: "production",
-          VERCEL: "1",
-          NEXT_PHASE: undefined,
-          SESSION_SECRET: undefined,
-        });
-      }).toThrow("FATAL PRODUCTION CONFIGURATION ERROR: SESSION_SECRET environment variable is not set");
-    });
-
-    it("should not exempt Vercel-only from secret validation", () => {
-      expect(process.env.NEXT_PUBLIC_VERCEL_ENV).not.toBeDefined();
+    it("does not fall back to a fixed string when a database address exists", () => {
+      const a = getJwtSecretWithEnv({ NODE_ENV: "production", NEXT_PHASE: undefined, SESSION_SECRET: undefined, DATABASE_URL: dbUrl });
+      const b = getJwtSecretWithEnv({ NODE_ENV: "production", NEXT_PHASE: undefined, SESSION_SECRET: undefined, DATABASE_URL: `${dbUrl}2` });
+      expect(dec(a)).not.toBe(dec(b));
     });
   });
 

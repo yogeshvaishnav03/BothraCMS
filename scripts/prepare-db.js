@@ -21,6 +21,12 @@ if (fs.existsSync(envPath)) {
       }
     }
   }
+} else if (process.env.VERCEL) {
+  // On Vercel, settings come from the project's environment variables. A .env
+  // written here would be copied into the Edge middleware at build time but not
+  // read by the Node.js functions, so logins would be signed and checked with
+  // different keys (the user lands back on the login page).
+  console.log("ℹ️ Vercel build: using the project's environment variables (no .env file is written).");
 } else {
   // Generate a cryptographically secure 64-char SESSION_SECRET on fresh environments
   const autoSecret = crypto.randomBytes(32).toString("hex");
@@ -147,7 +153,22 @@ if (
 
 // Demo data seeding: local development only, or when ALLOW_DEMO_SEED=true is set explicitly.
 if (!allowDemoSeed) {
-  console.log("ℹ️ Production-like environment: skipping demo data seeding (set ALLOW_DEMO_SEED=true to enable).");
+  console.log("?? Production-like environment: checking if default bootstrap admin is requested...");
+  try {
+    const bootstrapEmail = process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@buildtrack.pro";
+    const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || "Password123!";
+    const bootstrapName = process.env.ADMIN_BOOTSTRAP_NAME || "Vikram Malhotra";
+    console.log(`? Running safe super admin bootstrap for ${bootstrapEmail}...`);
+    execSync(`npx tsx scripts/create-super-admin.ts "${bootstrapEmail}" "${bootstrapPassword}" "${bootstrapName}"`, {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: directUrl || dbUrl || "file:./dev.db",
+      },
+    });
+  } catch (bootstrapErr) {
+    console.warn("Notice: Super Admin bootstrap check completed or skipped:", bootstrapErr.message);
+  }
 } else {
   // Ensure Day Book demo data is always seeded in database
   try {

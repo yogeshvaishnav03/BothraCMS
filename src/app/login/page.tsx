@@ -34,7 +34,7 @@ export default function LoginPage() {
         }
         setError(msg);
       } else {
-        router.push("/");
+        window.location.href = "/";
       }
     } catch {
       setError("Unable to connect to server. Check your connection.");
