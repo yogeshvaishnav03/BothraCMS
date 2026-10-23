@@ -93,10 +93,11 @@ const ACT_TEXT: Record<TdsAct, string> = {
   "194C": "TDS on contractor payments (section 194C)",
   "194J": "TDS on professional and technical fees (section 194J)",
   "194I": "TDS on rent (section 194I)",
+  "194Q": "TDS on purchase of goods (section 194Q)",
 };
 
 /**
- * Keeps each month's "TDS owed" bills (one per section: 194C, 194J, 194I)
+ * Keeps each month's "TDS owed" bills (one per section: 194C, 194J, 194I, 194Q)
  * equal to the TDS held back from posted payments that month, so it shows
  * as owed in Finance until it is deposited.
  */
@@ -175,7 +176,7 @@ export class FinanceService {
       const pan = p.party ? contractorPan(p.party) : null;
       const date = istDateKey(p.paymentDate);
       // A payment let off TDS is reported under the party's own section.
-      const sec = paymentSection(p.tdsSection) || (p.party ? partySection(p.party) : null) || TDS_SECTIONS["194C"];
+      const sec = paymentSection(p.tdsSection) || (p.party ? partySection(p.party, company) : null) || TDS_SECTIONS["194C"];
       return {
         paymentId: p.id,
         month: date.slice(0, 7),
@@ -210,7 +211,7 @@ export class FinanceService {
     const problems: string[] = [];
     if (!company.tan) problems.push("Add the company TAN in Settings. The return cannot be filed without it.");
     const noPan = Array.from(new Set(deductees.filter((d) => !d.pan).map((d) => d.name)));
-    if (noPan.length) problems.push(`No PAN for ${noPan.join(", ")}. Add it on the Vendors & Contractors page; until then TDS is 20%.`);
+    if (noPan.length) problems.push(`No PAN for ${noPan.join(", ")}. Add it on the Vendors & Contractors page; until then TDS is 20% (5% for 194Q).`);
     problems.push(...challanProblems(acts.length > 1 ? challans : challans.map(({ section: _s, ...c }) => c), "Nothing recorded"));
     return {
       fy,
@@ -246,7 +247,7 @@ export class FinanceService {
   }): Promise<(TdsResult & { pan: string | null; sectionKey: string; label: string }) | null> {
     if (!input.partyId) return null;
     const party = await prisma.party.findFirst({ where: { id: input.partyId, organizationId: input.organizationId } });
-    const section = party ? partySection(party) : null;
+    const section = party ? partySection(party, await companyProfile(input.organizationId)) : null;
     if (!party || !section) return null;
     // The part of the payment that is GST is not taxed.
     let base = input.amount;

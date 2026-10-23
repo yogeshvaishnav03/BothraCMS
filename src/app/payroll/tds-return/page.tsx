@@ -81,13 +81,30 @@ const KINDS: Record<Kind, { api: string; title: string; subtitle: string; paid: 
   contractors: {
     api: "/api/finance/tds-return",
     title: "TDS Return on Contractors, Fees and Rent (26Q)",
-    subtitle: "TDS held back from payments to contractors (194C), professionals (194J) and landlords (194I), and the challans.",
+    subtitle: "TDS held back from payments to contractors (194C), professionals (194J), landlords (194I) and large goods suppliers (194Q), and the challans.",
     paid: "Paid to parties",
     noData: "Nothing recorded",
   },
 };
+/** Form 16A is due 15 days after the quarter's 26Q. */
+const form16ADue = (fy: string, q: number) => {
+  const y = Number(fy.slice(0, 4));
+  return [`${y}-08-15`, `${y}-11-15`, `${y + 1}-02-15`, `${y + 1}-06-15`][q - 1];
+};
+function certificateParties(deductees: any[]) {
+  const by = new Map<string, { partyId: string; name: string; tds: number; sections: string[] }>();
+  for (const d of deductees) {
+    if (!d.partyId || !(d.tds > 0)) continue;
+    const row = by.get(d.partyId) || { partyId: d.partyId, name: d.name, tds: 0, sections: [] as string[] };
+    row.tds += d.tds;
+    if (!row.sections.includes(d.section)) row.sections.push(d.section);
+    by.set(d.partyId, row);
+  }
+  return Array.from(by.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 const REMARK: Record<string, string> = {
-  C: "No PAN, 20%",
+  C: "No PAN, higher rate",
   A: "Lower rate (certificate)",
   T: "Transporter, no TDS",
   Y: "Under the limit, no TDS",
@@ -297,12 +314,40 @@ export default function TdsReturnPage() {
                             <td className="px-4 py-2.5 text-right tabular-nums">{rupees(d.amountPaid)}</td>
                             <td className="px-4 py-2.5 text-right tabular-nums">{d.rate ? `${d.rate}%` : "—"}</td>
                             <td className="px-4 py-2.5 text-right tabular-nums">{rupees(d.tds)}</td>
-                            <td className="px-4 py-2.5 text-xs text-slate-500">{[REMARK[d.remark], d.note?.replace(/^No PAN, so 20%;? ?/, "")].filter(Boolean).join(" · ") || "—"}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-500">{[REMARK[d.remark], d.note?.replace(/^No PAN, so \d+%;? ?/, "")].filter(Boolean).join(" · ") || "—"}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                </section>
+              )}
+
+              {kind === "contractors" && (
+                <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+                  <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                    <h2 className="text-[15px] font-bold text-slate-900">TDS certificates (Form 16A)</h2>
+                    <span className="text-xs text-slate-500">Give each party theirs by {shortDate(form16ADue(fy, quarter))}</span>
+                  </header>
+                  <div className="divide-y divide-slate-100">
+                    {certificateParties(doc.deductees).length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-500">No party had TDS held back this quarter.</div>}
+                    {certificateParties(doc.deductees).map((p) => (
+                      <div key={p.partyId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                        <div>
+                          <span className="font-semibold text-slate-800">{p.name}</span>
+                          <span className="ml-2 text-xs text-slate-500">
+                            {p.sections.join(", ")} · TDS {rupees(p.tds)}
+                          </span>
+                        </div>
+                        <Link href={`/finance/form-16a/${p.partyId}?fy=${fy}&quarter=${quarter}`} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline">
+                          <FileText className="h-3.5 w-3.5" /> Certificate
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500">
+                    Made from the figures above, to send straight away. The certificate a party claims credit with is the one from TRACES once the return is filed; check it against this one.
+                  </p>
                 </section>
               )}
 

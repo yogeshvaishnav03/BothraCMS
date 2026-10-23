@@ -3,7 +3,7 @@ import path from "path";
 import { getUserContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { getStorageProvider } from "@/lib/storage";
+import { backupFileToDatabase, getStorageProvider } from "@/lib/storage";
 
 import { requireUserContext, requireProjectAccess, requireFolderAccess, isOrgOwnerOrAdmin } from "@/lib/server-auth";
 
@@ -47,34 +47,12 @@ export async function PUT(
     const storage = getStorageProvider();
     await storage.put(attachment.diskFileName, fileBuffer, file.type);
 
-    // Save persistent base64 blob to IdempotencyRecord
-    const b64 = fileBuffer.toString("base64");
-    const candidateKeys = [
-      `FILE_BLOB_${attachment.fileId}`,
-      `FILE_BLOB_${attachment.diskFileName}`,
-      `FILE_BLOB_${attachment.id}`,
-    ];
-
-    for (const key of candidateKeys) {
-      await prisma.idempotencyRecord.upsert({
-        where: {
-          organizationId_key: {
-            organizationId: user.organizationId,
-            key,
-          },
-        },
-        create: {
-          organizationId: user.organizationId,
-          key,
-          operation: "FILE_BLOB",
-          responseCode: 200,
-          responseBodyJson: b64,
-        },
-        update: {
-          responseBodyJson: b64,
-        },
-      });
-    }
+    // A copy in the database when there is no cloud storage.
+    await backupFileToDatabase(
+      user.organizationId,
+      [`FILE_BLOB_${attachment.fileId}`, `FILE_BLOB_${attachment.diskFileName}`, `FILE_BLOB_${attachment.id}`],
+      fileBuffer
+    );
 
     const updated = await prisma.attachment.update({
       where: { id: attachment.id },

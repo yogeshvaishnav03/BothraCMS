@@ -25,6 +25,7 @@ model Organization {
   parties            Party[]
   workforceMembers   WorkforceMember[]
   auditEvents        AuditEvent[]
+  onlinePayments     OnlinePayment[]
   tasks              Task[]
   bills              Bill[]
   payments           Payment[]
@@ -386,7 +387,7 @@ model Party {
   category      String?  // trade or supply line, e.g. Cement, Steel, RCC work, Shuttering
   rating        Int?     // 1-5, internal vendor rating
   panNumber     String?
-  tdsSection    String?   // TDS on payments: 194C, 194J_PROF, 194J_TECH, 194I_PM, 194I_LB, NONE; empty = 194C for contractors
+  tdsSection    String?   // TDS on payments: 194C, 194J_PROF, 194J_TECH, 194I_PM, 194I_LB, 194Q, NONE; empty = 194C for contractors (194Q for suppliers when the company turns it on)
   // Bank details for payments. Full account numbers are only returned by
   // GET /api/parties/[id]/bank (finance:write, audited); lists show the last 4 digits.
   bankAccountName   String?
@@ -1544,4 +1545,31 @@ model BuyerSignInCode {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([phone, createdAt])
+}
+
+/// A buyer paying an instalment online (Razorpay payment link). Booked as a
+/// receipt once Razorpay says it is paid, by the buyer's return or the webhook,
+/// whichever comes first; the status change from CREATED to PAID happens once.
+model OnlinePayment {
+  id             String    @id @default(uuid())
+  organizationId String
+  bookingId      String
+  installmentId  String
+  amount         Int // paise, what the buyer is asked to pay (including GST)
+  referenceId    String    @unique // ours, sent to Razorpay
+  linkId         String?   @unique // Razorpay's plink_…
+  shortUrl       String?
+  expiresAt      DateTime
+  status         String    @default("CREATED") // CREATED, PAID, NOT_BOOKED (paid, but booking the receipt failed), EXPIRED
+  paymentId      String? // Razorpay's pay_…
+  method         String? // upi, card, netbanking…
+  receiptIds     String? // JSON array of SalesReceipt ids
+  note           String?
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([installmentId, status])
 }

@@ -92,7 +92,7 @@ describe("Phase 11: TDS on fees (194J) and rent (194I)", () => {
     // The parties form sends "" for "automatic".
     expect(partyProfileSchema.parse({ tdsSection: "" }).tdsSection).toBeNull();
     expect(partyProfileSchema.parse({ tdsSection: "194I_PM" }).tdsSection).toBe("194I_PM");
-    expect(() => partyProfileSchema.parse({ tdsSection: "194Q" })).toThrow();
+    expect(() => partyProfileSchema.parse({ tdsSection: "194H" })).toThrow();
   });
 
   it("holds back TDS on fees and rent, keeps a bill for each, and files them in the 26Q", async () => {

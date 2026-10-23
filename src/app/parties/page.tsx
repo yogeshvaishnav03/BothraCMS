@@ -940,6 +940,7 @@ export default function PartiesPage() {
                         <option value="194J_TECH">Technical services, 2% (194J)</option>
                         <option value="194I_LB">Rent of land or building, 10% (194I)</option>
                         <option value="194I_PM">Machinery on hire, 2% (194I)</option>
+                        <option value="194Q">Goods over ₹50 lakh a year, 0.1% (194Q)</option>
                         <option value="NONE">No TDS</option>
                       </select>
                     </div>
