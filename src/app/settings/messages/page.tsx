@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { api, patch, post } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
-import { ArrowLeft, CheckCircle2, Circle, Loader2, MessageCircle, Save, Send, Smartphone, FlaskConical } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Circle, Loader2, MessageCircle, Save, Send, Smartphone, FlaskConical, Inbox } from "lucide-react";
 
 interface Settings {
   testMode: boolean;
@@ -30,9 +30,13 @@ interface Settings {
   staffApprovals: boolean;
   staffTasks: boolean;
   staffSiteAlerts: boolean;
+  waAppSecret: string;
+  waVerifyToken: string;
+  waOrderTemplate: string;
   hasWaToken: boolean;
   hasSmsAuthKey: boolean;
-  can: { whatsapp: boolean; sms: boolean; otp: boolean; demands: boolean; staff: boolean };
+  hasWaAppSecret: boolean;
+  can: { whatsapp: boolean; sms: boolean; otp: boolean; demands: boolean; staff: boolean; inbox: boolean };
 }
 
 interface LogRow {
@@ -47,7 +51,7 @@ interface LogRow {
   createdAt: string;
 }
 
-const KIND: Record<string, string> = { OTP: "Sign-in code", DEMAND: "Demand", DUE_SOON: "Due soon", OVERDUE: "Overdue", TEST: "Test", STAFF: "Staff alert", STAFF_DIGEST: "Overdue tasks" };
+const KIND: Record<string, string> = { ORDER: "Vendor order", OTP: "Sign-in code", DEMAND: "Demand", DUE_SOON: "Due soon", OVERDUE: "Overdue", TEST: "Test", STAFF: "Staff alert", STAFF_DIGEST: "Overdue tasks" };
 const STATUS: Record<string, string> = {
   SENT: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   TEST: "bg-sky-50 text-sky-700 ring-sky-200",
@@ -95,12 +99,15 @@ export default function MessagesSettingsPage() {
   const [staff, setStaff] = useState({ count: 0, noPhone: 0 });
   const [waToken, setWaToken] = useState("");
   const [smsKey, setSmsKey] = useState("");
+  const [appSecret, setAppSecret] = useState("");
+  const [hook, setHook] = useState({ url: "", secretFromEnv: false });
   const [testPhone, setTestPhone] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
 
   const load = async () => {
-    const d = await api<{ settings: Settings; log: LogRow[]; cronReady: boolean; staffCount: number; staffNoPhone: number }>("/api/organization/messaging");
+    const d = await api<{ settings: Settings; log: LogRow[]; cronReady: boolean; staffCount: number; staffNoPhone: number; webhookUrl: string; appSecretFromEnv: boolean }>("/api/organization/messaging");
+    setHook({ url: d.webhookUrl, secretFromEnv: d.appSecretFromEnv });
     setS(d.settings);
     setLog(d.log);
     setCronReady(d.cronReady);
@@ -117,14 +124,16 @@ export default function MessagesSettingsPage() {
     setBusy("save");
     setMsg(null);
     try {
-      const { hasWaToken, hasSmsAuthKey, can, waToken: _w, smsAuthKey: _k, ...rest } = s;
+      const { hasWaToken, hasSmsAuthKey, hasWaAppSecret, can, waToken: _w, smsAuthKey: _k, waAppSecret: _a, waVerifyToken: _v, ...rest } = s;
       const body: Record<string, unknown> = { ...rest };
       if (waToken) body.waToken = waToken;
       if (smsKey) body.smsAuthKey = smsKey;
+      if (appSecret) body.waAppSecret = appSecret;
       const d = await api<{ settings: Settings }>("/api/organization/messaging", patch(body));
       setS(d.settings);
       setWaToken("");
       setSmsKey("");
+      setAppSecret("");
       setMsg({ tone: "success", text: "Saved." });
     } catch (e: any) {
       setMsg({ tone: "error", text: e.message });
@@ -202,6 +211,7 @@ export default function MessagesSettingsPage() {
               <Ready ok={s.buyerSignIn} label="Buyer sign-in on" />
               <Ready ok={s.staffAlerts && s.can.staff} label="Staff alerts on" />
               <Ready ok={cronReady} label="Daily run scheduled" />
+              <Ready ok={s.can.inbox} label="Replies come into the app" />
               {s.testMode && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
                   <FlaskConical className="h-3.5 w-3.5" /> Test mode: nothing is really sent
@@ -315,6 +325,9 @@ export default function MessagesSettingsPage() {
                   <Field label="Staff alert template">
                     <input className={input} value={s.waStaffTemplate} onChange={(e) => set("waStaffTemplate", e.target.value)} placeholder="staff_alert" />
                   </Field>
+                  <Field label="Vendor order template" hint="For orders to a vendor who has not written in 24 hours">
+                    <input className={input} value={s.waOrderTemplate} onChange={(e) => set("waOrderTemplate", e.target.value)} placeholder="vendor_order" />
+                  </Field>
                 </div>
                 <details className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
                   <summary className="cursor-pointer font-semibold text-slate-700">Template text to submit to Meta</summary>
@@ -330,6 +343,10 @@ export default function MessagesSettingsPage() {
                   <p className="mt-1 rounded-lg bg-white p-2 font-mono ring-1 ring-slate-200">
                     Hi {"{{1}}"}, {"{{2}}"}. Open Bothra CMS: {"{{3}}"}
                   </p>
+                  <p className="mt-2">Vendor order (Utility):</p>
+                  <p className="mt-1 rounded-lg bg-white p-2 font-mono ring-1 ring-slate-200">
+                    New order {"{{1}}"} from {"{{2}}"}: {"{{3}}"}. Please reply here to confirm.
+                  </p>
                   <p className="mt-2">Sign-in code: an Authentication template with a &quot;Copy code&quot; button.</p>
                 </details>
                 <div className="flex gap-2">
@@ -341,6 +358,26 @@ export default function MessagesSettingsPage() {
                   >
                     {busy === "test" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send test
                   </button>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+                    <Inbox className="h-4 w-4 text-slate-400" /> Replies into the app
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    So vendors&apos; and buyers&apos; replies come into the WhatsApp inbox here. In Meta&apos;s app dashboard: WhatsApp → Configuration → Webhook, paste these two, then subscribe to &quot;messages&quot;. The app secret is under App settings → Basic.
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <Field label="Callback URL">
+                      <input className={cn(input, "font-mono text-xs")} readOnly value={hook.url} onFocus={(e) => e.target.select()} />
+                    </Field>
+                    <Field label="Verify token" hint={s.waVerifyToken ? undefined : "Made when you save this page"}>
+                      <input className={cn(input, "font-mono text-xs")} readOnly value={s.waVerifyToken} onFocus={(e) => e.target.select()} />
+                    </Field>
+                    <Field label="App secret" hint={hook.secretFromEnv ? "Set on the server (WHATSAPP_APP_SECRET)." : s.hasWaAppSecret ? `Saved (${s.waAppSecret}). Type a new one to replace it.` : "Checks that each reply really comes from Meta"}>
+                      <input className={input} type="password" autoComplete="off" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} placeholder={s.hasWaAppSecret ? "Keep the saved secret" : ""} />
+                    </Field>
+                  </div>
                 </div>
 
                 <div className="border-t border-slate-100 pt-4">

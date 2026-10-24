@@ -8,7 +8,7 @@ import { Field, Modal, StatTile, inputCls } from "@/components/ui/Modal";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { api, post, shortDate } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
-import { CheckCircle2, ChevronDown, ExternalLink, FilePlus2, Layers, Search, ShieldCheck, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Columns2, ExternalLink, PenLine, FilePlus2, Layers, Search, ShieldCheck, Upload, XCircle } from "lucide-react";
 
 const DISCIPLINES: Record<string, { label: string; dot: string }> = {
   ARCHITECTURAL: { label: "Architectural", dot: "bg-amber-500" },
@@ -129,6 +129,9 @@ function RevisionModal({ drawing, onClose, onSaved }: { drawing: any; onClose: (
   );
 }
 
+/** The revision before this one that has a file (revisions are newest first). */
+const prevWithFile = (revisions: any[], r: any) => revisions.slice(revisions.indexOf(r) + 1).find((x) => x.fileUrl);
+
 export default function DrawingsPage() {
   const [data, setData] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
@@ -136,6 +139,11 @@ export default function DrawingsPage() {
   const [discipline, setDiscipline] = useState("");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  // Coming back from the viewer opens that drawing again.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("id");
+    if (id) setOpen(id);
+  }, []);
   const [adding, setAdding] = useState(false);
   const [revising, setRevising] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -282,6 +290,16 @@ export default function DrawingsPage() {
                                 {r.fileUrl && (
                                   <a href={r.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                                     <ExternalLink className="h-3.5 w-3.5" /> Open
+                                  </a>
+                                )}
+                                {r.fileUrl && (
+                                  <a href={`/drawings/view/${r.id}`} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100">
+                                    <PenLine className="h-3.5 w-3.5" /> Mark up
+                                  </a>
+                                )}
+                                {r.fileUrl && prevWithFile(d.revisions, r) && (
+                                  <a href={`/drawings/compare?a=${prevWithFile(d.revisions, r).id}&b=${r.id}`} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                    <Columns2 className="h-3.5 w-3.5" /> Compare with {prevWithFile(d.revisions, r).revision}
                                   </a>
                                 )}
                                 {data.canReview && ["FOR_APPROVAL", "APPROVED"].includes(r.status) && (

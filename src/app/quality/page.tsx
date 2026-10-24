@@ -11,9 +11,9 @@ import { ContactActions } from "@/components/ui/ContactActions";
 import { api, post, shortDate } from "@/lib/client-api";
 import { canUser } from "@/lib/permissions";
 import { cn } from "@/lib/cn";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, HardHat, MinusCircle, RotateCcw, ShieldAlert, ShieldCheck, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ClipboardCheck, ClipboardList, Copy, HardHat, MinusCircle, Pencil, Plus, RotateCcw, ShieldAlert, ShieldCheck, Trash2, X, XCircle } from "lucide-react";
 
-type Tab = "issues" | "inspections";
+type Tab = "issues" | "inspections" | "checklists";
 
 const KIND: Record<string, { label: string; pill: string; safety: boolean }> = {
   NCR: { label: "Quality defect", pill: "bg-blue-50 text-blue-700 ring-blue-200", safety: false },
@@ -134,6 +134,100 @@ function InspectionModal({ projects, checklists, onClose, onSaved }: { projects:
         })}
       </div>
       <PhotoPicker value={photos} onChange={setPhotos} entityType="QUALITY" projectId={projectId} />
+    </Modal>
+  );
+}
+
+/** Write a checklist, or change a copy of a built-in one. */
+function ChecklistModal({ start, onClose, onSaved }: { start: any; onClose: () => void; onSaved: (msg: string) => void }) {
+  const copying = start?.builtIn;
+  const [name, setName] = useState(start ? (copying ? `${start.name}` : start.name) : "");
+  const [kind, setKind] = useState<"QUALITY" | "SAFETY">(start?.kind || "QUALITY");
+  const [items, setItems] = useState<string[]>(start?.items?.length ? [...start.items] : ["", "", ""]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const setItem = (i: number, v: string) => setItems(items.map((x, j) => (j === i ? v : x)));
+  const move = (i: number, d: number) => {
+    const next = [...items];
+    [next[i], next[i + d]] = [next[i + d], next[i]];
+    setItems(next);
+  };
+  return (
+    <Modal
+      wide
+      title={copying ? `Change "${start.name}"` : start ? "Edit checklist" : "New checklist"}
+      icon={ClipboardList}
+      onClose={onClose}
+      error={error}
+      saving={saving}
+      submitLabel="Save checklist"
+      onSubmit={async () => {
+        const points = items.map((x) => x.trim()).filter(Boolean);
+        if (!points.length) return setError("Add at least one point to check.");
+        setSaving(true);
+        setError(null);
+        try {
+          const body = { name, kind, items: points };
+          if (start && !copying) await api(`/api/quality/checklists/${start.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          else await api("/api/quality/checklists", post({ ...body, replacesKey: copying ? start.key : null }));
+          onSaved(copying ? `Your version of "${name}" replaces the built-in one for everyone.` : `"${name}" saved. Site staff can run it from Run checklist.`);
+        } catch (e: any) {
+          setError(e.message);
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      {copying && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Your copy replaces the built-in checklist for your company. Remove your copy any time to get the original back.</p>}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="sm:col-span-2">
+          <Field label="Name">
+            <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tiling check" className={inputCls} />
+          </Field>
+        </div>
+        <Field label="Type">
+          <select value={kind} onChange={(e) => setKind(e.target.value as any)} className={inputCls}>
+            <option value="QUALITY">Quality</option>
+            <option value="SAFETY">Safety</option>
+          </select>
+          <p className="mt-1 text-[11px] text-slate-500">{kind === "SAFETY" ? "A failed point opens an unsafe act." : "A failed point opens a quality defect."}</p>
+        </Field>
+      </div>
+      <div>
+        <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Points to check ({items.filter((x) => x.trim()).length})</div>
+        <div className="space-y-1.5">
+          {items.map((it, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="w-6 text-right text-xs font-bold tabular-nums text-slate-400">{i + 1}</span>
+              <input
+                value={it}
+                onChange={(e) => setItem(i, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    setItems([...items.slice(0, i + 1), "", ...items.slice(i + 1)]);
+                  }
+                }}
+                placeholder="e.g. Tiles soaked, joints 3 mm with spacers"
+                maxLength={200}
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+              />
+              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-30" aria-label="Move up">
+                <ArrowUp className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => move(i, 1)} disabled={i === items.length - 1} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-30" aria-label="Move down">
+                <ArrowDown className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => setItems(items.length > 1 ? items.filter((_, j) => j !== i) : [""])} className="rounded-lg p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600" aria-label="Remove point">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={() => setItems([...items, ""])} disabled={items.length >= 40} className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 disabled:opacity-40">
+          <Plus className="h-4 w-4" /> Add a point
+        </button>
+      </div>
     </Modal>
   );
 }
@@ -289,6 +383,7 @@ export default function QualityPage() {
   const [inspections, setInspections] = useState<any[] | null>(null);
   const [checklists, setChecklists] = useState<any[]>([]);
   const [modal, setModal] = useState<"inspect" | "report" | null>(null);
+  const [editing, setEditing] = useState<any | undefined>(undefined);
   const [resolving, setResolving] = useState<any>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -310,9 +405,22 @@ export default function QualityPage() {
     }
   }, [projectId, status, kind]);
 
+  const loadChecklists = () => api<any[]>("/api/quality/checklists").then(setChecklists).catch(() => {});
+
+  const removeChecklist = async (c: any) => {
+    if (!confirm(c.replacesKey ? `Remove your version of "${c.name}"? The built-in one comes back.` : `Remove "${c.name}"? Inspections already done keep their points.`)) return;
+    try {
+      await api(`/api/quality/checklists/${c.id}`, { method: "DELETE" });
+      setNotice(`"${c.name}" removed.`);
+      loadChecklists();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
-    if (sp.get("tab") === "inspections") setTab("inspections");
+    if (sp.get("tab") === "inspections" || sp.get("tab") === "checklists") setTab(sp.get("tab") as Tab);
     if (sp.get("projectId")) setProjectId(sp.get("projectId")!);
     if (sp.get("kind") === "SAFETY" || sp.get("kind") === "QUALITY") setKind(sp.get("kind")!);
     if (sp.get("id")) {
@@ -321,7 +429,7 @@ export default function QualityPage() {
     }
     api("/api/auth/me").then((d: any) => setMe(d.user)).catch(() => {});
     api<any>("/api/projects").then((d) => setProjects(Array.isArray(d) ? d : d?.projects || [])).catch(() => {});
-    api<any[]>("/api/quality/checklists").then(setChecklists).catch(() => {});
+    loadChecklists();
   }, []);
   useEffect(() => {
     load();
@@ -383,9 +491,15 @@ export default function QualityPage() {
             tabs={[
               { id: "issues", label: "Defects & incidents", count: s ? s.openQuality + s.openSafety : undefined },
               { id: "inspections", label: "Checklists done", count: inspections?.length },
+              { id: "checklists", label: "Checklists", count: checklists.length || undefined },
             ]}
           />
           <div className="ml-auto flex flex-wrap gap-2">
+            {tab === "checklists" && isManager && (
+              <button onClick={() => setEditing(null)} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-sm font-bold text-white hover:bg-slate-800">
+                <Plus className="h-4 w-4" /> New checklist
+              </button>
+            )}
             {tab === "issues" && (
               <>
                 <select value={kind} onChange={(e) => setKind(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm">
@@ -400,14 +514,16 @@ export default function QualityPage() {
                 </select>
               </>
             )}
-            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm">
-              <option value="">All projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            {tab !== "checklists" && (
+              <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm">
+                <option value="">All projects</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -527,8 +643,51 @@ export default function QualityPage() {
               ))}
             </div>
           ))}
+
+        {tab === "checklists" && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {checklists.map((c) => (
+              <div key={c.key} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-slate-900">{c.name}</h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                      <span className={cn("rounded-full px-2 py-0.5 ring-1", c.kind === "SAFETY" ? "bg-orange-50 text-orange-700 ring-orange-200" : "bg-blue-50 text-blue-700 ring-blue-200")}>{c.kind === "SAFETY" ? "Safety" : "Quality"}</span>
+                      <span className={cn("rounded-full px-2 py-0.5 ring-1", c.builtIn ? "bg-slate-50 text-slate-500 ring-slate-200" : "bg-amber-50 text-amber-800 ring-amber-200")}>{c.builtIn ? "Built in" : c.replacesKey ? "Your version" : "Yours"}</span>
+                      <span className="text-slate-400">{c.items.length} points</span>
+                    </div>
+                  </div>
+                  {isManager && (
+                    <div className="flex shrink-0 gap-1">
+                      {c.builtIn ? (
+                        <button onClick={() => setEditing(c)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                          <Copy className="h-3.5 w-3.5" /> Change
+                        </button>
+                      ) : (
+                        <>
+                          <button onClick={() => setEditing(c)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                            <Pencil className="h-3.5 w-3.5" /> Edit
+                          </button>
+                          <button onClick={() => removeChecklist(c)} className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600" aria-label={`Remove ${c.name}`}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <ol className="mt-3 list-decimal space-y-0.5 pl-5 text-sm text-slate-600">
+                  {c.items.map((it: string) => (
+                    <li key={it}>{it}</li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
+      {editing !== undefined && <ChecklistModal start={editing} onClose={() => setEditing(undefined)} onSaved={(m) => { setEditing(undefined); setNotice(m); loadChecklists(); }} />}
       {modal === "inspect" && <InspectionModal projects={projects} checklists={checklists} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); setNotice(m); load(); }} />}
       {modal === "report" && <ReportModal projects={projects} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); setNotice(m); load(); }} />}
       {resolving && <ResolveModal issue={resolving} onClose={() => setResolving(null)} onSaved={() => { setResolving(null); setNotice("Marked fixed. A manager will check and close it."); load(); }} />}

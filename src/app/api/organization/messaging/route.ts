@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { channels, indianMobile, MESSAGING_DEFAULTS, messagingSettings, publicSettings } from "@/lib/messaging";
+import { newVerifyToken } from "@/services/whatsapp-inbox";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     // Staff who cannot get WhatsApp alerts until a mobile number is on their profile.
     const staff = await prisma.user.findMany({ where: { organizationId: user.organizationId, status: "ACTIVE" }, select: { phone: true } });
     const staffNoPhone = staff.filter((u) => !indianMobile(u.phone)).length;
-    return jsonSuccess({ settings: publicSettings(settings), log: shown, cronReady: !!process.env.CRON_SECRET, staffCount: staff.length, staffNoPhone });
+    return jsonSuccess({ settings: publicSettings(settings), log: shown, cronReady: !!process.env.CRON_SECRET, webhookUrl: `${(settings.siteUrl || req.nextUrl.origin).replace(/\/+$/, "")}/api/webhooks/whatsapp`, appSecretFromEnv: !!process.env.WHATSAPP_APP_SECRET, staffCount: staff.length, staffNoPhone });
   } catch (error) {
     return handleApiError(error);
   }
@@ -49,6 +50,8 @@ const schema = z.object({
   staffApprovals: z.boolean().optional(),
   staffTasks: z.boolean().optional(),
   staffSiteAlerts: z.boolean().optional(),
+  waAppSecret: text(100).optional(),
+  waOrderTemplate: text(100).optional(),
   siteUrl: z
     .string()
     .trim()
@@ -72,6 +75,8 @@ export async function PATCH(req: NextRequest) {
     const next = { ...before, ...input };
     // The buyer's link in messages: this app's own address unless one is typed in.
     if (!next.siteUrl) next.siteUrl = req.nextUrl.origin;
+    // The token typed into Meta's webhook set-up, made once.
+    if (!next.waVerifyToken) next.waVerifyToken = newVerifyToken();
     const can = channels(next);
     if (next.buyerSignIn && !can.otp) return jsonError("Set up WhatsApp (with a sign-in code template) or SMS first, or buyers could not sign in.", "MESSAGING_OFF", 400);
     if (next.autoDemands && !can.demands) return jsonError("Set up WhatsApp with a demand template first.", "MESSAGING_OFF", 400);

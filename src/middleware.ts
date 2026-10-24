@@ -14,6 +14,8 @@ const PUBLIC_PATHS = [
   "/api/portal",
   // Scheduled jobs check their own secret (CRON_SECRET).
   "/api/cron",
+  // Meta's WhatsApp webhook checks its own signature (app secret).
+  "/api/webhooks/whatsapp",
   // Installable site app: the service worker, its manifest and icons, and the no-signal page.
   "/sw.js",
   "/manifest.webmanifest",

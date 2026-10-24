@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, FileText, Printer } from "lucide-react";
 import { api, rupees } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
 
@@ -57,6 +57,9 @@ export default function TaxStatementPage() {
               ›
             </button>
           </div>
+          <Link href={`/payroll/form-16/${userId}?fy=${doc.fy}`} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50">
+            <FileText className="h-4 w-4" /> Form 16 Part B
+          </Link>
           <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">
             <Printer className="h-4 w-4" /> Print / save PDF
           </button>
@@ -150,8 +153,8 @@ export default function TaxStatementPage() {
         </div>
 
         <p className="mt-8 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-400">
-          A summary of salary paid and tax deducted, in the shape of Form 16 Part B. It is not Form 16: Part A comes from the TRACES portal after the TDS returns
-          are filed. Figures for the rest of the year are an estimate.
+          A summary of salary paid and tax deducted. Form 16 Part B, line by line, is under &quot;Form 16 Part B&quot; above; Part A comes from the TRACES portal
+          after the TDS returns are filed. Figures for the rest of the year are an estimate.
         </p>
       </div>
     </div>

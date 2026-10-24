@@ -43,6 +43,12 @@ export interface MessagingSettings {
   staffApprovals: boolean;
   staffTasks: boolean;
   staffSiteAlerts: boolean;
+  /** Replies on WhatsApp come into the app (Meta webhook). The app secret checks each call is from Meta. */
+  waAppSecret: string;
+  /** Typed into Meta's webhook set-up; made by the app. */
+  waVerifyToken: string;
+  /** Template "New order {{1}} from {{2}}: {{3}}. Please reply here to confirm." (utility). */
+  waOrderTemplate: string;
 }
 
 export const MESSAGING_DEFAULTS: MessagingSettings = {
@@ -66,9 +72,12 @@ export const MESSAGING_DEFAULTS: MessagingSettings = {
   staffApprovals: true,
   staffTasks: true,
   staffSiteAlerts: true,
+  waAppSecret: "",
+  waVerifyToken: "",
+  waOrderTemplate: "",
 };
 
-export const SECRET_KEYS = ["waToken", "smsAuthKey"] as const;
+export const SECRET_KEYS = ["waToken", "smsAuthKey", "waAppSecret"] as const;
 
 export async function messagingSettings(organizationId: string): Promise<MessagingSettings> {
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { settingsJson: true } });
@@ -91,13 +100,24 @@ export function channels(s: MessagingSettings) {
     otp: s.testMode || (whatsapp && !!s.waOtpTemplate) || sms,
     demands: s.testMode || (whatsapp && !!s.waDemandTemplate),
     staff: s.testMode || (whatsapp && !!s.waStaffTemplate),
+    /** Replies come back into the app. */
+    inbox: !!(s.waAppSecret || process.env.WHATSAPP_APP_SECRET) && !!s.waVerifyToken,
   };
 }
 
 /** Settings safe to show in the browser: secrets become "set" flags and their last 4 characters. */
 export function publicSettings(s: MessagingSettings) {
   const hide = (v: string) => (v ? `••••${v.slice(-4)}` : "");
-  return { ...s, waToken: hide(s.waToken), smsAuthKey: hide(s.smsAuthKey), hasWaToken: !!s.waToken, hasSmsAuthKey: !!s.smsAuthKey, can: channels(s) };
+  return {
+    ...s,
+    waToken: hide(s.waToken),
+    smsAuthKey: hide(s.smsAuthKey),
+    waAppSecret: hide(s.waAppSecret),
+    hasWaToken: !!s.waToken,
+    hasSmsAuthKey: !!s.smsAuthKey,
+    hasWaAppSecret: !!s.waAppSecret,
+    can: channels(s),
+  };
 }
 
 /** An Indian mobile as 91 + 10 digits, or null. Accepts +91, 0 and spaces. */
@@ -122,9 +142,11 @@ interface SendResult {
   logId: string;
   status: "SENT" | "FAILED" | "TEST";
   error?: string;
+  providerRef?: string;
+  chatId?: string;
 }
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+export const GRAPH = "https://graph.facebook.com/v21.0";
 
 async function log(organizationId: string, data: { channel: string; provider: string; kind: string; to: string; text: string; ref?: { type: string; id: string } }, outcome: { status: SendResult["status"]; error?: string; providerRef?: string }) {
   const row = await prisma.messageLog.create({
@@ -142,10 +164,29 @@ async function log(organizationId: string, data: { channel: string; provider: st
       refId: data.ref?.id || null,
     },
   });
-  return { ok: outcome.status !== "FAILED", logId: row.id, status: outcome.status, error: outcome.error } as SendResult;
+  // WhatsApp messages (not sign-in codes) also show in the chat with that number in the inbox.
+  let chatId: string | undefined;
+  const waId = indianMobile(data.to);
+  if (data.channel === "WHATSAPP" && data.kind !== "OTP" && waId) {
+    const chat = await prisma.whatsAppMessage.create({
+      data: {
+        organizationId,
+        direction: "OUT",
+        waId,
+        kind: "TEMPLATE",
+        text: data.text.slice(0, 4000),
+        status: outcome.status,
+        error: outcome.error?.slice(0, 300) || null,
+        providerRef: outcome.providerRef || null,
+        purchaseOrderId: data.ref?.type === "PURCHASE_ORDER" ? data.ref.id : null,
+      },
+    });
+    chatId = chat.id;
+  }
+  return { ok: outcome.status !== "FAILED", logId: row.id, status: outcome.status, error: outcome.error, providerRef: outcome.providerRef, chatId } as SendResult;
 }
 
-async function post(url: string, headers: Record<string, string>, body: unknown) {
+export async function post(url: string, headers: Record<string, string>, body: unknown) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
   const text = await res.text();
   let json: any = null;
