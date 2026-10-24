@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
       include: {
         organization: { select: { id: true, name: true } },
         material: { select: { id: true, name: true, sku: true, unitCode: true } },
-        vendor: { select: { id: true, name: true, phone: true, email: true, address: true } },
+        vendor: { select: { id: true, name: true, phone: true, whatsappNumber: true, whatsappGroupLink: true, email: true, address: true } },
         store: { select: { id: true, name: true } },
         site: { select: { id: true, name: true, code: true } },
         creator: { select: { id: true, name: true, email: true, role: true } },
@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
       },
       include: {
         material: { select: { id: true, name: true, sku: true, unitCode: true } },
-        vendor: { select: { id: true, name: true, phone: true, email: true, address: true } },
+        vendor: { select: { id: true, name: true, phone: true, whatsappNumber: true, whatsappGroupLink: true, email: true, address: true } },
         store: { select: { id: true, name: true } },
         site: { select: { id: true, name: true, code: true } },
         creator: { select: { id: true, name: true, email: true, role: true } },

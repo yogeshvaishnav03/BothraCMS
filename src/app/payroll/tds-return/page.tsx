@@ -414,6 +414,7 @@ export default function TdsReturnPage() {
                           <th className="px-4 py-2 text-right">Tax</th>
                           <th className="px-4 py-2 text-right">TDS cut</th>
                           <th className="px-4 py-2 text-right">Short</th>
+                          <th className="px-4 py-2" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -432,6 +433,11 @@ export default function TdsReturnPage() {
                             <td className={cn("px-4 py-2.5 text-right tabular-nums", p.shortfall > 0 && "font-bold text-rose-600")}>
                               {p.shortfall ? rupees(p.shortfall) : "—"}
                             </td>
+                            <td className="px-4 py-2.5 text-right">
+                              <Link href={`/payroll/form-16/${p.userId}?fy=${fy}`} className="text-xs font-bold text-amber-700 hover:underline">
+                                Form 16
+                              </Link>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -443,7 +449,7 @@ export default function TdsReturnPage() {
               <p className="text-xs leading-relaxed text-slate-500">
                 This page gathers what the return needs. File it with the NSDL Return Preparation Utility (RPU): copy these rows in, check them with the File
                 Validation Utility (FVU), and upload the result on the income-tax portal or at a TIN facilitation centre. The app does not make the FVU file
-                itself. Form 16 Part A is then downloaded from TRACES.
+                itself. Form 16 Part A is then downloaded from TRACES; Part B for each person is under &quot;Form 16&quot; in the fourth quarter.
               </p>
             </>
           )

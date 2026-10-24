@@ -99,7 +99,79 @@ async function requireOnProject(user: UserContext, projectId: string) {
   if (!(await userHasProjectAccess(user, projectId))) throw new QualityError("You are not on this project's team.", 403, "PROJECT_ACCESS_DENIED");
 }
 
+export const CHECKLIST_EDITORS = ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER"];
+const customKey = (id: string) => `T:${id}`;
+
+export interface ChecklistInput {
+  name: string;
+  kind: "QUALITY" | "SAFETY";
+  items: string[];
+  replacesKey?: string | null;
+}
+
+function cleanItems(items: string[]) {
+  const seen = new Set<string>();
+  const out = items.map((i) => i.trim()).filter((i) => i && !seen.has(i.toLowerCase()) && seen.add(i.toLowerCase()));
+  if (out.length === 0) throw new QualityError("Add at least one point to check.");
+  if (out.length > 40) throw new QualityError("A checklist can have up to 40 points.");
+  return out;
+}
+
 export class QualitySafetyService {
+  /**
+   * The checklists people can run: the organization's own, plus the built-in
+   * ones that have not been replaced by an edited copy.
+   */
+  static async checklists(user: UserContext) {
+    const own = await prisma.checklistTemplate.findMany({ where: { organizationId: user.organizationId, isActive: true }, orderBy: { name: "asc" } });
+    const replaced = new Set(own.map((t) => t.replacesKey).filter(Boolean));
+    const builtIn = Object.entries(CHECKLISTS)
+      .filter(([key]) => !replaced.has(key))
+      .map(([key, c]) => ({ key, id: null as string | null, name: c.name, kind: c.kind, items: c.items, builtIn: true, replacesKey: null as string | null, updatedAt: null as Date | null }));
+    const custom = own.map((t) => ({ key: customKey(t.id), id: t.id, name: t.name, kind: t.kind as "QUALITY" | "SAFETY", items: JSON.parse(t.itemsJson) as string[], builtIn: false, replacesKey: t.replacesKey, updatedAt: t.updatedAt }));
+    return [...custom, ...builtIn];
+  }
+
+  private static requireEditor(user: UserContext) {
+    if (!CHECKLIST_EDITORS.includes(user.role)) throw new QualityError("Only admins and project managers can change checklists.", 403, "FORBIDDEN");
+  }
+
+  static async saveChecklist(user: UserContext, id: string | null, input: ChecklistInput) {
+    this.requireEditor(user);
+    const name = input.name.trim();
+    if (!name) throw new QualityError("Give the checklist a name.");
+    const items = cleanItems(input.items);
+    if (input.replacesKey && !CHECKLISTS[input.replacesKey]) throw new QualityError("Unknown built-in checklist");
+    const clash = await prisma.checklistTemplate.findFirst({ where: { organizationId: user.organizationId, isActive: true, name, ...(id ? { NOT: { id } } : {}) } });
+    if (clash) throw new QualityError("There is already a checklist with this name.", 409, "DUPLICATE");
+    const data = { name, kind: input.kind, itemsJson: JSON.stringify(items) };
+    let row;
+    if (id) {
+      const existing = await prisma.checklistTemplate.findFirst({ where: { id, organizationId: user.organizationId, isActive: true } });
+      if (!existing) throw new QualityError("Checklist not found", 404, "NOT_FOUND");
+      row = await prisma.checklistTemplate.update({ where: { id }, data });
+    } else {
+      if (input.replacesKey && (await prisma.checklistTemplate.findFirst({ where: { organizationId: user.organizationId, isActive: true, replacesKey: input.replacesKey } })))
+        throw new QualityError("That built-in checklist has already been changed. Edit your copy instead.", 409, "DUPLICATE");
+      row = await prisma.checklistTemplate.create({ data: { ...data, organizationId: user.organizationId, replacesKey: input.replacesKey || null, createdBy: user.userId } });
+    }
+    await prisma.auditEvent.create({
+      data: { organizationId: user.organizationId, actorUserId: user.userId, action: id ? "CHECKLIST_UPDATED" : "CHECKLIST_CREATED", entityType: "CHECKLIST_TEMPLATE", entityId: row.id, afterJson: JSON.stringify({ name, kind: input.kind, items }) },
+    });
+    return { ...row, key: customKey(row.id), items };
+  }
+
+  /** Removes a checklist from the list. Inspections already done keep their points. A replaced built-in comes back. */
+  static async removeChecklist(user: UserContext, id: string) {
+    this.requireEditor(user);
+    const existing = await prisma.checklistTemplate.findFirst({ where: { id, organizationId: user.organizationId, isActive: true } });
+    if (!existing) throw new QualityError("Checklist not found", 404, "NOT_FOUND");
+    await prisma.checklistTemplate.update({ where: { id }, data: { isActive: false } });
+    await prisma.auditEvent.create({
+      data: { organizationId: user.organizationId, actorUserId: user.userId, action: "CHECKLIST_REMOVED", entityType: "CHECKLIST_TEMPLATE", entityId: id, afterJson: JSON.stringify({ name: existing.name }) },
+    });
+  }
+
   static async createInspection(
     user: UserContext,
     input: {
@@ -113,7 +185,11 @@ export class QualitySafetyService {
     }
   ) {
     await requireOnProject(user, input.projectId);
-    const template = CHECKLISTS[input.template];
+    let template: { name: string; kind: string } | undefined = CHECKLISTS[input.template];
+    if (input.template.startsWith("T:")) {
+      const own = await prisma.checklistTemplate.findFirst({ where: { id: input.template.slice(2), organizationId: user.organizationId } });
+      if (own) template = { name: own.name, kind: own.kind };
+    }
     if (!template && input.template !== "CUSTOM") throw new QualityError("Unknown checklist");
     if (input.items.length === 0) throw new QualityError("Add at least one check.");
     const project = await prisma.project.findFirst({ where: { id: input.projectId, organizationId: user.organizationId }, select: { id: true, name: true, managerUserId: true } });

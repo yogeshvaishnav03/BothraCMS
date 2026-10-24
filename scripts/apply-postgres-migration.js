@@ -72,6 +72,7 @@ const POSTGRES_COLUMNS = [
   `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "fee" INTEGER;`,
   `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "feeTax" INTEGER;`,
   `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "feeBookedIn" TEXT;`,
+  `ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "whatsappGroupLink" TEXT;`,
 ];
 
 const POSTGRES_TABLES = [
@@ -536,6 +537,62 @@ const POSTGRES_TABLES = [
   );`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "PushSubscription_endpoint_key" ON "PushSubscription"("endpoint");`,
   `CREATE INDEX IF NOT EXISTS "PushSubscription_organizationId_userId_idx" ON "PushSubscription"("organizationId", "userId");`,
+
+  // Phase 14: WhatsApp chats with vendors, buyers and staff
+  `CREATE TABLE IF NOT EXISTS "WhatsAppMessage" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "direction" TEXT NOT NULL,
+    "waId" TEXT NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'TEXT',
+    "text" TEXT NOT NULL,
+    "fileId" TEXT,
+    "mimeType" TEXT,
+    "fileName" TEXT,
+    "providerRef" TEXT,
+    "replyToRef" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'RECEIVED',
+    "error" TEXT,
+    "partyId" TEXT,
+    "bookingId" TEXT,
+    "staffUserId" TEXT,
+    "purchaseOrderId" TEXT,
+    "sentById" TEXT,
+    "readAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "WhatsAppMessage_providerRef_key" ON "WhatsAppMessage"("providerRef");`,
+  `CREATE INDEX IF NOT EXISTS "WhatsAppMessage_organizationId_waId_createdAt_idx" ON "WhatsAppMessage"("organizationId", "waId", "createdAt");`,
+  `CREATE INDEX IF NOT EXISTS "WhatsAppMessage_organizationId_direction_readAt_idx" ON "WhatsAppMessage"("organizationId", "direction", "readAt");`,
+
+  // Phase 14: marks on drawing sheets
+  `CREATE TABLE IF NOT EXISTS "DrawingMarkup" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "revisionId" TEXT NOT NULL,
+    "page" INTEGER NOT NULL DEFAULT 1,
+    "shapesJson" TEXT NOT NULL,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "DrawingMarkup_revisionId_page_createdBy_key" ON "DrawingMarkup"("revisionId", "page", "createdBy");`,
+  `CREATE INDEX IF NOT EXISTS "DrawingMarkup_organizationId_revisionId_idx" ON "DrawingMarkup"("organizationId", "revisionId");`,
+
+  // Phase 14: the organization's own quality and safety checklists
+  `CREATE TABLE IF NOT EXISTS "ChecklistTemplate" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "kind" TEXT NOT NULL DEFAULT 'QUALITY',
+    "itemsJson" TEXT NOT NULL,
+    "replacesKey" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`,
+  `CREATE INDEX IF NOT EXISTS "ChecklistTemplate_organizationId_isActive_idx" ON "ChecklistTemplate"("organizationId", "isActive");`,
 ];
 
 async function applyMigration() {

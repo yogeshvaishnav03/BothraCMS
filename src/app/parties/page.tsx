@@ -43,6 +43,7 @@ const EMPTY_FORM = {
   partyType: "VENDOR" as PartyType,
   phone: "",
   whatsappNumber: "",
+  whatsappGroupLink: "",
   email: "",
   contactPerson: "",
   address: "",
@@ -286,6 +287,7 @@ export default function PartiesPage() {
       partyType: p.partyType,
       phone: p.phone || "",
       whatsappNumber: p.whatsappNumber || "",
+      whatsappGroupLink: p.whatsappGroupLink || "",
       email: p.email || "",
       contactPerson: p.contactPerson || "",
       address: p.address || "",
@@ -344,6 +346,7 @@ export default function PartiesPage() {
       contractValue: contractPaise,
       contactPerson: form.contactPerson,
       whatsappNumber: form.whatsappNumber,
+      whatsappGroupLink: form.whatsappGroupLink.trim(),
       city: form.city,
       category: form.category,
       rating: form.rating ? Number(form.rating) : null,
@@ -978,6 +981,11 @@ export default function PartiesPage() {
                     <div>
                       <label className={labelCls}>WhatsApp number (if different)</label>
                       <input type="tel" placeholder="Same as phone" value={form.whatsappNumber} onChange={setField("whatsappNumber")} className={inputCls} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={labelCls}>WhatsApp group for orders (invite link)</label>
+                      <input type="url" placeholder="https://chat.whatsapp.com/AbCdEf123456" value={form.whatsappGroupLink} onChange={setField("whatsappGroupLink")} className={inputCls} />
+                      <p className="mt-1 text-[11px] text-slate-500">In the group: Group info → Invite via link → Copy link. Orders get a &quot;Group&quot; button that copies the order and opens it.</p>
                     </div>
                     <div>
                       <label className={labelCls}>Email</label>

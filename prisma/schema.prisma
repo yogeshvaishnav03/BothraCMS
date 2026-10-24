@@ -61,6 +61,8 @@ model Organization {
   salesBookings           SalesBooking[]
   salesReceipts           SalesReceipt[]
   messageLogs             MessageLog[]
+  whatsAppMessages        WhatsAppMessage[]
+  checklistTemplates      ChecklistTemplate[]
   buyerCodes              BuyerSignInCode[]
 }
 
@@ -398,6 +400,7 @@ model Party {
   bankName          String?
   bankBranch        String?
   upiId             String?
+  whatsappGroupLink String?   // https://chat.whatsapp.com/... the vendor's order group, opened by hand
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1263,18 +1266,55 @@ model DrawingRevision {
   createdAt   DateTime  @default(now())
 
   drawing     Drawing   @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  markups     DrawingMarkup[]
 
   @@unique([drawingId, revision])
 }
 
+/// One person's marks on one page of a drawing revision: clouds, arrows,
+/// boxes, pen lines and text, in page fractions (0 to 1) so they fit any zoom.
+model DrawingMarkup {
+  id             String   @id @default(uuid())
+  organizationId String
+  revisionId     String
+  page           Int      @default(1)
+  shapesJson     String   // [{type, color, points: [[x,y]...], text?}]
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  revision       DrawingRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, page, createdBy])
+  @@index([organizationId, revisionId])
+}
+
 // ── Phase 5: quality and safety ─────────────────────────────────────────────
+
+/// An organization's own checklist. replacesKey hides a built-in one it was copied from.
+model ChecklistTemplate {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  kind           String   @default("QUALITY") // QUALITY, SAFETY
+  itemsJson      String   // ["point to check", ...]
+  replacesKey    String?
+  isActive       Boolean  @default(true)
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive])
+}
 
 model QualityInspection {
   id             String   @id @default(uuid())
   organizationId String
   projectId      String
   milestoneId    String?
-  template       String   // key of a built-in checklist, or CUSTOM
+  template       String   // key of a built-in checklist, T:<ChecklistTemplate id>, or CUSTOM
   title          String
   location       String?  // e.g. "3rd floor slab, grid A-C"
   itemsJson      String   // [{label, result: PASS|FAIL|NA, note}]
@@ -1516,6 +1556,36 @@ model OfflineSend {
 }
 
 /// Every WhatsApp or SMS the system sends by itself: sign-in codes, demands and reminders.
+/// A WhatsApp chat message to or from a vendor, buyer or staff member,
+/// through the business number (replies arrive by Meta's webhook).
+model WhatsAppMessage {
+  id              String    @id @default(uuid())
+  organizationId  String
+  direction       String // IN, OUT
+  waId            String // the other side, 91XXXXXXXXXX
+  kind            String    @default("TEXT") // TEXT, IMAGE, DOCUMENT, AUDIO, VIDEO, LOCATION, TEMPLATE, OTHER
+  text            String
+  fileId          String? // Attachment.fileId for a photo or document
+  mimeType        String?
+  fileName        String?
+  providerRef     String?   @unique // Meta's message id (wamid...)
+  replyToRef      String? // the message this one answers
+  status          String    @default("RECEIVED") // RECEIVED, SENT, DELIVERED, READ, FAILED, TEST
+  error           String?
+  partyId         String?
+  bookingId       String?
+  staffUserId     String?
+  purchaseOrderId String?
+  sentById        String?
+  readAt          DateTime?
+  createdAt       DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, waId, createdAt])
+  @@index([organizationId, direction, readAt])
+}
+
 model MessageLog {
   id             String   @id @default(uuid())
   organizationId String

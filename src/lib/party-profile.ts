@@ -37,6 +37,8 @@ export const partyProfileSchema = z.object({
   bankName: optionalText(),
   bankBranch: optionalText(),
   upiId: optionalText(60).refine((v) => !v || /^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(v), "UPI ID must look like name@bank"),
+  // The vendor's WhatsApp group for orders, opened by hand from the app.
+  whatsappGroupLink: optionalText(200).refine((v) => !v || /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/.test(v), "Group link must look like https://chat.whatsapp.com/AbCdEf123456"),
 });
 
 export type PartyProfileInput = z.infer<typeof partyProfileSchema>;
@@ -73,6 +75,7 @@ export function publicPartyProfile(p: any) {
     bankName: p.bankName ?? null,
     bankBranch: p.bankBranch ?? null,
     upiId: p.upiId ?? null,
+    whatsappGroupLink: p.whatsappGroupLink ?? null,
     hasBankDetails: Boolean(p.bankAccountNumber || p.upiId),
   };
 }

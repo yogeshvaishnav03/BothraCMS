@@ -32,6 +32,7 @@ import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
+import OrderWhatsAppButtons from "@/components/whatsapp/OrderWhatsAppButtons";
 
 export default function PartyStatementPage() {
   const params = useParams();
@@ -684,16 +685,17 @@ export default function PartyStatementPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <OrderWhatsAppButtons po={po} onSent={loadStatementAndOrders} />
                           {po.whatsappUrl ? (
                             <a
                               href={po.whatsappUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-bold transition shadow-2xs"
-                              title="Send WhatsApp notification to vendor"
+                              title="Open WhatsApp on this device with the order typed in"
                             >
                               <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>WhatsApp</span>
+                              <span>Phone</span>
                               <ExternalLink className="w-3 h-3 opacity-60" />
                             </a>
                           ) : (

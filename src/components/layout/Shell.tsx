@@ -6,6 +6,7 @@ import { PushToggle } from "@/components/layout/PushToggle";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
+  MessageCircle,
   FolderKanban,
   CheckSquare,
   Boxes,
@@ -247,6 +248,9 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
         ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Muster", href: "/attendance/muster", icon: ClipboardCheck }] : []),
         { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
+        ...(["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT", "STOREKEEPER", "PROJECT_MANAGER"].includes(user?.role)
+          ? [{ key: "nav.whatsapp", defaultLabel: "WhatsApp inbox", href: "/whatsapp", icon: MessageCircle }]
+          : []),
       ],
     },
     {

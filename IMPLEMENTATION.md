@@ -1,7 +1,7 @@
 # Bothra CMS: Implementation Status
 
-Last updated: 23 Oct 2026 (after Phase 13)
-Branch: `claude/phase-13` (pull request to `main`)
+Last updated: 24 Oct 2026 (after Phase 14)
+Branch: `claude/project-thread-7co71b` (pull request to `main`)
 
 This file lists every phase of the redesign and feature work. It shows what is finished and what is still planned or incomplete.
 
@@ -21,9 +21,10 @@ This file lists every phase of the redesign and feature work. It shows what is f
 | 10 | TDS on contractor payments (194C) with the 26Q return, buyer sign-in with a code on their mobile, WhatsApp demand letters and reminders sent by themselves | Done | `fada0ba`, merged in PR #2 | `bothra-redesign-phase10.bundle` |
 | 11 | TDS on professional fees (194J) and rent (194I) next to 194C, WhatsApp alerts for staff (approvals, tasks, site alerts) | Done | see `git log` | merged to `main`, deployed on Vercel |
 | 12 | Photos and drawings in cloud storage (Vercel Blob), "Pay now" for buyers through Razorpay, TDS on large purchases (194Q), Form 16A certificates | Done | see `git log`, merged in PR #4 | merged to `main` |
-| 13 | Location and selfie on staff check-in, phone push alerts, Razorpay fees booked once a month, Phase 12 and 13 tables in the Postgres auto-migration | Done | see `git log` | pull request to `main` |
+| 13 | Location and selfie on staff check-in, phone push alerts, Razorpay fees booked once a month, Phase 12 and 13 tables in the Postgres auto-migration | Done | see `git log` | merged to `main` |
+| 14 | Orders to vendors on WhatsApp with replies coming into an inbox, drawing markup and comparison of revisions, your own quality checklists, Form 16 Part B | Done | see `git log` | pull request to `main` |
 
-**Thirteen phases are done.** From Phase 10 on, the work is on GitHub and merged into `main`, so Vercel deploys it by itself. The bundle files are only needed for a copy outside GitHub.
+**Fourteen phases are done.** From Phase 10 on, the work is on GitHub and merged into `main`, so Vercel deploys it by itself. The bundle files are only needed for a copy outside GitHub.
 
 ### How to load the latest version
 
@@ -31,7 +32,7 @@ This file lists every phase of the redesign and feature work. It shows what is f
 git fetch bothra-redesign-phase10.bundle claude/project-thread-7co71b:claude/redesign-phase10
 git checkout claude/redesign-phase10
 npm install
-npx prisma db push      # required: phases 2 to 13 add new tables and columns (Vercel does this on each build)
+npx prisma db push      # required: phases 2 to 14 add new tables and columns (Vercel does this on each build)
 npm run dev
 ```
 
@@ -478,16 +479,56 @@ The WhatsApp token and SMS key are kept on the server. The settings page only sh
 
 ---
 
+## Phase 14: WhatsApp replies into the app, drawing markup, your own checklists and Form 16 Part B (done)
+
+Four items of the list were already built in Phases 12 and 13: location and selfie on check-in, phone push alerts, cloud storage and TDS on purchases (194Q).
+
+**WhatsApp inbox** (menu → WhatsApp inbox; set up in Settings → Messages → "Replies into the app")
+- Replies to the business number now come into the app: from vendors, buyers and staff. Each chat is matched to the vendor, buyer or staff member by their number (typed with or without spaces); unknown numbers show as the number.
+- Photos and documents sent on WhatsApp are saved with the chat. A reply to an order message is linked to that order.
+- Admins and accountants see every chat. Storekeepers and project managers see vendor chats only. A new reply goes in their bell (and as a phone push for those who turned it on).
+- Type a reply in the chat. WhatsApp only allows a typed message within 24 hours of the other side's last message; after that the chat says so, and only an approved template can be sent.
+- Orders: on a vendor's page, an approved order has "Send" (sends the order on WhatsApp: as a typed message inside the 24 hours, otherwise as the order template), "Group" and the chat link.
+- **Vendor WhatsApp groups:** the WhatsApp Business API cannot post into or read an existing group. Only an Official Business Account can use groups, they must be made by the API, and they hold at most 8 people. So each vendor has a "WhatsApp group link" field (Vendors → edit). "Group" copies the order text and opens the group; someone presses Send there. Replies in the group stay in WhatsApp.
+- Set-up: in Meta's app dashboard add the callback URL and verify token shown on the Messages page, subscribe to "messages", and paste the app secret (or set `WHATSAPP_APP_SECRET`). Each call from Meta is checked against the app secret. For orders outside the 24 hours, get a template approved with the wording shown on the page.
+
+**Drawing markup and comparison** (Drawings → a revision → "Mark up" or "Compare with R…")
+- Each revision opens in a viewer (PDFs page by page, and photos or scans). Mark it up with a revision cloud, arrow, box, pen or a note, in five colours, with undo and zoom. Works with a finger on a phone.
+- Everyone's marks are kept per person and per page; other people's show lighter and can be hidden. The first marks on a sheet tell whoever uploaded it and the drawing's owner.
+- Compare two revisions side by side (scrolling together, marks shown or hidden), or as an overlay: lines only in the older one in red, only in the newer one in blue, the same in grey, with the share of the sheet that changed.
+- PDF.js (v4.10.38, Apache 2.0) is served from `public/pdfjs` and loaded only when a PDF drawing is opened.
+
+**Your own quality checklists** (Quality & Safety → Checklists)
+- Admins and project managers can write a checklist (quality or safety, up to 40 points, reorder and remove points), edit it, or remove it.
+- A built-in checklist can be changed: "Change" makes your copy, which replaces it for your company. Removing the copy brings the original back.
+- Site staff run your checklists from "Run checklist" as before, offline too. A failed point opens a quality defect, or an unsafe act on a safety checklist. Inspections already done keep their points when a checklist is changed or removed.
+
+**Form 16 Part B** (Payroll → a person's tax statement → "Form 16 Part B", or the 24Q page in Q4)
+- Part B laid out line by line as in the form: salary under 17(1), section 16 deductions (standard deduction, professional tax), Chapter VI-A (80C with the PF, and the deductions the person declared), tax, 87A rebate, surcharge, cess, and TDS deducted, with the 115BAC (new or old regime) answer and the verification for the signatory.
+- A quarter-by-quarter summary of salary, TDS deducted and TDS deposited, to check against Part A.
+- Until March's payroll is approved it is marked as a draft. Missing TAN, PAN or signatory, TDS not deposited, and short deduction are listed above the form.
+- Staff can open their own; payroll staff can open anyone's.
+
+**Not built: Form 16 Part A and the FVU file**
+- Part A only comes from TRACES, after the four 24Q returns are filed; it carries the TRACES certificate number, which no other software can make.
+- The FVU file is made by NSDL's File Validation Utility from the return text file. The return file's layout changes with each NSDL release, and NSDL's site and utility could not be reached from here to check a file against it. A file that fails validation is worse than the CSV sheets, so the 24Q and 26Q pages still give CSV sheets for the NSDL utility.
+
+**Postgres auto-migration**
+- The three new tables (WhatsApp messages, drawing marks, checklists) and the vendor group-link column are in `scripts/apply-postgres-migration.js` and the start-up check.
+
+---
+
 ## Incomplete or still planned
 
-All thirteen phases are built. The items below are not built yet, or work only partly.
+All fourteen phases are built. The items below are not built yet, or work only partly.
 
-### Gaps in Phase 5 to 13 features
+### Gaps in Phase 5 to 14 features
 
 - **Payroll:**
   - The PF ECR and ESI files are made for upload; filing and paying the challan are still done on the EPFO and ESIC portals.
   - The ECR assumes everyone is in the pension scheme (EPS). Members over 58 or not eligible for EPS need their line edited before upload.
-  - The tax statement is not Form 16. Part A (TDS deposited) comes from the TRACES portal after the quarterly return is filed.
+  - Form 16 Part B is made in the app; Part A comes from TRACES after the four quarterly returns are filed.
+  - Part B shows exempt allowances (HRA and others under section 10), perquisites and salary from a previous employer as nil, because payroll does not keep them. The declared old-regime deductions are shown as one line under Chapter VI-A, not split by section.
   - The TDS return page gathers the figures and makes CSV sheets, but not the FVU upload file. The return is still prepared in the NSDL utility and filed on the income-tax portal.
   - The challan number is read from the payment reference; the BSR code and challan serial are not split out. Enter them in the utility.
   - Interest on late TDS is an estimate; the late-filing fee (₹200 a day) is not worked out.
@@ -504,7 +545,7 @@ All thirteen phases are built. The items below are not built yet, or work only p
   - "On each slab" is one instalment raised when the whole superstructure stage is done. It is not one demand per slab.
   - Automatic WhatsApp needs a WhatsApp Business account and approved templates; until then, use test mode or the click-to-send button.
   - The messages are in English only. A Hindi template can be set by changing the template language, but the app sends one language to everyone.
-  - Replies from buyers on WhatsApp do not come into the app. They arrive in the WhatsApp Business inbox.
+  - Buyer replies on WhatsApp come into the WhatsApp inbox once the webhook is set up (Phase 14).
 - **TDS on payments (194C, 194J, 194I):**
   - Payments to non-residents are not worked out.
   - 194Q is cut when paying, the same as the other sections; the law says at payment or when the bill is booked, whichever is earlier. Advances count as paid.
@@ -534,15 +575,22 @@ All thirteen phases are built. The items below are not built yet, or work only p
 - **Staff WhatsApp alerts:**
   - Task updates and chat messages stay in the app; only reminders, the morning overdue list, approvals and site alerts go on WhatsApp.
   - On the Vercel Hobby plan the scheduled run is once a day, so an alert held overnight goes at 10 am. Alerts during the day go straight away.
-  - Replies on WhatsApp do not come back into the app.
+  - Staff replies on WhatsApp come into the WhatsApp inbox; they do not tick off the task or approval they answer.
 - **Exports:**
   - Reverse charge does not post the "RCM paid" entry; pay the RCM tax in cash through the GST portal and record it as a payment.
   - Ledger names are fixed (for example "Purchase - Construction Material"). Rename them in Tally, or ask for a mapping screen.
   - There is no direct sync with Tally. It is an import file.
 - **Site muster:** a shift is recorded as 9 am to 5 pm (or 1 pm for a half day), not the real times. A muster for one project marks the worker at that project's site; a worker who moved between two sites in a day should be marked at the main one.
 - **Equipment:** hire and fuel costs logged here are not added to the project budget automatically. Hire bills should still be entered in Finance under the Equipment cost head.
-- **Quality:** the five checklists are fixed. There is no screen yet to make your own checklist.
-- **Drawings:** no markup or side-by-side comparison of revisions. Files are limited to PDF or images up to 10 MB.
+- **Quality:** a checklist is for the whole company; it cannot be limited to one project. A point cannot ask for a photo of its own.
+- **Drawings:**
+  - Files are limited to PDF or images up to 10 MB. DWG files cannot be opened; upload a PDF of them.
+  - The overlay compares the sheets as drawn. If the newer revision is shifted or at a different scale, everything shows as changed.
+  - Marks are kept in the app; "Print / save" of a marked-up sheet is not built. Take a screenshot or use the comparison.
+- **WhatsApp inbox:**
+  - Messages in vendor WhatsApp groups do not come into the app (WhatsApp does not allow it for these groups).
+  - Voice notes, videos and locations show as a line saying one was sent; only photos and documents are saved.
+  - The inbox checks for new messages every 15 seconds while it is open; there is no live connection.
 - **Offline app:**
   - Stage progress, daily reports, check-in and check-out, the site muster, material requests and quality checks can be saved offline. Payments, bills, payroll and the rest need a signal.
   - The muster needs the project's worker list to have been opened once with a signal.
@@ -550,28 +598,36 @@ All thirteen phases are built. The items below are not built yet, or work only p
   - Offline saving works in the installed app and in Chrome or Safari on the phone. The offline page cache only runs on the production build, not in `npm run dev`.
   - Items saved by an older version of the app (before Phase 9) and still waiting on a phone have no id, so they could still arrive twice.
 
-### Ideas for a Phase 14 (not started)
+### Ideas for a Phase 15 (not started)
 
 | Feature | Notes |
 |---|---|
-| FVU file for the TDS returns | Make the upload file for the 24Q and 26Q directly, instead of CSV sheets for the NSDL utility. Needs checking against NSDL's file validation utility. |
+| FVU text file for the TDS returns | Make the NSDL return text file for the 24Q and 26Q directly. Needs NSDL's current file layout and a run through its validation utility before it can be trusted. |
 | Razorpay settlements | Read what Razorpay paid into the bank each day and match it to the receipts and fees. |
 | Check-out location | Match check-out to a site too, and show hours per site. |
 | Push choices per person | Let each person pick which kinds of alert come to their phone. |
 
 ### General gaps
 
-- **Automatic WhatsApp covers buyers and staff.** Messages to vendors and contractors are still click-to-chat buttons.
+- **Automatic WhatsApp covers buyers, staff and vendor orders.** Other messages to vendors and contractors are still click-to-chat buttons or typed in the inbox.
 - **No SMS alerts.** Alerts appear in the bell, on WhatsApp for the kinds switched on, and as phone push for people who turned it on.
-- **Photos and drawings stay on the server's disk with a copy in the database until cloud storage is set up** (Settings → File storage). On Vercel, connect a private Blob store and move the older files.
+- **Photos and drawings stay in the database (and on the server's disk) until cloud storage is set up** (Settings → File storage). On Vercel, connect a private Blob store and move the older files.
 - **Material request lines typed as free text** must be matched to a catalogue material before they can be ordered.
 - **Two older tests fail.** These failures existed before this work started and are not caused by it:
   - `phase3-e2e-workflows-and-roles` B-1, the login and session lifecycle test.
   - `phase4-release-gate` section 7, the measurement-book backup recovery test.
 
-  The rest of the suite passes: 386 of 388 tests.
+  The rest of the suite passes: 392 of 394 tests.
 
-## Checks run on the latest version (Phase 13)
+## Checks run on the latest version (Phase 14)
+
+- Tests: 392 of 394 pass. The only failures are the 2 older tests listed above. This includes 6 new tests for Phase 14: setting up the webhook and its verify token; an order sent as a template outside the 24 hours, a typed message refused there, a forged call refused, a vendor reply with a photo saved and linked to the order, the same reply sent twice saved once, the bell for admin and storekeeper, a later "delivered" not undoing "read", and a typed message and the full order inside the 24 hours; a buyer chat, with a storekeeper seeing only vendor chats; marks refused with a wrong colour, off the sheet or a note with no text, saved per person and page and replaced on a second save, one alert to the uploader, someone off the project refused; checklists written by a project manager (not by a supervisor), a duplicate name refused, the safety walk changed and replaced in the list, run with a failed point opening an unsafe act, and removed with the original back; Form 16 Part B for a ₹1.5 lakh a month salary on the old regime, line by line, with staff seeing only their own.
+- Tried on the production build in a browser: the WhatsApp inbox with a vendor chat and the group button (on a computer and a phone-sized screen), Settings → Messages with the reply set-up, a PDF drawing marked up with a cloud, arrow and note and saved (also on a phone-sized screen), the same drawing's R0 and R1 side by side and as an overlay, the drawings list with "Mark up" and "Compare", the checklists tab and changing a built-in checklist, and Form 16 Part B.
+- Not tried here: real messages from Meta's servers (the webhook is covered by tests with signed calls). After deploying, add the webhook in Meta's app dashboard and send a test reply from a phone.
+- Type check: clean. Lint: no warnings. Production build: succeeds.
+
+### Phase 13 checks
+
 
 - Tests: 386 of 388 pass. The only failures are the 2 older tests listed above. This includes 8 new tests for Phase 13: distance to a site; setting a site's location and radius (admins only, both numbers or neither); a check-in near the site, one 5 km away marked "Away from site" and one with no location marked "No location", none refused; with the strict switches on, no location and away-from-site check-ins refused with the site's name, but a late check-in from a phone with no signal taken and marked; a selfie asked for, someone else's photo or a PDF refused, the person's own photo kept; push keys made once with the private key kept off every reply; a subscription saved (https only) with a test alert; a critical bell alert pushed with its page, a phone answering "gone" dropped and one failing a fifth time dropped; Razorpay fees from the webhook and from Razorpay's API, a month booked as one Overheads payment to Razorpay, a second press refused, and a later payment booked as a second entry.
 - Tried on the production build in a browser: Settings with the new card, the Check-in rules page with a site location and a check-in away from the site, a staff check-in on a phone-sized screen standing 110 m from the site ("At the site"), Online payments with the Razorpay fees by month and "Book in Finance" for last month, and the alerts panel with "Alerts on this phone".

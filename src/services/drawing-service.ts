@@ -16,6 +16,13 @@ export class DrawingError extends Error {
   }
 }
 
+export interface MarkupShape {
+  type: "pen" | "arrow" | "rect" | "cloud" | "text";
+  color: string;
+  points: [number, number][];
+  text?: string;
+}
+
 export const DISCIPLINES = ["ARCHITECTURAL", "STRUCTURAL", "ELECTRICAL", "PLUMBING", "HVAC", "LANDSCAPE", "OTHER"] as const;
 
 const safeFileUrl = (u: string | null | undefined) => (u && /^\/api\/uploads\/[A-Za-z0-9._-]+$/.test(u) ? u : null);
@@ -187,6 +194,65 @@ export class DrawingService {
         entityId: rev.drawingId,
       });
     }
+  }
+
+  /** One revision with its file, the drawing's other revisions (to compare) and everyone's marks. */
+  static async revisionDetail(user: UserContext, revisionId: string) {
+    const rev = await prisma.drawingRevision.findFirst({
+      where: { id: revisionId, drawing: { organizationId: user.organizationId } },
+      include: { drawing: { include: { project: { select: { id: true, name: true } }, revisions: { orderBy: { createdAt: "asc" }, select: { id: true, revision: true, status: true, fileUrl: true, fileName: true, createdAt: true } } } }, markups: true },
+    });
+    if (!rev) throw new DrawingError("Revision not found", 404, "NOT_FOUND");
+    if (!(await userHasProjectAccess(user, rev.drawing.projectId))) throw new DrawingError("You are not on this project's team.", 403, "PROJECT_ACCESS_DENIED");
+    const people = await names([rev.uploadedBy, ...rev.markups.map((m) => m.createdBy)]);
+    return {
+      id: rev.id,
+      revision: rev.revision,
+      status: rev.status,
+      fileUrl: rev.fileUrl,
+      fileName: rev.fileName,
+      notes: rev.notes,
+      uploadedByName: people.get(rev.uploadedBy) || null,
+      createdAt: rev.createdAt,
+      drawing: { id: rev.drawing.id, number: rev.drawing.number, title: rev.drawing.title, discipline: rev.drawing.discipline, project: rev.drawing.project },
+      revisions: rev.drawing.revisions,
+      markups: rev.markups.map((m) => ({ id: m.id, page: m.page, shapes: JSON.parse(m.shapesJson), createdBy: m.createdBy, createdByName: people.get(m.createdBy) || "Someone", mine: m.createdBy === user.userId, updatedAt: m.updatedAt })),
+      canMark: true,
+    };
+  }
+
+  /** Saves this person's marks on one page (replacing their earlier ones). No marks removes them. */
+  static async saveMarkup(user: UserContext, revisionId: string, page: number, shapes: MarkupShape[]) {
+    const rev = await prisma.drawingRevision.findFirst({ where: { id: revisionId, drawing: { organizationId: user.organizationId } }, include: { drawing: true } });
+    if (!rev) throw new DrawingError("Revision not found", 404, "NOT_FOUND");
+    if (!(await userHasProjectAccess(user, rev.drawing.projectId))) throw new DrawingError("You are not on this project's team.", 403, "PROJECT_ACCESS_DENIED");
+    const key = { revisionId_page_createdBy: { revisionId, page, createdBy: user.userId } };
+    if (shapes.length === 0) {
+      await prisma.drawingMarkup.deleteMany({ where: { revisionId, page, createdBy: user.userId } });
+      return null;
+    }
+    const before = await prisma.drawingMarkup.findUnique({ where: key });
+    const row = await prisma.drawingMarkup.upsert({
+      where: key,
+      create: { organizationId: user.organizationId, revisionId, page, createdBy: user.userId, shapesJson: JSON.stringify(shapes) },
+      update: { shapesJson: JSON.stringify(shapes) },
+    });
+    await this.audit(user, "DRAWING_MARKED_UP", rev.drawingId, { number: rev.drawing.number, revision: rev.revision, page, shapes: shapes.length });
+    // The first marks on a sheet go to whoever uploaded it and the drawing's owner.
+    if (!before) {
+      await notifyPeople({
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        userIds: [rev.uploadedBy, rev.drawing.createdBy],
+        type: "DRAWING_ISSUED",
+        title: `${user.name || "Someone"} marked up ${rev.drawing.number} ${rev.revision}`,
+        message: shapes.find((s) => s.type === "text")?.text || `${shapes.length} mark${shapes.length === 1 ? "" : "s"} on page ${page}`,
+        href: `/drawings/view/${rev.id}`,
+        entityType: "DRAWING",
+        entityId: rev.drawingId,
+      });
+    }
+    return row;
   }
 
   private static audit(user: UserContext, action: string, entityId: string, after: unknown) {
