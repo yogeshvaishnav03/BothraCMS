@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { Alert } from "@/components/ui/Alert";
 import React, { useState, useEffect, useRef, useCallback } from "react";

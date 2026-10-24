@@ -218,6 +218,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleTabSwitch = (tab: "all" | "my") => {

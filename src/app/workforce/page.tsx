@@ -151,6 +151,7 @@ export default function WorkforcePage() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openUploadModal = (existing?: HeadcountRecord) => {

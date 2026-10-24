@@ -136,6 +136,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchOrg();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchOrg() {
