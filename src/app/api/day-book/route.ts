@@ -16,6 +16,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const todayStr = new Date().toISOString().split("T")[0];
     const date = searchParams.get("date") || todayStr;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return jsonError("Validation error: date — Use the format YYYY-MM-DD", "VALIDATION_ERROR", 422);
+    }
     const siteId = searchParams.get("siteId") || undefined;
     const orgId = user.organizationId;
 

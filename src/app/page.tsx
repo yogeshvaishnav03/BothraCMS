@@ -248,6 +248,7 @@ export default function DashboardPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittingTask, setSubmittingTask] = useState(false);
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
 
   // Interactive Dashboard View & Section Navigation
   type DashboardSectionTab = "ALL" | "SITES" | "TASKS" | "PROJECTS" | "PHOTOS";
@@ -528,6 +529,8 @@ export default function DashboardPage() {
   };
 
   const handleQuickCompleteTask = async (taskId: string, title: string) => {
+    if (completingTaskId === taskId) return;
+    setCompletingTaskId(taskId);
     setErrorMessage(null);
     setStatusMessage(null);
 
@@ -548,6 +551,8 @@ export default function DashboardPage() {
       loadDashboard(activeSiteId);
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to complete task"}`);
+    } finally {
+      setCompletingTaskId(null);
     }
   };
 
@@ -1656,9 +1661,10 @@ export default function DashboardPage() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <button
+                              disabled={completingTaskId === t.id}
                               onClick={() => handleQuickCompleteTask(t.id, t.title)}
                               title="Mark task as completed"
-                              className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer group"
+                              className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer group"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
                               <span>Complete</span>
@@ -2469,9 +2475,10 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => handleQuickCompleteTask(t.id, t.title)}
-                            title="Mark task as completed"
-                            className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
+                            disabled={completingTaskId === t.id}
+                              onClick={() => handleQuickCompleteTask(t.id, t.title)}
+                              title="Mark task as completed"
+                              className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
                             <span>Complete</span>
@@ -2908,9 +2915,10 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => handleQuickCompleteTask(t.id, t.title)}
-                            title="Mark task as completed"
-                            className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
+                            disabled={completingTaskId === t.id}
+                              onClick={() => handleQuickCompleteTask(t.id, t.title)}
+                              title="Mark task as completed"
+                              className="px-3 py-1.5 bg-slate-900 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer group"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
                             <span>Complete</span>
