@@ -263,8 +263,8 @@ function OrderModal({ request, item, vendors, materials, onClose, onDone }: any)
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 shadow-xl animate-scale-in">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 shadow-xl max-h-[90vh] overflow-y-auto animate-scale-in">
         <div>
           <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
             <ShoppingCart className="h-5 w-5 text-amber-500" /> Place order

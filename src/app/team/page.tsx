@@ -438,8 +438,8 @@ export default function TeamPage() {
 
         {/* One-time credentials */}
         {credentials && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full shadow-xl ring-1 ring-slate-200 overflow-hidden animate-scale-in">
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full shadow-xl ring-1 ring-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in">
               <div className="bg-gradient-chrome text-white p-5">
                 <div className="text-[11px] uppercase tracking-wider text-amber-300 font-semibold flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5" /> {credentials.isNew ? "Login created" : "Password reset"}

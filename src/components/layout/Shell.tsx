@@ -778,11 +778,11 @@ export default function Shell({ children }: ShellProps) {
       {/* 1-Click Interactive Language Switcher Modal */}
       {langDropdownOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
           onClick={() => setLangDropdownOpen(false)}
         >
           <div
-            className="w-full max-w-xs bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150"
+            className="w-full max-w-xs bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl p-4 space-y-3 max-h-[90vh] overflow-y-auto animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">

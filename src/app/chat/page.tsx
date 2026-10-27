@@ -1191,14 +1191,14 @@ export default function ChatPage() {
       {/* SUPER ADMIN GROUP CREATION MODAL */}
       {showCreateGroupModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in"
           onClick={() => setShowCreateGroupModal(false)}
         >
           <div
-            className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in fade-in zoom-in-95"
+            className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800">
+            <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
                   <Users className="w-4 h-4" />
@@ -1223,7 +1223,7 @@ export default function ChatPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateGroup} className="p-5 space-y-4">
+            <form onSubmit={handleCreateGroup} className="p-5 space-y-4 flex-1 overflow-y-auto">
               {groupError && <Alert tone="error">{groupError}</Alert>}
 
               {/* Group Name */}
