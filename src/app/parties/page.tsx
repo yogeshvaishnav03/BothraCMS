@@ -887,9 +887,9 @@ export default function PartiesPage() {
 
         {/* Modal: Register / Edit Partner */}
         {showModal && canWriteFinance && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-2xl w-full shadow-xl ring-1 ring-slate-200 my-8 animate-scale-in">
-              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl ring-1 ring-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-display font-bold text-slate-900 text-lg flex items-center gap-2.5">
                   <span className="w-9 h-9 rounded-xl bg-gradient-brand text-white flex items-center justify-center shadow-glow">
                     <Building2 className="w-4 h-4" />
@@ -901,7 +901,7 @@ export default function PartiesPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleFormSubmit} className="px-6 py-5 space-y-6">
+              <form id="party-form" onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
                 <section className="space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Business</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1057,19 +1057,21 @@ export default function PartiesPage() {
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
-                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-5 py-2.5 bg-gradient-brand text-slate-950 font-bold text-sm rounded-xl shadow-glow hover:brightness-110 disabled:opacity-50"
-                  >
-                    {submitting ? "Saving…" : isEditing ? "Save changes" : "Add partner"}
-                  </button>
-                </div>
               </form>
+
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="party-form"
+                  disabled={submitting}
+                  className="px-5 py-2.5 bg-gradient-brand text-slate-950 font-bold text-sm rounded-xl shadow-glow hover:brightness-110 disabled:opacity-50 transition"
+                >
+                  {submitting ? "Saving…" : isEditing ? "Save changes" : "Add partner"}
+                </button>
+              </div>
             </div>
           </div>
         )}

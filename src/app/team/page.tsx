@@ -367,15 +367,15 @@ export default function TeamPage() {
 
         {/* Add / edit */}
         {showForm && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 overflow-y-auto animate-fade-in">
-            <form onSubmit={submit} className="bg-white rounded-3xl max-w-lg w-full shadow-xl ring-1 ring-slate-200 my-8 animate-scale-in">
-              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+            <form onSubmit={submit} className="bg-white rounded-3xl max-w-lg w-full shadow-2xl ring-1 ring-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+              <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-display font-bold text-lg text-slate-900">{editing ? `Edit ${editing.name}` : "Add a person"}</div>
                 <button type="button" onClick={() => setShowForm(false)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="Close">
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="px-6 py-5 space-y-3">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
                     <label className={labelCls}>Full name *</label>
@@ -424,11 +424,11 @@ export default function TeamPage() {
                   </div>
                 </div>
               </div>
-              <div className="px-6 pb-5 flex items-center justify-end gap-2">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors">
                   Cancel
                 </button>
-                <button type="submit" disabled={saving} className="px-5 py-2.5 bg-gradient-brand text-slate-950 font-bold text-sm rounded-xl shadow-glow disabled:opacity-50">
+                <button type="submit" disabled={saving} className="px-5 py-2.5 bg-gradient-brand text-slate-950 font-bold text-sm rounded-xl shadow-glow hover:brightness-110 disabled:opacity-50 transition">
                   {saving ? "Saving…" : editing ? "Save" : "Add and create login"}
                 </button>
               </div>
