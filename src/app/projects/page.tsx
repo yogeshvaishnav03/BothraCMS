@@ -18,6 +18,8 @@ import {
   ClipboardList,
   Trash2,
   Filter,
+  Search,
+  RotateCcw,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 
@@ -85,8 +87,47 @@ export default function ProjectsPage() {
     data: dailyReports,
     columns: reportColumns,
   });
-  const canSubmitDailyReport =
-    canUser(currentUser, "projects:write") || canUser(currentUser, "tasks:write");
+  // Authorized operational roles: Supervisors, Project Managers, and Admins (Finance/Accountants excluded)
+  const canSubmitDailyReport = Boolean(
+    currentUser &&
+      ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"].includes(currentUser.role)
+  );
+
+  // Active Site Filter state synchronized with global shell
+  const [activeSiteFilter, setActiveSiteFilter] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 8;
+
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) => {
+      if (statusFilter !== "ALL" && (p.status || "ACTIVE") !== statusFilter) return false;
+      if (activeSiteFilter && p.siteId !== activeSiteFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = p.name?.toLowerCase().includes(q);
+        const matchCode = p.code?.toLowerCase().includes(q);
+        const matchSite = p.site?.name?.toLowerCase().includes(q);
+        if (!matchName && !matchCode && !matchSite) return false;
+      }
+      return true;
+    });
+  }, [projects, statusFilter, activeSiteFilter, searchQuery]);
+
+  const totalPages = Math.ceil(filteredProjects.length / pageSize) || 1;
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProjects.slice(start, start + pageSize);
+  }, [filteredProjects, currentPage, pageSize]);
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("ALL");
+    setActiveSiteFilter("");
+    setCurrentPage(1);
+    loadData("");
+  };
 
   // Project modal & form states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -116,12 +157,16 @@ export default function ProjectsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadData = () => {
+  const loadData = (siteIdFilter?: string) => {
     setLoading(true);
+    const activeSite = siteIdFilter !== undefined ? siteIdFilter : activeSiteFilter;
+    const projUrl = activeSite ? `/api/projects?siteId=${encodeURIComponent(activeSite)}` : "/api/projects";
+    const repUrl = activeSite ? `/api/daily-reports?siteId=${encodeURIComponent(activeSite)}` : "/api/daily-reports";
+
     Promise.all([
-      fetch("/api/projects").then((r) => r.json()),
+      fetch(projUrl).then((r) => r.json()),
       fetch("/api/sites").then((r) => r.json()),
-      fetch("/api/daily-reports").then((r) => r.json()),
+      fetch(repUrl).then((r) => r.json()),
       fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
     ])
       .then(([projRes, sitesRes, repRes, authRes]) => {
@@ -154,8 +199,38 @@ export default function ProjectsPage() {
   };
 
   useEffect(() => {
-    loadData();
+    const savedSite = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") || "" : "";
+    setActiveSiteFilter(savedSite);
+    loadData(savedSite);
+
+    const onSiteChanged = (e: any) => {
+      const newSite = e.detail?.siteId || "";
+      setActiveSiteFilter(newSite);
+      loadData(newSite);
+    };
+
+    window.addEventListener("siteChanged", onSiteChanged);
+    return () => window.removeEventListener("siteChanged", onSiteChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowCreateModal(false);
+        setShowCreateSiteModal(false);
+        setShowDailyReportModal(false);
+      }
+    };
+    if (showCreateModal || showCreateSiteModal || showDailyReportModal) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [showCreateModal, showCreateSiteModal, showDailyReportModal]);
 
   const handleDeleteProject = async (id: string, projectName: string) => {
     if (!confirm(`Are you sure you want to delete project "${projectName}"?`)) return;
@@ -362,7 +437,7 @@ export default function ProjectsPage() {
             }`}
           >
             <FolderKanban className="w-4 h-4" />
-            <span>Active Projects ({projects.length})</span>
+            <span>Active Projects ({filteredProjects.length})</span>
           </button>
           <button
             onClick={() => setActiveTab("REPORTS")}
@@ -379,84 +454,206 @@ export default function ProjectsPage() {
 
         {/* Tab 1: Projects Cards Grid */}
         {activeTab === "PROJECTS" && (
-          loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[...Array(2)].map((_, i) => (
-                <div key={i} className="h-44 bg-slate-200/60 rounded-xl animate-pulse" />
-              ))}
-            </div>
-          ) : projects.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-              <FolderKanban className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <div className="text-sm font-bold text-slate-700">No projects found</div>
-              <div className="text-xs text-slate-400 mt-1">Create a new project to start scheduling work.</div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {projects.map((p) => (
-                <div
-                  key={p.id}
-                  className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
-                        {p.code}
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
-                        ● {p.status}
-                      </span>
-                    </div>
-
-                    <h3 className="font-bold text-slate-900 text-lg">{p.name}</h3>
-
-                    <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{p.site?.name}</span>
-                    </div>
-
-                    {p.notes && (
-                      <p className="text-xs text-slate-600 mt-2 line-clamp-2">{p.notes}</p>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="text-slate-400 text-[11px]">Approved Budget</div>
-                      <div className="font-bold text-slate-900 text-sm tabular-nums">
-                        {formatCurrency(p.budgetAmount)}
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="text-slate-400 text-[11px]">Linked Records</div>
-                      <div className="font-semibold text-slate-700">
-                        {p._count?.tasks ?? 0} Tasks • {p._count?.dailyReports ?? 0} Reports
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3.5 flex items-center gap-2">
-                    <Link
-                      href={`/projects/${p.id}`}
-                      className="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-xs"
+          <div className="space-y-4">
+            {/* Project Filter Toolbar */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex flex-1 flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search by project name, code, or site..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full pl-9 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-amber-500"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                     >
-                      View Project Details &rarr;
-                    </Link>
-                    {canWriteProjects && (
-                      <button
-                        onClick={() => handleDeleteProject(p.id, p.name)}
-                        title="Delete Project"
-                        className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
+                      ×
+                    </button>
+                  )}
                 </div>
-              ))}
+
+                {/* Site Filter Dropdown */}
+                <select
+                  value={activeSiteFilter}
+                  onChange={(e) => {
+                    const sId = e.target.value;
+                    setActiveSiteFilter(sId);
+                    setCurrentPage(1);
+                    loadData(sId);
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
+                >
+                  <option value="">All Sites</option>
+                  {sites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </select>
+
+                {/* Status Filter Dropdown */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="ON_HOLD">On Hold</option>
+                  <option value="PLANNING">Planning</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between md:justify-end gap-3 text-xs text-slate-500">
+                <span>
+                  Showing <strong>{paginatedProjects.length}</strong> of <strong>{filteredProjects.length}</strong> projects
+                </span>
+
+                {(searchQuery || statusFilter !== "ALL" || activeSiteFilter) && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg transition"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
             </div>
-          )
+
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[...Array(2)].map((_, i) => (
+                  <div key={i} className="h-44 bg-slate-200/60 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : filteredProjects.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-xl border border-slate-200 p-6">
+                <FolderKanban className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <div className="text-sm font-bold text-slate-700">No matching projects found</div>
+                <div className="text-xs text-slate-400 mt-1 mb-4">
+                  {searchQuery || statusFilter !== "ALL" || activeSiteFilter
+                    ? "No projects matched your active filters. Try resetting the filters or searching with different terms."
+                    : "No projects exist yet. Click '+ Create Project' to get started."}
+                </div>
+                {(searchQuery || statusFilter !== "ALL" || activeSiteFilter) && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset All Filters</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {paginatedProjects.map((p) => (
+                    <div
+                      key={p.id}
+                      className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                            {p.code}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                            ● {p.status}
+                          </span>
+                        </div>
+
+                        <h3 className="font-bold text-slate-900 text-lg">{p.name}</h3>
+
+                        <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{p.site?.name}</span>
+                        </div>
+
+                        {p.notes && (
+                          <p className="text-xs text-slate-600 mt-2 line-clamp-2">{p.notes}</p>
+                        )}
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <div>
+                          <div className="text-slate-400 text-[11px]">Approved Budget</div>
+                          <div className="font-bold text-slate-900 text-sm tabular-nums">
+                            {formatCurrency(p.budgetAmount)}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-slate-400 text-[11px]">Linked Records</div>
+                          <div className="font-semibold text-slate-700">
+                            {p._count?.tasks ?? 0} Tasks • {p._count?.dailyReports ?? 0} Reports
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3.5 flex items-center gap-2">
+                        <Link
+                          href={`/projects/${p.id}`}
+                          className="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-xs"
+                        >
+                          View Project Details &rarr;
+                        </Link>
+                        {canWriteProjects && (
+                          <button
+                            onClick={() => handleDeleteProject(p.id, p.name)}
+                            title="Delete Project"
+                            className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-xs text-slate-600">
+                    <button
+                      type="button"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                    >
+                      Previous
+                    </button>
+                    <span>
+                      Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 font-semibold"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
 
         {/* Tab 2: Daily Site Reports View */}

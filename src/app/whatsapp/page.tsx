@@ -140,7 +140,7 @@ export default function WhatsAppInboxPage() {
   return (
     <Shell>
       <div className="space-y-4">
-        <PageHeader icon={MessageCircle} title="WhatsApp inbox" subtitle="Chats with vendors, buyers and staff on the business number. Their replies come in here.">
+        <PageHeader icon={MessageCircle} title="WhatsApp Inbox" subtitle="Chats with vendors, buyers and staff on the business number. Their replies come in here.">
           <Link href="/settings/messages" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             <Settings className="h-4 w-4" /> Set-up
           </Link>

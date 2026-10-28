@@ -16,14 +16,50 @@ function matchesDate(val: Date | string | null | undefined, targetDate: string):
   return ist === targetDate;
 }
 
-export async function fetchDayBookData(orgId: string, date: string, siteId?: string) {
-  const startOfDay = new Date(`${date}T00:00:00.000Z`);
-  const endOfDay = new Date(`${date}T23:59:59.999Z`);
+function matchesDateRange(val: Date | string | null | undefined, fromDate: string, toDate: string): boolean {
+  if (!val) return false;
+  if (fromDate === toDate) return matchesDate(val, fromDate);
+  if (typeof val === "string") {
+    const s = val.slice(0, 10);
+    if (s >= fromDate && s <= toDate) return true;
+  }
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return false;
+  const utcDate = d.toISOString().slice(0, 10);
+  if (utcDate >= fromDate && utcDate <= toDate) return true;
+  const istDate = new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  return istDate >= fromDate && istDate <= toDate;
+}
+
+export async function fetchDayBookData(
+  orgId: string,
+  dateOrFrom: string,
+  siteIdOrTo?: string,
+  maybeSiteId?: string
+) {
+  let fromDate = dateOrFrom;
+  let toDate = dateOrFrom;
+  let siteId: string | undefined = undefined;
+
+  if (siteIdOrTo && /^\d{4}-\d{2}-\d{2}$/.test(siteIdOrTo)) {
+    toDate = siteIdOrTo;
+    siteId = maybeSiteId;
+  } else {
+    siteId = siteIdOrTo;
+  }
+  if (fromDate > toDate) {
+    const tmp = fromDate;
+    fromDate = toDate;
+    toDate = tmp;
+  }
+
+  const startOfDay = new Date(`${fromDate}T00:00:00.000Z`);
+  const endOfDay = new Date(`${toDate}T23:59:59.999Z`);
   // Buffer for timezone differences (+/- 14 hours)
   const broadStart = new Date(startOfDay.getTime() - 14 * 3600 * 1000);
   const broadEnd = new Date(endOfDay.getTime() + 14 * 3600 * 1000);
 
-  // 1. Payments made on this date
+  // 1. Payments made in this date range
   const paymentWhere: any = {
     organizationId: orgId,
     status: { not: "REVERSED" },
@@ -48,7 +84,7 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
   });
 
   const filteredPayments = rawPayments.filter((p) => {
-    return matchesDate(p.paymentDate, date) || matchesDate(p.createdAt, date);
+    return matchesDateRange(p.paymentDate, fromDate, toDate) || matchesDateRange(p.createdAt, fromDate, toDate);
   });
 
   const payments = filteredPayments.map((p) => ({
@@ -56,7 +92,7 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
     paymentMethod: p.method,
   }));
 
-  // 2. Bills recorded on this date
+  // 2. Bills recorded in this date range
   const billWhere: any = {
     organizationId: orgId,
     isArchived: false,
@@ -79,7 +115,7 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
   });
 
   const bills = rawBills.filter((b) => {
-    return matchesDate(b.billDate, date) || matchesDate(b.createdAt, date);
+    return matchesDateRange(b.billDate, fromDate, toDate) || matchesDateRange(b.createdAt, fromDate, toDate);
   });
 
   // 3. Stock movements
@@ -105,7 +141,7 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
   });
 
   const movements = rawMovements.filter((m) => {
-    return matchesDate(m.movementAt, date) || matchesDate(m.createdAt, date);
+    return matchesDateRange(m.movementAt, fromDate, toDate) || matchesDateRange(m.createdAt, fromDate, toDate);
   });
 
   const receipts = movements.filter((m) => m.movementType === "RECEIPT");
@@ -114,14 +150,14 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
   // 4. Workforce: Attendance Sessions & Headcount
   const attendanceWhere: any = {
     organizationId: orgId,
-    workDate: date,
+    workDate: fromDate === toDate ? fromDate : { gte: fromDate, lte: toDate },
     isArchived: false,
   };
   if (siteId) {
     attendanceWhere.siteId = siteId;
   }
 
-  const [attendance, headcountRecords, allRecentHeadcount] = await Promise.all([
+  const [attendance, allHeadcountRecords, allRecentHeadcount] = await Promise.all([
     prisma.attendanceSession.findMany({
       where: attendanceWhere,
       include: {
@@ -130,14 +166,16 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
       },
       orderBy: { checkInAt: "desc" },
     }).catch(() => []),
-    WorkforceHeadcountService.listRecords(orgId, { siteId, date }).catch(() => []),
+    WorkforceHeadcountService.listRecords(orgId, { siteId }).catch(() => []),
     WorkforceHeadcountService.listRecords(orgId, { siteId }).catch(() => []),
   ]);
+
+  const headcountRecords = allHeadcountRecords.filter((r) => r.date >= fromDate && r.date <= toDate);
 
   // 5. Daily Site Reports
   const reportWhere: any = {
     organizationId: orgId,
-    reportDate: date,
+    reportDate: fromDate === toDate ? fromDate : { gte: fromDate, lte: toDate },
   };
   if (siteId) {
     reportWhere.project = { siteId };
@@ -161,7 +199,12 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
   // 6. Money in: customer receipts against bookings
   const moneyIn = (
     await prisma.salesReceipt.findMany({
-      where: { organizationId: orgId, date, cancelledAt: null, booking: { status: "ACTIVE", ...(siteId ? { unit: { project: { siteId } } } : {}) } },
+      where: {
+        organizationId: orgId,
+        date: fromDate === toDate ? fromDate : { gte: fromDate, lte: toDate },
+        cancelledAt: null,
+        booking: { status: "ACTIVE", ...(siteId ? { unit: { project: { siteId } } } : {}) },
+      },
       include: {
         booking: { select: { id: true, bookingNumber: true, customerName: true, unit: { select: { unitNumber: true, project: { select: { id: true, name: true } } } } } },
         installment: { select: { label: true } },
@@ -187,16 +230,20 @@ export async function fetchDayBookData(orgId: string, date: string, siteId?: str
 
   const workersPresentCount = totalHeadcount > 0 ? totalHeadcount : staffPresentCount;
 
+  const displayDate = fromDate === toDate ? fromDate : `${fromDate} to ${toDate}`;
+
   const recentActivityDates = Array.from(
     new Set(
       allRecentHeadcount
         .map((r) => r.date)
-        .filter((d): d is string => Boolean(d) && d !== date)
+        .filter((d): d is string => Boolean(d) && d !== fromDate)
     )
   ).slice(0, 3);
 
   return {
-    date,
+    date: displayDate,
+    fromDate,
+    toDate,
     summary: {
       totalPaymentsAmount,
       totalBillsAmount,

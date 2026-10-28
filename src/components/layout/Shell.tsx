@@ -118,6 +118,80 @@ export default function Shell({ children }: ShellProps) {
       .catch(() => {});
   }, [pathname]);
 
+  const handleMarkAsRead = async (notifId: string, href?: string) => {
+    const target = notifications.find((n) => n.id === notifId);
+    if (!target || target.isRead) {
+      if (href) {
+        setNotificationsOpen(false);
+        router.push(href);
+      }
+      return;
+    }
+
+    // Optimistic update
+    const prevNotifications = [...notifications];
+    const prevCount = unreadCount;
+    setUnreadCount((c) => Math.max(0, c - 1));
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n))
+    );
+
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId: notifId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        // Rollback
+        setUnreadCount(prevCount);
+        setNotifications(prevNotifications);
+      } else {
+        window.dispatchEvent(new CustomEvent("refreshNotifications"));
+      }
+    } catch {
+      // Rollback on network failure
+      setUnreadCount(prevCount);
+      setNotifications(prevNotifications);
+    }
+
+    if (href) {
+      setNotificationsOpen(false);
+      router.push(href);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (unreadCount === 0) return;
+    const prevNotifications = [...notifications];
+    const prevCount = unreadCount;
+
+    // Optimistic update
+    setUnreadCount(0);
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        // Rollback
+        setUnreadCount(prevCount);
+        setNotifications(prevNotifications);
+      } else {
+        window.dispatchEvent(new CustomEvent("refreshNotifications"));
+      }
+    } catch {
+      // Rollback
+      setUnreadCount(prevCount);
+      setNotifications(prevNotifications);
+    }
+  };
+
   useEffect(() => {
     fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => {
@@ -216,7 +290,7 @@ export default function Shell({ children }: ShellProps) {
     },
     {
       key: "nav.group.siteWork",
-      label: "Site work",
+      label: "Site Work",
       items: [
         { key: "nav.projects", defaultLabel: "Projects", href: "/projects", icon: FolderKanban },
         { key: "nav.tasks", defaultLabel: "Tasks & Work", href: "/tasks", icon: CheckSquare },
@@ -236,7 +310,7 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
         ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),
         ...(canUser(user, "sales:read") ? [{ key: "nav.sales", defaultLabel: "Sales", href: "/sales", icon: Handshake }] : []),
-        ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Accounts export", href: "/exports", icon: Landmark }] : []),
+        ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Accounts Export", href: "/exports", icon: Landmark }] : []),
       ],
     },
     {
@@ -249,7 +323,7 @@ export default function Shell({ children }: ShellProps) {
         ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Muster", href: "/attendance/muster", icon: ClipboardCheck }] : []),
         { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
         ...(["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT", "STOREKEEPER", "PROJECT_MANAGER"].includes(user?.role)
-          ? [{ key: "nav.whatsapp", defaultLabel: "WhatsApp inbox", href: "/whatsapp", icon: MessageCircle }]
+          ? [{ key: "nav.whatsapp", defaultLabel: "WhatsApp Inbox", href: "/whatsapp", icon: MessageCircle }]
           : []),
       ],
     },
@@ -260,7 +334,9 @@ export default function Shell({ children }: ShellProps) {
         ...(user?.role === "SUPER_ADMIN" || user?.role === "ORG_ADMIN"
           ? [{ key: "nav.team", defaultLabel: "Team & Access", href: "/team", icon: UserCog }]
           : []),
-        { key: "nav.audit", defaultLabel: "Audit Logs", href: "/audit", icon: ShieldCheck },
+        ...(canUser(user, "audit:read")
+          ? [{ key: "nav.audit", defaultLabel: "Audit Logs", href: "/audit", icon: ShieldCheck }]
+          : []),
         { key: "nav.settings", defaultLabel: "Settings", href: "/settings", icon: Settings },
         ...(user?.role === "SUPER_ADMIN"
           ? [{ key: "nav.superAdmin", defaultLabel: "Super Admin", href: "/admin", icon: ShieldAlert }]
@@ -663,12 +739,24 @@ export default function Shell({ children }: ShellProps) {
                   {unreadCount}
                 </span>
               </div>
-              <button
-                onClick={() => setNotificationsOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllAsRead}
+                    className="text-[11px] text-amber-400 hover:text-white underline font-semibold transition"
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button
+                  onClick={() => setNotificationsOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg"
+                  aria-label="Close alerts drawer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <PushToggle />
             <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 p-2">
@@ -678,33 +766,41 @@ export default function Shell({ children }: ShellProps) {
                 </div>
               ) : (
                 notifications.map((n) => (
-                  <Link
+                  <div
                     key={n.id}
-                    href={n.href}
-                    onClick={() => setNotificationsOpen(false)}
-                    className="block p-3 hover:bg-slate-50 rounded-xl transition group"
+                    onClick={() => handleMarkAsRead(n.id, n.href)}
+                    className={`block p-3 rounded-xl transition cursor-pointer group ${
+                      n.isRead
+                        ? "bg-slate-50/50 opacity-70 hover:opacity-100 hover:bg-slate-50"
+                        : "bg-white hover:bg-amber-50/40 ring-1 ring-amber-100/80 shadow-2xs"
+                    }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span
-                        className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase ${
-                          n.type === "CHAT_MESSAGE"
-                            ? "bg-purple-100 text-purple-800 border border-purple-200"
-                            : n.severity === "CRITICAL"
-                            ? "bg-rose-100 text-rose-700 border border-rose-200"
-                            : n.severity === "WARNING"
-                            ? "bg-amber-100 text-amber-800 border border-amber-200"
-                            : "bg-blue-100 text-blue-700 border border-blue-200"
-                        }`}
-                      >
-                        {n.type === "CHAT_MESSAGE" ? "MESSAGE" : n.type.replace("_", " ")}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {!n.isRead && (
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" title="Unread" />
+                        )}
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase ${
+                            n.type === "CHAT_MESSAGE"
+                              ? "bg-purple-100 text-purple-800 border border-purple-200"
+                              : n.severity === "CRITICAL"
+                              ? "bg-rose-100 text-rose-700 border border-rose-200"
+                              : n.severity === "WARNING"
+                              ? "bg-amber-100 text-amber-800 border border-amber-200"
+                              : "bg-blue-100 text-blue-700 border border-blue-200"
+                          }`}
+                        >
+                          {n.type === "CHAT_MESSAGE" ? "MESSAGE" : n.type.replace(/_/g, " ")}
+                        </span>
+                      </div>
                       <span className="text-[10px] text-amber-600 font-semibold group-hover:underline">
                         View &rarr;
                       </span>
                     </div>
-                    <div className="text-xs font-bold text-slate-900 mt-1">{n.title}</div>
+                    <div className={`text-xs mt-1 ${n.isRead ? "font-medium text-slate-700" : "font-bold text-slate-900"}`}>{n.title}</div>
                     <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{n.message}</div>
-                  </Link>
+                  </div>
                 ))
               )}
             </div>
@@ -892,7 +988,11 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Global Interactive Quick Action Launcher (Speed Dial FAB & Keyboard Shortcut Alt+Q) */}
-      <QuickActionLauncher currentUser={user} />
+      <QuickActionLauncher
+        currentUser={user}
+        activeSiteId={activeSiteId}
+        activeSiteName={sites.find((s) => s.id === activeSiteId)?.name}
+      />
     </div>
   );
 }

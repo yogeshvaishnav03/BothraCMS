@@ -22,6 +22,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
+import { canUser, Permission } from "@/lib/permissions";
 
 interface QuickActionItem {
   id: string;
@@ -35,7 +36,9 @@ interface QuickActionItem {
   badgeEn?: string;
   badgeHi?: string;
   keywords: string[];
+  requiredPermission?: Permission;
   roles?: string[]; // Allowed roles (if undefined, all except WORKER unless WORKER is listed)
+  siteScoped?: boolean;
 }
 
 const QUICK_ACTIONS: QuickActionItem[] = [
@@ -51,7 +54,9 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Cash",
     badgeHi: "रोकड़",
     keywords: ["daybook", "cash", "expense", "kharcha", "rokar", "diesel", "chai", "petty cash", "money", "paise"],
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "FINANCE_CONTROLLER"],
+    requiredPermission: "attendance:read",
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "ACCOUNTANT"],
+    siteScoped: true,
   },
   {
     id: "attendance",
@@ -65,7 +70,9 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Daily",
     badgeHi: "दैनिक",
     keywords: ["attendance", "hajiri", "checkin", "present", "absent", "muster", "labor", "worker", "shift"],
+    requiredPermission: "attendance:read",
     roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "WORKER"],
+    siteScoped: true,
   },
   {
     id: "materials",
@@ -79,7 +86,9 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Stock",
     badgeHi: "स्टॉक",
     keywords: ["materials", "cement", "steel", "sand", "grn", "stock", "truck", "saman", "dumper", "store"],
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"],
+    requiredPermission: "inventory:read",
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "STOREKEEPER"],
+    siteScoped: true,
   },
   {
     id: "measurement-book",
@@ -93,7 +102,9 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "L×B×D",
     badgeHi: "नाप",
     keywords: ["measurement", "mb", "naap", "dimensions", "length", "breadth", "slab", "brickwork", "plaster"],
+    requiredPermission: "projects:read",
     roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"],
+    siteScoped: true,
   },
   {
     id: "finance",
@@ -107,7 +118,8 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Billing",
     badgeHi: "बिलिंग",
     keywords: ["finance", "bill", "payment", "utr", "gst", "vendor bill", "contractor payment", "bank", "paise"],
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "FINANCE_CONTROLLER"],
+    requiredPermission: "finance:read",
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "ACCOUNTANT"],
   },
   {
     id: "workforce",
@@ -121,7 +133,9 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Staff",
     badgeHi: "मजदूर",
     keywords: ["worker", "labor", "workforce", "aadhaar", "mason", "mistri", "helper", "wage", "dihaadi"],
+    requiredPermission: "attendance:read",
     roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"],
+    siteScoped: true,
   },
   {
     id: "parties",
@@ -135,7 +149,8 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Parties",
     badgeHi: "पार्टी",
     keywords: ["vendor", "contractor", "party", "supplier", "thekedar", "gstin", "phone", "firm"],
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "FINANCE_CONTROLLER"],
+    requiredPermission: "finance:read",
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "ACCOUNTANT"],
   },
   {
     id: "chat",
@@ -149,7 +164,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Chat",
     badgeHi: "संदेश",
     keywords: ["chat", "message", "photo", "sandesh", "batcheet", "supervisor", "site team", "alert"],
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "WORKER", "FINANCE_CONTROLLER"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "WORKER", "ACCOUNTANT", "STOREKEEPER"],
   },
   {
     id: "projects",
@@ -163,7 +178,8 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Projects",
     badgeHi: "प्रोजेक्ट्स",
     keywords: ["project", "site", "budget", "progress", "building", "kam"],
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "FINANCE_CONTROLLER"],
+    requiredPermission: "projects:read",
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "ACCOUNTANT"],
   },
   {
     id: "reports",
@@ -177,7 +193,8 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Excel",
     badgeHi: "रिपोर्ट",
     keywords: ["report", "excel", "csv", "audit", "statement", "muster roll", "download"],
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "FINANCE_CONTROLLER"],
+    requiredPermission: "reports:read",
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "ACCOUNTANT"],
   },
   {
     id: "settings",
@@ -191,15 +208,17 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeEn: "Account",
     badgeHi: "खाता",
     keywords: ["settings", "password", "language", "bhasha", "security", "profile"],
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "WORKER", "FINANCE_CONTROLLER"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "WORKER", "ACCOUNTANT", "STOREKEEPER"],
   },
 ];
 
 interface QuickActionLauncherProps {
   currentUser?: any;
+  activeSiteId?: string;
+  activeSiteName?: string;
 }
 
-export default function QuickActionLauncher({ currentUser }: QuickActionLauncherProps) {
+export default function QuickActionLauncher({ currentUser, activeSiteId, activeSiteName }: QuickActionLauncherProps) {
   const router = useRouter();
   const { language } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
@@ -207,12 +226,18 @@ export default function QuickActionLauncher({ currentUser }: QuickActionLauncher
   const inputRef = useRef<HTMLInputElement>(null);
   const isHi = language === "hi";
 
-  const userRole = currentUser?.role || "SITE_SUPERVISOR";
+  const userRole = currentUser?.role;
 
-  // Filter actions allowed for current role
+  // Filter actions strictly allowed for current authenticated user
   const availableActions = QUICK_ACTIONS.filter((act) => {
-    if (!act.roles) return true;
-    return act.roles.includes(userRole);
+    if (!currentUser) return false;
+    if (act.requiredPermission && !canUser(currentUser, act.requiredPermission)) {
+      return false;
+    }
+    if (act.roles && userRole && !act.roles.includes(userRole)) {
+      return false;
+    }
+    return true;
   });
 
   // Filter by user search query
@@ -260,9 +285,14 @@ export default function QuickActionLauncher({ currentUser }: QuickActionLauncher
     }
   }, [isOpen]);
 
-  const handleSelectAction = (href: string) => {
+  const handleSelectAction = (act: QuickActionItem) => {
     setIsOpen(false);
-    router.push(href);
+    let targetHref = act.href;
+    if (act.siteScoped && activeSiteId) {
+      const sep = targetHref.includes("?") ? "&" : "?";
+      targetHref = `${targetHref}${sep}siteId=${encodeURIComponent(activeSiteId)}`;
+    }
+    router.push(targetHref);
   };
 
   return (
@@ -305,6 +335,21 @@ export default function QuickActionLauncher({ currentUser }: QuickActionLauncher
                 >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* Scoped Context Indicator */}
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-800/80 text-[11px] text-slate-300">
+                <span className="inline-flex items-center gap-1 bg-slate-800/90 text-amber-400 font-semibold px-2 py-0.5 rounded border border-slate-700">
+                  <Building2 className="w-3 h-3 text-amber-400" />
+                  {currentUser?.organizationName || "Active Organization"}
+                </span>
+                <span className="inline-flex items-center gap-1.5 bg-slate-800/90 text-slate-200 font-medium px-2 py-0.5 rounded border border-slate-700">
+                  <span className={`w-2 h-2 rounded-full ${activeSiteId ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                  {activeSiteName ? `Site: ${activeSiteName}` : "All Sites Scoped"}
+                </span>
+                <span className="ml-auto text-[10px] text-slate-400 uppercase tracking-wider font-mono">
+                  Role: {currentUser?.role || "GUEST"}
+                </span>
               </div>
 
               {/* Instant Search Bar */}
@@ -355,7 +400,7 @@ export default function QuickActionLauncher({ currentUser }: QuickActionLauncher
                       <button
                         key={act.id}
                         type="button"
-                        onClick={() => handleSelectAction(act.href)}
+                        onClick={() => handleSelectAction(act)}
                         className="group flex items-start gap-3 p-3 sm:p-3.5 bg-white hover:bg-amber-50/50 rounded-xl border border-slate-200 hover:border-amber-400 transition-all shadow-xs hover:shadow-md text-left cursor-pointer"
                       >
                         <div

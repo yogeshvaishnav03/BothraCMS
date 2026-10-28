@@ -31,6 +31,7 @@ import {
   Users,
   Sparkles,
   CalendarX,
+  Info,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -329,11 +330,19 @@ export default function DayBookPage() {
     const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
   const [selectedDate, setSelectedDate] = useState(() => {
     if (typeof window !== "undefined") {
-      const p = new URLSearchParams(window.location.search).get("date");
+      const p = new URLSearchParams(window.location.search).get("date") || new URLSearchParams(window.location.search).get("from");
       if (p && /^\d{4}-\d{2}-\d{2}$/.test(p)) return p;
     }
     return todayStr;
   });
+  const [toDate, setToDate] = useState(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("to") || new URLSearchParams(window.location.search).get("date");
+      if (p && /^\d{4}-\d{2}-\d{2}$/.test(p)) return p;
+    }
+    return todayStr;
+  });
+  const [dateFilterMode, setDateFilterMode] = useState<"SINGLE" | "RANGE">("SINGLE");
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"ALL" | "PAYMENTS" | "BILLS" | "ATTENDANCE" | "REPORTS">("ALL");
@@ -347,19 +356,55 @@ export default function DayBookPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  const modalModeGuidance = {
+    PAYMENT: {
+      title: "Log Payment Out (Cash / Bank Disbursement)",
+      tag: "Immediate Outflow",
+      description: "Record outgoing expenditure disbursed to a vendor, contractor, or staff member for site expenses, materials, or labor advances. You may optionally link this payment directly to an outstanding bill.",
+      requiredFields: "Recipient / Party, Amount, Payment Mode, Ref / Voucher / UTR No.",
+      expectedAction: "Deducts from site balance and updates financial vouchers ledger.",
+    },
+    BILL: {
+      title: "Enter Incoming Bill / Tax Invoice",
+      tag: "Payable Liability",
+      description: "Log an incoming vendor invoice, supplier bill, or subcontractor debit note. This registers liability on the balance sheet without disbursing funds until payment is made.",
+      requiredFields: "Vendor / Supplier, Bill #, Bill Date, Due Date, Pre-Tax Amount, GST Rate",
+      expectedAction: "Adds to accounts payable balance and enables future payment allocation.",
+    },
+    WORKFORCE: {
+      title: "Record Daily Workforce Headcount",
+      tag: "Site Labor Muster",
+      description: "Capture the total construction labor count deployed at the site today across skilled artisans, semi-skilled craftsmen, and general laborers.",
+      requiredFields: "Construction Site, Artisans, Craftsmen, Male/Female Laborers",
+      expectedAction: "Updates daily attendance muster and manpower analytics.",
+    },
+    DSR: {
+      title: "Submit Daily Site Report (DSR)",
+      tag: "Site Operations",
+      description: "Submit end-of-day operational summary covering work accomplished, materials consumed, weather conditions, and site delays.",
+      requiredFields: "Project / Site, Work Execution Summary",
+      expectedAction: "Records official daily site log for management review and client sign-off.",
+    },
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setKpiPopupType(null);
+        setShowLogModal(false);
       }
     };
-    if (kpiPopupType) {
+    if (kpiPopupType || showLogModal) {
+      document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
-      return () => window.removeEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
     }
-  }, [kpiPopupType]);
+  }, [kpiPopupType, showLogModal]);
 
-  // Form states - Payment
+  // Form states - Payment & Bill selection
   const [parties, setParties] = useState<any[]>([]);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentPartyId, setPaymentPartyId] = useState("");
@@ -367,6 +412,8 @@ export default function DayBookPage() {
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "UPI" | "CHEQUE">("CASH");
   const [paymentRef, setPaymentRef] = useState("");
   const [paymentNotes, setPaymentNotes] = useState("");
+  const [pendingPartyBills, setPendingPartyBills] = useState<any[]>([]);
+  const [selectedPaymentBillId, setSelectedPaymentBillId] = useState<string>("");
 
   // Form states - Bill
   const [billPartyId, setBillPartyId] = useState("");
@@ -392,9 +439,10 @@ export default function DayBookPage() {
   const [dsrBlockers, setDsrBlockers] = useState("");
   const [dsrSafety, setDsrSafety] = useState("");
 
-  const loadDayBook = (date: string, siteId?: string) => {
+  const loadDayBook = (fromDate: string, toDateStr?: string, siteId?: string) => {
     setLoading(true);
-    const query = new URLSearchParams({ date });
+    const to = toDateStr || fromDate;
+    const query = new URLSearchParams({ from: fromDate, to });
     if (siteId) query.set("siteId", siteId);
 
     fetch(`/api/day-book?${query.toString()}`)
@@ -407,6 +455,25 @@ export default function DayBookPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   };
+
+  // Fetch unpaid bills when paymentPartyId changes
+  useEffect(() => {
+    if (paymentPartyId) {
+      fetch(`/api/finance/bills?partyId=${paymentPartyId}&status=PENDING_PAYMENT,PARTIALLY_PAID`)
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            setPendingPartyBills(res.data.filter((b: any) => (b.outstandingAmount || b.totalAmount) > 0));
+          } else {
+            setPendingPartyBills([]);
+          }
+        })
+        .catch(() => setPendingPartyBills([]));
+    } else {
+      setPendingPartyBills([]);
+    }
+    setSelectedPaymentBillId("");
+  }, [paymentPartyId]);
 
   useEffect(() => {
     // Load metadata (sites, parties, projects, auth)
@@ -441,26 +508,50 @@ export default function DayBookPage() {
       }
     });
 
-    loadDayBook(selectedDate, selectedSiteId);
+    loadDayBook(selectedDate, toDate, selectedSiteId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDateChange = (newDate: string) => {
-    setSelectedDate(newDate);
-    loadDayBook(newDate, selectedSiteId);
+  const handleDateChange = (newFrom: string, newTo?: string) => {
+    const to = newTo || newFrom;
+    setSelectedDate(newFrom);
+    setToDate(to);
+    loadDayBook(newFrom, to, selectedSiteId);
+  };
+
+  const handleApplyPreset = (preset: "today" | "yesterday" | "last7" | "thisMonth") => {
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    if (preset === "today") {
+      setDateFilterMode("SINGLE");
+      handleDateChange(today, today);
+    } else if (preset === "yesterday") {
+      setDateFilterMode("SINGLE");
+      const y = new Date(now.getTime() - 24 * 3600 * 1000).toISOString().split("T")[0];
+      handleDateChange(y, y);
+    } else if (preset === "last7") {
+      setDateFilterMode("RANGE");
+      const d7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000).toISOString().split("T")[0];
+      handleDateChange(d7, today);
+    } else if (preset === "thisMonth") {
+      setDateFilterMode("RANGE");
+      const mStart = `${today.slice(0, 7)}-01`;
+      handleDateChange(mStart, today);
+    }
   };
 
   const handleSiteChange = (newSiteId: string) => {
     setSelectedSiteId(newSiteId);
     if (newSiteId) setWfSiteId(newSiteId);
-    loadDayBook(selectedDate, newSiteId);
+    loadDayBook(selectedDate, toDate, newSiteId);
   };
 
   const shiftDate = (days: number) => {
     const current = new Date(selectedDate);
     current.setDate(current.getDate() + days);
     const nextStr = current.toISOString().split("T")[0];
-    handleDateChange(nextStr);
+    setDateFilterMode("SINGLE");
+    handleDateChange(nextStr, nextStr);
   };
 
   const handleCreateQuickPayment = async (e: React.FormEvent) => {
@@ -472,6 +563,21 @@ export default function DayBookPage() {
     if (!paymentPartyId) {
       setStatusMessage("❌ Please select a recipient / party for this payment");
       return;
+    }
+    if (!paymentRef.trim()) {
+      setStatusMessage("❌ Ref / Voucher No is mandatory when recording a payment");
+      return;
+    }
+
+    if (selectedPaymentBillId) {
+      const selectedBill = pendingPartyBills.find((b) => b.id === selectedPaymentBillId);
+      if (selectedBill) {
+        const pendingRupees = (selectedBill.outstandingAmount ?? selectedBill.totalAmount) / 100;
+        if (Number(paymentAmount) > pendingRupees) {
+          setStatusMessage(`❌ Payment amount (${formatCurrency(Number(paymentAmount))}) exceeds bill outstanding balance (${formatCurrency(pendingRupees)})`);
+          return;
+        }
+      }
     }
 
     setActionLoading(true);
@@ -488,9 +594,12 @@ export default function DayBookPage() {
           payingAccount: "Primary Operating Account",
           idempotencyKey: `DB-PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`,
           paymentDate: `${selectedDate}T12:00:00.000Z`,
-          referenceNumber: paymentRef || `DB-EXP-${Date.now().toString().slice(-6)}`,
+          referenceNumber: paymentRef.trim(),
           notes: paymentNotes || "Day Book Direct Expense / Cash Outflow",
           autoApprove: true,
+          allocations: selectedPaymentBillId
+            ? [{ billId: selectedPaymentBillId, amount: Math.round(Number(paymentAmount) * 100) }]
+            : undefined,
         }),
       });
 
@@ -501,7 +610,8 @@ export default function DayBookPage() {
         setPaymentAmount("");
         setPaymentNotes("");
         setPaymentRef("");
-        loadDayBook(selectedDate, selectedSiteId);
+        setSelectedPaymentBillId("");
+        loadDayBook(selectedDate, toDate, selectedSiteId);
       } else {
         setStatusMessage(`❌ Error: ${data.error?.message || "Could not record payment"}`);
       }
@@ -772,7 +882,7 @@ export default function DayBookPage() {
 
   return (
     <Shell>
-      <div className="space-y-6">
+      <div className="screen-only-section space-y-6">
         {/* Header Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
           <div>
@@ -841,64 +951,139 @@ export default function DayBookPage() {
         </div>
 
         {/* Date Navigator & Filters Bar */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
-          {/* Date Selector Controls */}
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <button
-              onClick={() => shiftDate(-1)}
-              className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition"
-              title="Previous Day"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+            {/* Presets & Mode Selector */}
+            <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
+              <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
+                <CalendarDays className="w-3.5 h-3.5" />
+                Filter:
+              </span>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("today")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${
+                  dateFilterMode === "SINGLE" && selectedDate === todayStr
+                    ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("yesterday")}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("last7")}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+              >
+                Last 7 Days
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPreset("thisMonth")}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateFilterMode(dateFilterMode === "SINGLE" ? "RANGE" : "SINGLE")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${
+                  dateFilterMode === "RANGE"
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                {dateFilterMode === "RANGE" ? "Switch to Single Day" : "Custom Date Range"}
+              </button>
+            </div>
 
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => handleDateChange(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition"
-            />
-
-            <button
-              onClick={() => shiftDate(1)}
-              className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition"
-              title="Next Day"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => handleDateChange(todayStr)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
-                isToday
-                  ? "bg-amber-500 text-slate-950 border-amber-500"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              Today
-            </button>
-
-            <span className="text-xs font-semibold text-slate-500 ml-2 hidden sm:inline">
-              {formatDate(selectedDate)}
-            </span>
+            {/* Site Filter */}
+            <div className="flex items-center gap-2 w-full lg:w-auto">
+              <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-500 shrink-0">Site:</span>
+              <select
+                value={selectedSiteId}
+                onChange={(e) => handleSiteChange(e.target.value)}
+                className="w-full lg:w-auto px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 transition"
+              >
+                <option value="">All Operational Sites</option>
+                {sites.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.code})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* Site Filter */}
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <Filter className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-semibold text-slate-500">Site:</span>
-            <select
-              value={selectedSiteId}
-              onChange={(e) => handleSiteChange(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 transition"
-            >
-              <option value="">All Operational Sites</option>
-              {sites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.code})
-                </option>
-              ))}
-            </select>
+          {/* Date Picker Inputs */}
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            {dateFilterMode === "SINGLE" ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => shiftDate(-1)}
+                  className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition"
+                  title="Previous Day"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => handleDateChange(e.target.value, e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => shiftDate(1)}
+                  className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition"
+                  title="Next Day"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                <span className="text-xs font-semibold text-slate-600 ml-2">
+                  Showing: <strong className="text-slate-900">{formatDate(selectedDate)}</strong>
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500">From:</span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                />
+                <span className="text-xs font-semibold text-slate-500">To:</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDateChange(selectedDate, toDate)}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition shadow-2xs"
+                >
+                  Apply Range
+                </button>
+                <span className="text-xs font-semibold text-slate-600 ml-2">
+                  Period: <strong className="text-slate-900">{formatDate(selectedDate)} to {formatDate(toDate)}</strong>
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -916,7 +1101,7 @@ export default function DayBookPage() {
         {!loading && totalActivityCount === 0 && (
           <EmptyState
             icon={CalendarX}
-            title={`No Day Book entries for ${formatDate(selectedDate)}`}
+            title={`No Day Book entries found for ${selectedDate === toDate ? formatDate(selectedDate) : `${formatDate(selectedDate)} — ${formatDate(toDate)}`}`}
             description={
               canLogDayEntry
                 ? "Nothing has been recorded for this date yet. Use “+ Log Day Entry” to add a payment, bill, stock movement, headcount or site report."
@@ -1517,26 +1702,40 @@ export default function DayBookPage() {
 
         {/* Modal: Log Day Entry (Multi-category) */}
         {showLogModal && canLogDayEntry && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
+          <div
+            className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowLogModal(false);
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="daybook-modal-title"
+            >
               <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                   <CalendarDays className="w-5 h-5 text-amber-400" />
-                  <span className="font-bold text-sm">Add Entry to Day Book ({formatDate(selectedDate)})</span>
+                  <span id="daybook-modal-title" className="font-bold text-sm">Add Entry to Day Book ({formatDate(selectedDate)})</span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowLogModal(false)}
-                  className="text-slate-400 hover:text-white transition"
+                  className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
+                  aria-label="Close Day Book entry modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Mode switch tabs */}
-              <div className="p-2 bg-slate-100 flex gap-1 border-b border-slate-200 overflow-x-auto shrink-0">
+              <div className="p-2 bg-slate-100 flex gap-1 border-b border-slate-200 overflow-x-auto shrink-0" role="tablist">
                 {canWriteFinance && (
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={modalMode === "PAYMENT"}
                     onClick={() => setModalMode("PAYMENT")}
                     className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${
                       modalMode === "PAYMENT"
@@ -1550,6 +1749,8 @@ export default function DayBookPage() {
                 {canWriteFinance && (
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={modalMode === "BILL"}
                     onClick={() => setModalMode("BILL")}
                     className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${
                       modalMode === "BILL"
@@ -1563,6 +1764,8 @@ export default function DayBookPage() {
                 {canWriteAttendance && (
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={modalMode === "WORKFORCE"}
                     onClick={() => {
                       if (selectedSiteId) setWfSiteId(selectedSiteId);
                       setModalMode("WORKFORCE");
@@ -1579,6 +1782,8 @@ export default function DayBookPage() {
                 {canWriteDsr && (
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={modalMode === "DSR"}
                     onClick={() => setModalMode("DSR")}
                     className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${
                       modalMode === "DSR"
@@ -1592,6 +1797,26 @@ export default function DayBookPage() {
               </div>
 
               <div className="overflow-y-auto p-5">
+                {/* Modal Explanatory Guidance Banner */}
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs">
+                  <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="font-bold text-slate-900 flex items-center justify-between flex-wrap gap-1">
+                      <span>{modalModeGuidance[modalMode].title}</span>
+                      <span className="text-[10px] font-semibold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                        {modalModeGuidance[modalMode].tag}
+                      </span>
+                    </div>
+                    <p className="text-slate-600 text-[11px] leading-relaxed">
+                      {modalModeGuidance[modalMode].description}
+                    </p>
+                    <div className="text-[10px] text-slate-500 pt-1 border-t border-amber-200/60 flex flex-wrap gap-x-3 gap-y-0.5">
+                      <span><strong className="text-slate-700">Required:</strong> {modalModeGuidance[modalMode].requiredFields}</span>
+                      <span><strong className="text-slate-700">Effect:</strong> {modalModeGuidance[modalMode].expectedAction}</span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Form 1: Payment */}
                 {modalMode === "PAYMENT" && canWriteFinance && (
                   <form onSubmit={handleCreateQuickPayment} className="space-y-4">
@@ -1637,6 +1862,49 @@ export default function DayBookPage() {
                       </div>
                     </div>
 
+                    {/* Bill Selection / Allocation */}
+                    {paymentPartyId && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-slate-700">
+                            Allocate to Bill (Optional)
+                          </label>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            {pendingPartyBills.length} unpaid bill(s) available
+                          </span>
+                        </div>
+                        <select
+                          value={selectedPaymentBillId}
+                          onChange={(e) => {
+                            const bId = e.target.value;
+                            setSelectedPaymentBillId(bId);
+                            if (bId) {
+                              const b = pendingPartyBills.find((pb) => pb.id === bId);
+                              if (b) {
+                                const pendingRupees = (b.outstandingAmount ?? b.totalAmount) / 100;
+                                if (!paymentAmount || Number(paymentAmount) > pendingRupees) {
+                                  setPaymentAmount(String(pendingRupees));
+                                }
+                              }
+                            }
+                          }}
+                          className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="">General Advance / Site Expense (No Specific Bill)</option>
+                          {pendingPartyBills.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              Bill #{b.billNumber} — Pending: {formatCurrency(b.outstandingAmount ?? b.totalAmount)}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedPaymentBillId && (
+                          <p className="text-[11px] text-emerald-600 mt-1 font-medium">
+                            ✓ Payment will be allocated to Bill #{pendingPartyBills.find((b) => b.id === selectedPaymentBillId)?.billNumber} and deduct its balance.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
                         Amount (₹ Rupees) *
@@ -1671,13 +1939,14 @@ export default function DayBookPage() {
 
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Ref / Voucher No
+                          Ref / Voucher No *
                         </label>
                         <input
                           type="text"
+                          required
                           value={paymentRef}
                           onChange={(e) => setPaymentRef(e.target.value)}
-                          placeholder="VCH-001"
+                          placeholder="e.g. VCH-001 / UTR-991823"
                           className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
                         />
                       </div>
@@ -2548,6 +2817,276 @@ export default function DayBookPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* PRINT-ONLY DAY BOOK OFFICIAL AUDIT STATEMENT & CASH LEDGER               */}
+      {/* ========================================================================= */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 12mm 10mm;
+          }
+          aside, nav, header, [role="navigation"], .no-print, button, input, select, .quick-action-fab, .fixed {
+            display: none !important;
+          }
+          body, main, div[class*="min-h-screen"], div[class*="bg-slate-50"] {
+            background: #ffffff !important;
+            color: #000000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+          }
+          .screen-only-section {
+            display: none !important;
+          }
+          .print-only-sheet {
+            display: block !important;
+            font-family: ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+            color: #0f172a !important;
+          }
+          .print-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin-bottom: 16px !important;
+            page-break-inside: auto !important;
+          }
+          .print-table tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
+          }
+          .print-table th, .print-table td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 5px 8px !important;
+            font-size: 10px !important;
+            line-height: 1.3 !important;
+          }
+          .print-table th {
+            background-color: #f8fafc !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            color: #1e293b !important;
+          }
+          .print-page-break {
+            page-break-before: always !important;
+          }
+        }
+        @media screen {
+          .print-only-sheet {
+            display: none;
+          }
+        }
+      `}</style>
+
+      <div className="print-only-sheet p-6 bg-white text-slate-900">
+        {/* Document Header */}
+        <div className="border-b-2 border-slate-900 pb-3 mb-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                Bothra Construction Management System
+              </h1>
+              <h2 className="text-sm font-bold text-slate-700 tracking-wide uppercase mt-0.5">
+                Official Daily Site Record & Financial Day Book
+              </h2>
+            </div>
+            <div className="text-right text-[11px] text-slate-600">
+              <div className="font-bold text-slate-900">
+                Site: {sites.find((s) => s.id === selectedSiteId)?.name || "All Operational Sites"}
+              </div>
+              <div>Period: {selectedDate === toDate ? formatDate(selectedDate) : `${formatDate(selectedDate)} — ${formatDate(toDate)}`}</div>
+              <div>Generated: {new Date().toLocaleString("en-IN")}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Executive Summary Financial Cards */}
+        <div className="grid grid-cols-4 gap-3 mb-4 border border-slate-300 rounded-lg p-3 bg-slate-50">
+          <div>
+            <div className="text-[10px] font-bold uppercase text-slate-500">Total Money In (Receipts)</div>
+            <div className="text-sm font-black text-emerald-700">{formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase text-slate-500">Total Disbursed (Payments)</div>
+            <div className="text-sm font-black text-rose-700">{formatCurrency(dayData?.summary.totalPaymentsAmount || 0)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase text-slate-500">Net Flow</div>
+            <div className="text-sm font-black text-slate-900">
+              {formatCurrency((dayData?.summary.totalMoneyInAmount || 0) - (dayData?.summary.totalPaymentsAmount || 0))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase text-slate-500">Workforce Headcount</div>
+            <div className="text-sm font-black text-blue-700">{dayData?.summary.workersPresentCount || 0} Workers</div>
+          </div>
+        </div>
+
+        {/* Section 1: Disbursed Payments Table */}
+        <div className="mb-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-300 pb-0.5">
+            1. Disbursed Payments & Vouchers ({dayData?.payments.length || 0})
+          </h3>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th style={{ width: "80px" }}>Date</th>
+                <th style={{ width: "90px" }}>Voucher #</th>
+                <th>Recipient / Vendor</th>
+                <th style={{ width: "70px" }}>Mode</th>
+                <th>Project / Site</th>
+                <th>Description / Bill Ref</th>
+                <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!dayData?.payments || dayData.payments.length === 0) ? (
+                <tr>
+                  <td colSpan={7} className="text-center text-slate-400 italic py-2">
+                    No disbursements recorded for this period.
+                  </td>
+                </tr>
+              ) : (
+                dayData.payments.map((p, idx) => (
+                  <tr key={idx}>
+                    <td>{formatDate(p.paymentDate || p.createdAt)}</td>
+                    <td className="font-mono">{p.referenceNumber || "—"}</td>
+                    <td className="font-semibold">{p.party?.name || "Direct Site Expense"}</td>
+                    <td>{p.paymentMethod || p.method || "CASH"}</td>
+                    <td>{p.project?.name || "General / HQ"}</td>
+                    <td>{p.notes || (p.allocations?.[0]?.bill?.billNumber ? `Bill #${p.allocations[0].bill.billNumber}` : "—")}</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency((p.amount || 0) / 100)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {dayData?.payments && dayData.payments.length > 0 && (
+              <tfoot>
+                <tr className="font-bold bg-slate-100">
+                  <td colSpan={6} style={{ textAlign: "right" }}>Total Disbursed:</td>
+                  <td style={{ textAlign: "right" }}>{formatCurrency(dayData.summary.totalPaymentsAmount)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* Section 2: Money In Table */}
+        {dayData?.moneyIn && dayData.moneyIn.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-300 pb-0.5">
+              2. Customer Collections & Money In ({dayData.moneyIn.length})
+            </h3>
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "80px" }}>Date</th>
+                  <th style={{ width: "90px" }}>Receipt #</th>
+                  <th>Customer / Booking</th>
+                  <th>Unit / Project</th>
+                  <th style={{ width: "70px" }}>Method</th>
+                  <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dayData.moneyIn.map((r, idx) => (
+                  <tr key={idx}>
+                    <td>{formatDate(r.date)}</td>
+                    <td className="font-mono">{r.receiptNumber || `REC-${idx + 1}`}</td>
+                    <td className="font-semibold">{r.booking?.customerName || "Customer"}</td>
+                    <td>{r.booking?.unit?.project?.name} - Unit {r.booking?.unit?.unitNumber}</td>
+                    <td>{r.paymentMethod || "BANK"}</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency(r.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-bold bg-slate-100">
+                  <td colSpan={5} style={{ textAlign: "right" }}>Total Collected:</td>
+                  <td style={{ textAlign: "right" }}>{formatCurrency(dayData.summary.totalMoneyInAmount || 0)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {/* Section 3: Vendor Bills Recorded */}
+        {dayData?.bills && dayData.bills.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-300 pb-0.5">
+              3. Vendor Bills Recorded ({dayData.bills.length})
+            </h3>
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "80px" }}>Date</th>
+                  <th style={{ width: "90px" }}>Bill #</th>
+                  <th>Vendor / Party</th>
+                  <th>Project</th>
+                  <th style={{ width: "90px", textAlign: "right" }}>Total (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dayData.bills.map((b, idx) => (
+                  <tr key={idx}>
+                    <td>{formatDate(b.billDate || b.createdAt)}</td>
+                    <td className="font-mono">{b.billNumber}</td>
+                    <td className="font-semibold">{b.party?.name}</td>
+                    <td>{b.project?.name || "General"}</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency(b.totalAmount || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Section 4: Daily Site Reports & Observations */}
+        {dayData?.dailyReports && dayData.dailyReports.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-300 pb-0.5">
+              4. Daily Site Progress & Log Notes ({dayData.dailyReports.length})
+            </h3>
+            <div className="space-y-2 text-xs">
+              {dayData.dailyReports.map((dr, idx) => (
+                <div key={idx} className="border border-slate-300 rounded p-2 bg-slate-50">
+                  <div className="font-bold text-slate-900 flex justify-between">
+                    <span>{dr.project?.name} ({dr.project?.site?.name})</span>
+                    <span className="text-[10px] text-slate-500">By {dr.creator?.name || "Supervisor"}</span>
+                  </div>
+                  {dr.progressSummary && <div className="mt-1 text-slate-700"><strong>Progress:</strong> {dr.progressSummary}</div>}
+                  {dr.blockers && <div className="mt-0.5 text-rose-700"><strong>Issues:</strong> {dr.blockers}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Verification & Signatures Block */}
+        <div className="mt-8 pt-4 border-t-2 border-slate-800">
+          <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-8 text-center">
+            Verification & Authorization Sign-Off
+          </div>
+          <div className="grid grid-cols-3 gap-6 text-center text-xs">
+            <div className="border-t border-slate-400 pt-2">
+              <div className="font-bold text-slate-900">Prepared By</div>
+              <div className="text-slate-500 text-[10px]">Site Supervisor / Accountant</div>
+              <div className="text-slate-400 text-[10px] mt-4">Signature & Date</div>
+            </div>
+            <div className="border-t border-slate-400 pt-2">
+              <div className="font-bold text-slate-900">Verified By</div>
+              <div className="text-slate-500 text-[10px]">Project Manager / Resident Engineer</div>
+              <div className="text-slate-400 text-[10px] mt-4">Signature & Date</div>
+            </div>
+            <div className="border-t border-slate-400 pt-2">
+              <div className="font-bold text-slate-900">Approved By</div>
+              <div className="text-slate-500 text-[10px]">Finance Controller / Authorized Signatory</div>
+              <div className="text-slate-400 text-[10px] mt-4">Signature & Date</div>
+            </div>
+          </div>
+        </div>
       </div>
     </Shell>
   );

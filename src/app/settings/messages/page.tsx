@@ -365,7 +365,7 @@ export default function MessagesSettingsPage() {
                     <Inbox className="h-4 w-4 text-slate-400" /> Replies into the app
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    So vendors&apos; and buyers&apos; replies come into the WhatsApp inbox here. In Meta&apos;s app dashboard: WhatsApp → Configuration → Webhook, paste these two, then subscribe to &quot;messages&quot;. The app secret is under App settings → Basic.
+                    So vendors&apos; and buyers&apos; replies come into the WhatsApp Inbox here. In Meta&apos;s app dashboard: WhatsApp → Configuration → Webhook, paste these two, then subscribe to &quot;messages&quot;. The app secret is under App settings → Basic.
                   </p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <Field label="Callback URL">

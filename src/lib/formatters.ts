@@ -93,3 +93,13 @@ export function formatCompactINR(amountInPaise: number | null | undefined): stri
   if (abs >= 1e3) return `${sign}₹${trim(abs / 1e3)}K`;
   return `${sign}₹${Math.round(abs)}`;
 }
+
+/** Standard human-readable file size formatter (e.g., 512 B, 450 KB, 12.5 MB, 1.8 GB) */
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || isNaN(bytes) || bytes <= 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+  const val = bytes / Math.pow(k, i);
+  return `${val >= 10 || i === 0 ? Math.round(val) : val.toFixed(1)} ${sizes[i]}`;
+}

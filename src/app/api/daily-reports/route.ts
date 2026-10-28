@@ -66,9 +66,10 @@ export async function POST(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    // Site Supervisors, Project Managers, and Admins can create daily reports
-    if (!hasPermission(user.role, "tasks:write") && !hasPermission(user.role, "projects:write")) {
-      return jsonError("Forbidden: Insufficient permissions to create daily site reports", "FORBIDDEN", 403);
+    // Site Supervisors, Project Managers, and Admins can create daily reports (Finance/Accountant accounts excluded)
+    const allowedDailyReportRoles: string[] = ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"];
+    if (!allowedDailyReportRoles.includes(user.role)) {
+      return jsonError("Forbidden: Daily site operations reports can only be submitted by site supervisors, project managers, and administrators", "FORBIDDEN", 403);
     }
 
     const body = await req.json();

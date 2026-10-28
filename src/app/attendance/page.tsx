@@ -23,6 +23,8 @@ import {
   Users,
   Briefcase,
   ChevronRight,
+  Info,
+  X,
 } from "lucide-react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 
@@ -145,6 +147,14 @@ export default function AttendancePage() {
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [siteFilter, setSiteFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Attendance correction modal state
+  const [correctionSession, setCorrectionSession] = useState<any>(null);
+  const [correctionStatus, setCorrectionStatus] = useState<string>("PRESENT");
+  const [correctionCheckIn, setCorrectionCheckIn] = useState<string>("");
+  const [correctionCheckOut, setCorrectionCheckOut] = useState<string>("");
+  const [correctionReason, setCorrectionReason] = useState<string>("");
+  const [correcting, setCorrecting] = useState<boolean>(false);
 
   // Live clock
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -278,6 +288,70 @@ export default function AttendancePage() {
       setSubmitting(false);
     }
   };
+
+  const handleOpenCorrection = (session: any) => {
+    setCorrectionSession(session);
+    setCorrectionStatus(session.status || "PRESENT");
+    setCorrectionCheckIn(session.checkInAt ? new Date(session.checkInAt).toISOString().slice(0, 16) : "");
+    setCorrectionCheckOut(session.checkOutAt ? new Date(session.checkOutAt).toISOString().slice(0, 16) : "");
+    setCorrectionReason("");
+  };
+
+  const handleCorrectionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!correctionSession) return;
+    if (!correctionReason.trim() || correctionReason.trim().length < 5) {
+      setErrorMessage("A detailed justification (minimum 5 characters) is required for attendance correction");
+      return;
+    }
+
+    setCorrecting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch(`/api/attendance/${correctionSession.id}/correct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: correctionStatus,
+          checkInAt: correctionCheckIn ? new Date(correctionCheckIn).toISOString() : undefined,
+          checkOutAt: correctionCheckOut ? new Date(correctionCheckOut).toISOString() : undefined,
+          reason: correctionReason.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to correct attendance time-tag");
+        return;
+      }
+
+      setStatusMessage("Attendance record corrected successfully with immutable audit trail recorded.");
+      setCorrectionSession(null);
+      await loadData();
+    } catch {
+      setErrorMessage("Network error during attendance correction");
+    } finally {
+      setCorrecting(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setCorrectionSession(null);
+      }
+    };
+    if (correctionSession) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [correctionSession]);
 
   const handleCheckOut = async () => {
     if (!todaySession) return;
@@ -421,6 +495,16 @@ export default function AttendancePage() {
         type: "text",
       }
     );
+
+    if (isPrivileged) {
+      cols.push({
+        key: "actions",
+        label: "Action",
+        accessor: () => "",
+        type: "text",
+        align: "center",
+      });
+    }
 
     return cols;
   }, [activeTab, isPrivileged]);
@@ -1297,6 +1381,20 @@ export default function AttendancePage() {
                             <span className="text-slate-400 italic">No GPS data</span>
                           )}
                         </td>
+
+                        {isPrivileged && (
+                          <td className="py-3 px-4 whitespace-nowrap text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCorrection(s)}
+                              className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition"
+                              title="Correct time or shift status"
+                              aria-label={`Correct attendance for ${s.employeeName || "staff"} on ${formatDate(s.workDate)}`}
+                            >
+                              Correct
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -1306,6 +1404,121 @@ export default function AttendancePage() {
           </div>
           )}
         </div>
+
+        {/* Attendance Time-Tag & Status Correction Modal */}
+        {correctionSession && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setCorrectionSession(null);
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="attendance-correction-title"
+            >
+              <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-400" />
+                  <span id="attendance-correction-title" className="font-bold text-sm">
+                    Correct Attendance Record ({formatDate(correctionSession.workDate)})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCorrectionSession(null)}
+                  className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
+                  aria-label="Close correction modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCorrectionSubmit} className="p-5 overflow-y-auto space-y-4">
+                <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-slate-800 flex items-start gap-2.5">
+                  <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="text-slate-600 text-[11px] leading-relaxed">
+                    Audited administrative action for staff: <strong className="text-slate-900">{correctionSession.employeeName}</strong> ({correctionSession.employeeCode}). All edits create an immutable entry in the system audit log.
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Shift Status *
+                  </label>
+                  <select
+                    value={correctionStatus}
+                    onChange={(e) => setCorrectionStatus(e.target.value)}
+                    className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="PRESENT">Present (Full Day)</option>
+                    <option value="HALF_DAY">Half Day</option>
+                    <option value="ABSENT">Absent</option>
+                    <option value="ON_LEAVE">On Approved Leave</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Check-In Timestamp
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={correctionCheckIn}
+                      onChange={(e) => setCorrectionCheckIn(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Check-Out Timestamp
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={correctionCheckOut}
+                      onChange={(e) => setCorrectionCheckOut(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Justification / Reason * (min. 5 chars)
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={correctionReason}
+                    onChange={(e) => setCorrectionReason(e.target.value)}
+                    placeholder="Provide explicit operational reason for this correction (e.g. Employee forgot to tap check-out before leaving site)..."
+                    className="w-full text-xs font-normal p-3 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCorrectionSession(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={correcting || correctionReason.trim().length < 5}
+                    className="px-5 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition"
+                  >
+                    {correcting ? "Saving Correction..." : "Save Correction"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </Shell>
   );

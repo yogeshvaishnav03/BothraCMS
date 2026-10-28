@@ -93,12 +93,12 @@ if (dbUrl && !process.env.DATABASE_URL) {
 }
 
 const schemaPath = path.resolve(__dirname, "..", "prisma", "schema.prisma");
+const isPostgres = dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://");
+const targetProvider = isPostgres ? "postgresql" : "sqlite";
 
 if (fs.existsSync(schemaPath)) {
   let schema = fs.readFileSync(schemaPath, "utf-8");
-  const isPostgres = dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://");
   const currentProvider = schema.includes('provider = "postgresql"') ? "postgresql" : "sqlite";
-  const targetProvider = isPostgres ? "postgresql" : "sqlite";
 
   if (currentProvider !== targetProvider) {
     console.log(`⚡ Configuring Prisma datasource provider for ${targetProvider}...`);
@@ -128,24 +128,24 @@ if (fs.existsSync(schemaPath)) {
   }
 }
 
-// If a valid production database URL is configured, push schema automatically
+// If a valid production database URL is configured, run versioned Prisma migration
 if (
   dbUrl &&
   (dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://")) &&
   !dbUrl.includes("localhost:5432")
 ) {
   try {
-    console.log("⚡ Syncing database schema to remote PostgreSQL...");
-    execSync("npx prisma db push --accept-data-loss --skip-generate", {
+    console.log("⚡ Applying versioned migrations to remote PostgreSQL...");
+    execSync("npx prisma migrate deploy", {
       stdio: "inherit",
       env: {
         ...process.env,
         DATABASE_URL: directUrl.includes('pgbouncer=true') ? directUrl.replace(/[?&]pgbouncer=true/g, '').replace(':6543', ':5432') : directUrl,
       },
     });
-    console.log("✅ Database schema synchronized successfully.");
+    console.log("✅ Versioned database migrations applied successfully.");
   } catch (err) {
-    console.warn("⚠️ prisma db push notice:", err.message);
+    console.warn("⚠️ prisma migrate deploy notice (falling back to baseline validation):", err.message);
   }
 
   // Ensure all Phase 5-11 tables and columns are guaranteed to exist
@@ -162,24 +162,32 @@ if (
     console.warn("Notice: Direct DDL sync notice:", ddlErr.message);
   }
 } else {
-  console.log("ℹ️ Local or default database configured, skipping remote db push.");
+  if ((process.env.VERCEL || process.env.VERCEL_ENV === "production") && (targetProvider === "sqlite" || dbUrl.startsWith("file:"))) {
+    console.error("❌ CRITICAL ERROR: SQLite is strictly prohibited in production hosting environments (Vercel). Configure POSTGRES_URL or DATABASE_URL.");
+    process.exit(1);
+  }
+  console.log("ℹ️ Local development SQLite database configured.");
 }
 
 // Demo data seeding: local development only, or when ALLOW_DEMO_SEED=true is set explicitly.
 if (!allowDemoSeed) {
-  console.log("?? Production-like environment: checking if default bootstrap admin is requested...");
+  console.log("🔒 Production-like environment: checking if explicit bootstrap admin credentials are provided...");
   try {
-    const bootstrapEmail = process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@buildtrack.pro";
-    const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || "Password123!";
-    const bootstrapName = process.env.ADMIN_BOOTSTRAP_NAME || "Vikram Malhotra";
-    console.log(`? Running safe super admin bootstrap for ${bootstrapEmail}...`);
-    execSync(`npx tsx scripts/create-super-admin.ts "${bootstrapEmail}" "${bootstrapPassword}" "${bootstrapName}"`, {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        DATABASE_URL: directUrl || dbUrl || "file:./dev.db",
-      },
-    });
+    const bootstrapEmail = process.env.ADMIN_BOOTSTRAP_EMAIL;
+    const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+    const bootstrapName = process.env.ADMIN_BOOTSTRAP_NAME || "Administrator";
+    if (bootstrapEmail && bootstrapPassword) {
+      console.log(`⚡ Running safe super admin bootstrap for ${bootstrapEmail}...`);
+      execSync(`npx tsx scripts/create-super-admin.ts "${bootstrapEmail}" "${bootstrapPassword}" "${bootstrapName}"`, {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          DATABASE_URL: directUrl || dbUrl,
+        },
+      });
+    } else {
+      console.log("ℹ️ No ADMIN_BOOTSTRAP_PASSWORD provided; skipping automated admin creation to maintain production security.");
+    }
   } catch (bootstrapErr) {
     console.warn("Notice: Super Admin bootstrap check completed or skipped:", bootstrapErr.message);
   }

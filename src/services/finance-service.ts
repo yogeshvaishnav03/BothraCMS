@@ -16,6 +16,23 @@ export interface BillLineInput {
   gstRate?: number | null; // % for this line, when it differs from the bill's rate
 }
 
+export interface UpdateBillInput {
+  organizationId: string;
+  billId: string;
+  partyId?: string;
+  projectId?: string;
+  billNumber?: string;
+  billDate?: Date;
+  dueDate?: Date;
+  lines?: BillLineInput[];
+  notes?: string;
+  costHead?: string | null;
+  gst?: { rate?: number | null; interState?: boolean | null; itcEligible?: boolean; reverseCharge?: boolean } | null;
+  reason: string;
+  userId: string;
+  role: Role;
+}
+
 export interface CreateBillInput {
   organizationId: string;
   partyId: string;
@@ -444,6 +461,152 @@ export class FinanceService {
   /**
    * Record a payment with idempotency protection, paying account, and approval query support
    */
+  /**
+   * Edit a bill with mandatory audit justification, lines recalculation,
+   * payment disbursement guard, and immutable audit event.
+   */
+  static async updateBill(input: UpdateBillInput) {
+    assertPermission(input.role, "finance:write");
+
+    if (!input.reason || input.reason.trim().length < 5) {
+      throw new Error("A justification reason of at least 5 characters is mandatory for modifying an official bill record");
+    }
+
+    const existingBill = await prisma.bill.findFirst({
+      where: { id: input.billId, organizationId: input.organizationId },
+      include: {
+        lines: true,
+        party: true,
+        allocations: { where: { reversedAt: null } },
+      },
+    });
+
+    if (!existingBill) {
+      throw new Error("NotFound: Bill not found or outside organization scope");
+    }
+
+    const alreadyDisbursed = existingBill.allocations.reduce(
+      (sum: number, a: any) => sum + (a.amount || 0),
+      0
+    );
+
+    let calculatedTotal = existingBill.totalAmount;
+    let gstFields: Record<string, unknown> = {};
+    let lineTax: { gstRate: number | null; taxAmount: number }[] = [];
+    let linesTotal = 0;
+
+    if (input.lines && input.lines.length > 0) {
+      linesTotal = roundPaise(
+        input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0)
+      );
+      calculatedTotal = linesTotal;
+      lineTax = input.lines.map(() => ({ gstRate: null, taxAmount: 0 }));
+
+      if (input.gst) {
+        const rates = input.lines.map((l) => l.gstRate ?? input.gst!.rate ?? null);
+        const hasGst = rates.some((r) => r !== null && r !== undefined);
+        if (hasGst) {
+          const isInter = input.gst.interState ?? false;
+          let cgst = 0, sgst = 0, igst = 0;
+          input.lines.forEach((l, idx) => {
+            const r = rates[idx];
+            if (r && r > 0) {
+              const tax = roundPaise((l.lineTotal * r) / 100);
+              lineTax[idx] = { gstRate: r, taxAmount: tax };
+              if (isInter) igst = roundPaise(igst + tax);
+              else {
+                const half = roundPaise(tax / 2);
+                cgst = roundPaise(cgst + half);
+                sgst = roundPaise(sgst + half);
+              }
+            }
+          });
+          const totalTax = isInter ? igst : roundPaise(cgst + sgst);
+          gstFields = {
+            gstRate: input.gst.rate ?? null,
+            taxableAmount: linesTotal,
+            cgst,
+            sgst,
+            igst,
+            itcEligible: input.gst.itcEligible ?? true,
+            reverseCharge: input.gst.reverseCharge ?? false,
+          };
+          if (!input.gst.reverseCharge) calculatedTotal = roundPaise(linesTotal + totalTax);
+        }
+      }
+    }
+
+    if (calculatedTotal < alreadyDisbursed) {
+      throw new Error(
+        `Bill total (₹${(calculatedTotal / 100).toFixed(2)}) cannot be reduced below the amount already disbursed (₹${(alreadyDisbursed / 100).toFixed(2)}).`
+      );
+    }
+
+    return await prisma.$transaction(async (tx: any) => {
+      if (input.lines && input.lines.length > 0) {
+        await tx.billLine.deleteMany({ where: { billId: existingBill.id } });
+      }
+
+      const updateData: any = {
+        totalAmount: calculatedTotal,
+        ...gstFields,
+      };
+
+      if (input.billNumber) updateData.billNumber = input.billNumber;
+      if (input.partyId) updateData.partyId = input.partyId;
+      if (input.projectId !== undefined) updateData.projectId = input.projectId;
+      if (input.billDate) updateData.billDate = input.billDate;
+      if (input.dueDate !== undefined) updateData.dueDate = input.dueDate;
+      if (input.costHead !== undefined) updateData.costHead = input.costHead;
+      if (input.notes !== undefined) updateData.notes = input.notes;
+
+      if (input.lines && input.lines.length > 0) {
+        updateData.lines = {
+          create: input.lines.map((l: any, i: number) => ({
+            description: l.description,
+            materialId: l.materialId ?? null,
+            quantity: l.quantity ?? null,
+            unitRate: l.unitRate ?? null,
+            lineTotal: l.lineTotal,
+            ...lineTax[i],
+          })),
+        };
+      }
+
+      const updatedBill = await tx.bill.update({
+        where: { id: existingBill.id },
+        data: updateData,
+        include: { lines: true, party: true, project: true },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          organizationId: input.organizationId,
+          actorUserId: input.userId,
+          action: "BILL_UPDATED",
+          entityType: "BILL",
+          entityId: updatedBill.id,
+          reason: input.reason.trim(),
+          beforeJson: JSON.stringify({
+            totalAmount: existingBill.totalAmount,
+            billNumber: existingBill.billNumber,
+          }),
+          afterJson: JSON.stringify({
+            totalAmount: calculatedTotal,
+            billNumber: updatedBill.billNumber,
+            reason: input.reason.trim(),
+          }),
+        },
+      });
+
+      return {
+        ...updatedBill,
+        subtotal: linesTotal || (updatedBill.taxableAmount ?? updatedBill.totalAmount),
+        taxAmount: ((gstFields.cgst as number) || 0) + ((gstFields.sgst as number) || 0) + ((gstFields.igst as number) || 0),
+      };
+    });
+  }
+
   static async recordPayment(input: RecordPaymentInput) {
     const isQuerySubmission = input.autoApprove === false || Boolean(input.approvalQuery);
     const isStaffQuery = isQuerySubmission && (input.role === "SITE_SUPERVISOR" || input.role === "PROJECT_MANAGER");
@@ -575,6 +738,10 @@ export class FinanceService {
 
           if (!bill || bill.organizationId !== input.organizationId) {
             throw new Error(`NotFound: Bill ${alloc.billId} not found`);
+          }
+
+          if (input.partyId && bill.partyId !== input.partyId) {
+            throw new Error(`InvalidAllocation: Bill #${bill.billNumber} belongs to a different party`);
           }
 
           const currentPaidOnBill = roundPaise(
@@ -986,3 +1153,5 @@ export class FinanceService {
     };
   }
 }
+
+export const updateBill = FinanceService.updateBill;

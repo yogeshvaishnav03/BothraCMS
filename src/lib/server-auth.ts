@@ -105,7 +105,34 @@ export async function userHasProjectAccess(
 
   if (!project) return false;
   if (project.managerUserId === user.userId) return true;
-  return project.assignments.length > 0;
+  if (project.assignments.length > 0) return true;
+
+  // Check if user has assigned or created tasks in this project
+  const taskCount = await prisma.task.count({
+    where: {
+      projectId: project.id,
+      organizationId: user.organizationId,
+      isArchived: false,
+      OR: [{ assigneeUserId: user.userId }, { createdBy: user.userId }],
+    },
+  });
+  if (taskCount > 0) return true;
+
+  // If user is a Site Supervisor without explicit project restrictions, grant access to active projects
+  if (user.role === "SITE_SUPERVISOR" || (user.role as string) === "SUPERVISOR") {
+    const totalAssignments = await prisma.projectAssignment.count({
+      where: {
+        userId: user.userId,
+        organizationId: user.organizationId,
+        status: "ACTIVE",
+      },
+    });
+    if (totalAssignments === 0) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function requireProjectAccess(
@@ -137,7 +164,7 @@ export async function getUserAccessibleProjectIds(
 ): Promise<string[] | null> {
   if (isOrgOwnerOrAdmin(user)) return null;
 
-  const [managedProjects, assignedProjects] = await Promise.all([
+  const [managedProjects, assignedProjects, taskProjects] = await Promise.all([
     prisma.project.findMany({
       where: {
         organizationId: user.organizationId,
@@ -155,11 +182,36 @@ export async function getUserAccessibleProjectIds(
       },
       select: { projectId: true },
     }),
+    prisma.task.findMany({
+      where: {
+        organizationId: user.organizationId,
+        isArchived: false,
+        OR: [{ assigneeUserId: user.userId }, { createdBy: user.userId }],
+      },
+      select: { projectId: true },
+    }),
   ]);
 
   const ids = new Set<string>();
   managedProjects.forEach((p) => ids.add(p.id));
   assignedProjects.forEach((a) => ids.add(a.projectId));
+  taskProjects.forEach((t) => {
+    if (t.projectId) ids.add(t.projectId);
+  });
+
+  // If user is a Site Supervisor with no explicit project assignments, grant access to all active projects
+  if (ids.size === 0 && (user.role === "SITE_SUPERVISOR" || (user.role as string) === "SUPERVISOR")) {
+    const activeProjects = await prisma.project.findMany({
+      where: {
+        organizationId: user.organizationId,
+        isArchived: false,
+        status: { in: ["PLANNING", "IN_PROGRESS", "ACTIVE"] },
+      },
+      select: { id: true },
+    });
+    activeProjects.forEach((p) => ids.add(p.id));
+  }
+
   return Array.from(ids);
 }
 

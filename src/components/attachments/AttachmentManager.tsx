@@ -13,6 +13,7 @@ import {
   Camera,
   CheckCircle2,
 } from "lucide-react";
+import { formatFileSize } from "@/lib/formatters";
 
 interface AttachmentItem {
   id: string;
@@ -85,6 +86,93 @@ export default function AttachmentManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityId, entityType, folderId]);
 
+  const uploadSingleFile = async (file: File, fileCategory: string) => {
+    try {
+      // 1. Attempt authorized presigned direct upload (bypasses serverless bandwidth)
+      const presignRes = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          sizeBytes: file.size,
+          category: fileCategory,
+          entityType,
+          entityId,
+          projectId,
+          folderId,
+        }),
+      });
+
+      const presignJson = await presignRes.json().catch(() => null);
+
+      if (presignRes.ok && presignJson?.success && presignJson.data?.directUploadSupported) {
+        const { uploadUrl, storageKey, fileId } = presignJson.data;
+
+        // Direct PUT to object storage (Cloudflare R2 / S3)
+        const uploadRes = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+          },
+          body: file,
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error(`Direct storage upload failed with status ${uploadRes.status}`);
+        }
+
+        // Verify and finalize in database
+        const completeRes = await fetch("/api/uploads/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileId,
+            storageKey,
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            sizeBytes: file.size,
+            category: fileCategory,
+            entityType,
+            entityId,
+            projectId,
+            folderId,
+            notes,
+          }),
+        });
+
+        const completeJson = await completeRes.json().catch(() => null);
+        if (!completeRes.ok || !completeJson?.success) {
+          throw new Error(completeJson?.error?.message || "Failed to finalize uploaded attachment");
+        }
+
+        return;
+      }
+    } catch (directErr) {
+      console.warn("Direct presigned upload unavailable, using server fallback:", directErr);
+    }
+
+    // Fallback: Standard multipart upload through /api/attachments
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("entityType", entityType);
+    formData.append("entityId", entityId);
+    if (projectId) formData.append("projectId", projectId);
+    if (folderId) formData.append("folderId", folderId);
+    formData.append("category", fileCategory);
+    if (notes) formData.append("notes", notes);
+
+    const res = await fetch("/api/attachments", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error?.message || "Failed to upload file");
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -95,25 +183,7 @@ export default function AttachmentManager({
 
     try {
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("entityType", entityType);
-        formData.append("entityId", entityId);
-        if (projectId) formData.append("projectId", projectId);
-        if (folderId) formData.append("folderId", folderId);
-        formData.append("category", category);
-        if (notes) formData.append("notes", notes);
-
-        const res = await fetch("/api/attachments", {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error?.message || "Failed to upload file");
-        }
+        await uploadSingleFile(files[i], category);
       }
 
       setStatusMsg("Attachment(s) uploaded successfully!");
@@ -140,23 +210,7 @@ export default function AttachmentManager({
     setStatusMsg(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("entityType", entityType);
-      formData.append("entityId", entityId);
-      if (projectId) formData.append("projectId", projectId);
-      if (folderId) formData.append("folderId", folderId);
-      formData.append("category", oldCategory || category);
-
-      const res = await fetch("/api/attachments", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error?.message || "Failed to upload replacement file");
-      }
+      await uploadSingleFile(file, oldCategory || category);
 
       // Delete the old attachment record
       await fetch(`/api/attachments/${oldId}`, { method: "DELETE" });
@@ -277,7 +331,7 @@ export default function AttachmentManager({
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
                     <span className="font-mono bg-slate-100 px-1 rounded text-slate-600">{att.category}</span>
-                    <span>{(att.fileSize / 1024).toFixed(0)} KB</span>
+                    <span>{formatFileSize(att.fileSize)}</span>
                   </div>
                 </div>
 

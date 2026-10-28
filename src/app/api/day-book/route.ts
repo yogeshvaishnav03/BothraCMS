@@ -15,8 +15,14 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const todayStr = new Date().toISOString().split("T")[0];
-    const date = searchParams.get("date") || todayStr;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+    const dateParam = searchParams.get("date");
+
+    const from = fromParam || dateParam || todayStr;
+    const to = toParam || dateParam || from;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
       return jsonError("Validation error: date — Use the format YYYY-MM-DD", "VALIDATION_ERROR", 422);
     }
     const siteId = searchParams.get("siteId") || undefined;
@@ -24,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     // Days with no activity simply return empty data. Demo data is only
     // ever created through the explicit Super Admin POST below.
-    const data = await fetchDayBookData(orgId, date, siteId);
+    const data = await fetchDayBookData(orgId, from, to, siteId);
     // Customer receipts are for people who see sales or finance.
     if (!hasPermission(user.role, "finance:read") && !hasPermission(user.role, "sales:read")) {
       data.moneyIn = [];

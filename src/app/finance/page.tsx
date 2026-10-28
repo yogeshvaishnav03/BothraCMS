@@ -33,6 +33,7 @@ import {
   Users,
   Briefcase,
   FileSpreadsheet,
+  Edit2,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
@@ -82,6 +83,13 @@ export default function FinancePage() {
 
   // Bill Modal state
   const [showBillModal, setShowBillModal] = useState(false);
+  const [editingBill, setEditingBill] = useState<any>(null);
+  const [editBillReason, setEditBillReason] = useState("");
+  const [editBillNumber, setEditBillNumber] = useState("");
+  const [editBillDate, setEditBillDate] = useState("");
+  const [editBillDueDate, setEditBillDueDate] = useState("");
+  const [editBillNotes, setEditBillNotes] = useState("");
+  const [editBillCostHead, setEditBillCostHead] = useState("");
   const [billPartyId, setBillPartyId] = useState("");
   const [billProjectId, setBillProjectId] = useState("");
   const [billNumber, setBillNumber] = useState("");
@@ -160,6 +168,25 @@ export default function FinancePage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowPaymentModal(false);
+        setShowBillModal(false);
+        setShowReverseModal(false);
+        setAttachmentTarget(null);
+      }
+    };
+    if (showPaymentModal || showBillModal || showReverseModal || attachmentTarget) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [showPaymentModal, showBillModal, showReverseModal, attachmentTarget]);
 
   // Ask the server what TDS this payment would hold back, as the form changes.
   useEffect(() => {
@@ -818,8 +845,15 @@ export default function FinancePage() {
   ]);
 
   const filteredPaymentsTotal = useMemo(() => {
-    return filteredPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  }, [filteredPayments]);
+    return filteredPayments.reduce((sum, p) => {
+      // Exclude rejected payment queries and reversed payments from the disbursed financial total
+      if (p.status === "REJECTED" || p.status === "REVERSED" || p.reversedAt) {
+        // Only include if user specifically filtered by that status
+        if (paymentStatus !== "REJECTED" && paymentStatus !== "REVERSED") return sum;
+      }
+      return sum + (Number(p.amount) || 0);
+    }, 0);
+  }, [filteredPayments, paymentStatus]);
 
   const filteredBills = useMemo(() => {
     return bills.filter((b) => {

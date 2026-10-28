@@ -49,7 +49,6 @@ export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [dashboardMode, setDashboardMode] = useState<"EXECUTIVE" | "EMPLOYEE">("EXECUTIVE");
   const [recentPhotos, setRecentPhotos] = useState<any[]>([]);
-  const [lightboxPhoto, setLightboxPhoto] = useState<any>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoMsg, setPhotoMsg] = useState<string | null>(null);
 
@@ -156,13 +155,6 @@ export default function DashboardPage() {
 
       setPhotoMsg("Photo replaced successfully!");
       await refreshRecentPhotos();
-      if (lightboxPhoto?.id === photoId) {
-        setLightboxPhoto((prev: any) => ({
-          ...prev,
-          url: `/api/uploads/${prev.fileId}?t=${Date.now()}`,
-          fileName: file.name,
-        }));
-      }
     } catch (err: any) {
       alert(err.message || "Failed to replace photo");
     } finally {
@@ -212,9 +204,6 @@ export default function DashboardPage() {
         throw new Error(data.error?.message || "Failed to delete photo");
       }
       setRecentPhotos((prev) => prev.filter((p) => p.id !== photoId));
-      if (lightboxPhoto?.id === photoId) {
-        setLightboxPhoto(null);
-      }
       setPhotoMsg("Photo deleted successfully!");
     } catch (err: any) {
       alert(err.message || "Failed to delete photo");
@@ -647,13 +636,18 @@ export default function DashboardPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setActiveKpiModal(null);
+        setShowQuickTaskModal(false);
       }
     };
-    if (activeKpiModal) {
+    if (activeKpiModal || showQuickTaskModal) {
+      document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
-      return () => window.removeEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
     }
-  }, [activeKpiModal]);
+  }, [activeKpiModal, showQuickTaskModal]);
 
   const renderKpiModalContent = () => {
     switch (activeKpiModal) {
@@ -3016,16 +3010,26 @@ export default function DashboardPage() {
                       <img
                         src={photo.url}
                         alt={photo.fileName}
-                        onClick={() => setLightboxPhoto(photo)}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300 cursor-pointer"
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                       />
 
-                      {/* Card Action Controls: Replace and Delete */}
+                      {/* Card Action Controls: Open in new tab, Replace, and Delete */}
                       <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-xs p-1 rounded-lg">
+                        <a
+                          href={photo.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 text-slate-300 hover:text-amber-400 transition"
+                          title="Open photo in new tab"
+                          aria-label={`Open photo ${photo.fileName} in new tab`}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
                         <label
                           onClick={(e) => e.stopPropagation()}
                           className="p-1 text-slate-300 hover:text-amber-400 cursor-pointer transition"
                           title="Replace / Re-upload this photo"
+                          aria-label={`Replace photo ${photo.fileName}`}
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
                           <input
@@ -3038,16 +3042,16 @@ export default function DashboardPage() {
                         </label>
                         <button
                           onClick={(e) => handleDashboardPhotoDelete(photo.id, photo.fileName, e)}
-                          className="p-1 text-slate-300 hover:text-rose-400 transition"
+                          className="p-1 text-slate-300 hover:text-rose-400 transition cursor-pointer"
                           title="Delete photo"
+                          aria-label={`Delete photo ${photo.fileName}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
                       <div
-                        onClick={() => setLightboxPhoto(photo)}
-                        className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex flex-col justify-end text-white cursor-pointer pointer-events-none"
+                        className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex flex-col justify-end text-white pointer-events-none"
                       >
                         <div className="text-[11px] font-bold truncate">{photo.fileName}</div>
                         <div className="text-[10px] text-slate-300 flex items-center justify-between mt-0.5">
@@ -3252,63 +3256,7 @@ export default function DashboardPage() {
           );
         })()}
 
-        {/* Lightbox Modal for Recent Site Photos */}
-        {lightboxPhoto && (
-          <div
-            className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4"
-            onClick={() => setLightboxPhoto(null)}
-          >
-            <div
-              className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-3.5 bg-slate-950 flex items-center justify-between text-white border-b border-slate-800">
-                <div>
-                  <div className="font-bold text-sm">{lightboxPhoto.fileName}</div>
-                  <div className="text-xs text-slate-400">
-                    Uploaded by {lightboxPhoto.uploadedBy} on {formatDate(lightboxPhoto.createdAt)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition shadow-xs"
-                    title="Replace with an image from your device"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Replace Photo</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => handleDashboardPhotoReplace(lightboxPhoto.id, e)}
-                      disabled={uploadingPhoto}
-                      className="hidden"
-                    />
-                  </label>
-                  <button
-                    onClick={() => handleDashboardPhotoDelete(lightboxPhoto.id, lightboxPhoto.fileName)}
-                    className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 hover:text-rose-300 transition"
-                    title="Delete photo"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setLightboxPhoto(null)}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 flex items-center justify-center p-3 bg-black/70 overflow-hidden">
-                <img
-                  src={lightboxPhoto.url}
-                  alt={lightboxPhoto.fileName}
-                  className="max-h-[75vh] max-w-full object-contain rounded-lg shadow-lg"
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Lightbox modal removed as per issue log - photos viewable directly via open in new tab link */}
       </div>
     </Shell>
   );

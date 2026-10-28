@@ -7,6 +7,7 @@ import Shell from "@/components/layout/Shell";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import {
   ShieldCheck,
+  ShieldAlert,
   Search,
   User,
   Clock,
@@ -90,6 +91,7 @@ function formatFieldValue(key: string, val: any): React.ReactNode {
 export default function AuditPage() {
   const [auditEvents, setAuditEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<"attributes" | "diff" | "json">("attributes");
@@ -97,10 +99,23 @@ export default function AuditPage() {
 
   useEffect(() => {
     fetch("/api/audit")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success) setAuditEvents(res.data);
+      .then(async (r) => {
+        if (r.status === 403) {
+          setError("Access Denied: Your account role does not have authorization to view immutable audit logs.");
+          return null;
+        }
+        if (!r.ok) {
+          const errData = await r.json().catch(() => ({}));
+          setError(errData.error || `Failed to fetch audit logs (HTTP ${r.status})`);
+          return null;
+        }
+        return r.json();
       })
+      .then((res) => {
+        if (res && res.success) setAuditEvents(res.data);
+        else if (res && res.error) setError(res.error);
+      })
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -366,7 +381,23 @@ export default function AuditPage() {
         </div>
 
         {/* Audit Log Table */}
-        {loading ? (
+        {error ? (
+          <div className="p-8 text-center bg-white rounded-xl border border-red-200 shadow-sm max-w-xl mx-auto my-12">
+            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-200">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Access Denied (403 Forbidden)</h3>
+            <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+              {error}
+            </p>
+            <a
+              href="/"
+              className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition"
+            >
+              Return to Dashboard
+            </a>
+          </div>
+        ) : loading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-16 bg-slate-200/60 rounded-xl animate-pulse" />

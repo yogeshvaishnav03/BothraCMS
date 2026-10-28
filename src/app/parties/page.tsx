@@ -241,6 +241,24 @@ export default function PartiesPage() {
       if (saved === "cards" || saved === "table") setView(saved);
     } catch {}
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowModal(false);
+        setBankParty(null);
+        setAuditParty(null);
+      }
+    };
+    if (showModal || bankParty || auditParty) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [showModal, bankParty, auditParty]);
   const changeView = (v: "cards" | "table") => {
     setView(v);
     try {

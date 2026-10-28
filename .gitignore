@@ -28,6 +28,8 @@
 *.db-journal
 /storage/backups/*
 !/storage/backups/.gitkeep
+/backups/*
+!/backups/.gitkeep
 /storage/uploads/*
 !/storage/uploads/.gitkeep
 /prisma/*.db

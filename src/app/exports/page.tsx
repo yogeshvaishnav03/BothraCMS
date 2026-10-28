@@ -62,7 +62,7 @@ export default function ExportsPage() {
   return (
     <Shell>
       <div className="space-y-5">
-        <PageHeader icon={Landmark} title="Accounts export" subtitle="Send bills, payments and customer receipts to your accountant, or import them into Tally." />
+        <PageHeader icon={Landmark} title="Accounts Export" subtitle="Send bills, payments and customer receipts to your accountant, or import them into Tally." />
         {error && <Alert tone="error" onDismiss={() => setError(null)}>{error}</Alert>}
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">

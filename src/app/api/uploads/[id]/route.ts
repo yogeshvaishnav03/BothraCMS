@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import { prisma } from "@/lib/db";
 import { jsonError, handleApiError } from "@/lib/api-response";
-import { getStorageProvider } from "@/lib/storage";
+import { getStorageProvider, getS3Client, createPresignedDownloadUrl } from "@/lib/storage";
 import {
   requireUserContext,
   requireProjectAccess,
@@ -202,6 +202,15 @@ export async function GET(
     }
 
     // Prevent directory traversal and fetch via storage provider
+    // When cloud object storage (R2/S3) is active, issue an authorized signed download redirect (302)
+    // to prevent routing multi-gigabyte daily traffic through the Vercel serverless function runtime.
+    const s3Client = getS3Client();
+    if (s3Client) {
+      const storageKey = attachment?.diskFileName || diskFileName || fileId;
+      const downloadUrl = await createPresignedDownloadUrl(storageKey, originalName, 900);
+      return NextResponse.redirect(downloadUrl, 302);
+    }
+
     const safeDiskName = path.basename(diskFileName);
     const storage = getStorageProvider();
     let fileBuffer = await storage.get(safeDiskName);

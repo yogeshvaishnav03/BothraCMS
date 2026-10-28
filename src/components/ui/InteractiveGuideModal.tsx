@@ -782,10 +782,29 @@ export default function InteractiveGuideModal() {
   const [isOpen, setIsOpen] = useState(false);
   const isHi = language === "hi";
 
+  // Keyboard shortcut listener: Escape closes the modal
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+      // Lock body scroll to prevent underlying page from scrolling
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        window.removeEventListener("keydown", handleKeyDown);
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
   // Find the closest matching guide
-  const activeKey = Object.keys(PAGE_GUIDES).find(
-    (k) => k !== "/" && pathname.startsWith(k)
-  ) || (pathname === "/" ? "/" : "/day-book");
+  const activeKey =
+    Object.keys(PAGE_GUIDES).find((k) => k !== "/" && pathname.startsWith(k)) ||
+    (pathname === "/" ? "/" : "/day-book");
 
   const guide = PAGE_GUIDES[activeKey] || PAGE_GUIDES["/"];
   const Icon = guide.icon;
@@ -798,6 +817,7 @@ export default function InteractiveGuideModal() {
         onClick={() => setIsOpen(true)}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 text-xs font-bold transition shadow-xs cursor-pointer group"
         title={isHi ? "इस पेज का उपयोग कैसे करें? (सरल गाइड)" : "How to use this page? (Interactive Guide)"}
+        aria-label={isHi ? "गाइड / सहायता" : "How to Use"}
       >
         <HelpCircle className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
         <span className="hidden sm:inline">
@@ -809,41 +829,44 @@ export default function InteractiveGuideModal() {
       {/* Interactive Modal */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-hidden"
           onClick={() => setIsOpen(false)}
         >
           <div
-            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200"
+            className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guide-modal-title"
           >
             {/* Header */}
-            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
-                  <Icon className="w-6 h-6" />
+            <div className="bg-slate-900 text-white p-3.5 sm:p-5 flex items-center justify-between gap-3 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
+                  <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base sm:text-lg font-bold text-white">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <h2 id="guide-modal-title" className="text-sm sm:text-base md:text-lg font-bold text-white truncate">
                       {isHi ? guide.titleHi : guide.titleEn}
                     </h2>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold border border-amber-500/30">
+                    <span className="hidden xs:inline-block px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold border border-amber-500/30 whitespace-nowrap">
                       {isHi ? "सरल गाइड" : "Interactive Guide"}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-[11px] sm:text-xs text-slate-400 truncate mt-0.5">
                     {isHi ? guide.subtitleHi : guide.subtitleEn}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 {/* 1-Click language toggle inside modal */}
                 <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700">
                   <button
                     type="button"
                     onClick={() => setLanguage("en")}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                    className={`px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold transition ${
                       !isHi ? "bg-amber-500 text-slate-950" : "text-slate-400 hover:text-white"
                     }`}
                   >
@@ -852,7 +875,7 @@ export default function InteractiveGuideModal() {
                   <button
                     type="button"
                     onClick={() => setLanguage("hi")}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
+                    className={`px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold transition ${
                       isHi ? "bg-amber-500 text-slate-950" : "text-slate-400 hover:text-white"
                     }`}
                   >
@@ -862,7 +885,8 @@ export default function InteractiveGuideModal() {
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                  className="p-1.5 sm:p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition touch-manipulation focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  aria-label={isHi ? "गाइड बंद करें" : "Close Guide"}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -870,16 +894,16 @@ export default function InteractiveGuideModal() {
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 text-slate-800">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-5 text-slate-800 break-words">
               {/* Summary Box */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs sm:text-sm text-slate-800 leading-relaxed flex items-start gap-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 sm:p-4 text-xs sm:text-sm text-slate-800 leading-relaxed flex items-start gap-3">
                 <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                <div>
+                <div className="min-w-0">
                   <div className="font-bold text-amber-900 mb-1">
                     {isHi ? "यह पेज क्या करता है? (सरल भाषा में)" : "What does this page do?"}
                   </div>
-                  <p>{isHi ? guide.summaryHi : guide.summaryEn}</p>
-                  <div className="mt-2 text-xs text-amber-800 font-semibold flex items-center gap-1.5">
+                  <p className="leading-relaxed">{isHi ? guide.summaryHi : guide.summaryEn}</p>
+                  <div className="mt-2 text-xs text-amber-800 font-semibold flex items-center gap-1.5 flex-wrap">
                     <span className="text-amber-900">{isHi ? "उपयोगकर्ता:" : "Who uses this:"}</span>
                     <span>{isHi ? guide.whoUsesHi : guide.whoUsesEn}</span>
                   </div>
@@ -888,18 +912,18 @@ export default function InteractiveGuideModal() {
 
               {/* 3 Easy Steps */}
               <div>
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-600" />
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>
                     {isHi ? "3 आसान चरणों में समझें (काम कैसे करें)" : "How to use in 3 Easy Steps"}
                   </span>
                 </h3>
 
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {guide.steps.map((st) => (
                     <div
                       key={st.number}
-                      className="flex items-start gap-3.5 p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition"
+                      className="flex items-start gap-3 p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition"
                     >
                       <div className="w-7 h-7 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
                         {st.number}
@@ -908,7 +932,7 @@ export default function InteractiveGuideModal() {
                         <h4 className="text-xs sm:text-sm font-bold text-slate-900">
                           {isHi ? st.titleHi : st.titleEn}
                         </h4>
-                        <p className="text-xs text-slate-600 mt-1 leading-normal">
+                        <p className="text-xs text-slate-600 mt-0.5 leading-normal">
                           {isHi ? st.descHi : st.descEn}
                         </p>
                       </div>
@@ -920,8 +944,8 @@ export default function InteractiveGuideModal() {
               {/* Jargon Buster */}
               {guide.jargon && guide.jargon.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-blue-600" />
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
                     <span>
                       {isHi ? "कठिन शब्दों का सरल अर्थ (शब्दावली)" : "Jargon Buster (Simple Dictionary)"}
                     </span>
@@ -944,8 +968,8 @@ export default function InteractiveGuideModal() {
 
               {/* Pro Tips */}
               <div>
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4 text-amber-500" />
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-amber-500 shrink-0" />
                   <span>{isHi ? "सुझाव व शॉर्टकट" : "Helpful Tips & Tricks"}</span>
                 </h3>
                 <ul className="space-y-2">
@@ -955,7 +979,7 @@ export default function InteractiveGuideModal() {
                       className="text-xs text-slate-700 bg-slate-100/80 px-3 py-2 rounded-lg flex items-start gap-2"
                     >
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <span>{tip}</span>
+                      <span className="leading-snug">{tip}</span>
                     </li>
                   ))}
                 </ul>
@@ -963,16 +987,16 @@ export default function InteractiveGuideModal() {
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <div className="text-xs text-slate-500 font-medium">
+            <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+              <div className="text-xs text-slate-500 font-medium truncate pr-2">
                 {isHi ? "💡 कभी भी पूछने के लिए यह बटन दबाएं" : "💡 Click Help anytime you need guidance"}
               </div>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-xs"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-xs shrink-0"
               >
-                {isHi ? "समझ गया, बंद करें" : "Got it, Close"}
+                {isHi ? "समझ गया, बंद करें" : "Got it, Close (Esc)"}
               </button>
             </div>
           </div>

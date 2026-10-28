@@ -4,6 +4,14 @@ import crypto from "crypto";
 
 import os from "os";
 import { put as blobPut, get as blobGet, del as blobDel } from "@vercel/blob";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { prisma } from "@/lib/db";
 
 export interface StorageMetadata {
@@ -566,4 +574,138 @@ export function getStorageProvider(): IStorageProvider {
   }
 
   return new LocalStorageProvider();
+}
+
+/**
+ * Returns a configured AWS S3 / Cloudflare R2 Client instance when cloud credentials exist.
+ */
+export function getS3Client(): S3Client | null {
+  const bucket = process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || process.env.R2_BUCKET;
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.R2_SECRET_ACCESS_KEY;
+
+  if (!bucket || !accessKeyId || !secretAccessKey) return null;
+
+  const endpoint = process.env.S3_ENDPOINT || process.env.R2_ENDPOINT;
+  const region = process.env.AWS_REGION || process.env.S3_REGION || "auto";
+
+  return new S3Client({
+    region,
+    endpoint: endpoint || undefined,
+    credentials: {
+      accessKeyId,
+      secretAccessKey,
+    },
+    forcePathStyle: true,
+  });
+}
+
+export interface PresignedUploadConfig {
+  key: string;
+  mimeType: string;
+  sizeBytes?: number;
+  expiresInSeconds?: number;
+}
+
+export interface PresignedUploadResponse {
+  uploadUrl: string;
+  storageKey: string;
+  fileId: string;
+  method: "PUT";
+  headers: Record<string, string>;
+  expiresInSeconds: number;
+  directUploadSupported: boolean;
+}
+
+/**
+ * Generates a short-lived presigned PUT URL for authorized direct browser-to-storage uploads.
+ * Offloads multi-gigabyte daily traffic completely from Vercel serverless functions.
+ */
+export async function createPresignedUploadUrl(
+  config: PresignedUploadConfig
+): Promise<PresignedUploadResponse | null> {
+  const client = getS3Client();
+  const bucket = process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || process.env.R2_BUCKET;
+
+  if (!client || !bucket) {
+    return null;
+  }
+
+  const expiresIn = config.expiresInSeconds || 900; // 15 minutes
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: config.key,
+    ContentType: config.mimeType,
+  });
+
+  const uploadUrl = await getSignedUrl(client, command, { expiresIn });
+
+  return {
+    uploadUrl,
+    storageKey: config.key,
+    fileId: path.basename(config.key),
+    method: "PUT",
+    headers: {
+      "Content-Type": config.mimeType,
+    },
+    expiresInSeconds: expiresIn,
+    directUploadSupported: true,
+  };
+}
+
+/**
+ * Verifies that an object was actually received in the storage provider and checks its size.
+ */
+export async function verifyObjectExists(
+  key: string
+): Promise<{ exists: boolean; size?: number; mimeType?: string }> {
+  const client = getS3Client();
+  const bucket = process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || process.env.R2_BUCKET;
+
+  if (client && bucket) {
+    try {
+      const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      return {
+        exists: true,
+        size: head.ContentLength,
+        mimeType: head.ContentType,
+      };
+    } catch {
+      return { exists: false };
+    }
+  }
+
+  // Fallback to local storage provider
+  const storage = getStorageProvider();
+  const buf = await storage.get(key);
+  if (buf) {
+    return { exists: true, size: buf.length };
+  }
+  return { exists: false };
+}
+
+/**
+ * Generates an authorized signed download URL for private object access.
+ */
+export async function createPresignedDownloadUrl(
+  key: string,
+  originalName?: string,
+  expiresInSeconds = 3600
+): Promise<string> {
+  const client = getS3Client();
+  const bucket = process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || process.env.R2_BUCKET;
+
+  if (client && bucket) {
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ResponseContentDisposition: originalName
+        ? `inline; filename="${encodeURIComponent(originalName)}"`
+        : undefined,
+    });
+    return await getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+  }
+
+  const storage = getStorageProvider();
+  return await storage.getSignedDownloadUrl(key, originalName, expiresInSeconds);
 }

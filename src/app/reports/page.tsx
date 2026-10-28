@@ -24,13 +24,24 @@ export default function ReportsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchReportsData = () => {
     setLoading(true);
+    setError(null);
     Promise.all([
-      fetch("/api/materials").then((r) => r.json()),
-      fetch("/api/parties").then((r) => r.json()),
-      fetch("/api/attendance").then((r) => r.json()),
+      fetch("/api/materials").then(async (r) => {
+        if (!r.ok) throw new Error(`Materials fetch failed (HTTP ${r.status})`);
+        return r.json();
+      }),
+      fetch("/api/parties").then(async (r) => {
+        if (!r.ok) throw new Error(`Parties fetch failed (HTTP ${r.status})`);
+        return r.json();
+      }),
+      fetch("/api/attendance").then(async (r) => {
+        if (!r.ok) throw new Error(`Attendance fetch failed (HTTP ${r.status})`);
+        return r.json();
+      }),
     ])
       .then(([matRes, partyRes, attRes]) => {
         setMaterials(matRes.data || []);
@@ -39,8 +50,13 @@ export default function ReportsPage() {
       })
       .catch((err) => {
         console.error("Authoritative reports load failed:", err);
+        setError(err.message || "Failed to load authoritative report datasets");
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchReportsData();
   }, []);
 
   const filteredAttendance = attendance.filter((a) => {
@@ -102,7 +118,7 @@ export default function ReportsPage() {
 
   const exportStockCSV = () => {
     const headers = ["SKU", "Material Name", "Category", "Unit", "Current Stock", "Min Stock", "Status"];
-    const rows = materials.map((m) => [
+    const rows = excelStock.filteredData.map((m) => [
       m.sku,
       `"${m.name}"`,
       m.category?.name || "General",
@@ -124,7 +140,7 @@ export default function ReportsPage() {
 
   const exportPayablesCSV = () => {
     const headers = ["Party Name", "Type", "GSTIN", "Total Billed (INR)", "Total Paid (INR)", "Outstanding Balance (INR)"];
-    const rows = parties.map((p) => [
+    const rows = excelPayables.filteredData.map((p) => [
       `"${p.name}"`,
       p.partyType,
       p.taxIdentifier || "—",
@@ -155,7 +171,7 @@ export default function ReportsPage() {
       "Status",
       "Notes",
     ];
-    const rows = filteredAttendance.map((a) => [
+    const rows = excelAttendanceReport.filteredData.map((a) => [
       a.workDate,
       `"${a.workforceMember?.name || ""}"`,
       a.workforceMember?.employeeCode || "",
@@ -177,6 +193,33 @@ export default function ReportsPage() {
     link.click();
     document.body.removeChild(link);
   };
+
+  const totalStockQty = useMemo(
+    () => excelStock.filteredData.reduce((acc, m) => acc + (Number(m.totalStock) || 0), 0),
+    [excelStock.filteredData]
+  );
+  const lowStockCount = useMemo(
+    () => excelStock.filteredData.filter((m) => m.isLowStock).length,
+    [excelStock.filteredData]
+  );
+
+  const totalPayablesBilled = useMemo(
+    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.totalBilled) || 0), 0) / 100,
+    [excelPayables.filteredData]
+  );
+  const totalPayablesPaid = useMemo(
+    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.totalPaid) || 0), 0) / 100,
+    [excelPayables.filteredData]
+  );
+  const totalOutstandingLiability = useMemo(
+    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.outstandingBalance) || 0), 0) / 100,
+    [excelPayables.filteredData]
+  );
+
+  const presentAttendanceCount = useMemo(
+    () => excelAttendanceReport.filteredData.filter((a) => a.status === "PRESENT" || a.status === "OVERTIME").length,
+    [excelAttendanceReport.filteredData]
+  );
 
   return (
     <Shell>
@@ -300,116 +343,204 @@ export default function ReportsPage() {
         </div>
 
         {/* Report Content */}
-        {loading ? (
+        {error ? (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs text-red-800">
+            <span>{error}</span>
+            <button
+              onClick={fetchReportsData}
+              className="px-3 py-1 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition"
+            >
+              Retry
+            </button>
+          </div>
+        ) : loading ? (
           <div className="h-64 bg-slate-200/60 rounded-xl animate-pulse" />
         ) : reportType === "STOCK" ? (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <ExcelTableToolbar
-              table={excelStock}
-              columns={stockColumns}
-              tableName="stock inventory"
-              showSearch={true}
-              showExport={true}
-            />
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
-                  <tr>
-                    {stockColumns.map((col) => (
-                      <ExcelColumnHeader
-                        key={col.key}
-                        column={col}
-                        table={excelStock}
-                        theme="darkHeader"
-                      />
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {excelStock.filteredData.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-4 font-mono text-xs font-bold text-slate-900">
-                        {m.sku}
-                      </td>
-                      <td className="py-3.5 px-4 font-bold text-slate-800">{m.name}</td>
-                      <td className="py-3.5 px-4 text-slate-600">{m.category?.name || "General"}</td>
-                      <td className="py-3.5 px-4 text-right font-black tabular-nums text-slate-900">
-                        {formatQuantity(m.totalStock, m.unitCode)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-medium text-slate-500 tabular-nums">
-                        {formatQuantity(m.minStockQty, m.unitCode)}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        {m.isLowStock ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
-                            LOW STOCK
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                            ADEQUATE
-                          </span>
-                        )}
-                      </td>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Materials Tracked</span>
+                <div className="text-lg font-black text-slate-900 mt-0.5">{excelStock.filteredData.length} SKUs</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Total Stock Quantity</span>
+                <div className="text-lg font-black text-emerald-700 mt-0.5">{totalStockQty.toLocaleString()} Units</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Low Stock Alerts</span>
+                <div className="text-lg font-black text-amber-600 mt-0.5">{lowStockCount} Low Items</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelStock}
+                columns={stockColumns}
+                tableName="stock inventory"
+                showSearch={true}
+                showExport={true}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      {stockColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelStock}
+                          theme="darkHeader"
+                        />
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {excelStock.filteredData.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-xs text-slate-500">
+                          No stock inventory records match the current filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      excelStock.filteredData.map((m) => (
+                        <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4 font-mono text-xs font-bold text-slate-900">
+                            {m.sku}
+                          </td>
+                          <td className="py-3.5 px-4 font-bold text-slate-800">{m.name}</td>
+                          <td className="py-3.5 px-4 text-slate-600">{m.category?.name || "General"}</td>
+                          <td className="py-3.5 px-4 text-right font-black tabular-nums text-slate-900">
+                            {formatQuantity(m.totalStock, m.unitCode)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-medium text-slate-500 tabular-nums">
+                            {formatQuantity(m.minStockQty, m.unitCode)}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            {m.isLowStock ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                                LOW STOCK
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                ADEQUATE
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         ) : reportType === "PAYABLES" ? (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <ExcelTableToolbar
-              table={excelPayables}
-              columns={payablesColumns}
-              tableName="payables"
-              showSearch={true}
-              showExport={true}
-            />
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
-                  <tr>
-                    {payablesColumns.map((col) => (
-                      <ExcelColumnHeader
-                        key={col.key}
-                        column={col}
-                        table={excelPayables}
-                        theme="darkHeader"
-                      />
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {excelPayables.filteredData.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-900">{p.name}</td>
-                      <td className="py-3.5 px-4">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                          {p.partyType}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-500">
-                        {p.taxIdentifier || "—"}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-medium text-slate-700 tabular-nums">
-                        {formatCurrency(p.totalBilled)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-medium text-emerald-600 tabular-nums">
-                        {formatCurrency(p.totalPaid)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-black tabular-nums">
-                        <span className={p.outstandingBalance > 0 ? "text-amber-600" : "text-slate-900"}>
-                          {formatCurrency(p.outstandingBalance)}
-                        </span>
-                      </td>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Total Billed by Parties</span>
+                <div className="text-lg font-black text-slate-900 mt-0.5">{formatCurrency(totalPayablesBilled)}</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Total Settled / Paid</span>
+                <div className="text-lg font-black text-emerald-700 mt-0.5">{formatCurrency(totalPayablesPaid)}</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Outstanding Liability</span>
+                <div className="text-lg font-black text-rose-600 mt-0.5">{formatCurrency(totalOutstandingLiability)}</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+              <ExcelTableToolbar
+                table={excelPayables}
+                columns={payablesColumns}
+                tableName="payables"
+                showSearch={true}
+                showExport={true}
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      {payablesColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelPayables}
+                          theme="darkHeader"
+                        />
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {excelPayables.filteredData.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-xs text-slate-500">
+                          No party payable records match the current filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      excelPayables.filteredData.map((p) => (
+                        <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4 font-bold text-slate-900">{p.name}</td>
+                          <td className="py-3.5 px-4">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                              {p.partyType}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-xs text-slate-500">
+                            {p.taxIdentifier || "—"}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-medium text-slate-700 tabular-nums">
+                            {formatCurrency(p.totalBilled)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-medium text-emerald-600 tabular-nums">
+                            {formatCurrency(p.totalPaid)}
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-black tabular-nums">
+                            <span className={p.outstandingBalance > 0 ? "text-amber-600" : "text-slate-900"}>
+                              {formatCurrency(p.outstandingBalance)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {excelPayables.filteredData.length > 0 && (
+                    <tfoot>
+                      <tr className="bg-slate-100 font-bold text-xs text-slate-900">
+                        <td colSpan={3} className="py-3 px-4 text-right">Grand Total:</td>
+                        <td className="py-3 px-4 text-right">{formatCurrency(totalPayablesBilled)}</td>
+                        <td className="py-3 px-4 text-right text-emerald-700">{formatCurrency(totalPayablesPaid)}</td>
+                        <td className="py-3 px-4 text-right text-rose-700">{formatCurrency(totalOutstandingLiability)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Attendance Entries</span>
+                <div className="text-lg font-black text-slate-900 mt-0.5">{excelAttendanceReport.filteredData.length} Records</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Present / Overtime</span>
+                <div className="text-lg font-black text-emerald-700 mt-0.5">{presentAttendanceCount} Workers</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Active Filter Period</span>
+                <div className="text-xs font-bold text-slate-700 mt-1">
+                  {startDate || endDate ? `${startDate || "Beginning"} to ${endDate || "Present"}` : "All Records"}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             <ExcelTableToolbar
               table={excelAttendanceReport}
               columns={attendanceReportColumns}
@@ -469,8 +600,9 @@ export default function ReportsPage() {
               </table>
             </div>
           </div>
-        )}
-      </div>
-    </Shell>
+        </div>
+      )}
+    </div>
+  </Shell>
   );
 }

@@ -148,6 +148,21 @@ export default function PlaceOrderModal({
       .finally(() => setLoading(false));
   }, [isOpen, initialMaterial]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const currentMaterial =
@@ -235,6 +250,9 @@ export default function PlaceOrderModal({
     >
       <div
         className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="place-order-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -244,7 +262,7 @@ export default function PlaceOrderModal({
               <ShoppingCart className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 id="place-order-modal-title" className="text-base font-bold text-white flex items-center gap-2">
                 <span>{t("order.placeOrderToVendor", "Place Order to Vendor")}</span>
                 <span className="text-[10px] font-mono bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded uppercase">
                   Super Admin Approval Required
@@ -258,6 +276,7 @@ export default function PlaceOrderModal({
           <button
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+            aria-label="Close order modal"
           >
             <X className="w-5 h-5" />
           </button>

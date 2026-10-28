@@ -179,6 +179,27 @@ export default function TasksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterTab, selectedEmployeeId]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowCreateModal(false);
+        setShowEditModal(false);
+        setShowStatusModal(false);
+        setShowCommentsModal(false);
+        setShowAttachmentsModal(false);
+        setAuditTarget(null);
+      }
+    };
+    if (showCreateModal || showEditModal || showStatusModal || showCommentsModal || showAttachmentsModal || auditTarget) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [showCreateModal, showEditModal, showStatusModal, showCommentsModal, showAttachmentsModal, auditTarget]);
+
   // Notifications link to /tasks?task=<id>: open that task's history once the list is in.
   useEffect(() => {
     if (deepLinkHandled.current || loading) return;

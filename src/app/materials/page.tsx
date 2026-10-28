@@ -370,6 +370,26 @@ export default function MaterialsPage() {
   }, []);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowReceiveModal(false);
+        setShowIssueModal(false);
+        setShowTransferModal(false);
+        setShowCreateMaterialModal(false);
+        setShowPlaceOrderModal(false);
+      }
+    };
+    if (showReceiveModal || showIssueModal || showTransferModal || showCreateMaterialModal || showPlaceOrderModal) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [showReceiveModal, showIssueModal, showTransferModal, showCreateMaterialModal, showPlaceOrderModal]);
+
+  useEffect(() => {
     if (stores.length > 0) {
       if (!selectedStoreId || !stores.some((s) => s.id === selectedStoreId)) {
         setSelectedStoreId(stores[0].id);

@@ -55,9 +55,33 @@ export default function AuditHistoryModal({
       .finally(() => setLoading(false));
   }, [entityType, entityId]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="audit-modal-title"
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 shrink-0">
           <div className="flex items-center gap-2">
@@ -65,13 +89,17 @@ export default function AuditHistoryModal({
               <History className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-base">{title}</h3>
+              <h3 id="audit-modal-title" className="font-bold text-slate-900 text-base">{title}</h3>
               <p className="text-xs text-slate-500">
                 Immutable audit trail for {entityType} ID: <span className="font-mono">{entityId.slice(0, 8)}...</span>
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+          <button
+            onClick={onClose}
+            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition"
+            aria-label="Close audit history"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
