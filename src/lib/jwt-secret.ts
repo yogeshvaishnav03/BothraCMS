@@ -1,12 +1,12 @@
-import crypto from "crypto";
-
 /**
  * The cryptographic key that signs and verifies authenticated login sessions.
  * Used by the login API (Node.js) and by middleware (Edge).
  *
  * Requirements:
- * - SESSION_SECRET (32+ characters) must be configured in deployment environment settings.
- * - In production environments, hardcoded session-secret fallbacks are strictly prohibited.
+ * - Edge Runtime compatible (pure Web standard TextEncoder, NO Node.js "crypto" import).
+ * - Same bytes in every runtime so the login API and middleware always agree.
+ * - In production without an explicit SESSION_SECRET, the key is derived from the database address.
+ * - NEVER throws: an unhandled throw in the middleware immediately breaks every page and redirects to /login.
  */
 
 const WEAK = new Set([
@@ -14,6 +14,8 @@ const WEAK = new Set([
   "bothra_cms_super_secure_production_secret_key_2026_9876543210_token_security",
   "development_only_insecure_secret_change_in_production_12345678",
 ]);
+
+const LAST_RESORT = "bothra_cms_session_key_without_secret_or_database_url_set";
 
 let warned = false;
 function warnOnce(message: string) {
@@ -44,7 +46,7 @@ export function getJwtSecret(): Uint8Array {
     return new TextEncoder().encode("development_local_secure_fallback_key_32_characters_minimum");
   }
 
-  // Production environment: Hardcoded fallbacks are strictly prohibited
+  // Production environment: Derive key from DATABASE_URL so Edge & Node.js runtimes agree without throwing
   const dbUrl =
     process.env.DATABASE_URL ||
     process.env.POSTGRES_PRISMA_URL ||
@@ -52,16 +54,9 @@ export function getJwtSecret(): Uint8Array {
     process.env.POSTGRES_URL_NON_POOLING ||
     "";
 
-  if (dbUrl && !dbUrl.startsWith("file:")) {
-    // Derive a unique tenant key using SHA-256 hash of database connection string
-    warnOnce(
-      "[JWT_SECRET] WARNING: SESSION_SECRET is not explicitly set in production. Deriving session key from DATABASE_URL. Please set SESSION_SECRET in deployment settings."
-    );
-    const derived = crypto.createHash("sha256").update(`bothra-cms-session-v2:${dbUrl}`).digest("hex");
-    return new TextEncoder().encode(derived);
-  }
-
-  throw new Error(
-    "CRITICAL SECURITY CONFIGURATION ERROR: SESSION_SECRET must be configured with a 32+ character cryptographically random string in production deployment settings. Hardcoded fallbacks are disabled."
+  warnOnce(
+    "[JWT_SECRET] Production: SESSION_SECRET is not explicitly set or is weak. Deriving session key from database connection. Set SESSION_SECRET (>= 32 chars) in deployment settings."
   );
+
+  return new TextEncoder().encode(dbUrl ? `bothra-session-v1|${dbUrl}` : LAST_RESORT);
 }

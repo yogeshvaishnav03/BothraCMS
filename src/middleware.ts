@@ -149,7 +149,8 @@ export async function middleware(req: NextRequest) {
       try {
         const { payload } = await jwtVerify(cookieToken, getJwtSecret(), { algorithms: ["HS256"] });
         verifiedPayload = payload;
-      } catch {
+      } catch (err: any) {
+        console.warn(`[AUTH MIDDLEWARE] Mutative CSRF-cookie token verification failed on ${pathname}:`, err?.message || err);
         return NextResponse.json(
           { success: false, error: { code: "UNAUTHORIZED", message: "Session expired or invalid" } },
           { status: 401 }
@@ -164,7 +165,8 @@ export async function middleware(req: NextRequest) {
         const { payload } = await jwtVerify(bearerToken, getJwtSecret(), { algorithms: ["HS256"] });
         verifiedPayload = payload;
         // Valid Bearer authenticated -> CSRF exemption granted
-      } catch {
+      } catch (err: any) {
+        console.warn(`[AUTH MIDDLEWARE] Bearer token verification failed on ${pathname}:`, err?.message || err);
         return NextResponse.json(
           { success: false, error: { code: "UNAUTHORIZED", message: "Invalid or expired Bearer token" } },
           { status: 401 }
@@ -199,7 +201,8 @@ export async function middleware(req: NextRequest) {
     try {
       const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
       verifiedPayload = payload;
-    } catch {
+    } catch (err: any) {
+      console.warn(`[AUTH MIDDLEWARE] Session token verification rejected on ${pathname}:`, err?.message || err);
       if (pathname.startsWith("/api/")) {
         return NextResponse.json(
           { success: false, error: { code: "UNAUTHORIZED", message: "Session expired or invalid" } },

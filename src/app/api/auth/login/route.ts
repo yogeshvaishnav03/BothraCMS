@@ -99,11 +99,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Determine if the current connection is HTTPS (direct or through reverse proxy)
+    const forwardedProto = req.headers.get("x-forwarded-proto");
+    const isHttps = forwardedProto
+      ? forwardedProto.split(",")[0].trim().toLowerCase() === "https"
+      : req.nextUrl.protocol === "https:";
+
     res.cookies.set({
       name: SESSION_COOKIE_NAME,
       value: token,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production" && !req.headers.get("host")?.includes("localhost") && !req.headers.get("host")?.includes("127.0.0.1"),
+      secure: isHttps,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7, // 7 days

@@ -34,7 +34,13 @@ export default function LoginPage() {
         }
         setError(msg);
       } else {
-        window.location.href = "/";
+        const params = new URLSearchParams(window.location.search);
+        const destination = params.get("from");
+        const safeDestination =
+          destination && destination.startsWith("/") && !destination.startsWith("//")
+            ? destination
+            : "/";
+        window.location.href = safeDestination;
       }
     } catch {
       setError("Unable to connect to server. Check your connection.");
