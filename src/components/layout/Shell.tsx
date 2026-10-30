@@ -741,7 +741,7 @@ export default function Shell({ children }: ShellProps) {
                     onClick={handleMarkAllAsRead}
                     className="text-[11px] text-amber-400 hover:text-white underline font-semibold transition"
                   >
-                    Mark all read
+                    Mark all as read
                   </button>
                 )}
                 <button

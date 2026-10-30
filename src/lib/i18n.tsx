@@ -58,6 +58,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.finance": "Finance & Bills",
     "nav.workforce": "Workforce",
     "nav.attendance": "Attendance",
+    "nav.muster": "Site Muster",
     "nav.reports": "Reports & Analytics",
     "nav.audit": "Audit Logs",
     "nav.settings": "Settings",
@@ -124,6 +125,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "order.approvalQuery": "Approval Query / Justification",
     "order.queryRaised": "Order Query Raised to Super Admin",
     "order.superAdminApprovalRequired": "Super Admin approval required before vendor dispatch",
+    "order.pendingQueries": "Pending Order Approval Queries",
 
     // Chat & Team Messaging
     "chat.title": "Team Messages",
@@ -145,6 +147,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "chat.noGroups": "No groups created yet. Groups are created only by Super Admin upon request.",
     "chat.selectConversation": "Select an employee or group to view messages.",
     "chat.groupCreatedNotice": "Groups can only be created by Super Admin upon request.",
+    "chat.newMessageFrom": "New message from",
     "label.date": "Date",
     "label.time": "Time",
     "label.status": "Status",
@@ -297,6 +300,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.finance": "वित्त और बिल",
     "nav.workforce": "कार्यबल (श्रमिक)",
     "nav.attendance": "उपस्थिति (हाजिरी)",
+    "nav.muster": "साइट मस्टर (हाजिरी बही)",
     "nav.reports": "रिपोर्ट्स और विश्लेषण",
     "nav.audit": "ऑडिट लॉग्स",
     "nav.settings": "सेटिंग्स",
@@ -385,6 +389,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "chat.noGroups": "अभी कोई समूह नहीं बनाया गया है। समूह केवल सुपर एडमिन द्वारा बनाए जा सकते हैं।",
     "chat.selectConversation": "संदेश देखने के लिए किसी कर्मचारी या समूह का चयन करें।",
     "chat.groupCreatedNotice": "ग्रुप केवल सुपर एडमिन द्वारा आवश्यकता पड़ने पर ही बनाए जाते हैं।",
+    "chat.newMessageFrom": "नया संदेश प्रेषक",
 
     // Common Labels
     "label.date": "दिनांक",
