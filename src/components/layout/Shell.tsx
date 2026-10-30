@@ -163,6 +163,7 @@ export default function Shell({ children }: ShellProps) {
     if (unreadCount === 0) return;
     const prevNotifications = [...notifications];
     const prevCount = unreadCount;
+    const alertIds = notifications.map((n) => n.id);
 
     // Optimistic update
     setUnreadCount(0);
@@ -172,7 +173,7 @@ export default function Shell({ children }: ShellProps) {
       const res = await fetch("/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true }),
+        body: JSON.stringify({ all: true, alertIds }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
@@ -727,9 +728,11 @@ export default function Shell({ children }: ShellProps) {
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 text-amber-400" />
                 <span className="text-sm font-bold">{t("nav.alerts", "Operational Alerts")}</span>
-                <span className="text-xs bg-gradient-brand text-slate-950 font-bold px-1.5 py-0.5 rounded-full">
-                  {unreadCount}
-                </span>
+                {unreadCount > 0 && (
+                  <span className="text-xs bg-gradient-brand text-slate-950 font-bold px-1.5 py-0.5 rounded-full">
+                    {unreadCount}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
