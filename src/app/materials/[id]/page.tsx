@@ -456,7 +456,7 @@ export default function MaterialDetailPage() {
                             </span>
                           )}
                           {po.rejectionReason && (
-                            <span className="text-[10px] text-rose-600 italic max-w-xs truncate" title={po.rejectionReason}>
+                            <span className="text-[10px] text-rose-600 italic break-words whitespace-normal" title={po.rejectionReason}>
                               Reason: {po.rejectionReason}
                             </span>
                           )}

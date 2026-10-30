@@ -999,7 +999,7 @@ export default function SuperAdminDashboardPage() {
                             </span>
                           </div>
                           {p.party && (
-                            <div className="text-[10px] text-slate-500">Party ID: {p.party.id.slice(0, 8)}...</div>
+                            <div className="text-[10px] text-slate-500">Party ID: {p.party.id}</div>
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-right font-black text-emerald-700 text-sm tabular-nums">

@@ -741,14 +741,14 @@ export default function WorkforcePage() {
                           </td>
 
                           {/* Contractor */}
-                          <td className="py-3.5 px-4 whitespace-nowrap text-slate-700">
+                          <td className="py-3.5 px-4 text-slate-700">
                             {r.contractorName ? (
                               <span className="font-semibold text-slate-800">{r.contractorName}</span>
                             ) : (
                               <span className="text-slate-400 italic">Direct / Self</span>
                             )}
                             {r.notes && (
-                              <div className="text-[10px] text-slate-500 truncate max-w-[150px]">
+                              <div className="text-[10px] text-slate-500 break-words whitespace-normal">
                                 {r.notes}
                               </div>
                             )}

@@ -706,7 +706,7 @@ export default function MeasurementBookPage() {
                         <td className="p-4">
                           <div className="font-semibold text-slate-900">{entry.itemDescription}</div>
                           <div className="text-xs text-slate-400 font-mono mt-0.5">
-                            ID: {entry.id.slice(0, 8)}... | {new Date(entry.createdAt).toLocaleDateString("en-IN")}
+                            ID: {entry.id} | {new Date(entry.createdAt).toLocaleDateString("en-IN")}
                           </div>
                         </td>
 

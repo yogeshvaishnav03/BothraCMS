@@ -428,12 +428,12 @@ export function ExcelColumnHeader<T = any>({
               table.handleSort(column.key);
             }
           }}
-          className={`flex items-center gap-2 font-bold transition truncate text-left pr-1 cursor-pointer group/sort ${
+          className={`flex items-center gap-2 font-bold transition text-left pr-1 cursor-pointer group/sort ${
             isDark ? "text-slate-200 hover:text-amber-400" : "text-slate-800 hover:text-amber-600"
           }`}
           title={column.sortable !== false ? `Click to sort by ${column.label}` : column.label}
         >
-          <span className="truncate">{column.label}</span>
+          <span className="break-words whitespace-normal">{column.label}</span>
           {column.sortable !== false && isSorted && (
             <span className="shrink-0 ml-1">
               {table.sortDirection === "asc" ? (
@@ -863,7 +863,7 @@ export default function ExcelTable<T = any>({
                     return (
                       <td
                         key={col.key}
-                        className={`p-3 text-slate-700 ${col.className || ""} ${
+                        className={`p-3 text-slate-700 break-words whitespace-normal ${col.className || ""} ${
                           col.align === "right"
                             ? "text-right"
                             : col.align === "center"

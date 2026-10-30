@@ -89,7 +89,7 @@ export default function DayBookPage() {
         render: (p) => (
           <div>
             <div className="font-bold text-slate-900">{p.party?.name || "Direct Expense"}</div>
-            {p.notes && <div className="text-[11px] text-slate-400 italic truncate max-w-xs">{p.notes}</div>}
+            {p.notes && <div className="text-[11px] text-slate-400 italic break-words whitespace-normal">{p.notes}</div>}
           </div>
         ),
       },
@@ -269,7 +269,7 @@ export default function DayBookPage() {
         key: "notes",
         label: "Notes",
         accessor: (h) => h.notes || "—",
-        render: (h) => <span className="text-slate-500 max-w-xs truncate block" title={h.notes || ""}>{h.notes || "—"}</span>,
+        render: (h) => <span className="text-slate-500 break-words whitespace-normal block" title={h.notes || ""}>{h.notes || "—"}</span>,
       },
     ],
     []

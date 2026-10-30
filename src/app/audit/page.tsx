@@ -239,7 +239,7 @@ export default function AuditPage() {
       chips.push(
         <span
           key="name"
-          className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-medium font-sans truncate max-w-[140px]"
+          className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-medium font-sans break-words whitespace-normal"
           title={data.name}
         >
           {data.name}
@@ -252,7 +252,7 @@ export default function AuditPage() {
       chips.push(
         <span
           key="party"
-          className="inline-flex items-center gap-1 bg-purple-50 text-purple-900 border border-purple-200/80 px-2 py-0.5 rounded text-[11px] font-medium font-sans truncate max-w-[140px]"
+          className="inline-flex items-center gap-1 bg-purple-50 text-purple-900 border border-purple-200/80 px-2 py-0.5 rounded text-[11px] font-medium font-sans break-words whitespace-normal"
           title={data.partyName}
         >
           {data.partyName}
@@ -314,7 +314,7 @@ export default function AuditPage() {
         chips.push(
           <span
             key={k}
-            className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-mono truncate max-w-[130px]"
+            className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-mono break-all whitespace-normal"
             title={`${k}: ${val}`}
           >
             {k}: {val}
@@ -477,13 +477,13 @@ export default function AuditPage() {
                       </td>
                       <td className="py-3.5 px-4 text-slate-600 font-sans">
                         <div className="font-semibold text-slate-800">{e.entityType}</div>
-                        <div className="text-[10px] text-slate-400 font-mono truncate max-w-[120px]" title={e.entityId}>
+                        <div className="text-[10px] text-slate-400 font-mono break-all whitespace-normal" title={e.entityId}>
                           {e.entityId}
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 font-sans text-xs text-slate-700 max-w-[220px]">
+                      <td className="py-3.5 px-4 font-sans text-xs text-slate-700 max-w-[220px] break-words">
                         {e.reason ? (
-                          <span className="font-medium text-amber-900 bg-amber-50 px-2 py-1 rounded border border-amber-200/60 block line-clamp-2">
+                          <span className="font-medium text-amber-900 bg-amber-50 px-2 py-1 rounded border border-amber-200/60 block break-words whitespace-normal">
                             {e.reason}
                           </span>
                         ) : (

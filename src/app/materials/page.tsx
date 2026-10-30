@@ -859,7 +859,7 @@ export default function MaterialsPage() {
                           </span>
                         )}
                         {m.alertReason && m.isLowStock && (
-                          <div className="text-[10px] text-slate-500 mt-0.5 max-w-[150px] truncate mx-auto font-medium" title={m.alertReason}>
+                          <div className="text-[10px] text-slate-500 mt-0.5 break-words whitespace-normal mx-auto font-medium" title={m.alertReason}>
                             {m.alertReason}
                           </div>
                         )}

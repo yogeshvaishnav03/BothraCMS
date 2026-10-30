@@ -1814,12 +1814,12 @@ export default function FinancePage() {
                               {p.method}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-xs max-w-xs">
-                            <div className="text-slate-700 truncate" title={p.approvalQuery || p.notes || ""}>
+                          <td className="py-3 px-4 text-xs max-w-xs break-words">
+                            <div className="text-slate-700 break-words whitespace-normal" title={p.approvalQuery || p.notes || ""}>
                               {p.approvalQuery || p.notes || "—"}
                             </div>
                             {isRejected && p.rejectionReason && (
-                              <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
+                              <div className="text-[10px] text-rose-600 font-semibold mt-0.5 break-words whitespace-normal">
                                 Declined: {p.rejectionReason}
                               </div>
                             )}

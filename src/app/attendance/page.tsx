@@ -1360,10 +1360,10 @@ export default function AttendancePage() {
                           </span>
                         </td>
 
-                        <td className="py-3 px-4 whitespace-nowrap text-slate-700">
+                        <td className="py-3 px-4 text-slate-700">
                           <div className="flex items-center gap-1 font-semibold">
                             <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="truncate max-w-[150px]">
+                            <span className="break-words whitespace-normal">
                               {s.site?.name || s.project?.name || "Main Site"}
                             </span>
                           </div>

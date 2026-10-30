@@ -78,6 +78,42 @@
     font-feature-settings: "tnum";
   }
 
+  /* Wrap long table text to next line instead of truncating with '...' */
+  table th,
+  table td {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  table td .truncate,
+  table td.truncate,
+  table th .truncate,
+  table th.truncate,
+  table [class*="truncate"] {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  table [class*="line-clamp"] {
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  table [class*="ellipsis"] {
+    text-overflow: clip !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
   /* Visible keyboard focus everywhere, without changing mouse/touch styling */
   a:focus-visible,
   button:focus-visible,
