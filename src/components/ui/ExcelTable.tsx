@@ -5,7 +5,6 @@ import {
   Filter,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown,
   Search,
   X,
   Check,
@@ -435,16 +434,12 @@ export function ExcelColumnHeader<T = any>({
           title={column.sortable !== false ? `Click to sort by ${column.label}` : column.label}
         >
           <span className="truncate">{column.label}</span>
-          {column.sortable !== false && (
+          {column.sortable !== false && isSorted && (
             <span className="shrink-0 ml-1">
-              {isSorted ? (
-                table.sortDirection === "asc" ? (
-                  <ArrowUp className="w-3.5 h-3.5 text-amber-500 stroke-[2.5]" />
-                ) : (
-                  <ArrowDown className="w-3.5 h-3.5 text-amber-500 stroke-[2.5]" />
-                )
+              {table.sortDirection === "asc" ? (
+                <ArrowUp className="w-3.5 h-3.5 text-amber-500 stroke-[2.5]" />
               ) : (
-                <ArrowUpDown className={`w-3 h-3 ${isDark ? "text-slate-500 group-hover/sort:text-slate-300" : "text-slate-400 group-hover/sort:text-slate-600"} opacity-70 transition`} />
+                <ArrowDown className="w-3.5 h-3.5 text-amber-500 stroke-[2.5]" />
               )}
             </span>
           )}

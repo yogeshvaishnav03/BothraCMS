@@ -21,4 +21,12 @@ describe("Table Minimum Height Specification", () => {
     // ExcelTable wrapper or table container must have min-h-[400px]
     expect(excelTableContent).toContain("min-h-[400px]");
   });
+
+  it("does not render default ArrowUpDown icon on table headers", () => {
+    const excelTablePath = path.join(__dirname, "../components/ui/ExcelTable.tsx");
+    const excelTableContent = fs.readFileSync(excelTablePath, "utf8");
+
+    // ArrowUpDown icon should be completely removed from ExcelTable headers
+    expect(excelTableContent).not.toContain("ArrowUpDown");
+  });
 });
