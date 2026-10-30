@@ -500,7 +500,7 @@ export default function MeasurementBookPage() {
               </h1>
             </div>
             <p className="text-sm text-slate-500 mt-1">
-              Authoritative site work measurements, dimension formulas, supervisor verification & contractor billing
+              Record site work measurements, formulas, supervisor checks, and contractor billing.
             </p>
           </div>
 

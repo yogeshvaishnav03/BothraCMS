@@ -666,7 +666,7 @@ export default function MaterialsPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <PageHeader icon={Boxes} title="Materials Master & Site Inventory" subtitle="Authoritative stock ledger per store. Click any material to open its running balance ledger.">
+        <PageHeader icon={Boxes} title="Materials & Stock" subtitle="Track available stock by site and store. Click any item to view its movement history.">
 
           <div className="flex items-center gap-2 flex-wrap">
             {canPlaceOrder && (

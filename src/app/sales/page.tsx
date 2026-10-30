@@ -519,7 +519,7 @@ export default function SalesPage() {
   return (
     <Shell>
       <div className="space-y-5">
-        <PageHeader icon={Handshake} title="Sales" subtitle="Enquiries, unit inventory, bookings and customer payments.">
+        <PageHeader icon={Handshake} title="Sales & Bookings" subtitle="Manage customer leads, flats and plots, bookings, and installment payments.">
           {canWrite && tab === "leads" && (
             <button onClick={() => setModal("lead")} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-4 py-2 text-sm font-bold text-slate-950 shadow-glow">
               <UserPlus className="h-4 w-4" /> New enquiry

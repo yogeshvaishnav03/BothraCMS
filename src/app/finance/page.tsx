@@ -1004,7 +1004,7 @@ export default function FinancePage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <PageHeader icon={DollarSign} title="Payments & Financial Ledger" subtitle="Idempotency-protected payments, automated bill allocations, and reversible settlements with audit logs.">
+        <PageHeader icon={DollarSign} title="Payments & Bills" subtitle="Manage vendor bills, pay suppliers and contractors, and track balances easily.">
 
           <div className="flex items-center gap-2">
             <a
@@ -1900,7 +1900,7 @@ export default function FinancePage() {
                                   <button
                                     onClick={() => handleApprovePayment(p)}
                                     className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs transition"
-                                    title="Confirm & Approve disbursement"
+                                    title="Confirm & Approve payment"
                                   >
                                     <CheckCircle2 className="w-3 h-3" />
                                     <span>Approve</span>
@@ -1908,7 +1908,7 @@ export default function FinancePage() {
                                   <button
                                     onClick={() => handleRejectPayment(p)}
                                     className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition"
-                                    title="Reject disbursement query"
+                                    title="Reject payment request"
                                   >
                                     <XCircle className="w-3 h-3" />
                                     <span>Reject</span>
@@ -2429,7 +2429,7 @@ export default function FinancePage() {
                   </div>
                 ) : (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 leading-relaxed">
-                    ℹ️ <strong>Super Admin Confirmation Required:</strong> Submitting this form will raise an approval query to Super Admin with your specified reason and paying account. Disbursement will be posted once confirmed.
+                    ℹ️ <strong>Admin Approval Required:</strong> This payment will be sent to the Super Admin for approval. The payment will be completed once approved.
                   </div>
                 )}
 

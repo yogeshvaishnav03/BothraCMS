@@ -360,7 +360,7 @@ export default function AuditPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <PageHeader icon={ShieldCheck} title="Immutable System Audit Trail" subtitle="Chronological log of sensitive operations: posted payments, reversals, stock adjustments, orders, and attendance overrides.">
+        <PageHeader icon={ShieldCheck} title="System Activity Log" subtitle="Track all important site actions: payments, reversals, stock changes, orders, and attendance edits.">
           <span className="text-xs font-mono font-bold bg-slate-900 text-amber-400 px-3 py-1.5 rounded-lg w-max">
             Audit Trail Active
           </span>
@@ -372,7 +372,7 @@ export default function AuditPage() {
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
-              placeholder="Search audit trail by action, actor, reason, order #, vendor name, or entity ID..."
+              placeholder="Search activity log by action, user, reason, order #, or vendor name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"

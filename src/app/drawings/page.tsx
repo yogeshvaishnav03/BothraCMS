@@ -191,7 +191,7 @@ export default function DrawingsPage() {
   return (
     <Shell>
       <div className="space-y-5">
-        <PageHeader icon={Layers} title="Drawings Register" subtitle="Every drawing with its revisions, so site always builds from the current one.">
+        <PageHeader icon={Layers} title="Drawings & Plans" subtitle="Keep project drawings and revisions organized so the site team always works with the latest version.">
           {data?.canUpload && (
             <button onClick={() => setAdding(true)} disabled={projects.length === 0} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-brand px-4 py-2 text-sm font-bold text-slate-950 shadow-glow disabled:opacity-50">
               <FilePlus2 className="h-4 w-4" /> Add drawing

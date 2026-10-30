@@ -142,7 +142,7 @@ export default function PaymentsSettingsPage() {
         <Link href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" /> Settings
         </Link>
-        <PageHeader icon={CreditCard} title="Online payments" subtitle="Buyers pay their instalments from their page by UPI, card or net banking, through Razorpay.">
+        <PageHeader icon={CreditCard} title="Online Payments" subtitle="Let customers pay installments easily by UPI, card, or net banking via Razorpay.">
           <button
             onClick={save}
             disabled={!s || busy !== null}

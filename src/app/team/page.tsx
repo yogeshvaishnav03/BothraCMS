@@ -213,7 +213,7 @@ export default function TeamPage() {
   return (
     <Shell>
       <div className="space-y-5">
-        <PageHeader icon={UserCog} title="Team & Access" subtitle="Add staff, set what each person can do, and switch off access when someone leaves.">
+        <PageHeader icon={UserCog} title="Team & Access" subtitle="Add team members, set their roles and permissions, and manage site access.">
           {canManage && (
             <button
               onClick={openCreate}

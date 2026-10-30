@@ -225,7 +225,7 @@ export default function ReportsPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <PageHeader icon={FileText} title="Operational & Financial Reports" subtitle="Verified database-backed summaries with date filtering and one-click CSV spreadsheet export.">
+        <PageHeader icon={FileText} title="Reports & Downloads" subtitle="View stock, payables, and attendance summaries, and download Excel/CSV sheets with one click.">
 
           <div className="flex items-center gap-2">
             {reportType === "STOCK" && (

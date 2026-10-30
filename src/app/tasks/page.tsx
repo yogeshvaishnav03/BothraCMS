@@ -425,7 +425,7 @@ export default function TasksPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <PageHeader icon={CheckSquare} title="Site Tasks & Employee Accountability" subtitle="Employee task assignment, progress photos, assistance requests, verification timestamps & audit history.">
+        <PageHeader icon={CheckSquare} title="Tasks & Work" subtitle="Assign tasks to staff, track progress with site photos, and mark tasks complete.">
 
           {canWriteTasks && (
             <button

@@ -182,7 +182,7 @@ export default function AttendanceSettingsPage() {
         <Link href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" /> Settings
         </Link>
-        <PageHeader icon={MapPin} title="Check-in rules" subtitle="Where staff were when they checked in, and a selfie if you want one.">
+        <PageHeader icon={MapPin} title="Check-In Rules" subtitle="Set site location for GPS check-ins and choose if staff need to take a selfie.">
           <button
             onClick={saveRules}
             disabled={!rules || busy}

@@ -383,7 +383,7 @@ export default function ProjectsPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <PageHeader icon={FolderKanban} title="Construction Projects & Sites" subtitle="Scope of works, budgets, schedules, material consumptions, and daily supervisor site reports.">
+        <PageHeader icon={FolderKanban} title="Projects & Sites" subtitle="View project budgets, work progress, materials used, and daily reports.">
 
           <div className="flex flex-wrap items-center gap-2">
             {canManageSites && (

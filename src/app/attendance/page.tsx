@@ -619,23 +619,23 @@ export default function AttendancePage() {
                 <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                   <span>
                     {isSuperAdmin
-                      ? "Organization Attendance & Staff Ledger"
+                      ? "Staff Attendance & Check-Ins"
                       : activeTab === "all"
-                      ? "All Staff & Employee Attendance"
-                      : "My Attendance & Shift Ledger"}
+                      ? "All Staff Attendance"
+                      : "My Attendance"}
                   </span>
                   {isSuperAdmin && (
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black uppercase">
-                      Executive Oversight
+                      All Sites
                     </span>
                   )}
                 </h1>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {isSuperAdmin
-                    ? "Full organization attendance audit across all employees, site supervisors, and administrators (Super Admin is exempt from daily check-in)."
+                    ? "View and track attendance across all employees, site supervisors, and managers."
                     : isAdmin
-                    ? "Mark your daily shift attendance and audit full organization attendance across all staff and sites."
-                    : "Mark daily attendance with verified GPS and inspect your complete 3-month shift history."}
+                    ? "Check in for your daily shift and view attendance across all staff and sites."
+                    : "Check in daily with GPS location and view your shift history."}
                 </p>
               </div>
             </div>

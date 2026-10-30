@@ -188,7 +188,7 @@ export default function MessagesSettingsPage() {
         <Link href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" /> Settings
         </Link>
-        <PageHeader icon={MessageCircle} title="Messages" subtitle="WhatsApp demand letters and reminders, sign-in codes for buyers, and alerts to staff.">
+        <PageHeader icon={MessageCircle} title="WhatsApp & SMS Messages" subtitle="Send WhatsApp demand letters, payment reminders, login codes, and staff alerts.">
           <button
             onClick={save}
             disabled={!s || busy !== null}

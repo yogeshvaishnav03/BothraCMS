@@ -358,32 +358,32 @@ export default function DayBookPage() {
 
   const modalModeGuidance = {
     PAYMENT: {
-      title: "Log Payment Out (Cash / Bank Disbursement)",
-      tag: "Immediate Outflow",
-      description: "Record outgoing expenditure disbursed to a vendor, contractor, or staff member for site expenses, materials, or labor advances. You may optionally link this payment directly to an outstanding bill.",
-      requiredFields: "Recipient / Party, Amount, Payment Mode, Ref / Voucher / UTR No.",
-      expectedAction: "Deducts from site balance and updates financial vouchers ledger.",
+      title: "Record Payment Out (Cash / Bank)",
+      tag: "Money Paid Out",
+      description: "Record money paid to a vendor, contractor, or worker for site expenses, materials, or wages. You can also link this payment to a pending bill.",
+      requiredFields: "Recipient / Party, Amount, Payment Method, Ref / Voucher No.",
+      expectedAction: "Deducts from account balance and updates payment history.",
     },
     BILL: {
-      title: "Enter Incoming Bill / Tax Invoice",
-      tag: "Payable Liability",
-      description: "Log an incoming vendor invoice, supplier bill, or subcontractor debit note. This registers liability on the balance sheet without disbursing funds until payment is made.",
+      title: "Add Vendor Bill / Invoice",
+      tag: "Money to Pay Later",
+      description: "Enter a bill or invoice from a supplier or contractor. This records what you owe without deducting money until you pay.",
       requiredFields: "Vendor / Supplier, Bill #, Bill Date, Due Date, Pre-Tax Amount, GST Rate",
-      expectedAction: "Adds to accounts payable balance and enables future payment allocation.",
+      expectedAction: "Adds to pending bills to pay later.",
     },
     WORKFORCE: {
-      title: "Record Daily Workforce Headcount",
+      title: "Record Daily Worker Count",
       tag: "Site Labor Master",
-      description: "Capture the total construction labor count deployed at the site today across skilled artisans, semi-skilled craftsmen, and general laborers.",
-      requiredFields: "Construction Site, Artisans, Craftsmen, Male/Female Laborers",
-      expectedAction: "Updates daily attendance master and manpower analytics.",
+      description: "Enter today's total worker count at the site for skilled, semi-skilled, and helper laborers.",
+      requiredFields: "Site, Skilled, Semi-Skilled, Helpers",
+      expectedAction: "Updates daily attendance and labor reports.",
     },
     DSR: {
       title: "Submit Daily Site Report (DSR)",
-      tag: "Site Operations",
-      description: "Submit end-of-day operational summary covering work accomplished, materials consumed, weather conditions, and site delays.",
-      requiredFields: "Project / Site, Work Execution Summary",
-      expectedAction: "Records official daily site log for management review and client sign-off.",
+      tag: "Site Progress",
+      description: "Submit end-of-day summary of work done, materials used, weather, and any site delays.",
+      requiredFields: "Project / Site, Work Done Summary",
+      expectedAction: "Saves official daily site report for office review.",
     },
   };
 
@@ -895,7 +895,7 @@ export default function DayBookPage() {
                   {t("daybook.title", "Day Book")}
                 </h1>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {t("daybook.subtitle", "Consolidated daily register of financial disbursements, vendor bills, workforce attendance & site logs")}
+                  {t("daybook.subtitle", "Daily record of money in and out, materials moved, labor attendance, and site work.")}
                 </p>
               </div>
             </div>
@@ -1408,8 +1408,8 @@ export default function DayBookPage() {
                     <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mb-2">
                       <ArrowUpRight className="w-5 h-5" />
                     </div>
-                    <p className="text-xs font-bold text-slate-700">No payment disbursements recorded on this date.</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Record contractor advances, petty expenses, and vendor disbursements directly into Day Book.</p>
+                    <p className="text-xs font-bold text-slate-700">No payments recorded on this date.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Record contractor advances, petty cash expenses, and vendor payments directly into Day Book.</p>
                     {canWriteFinance && (
                       <button
                         onClick={() => {
@@ -2392,7 +2392,7 @@ export default function DayBookPage() {
                   {(!dayData?.payments || dayData.payments.length === 0) ? (
                     <div className="text-center py-10 text-slate-400">
                       <ArrowUpRight className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                      <p className="text-xs font-semibold text-slate-600">No payment disbursements logged on this date.</p>
+                      <p className="text-xs font-semibold text-slate-600">No payments recorded on this date.</p>
                       <p className="text-[11px] text-slate-400 mt-1">Cash, UPI, and bank transfers recorded today will appear here.</p>
                     </div>
                   ) : (
@@ -2945,7 +2945,7 @@ export default function DayBookPage() {
               {(!dayData?.payments || dayData.payments.length === 0) ? (
                 <tr>
                   <td colSpan={7} className="text-center text-slate-400 italic py-2">
-                    No disbursements recorded for this period.
+                    No payments recorded for this period.
                   </td>
                 </tr>
               ) : (

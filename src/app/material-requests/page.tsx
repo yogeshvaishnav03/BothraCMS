@@ -560,7 +560,7 @@ export default function MaterialRequestsPage() {
   return (
     <Shell>
       <div className="space-y-5">
-        <PageHeader icon={ClipboardList} title="Material Requests" subtitle="Site asks, the office approves, and each line becomes a purchase order.">
+        <PageHeader icon={ClipboardList} title="Material Requests" subtitle="Request materials from site, get office approval, and create vendor purchase orders.">
           <button
             onClick={() => setShowNew(true)}
             disabled={projects.length === 0}

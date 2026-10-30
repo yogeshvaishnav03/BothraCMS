@@ -62,7 +62,7 @@ export default function ExportsPage() {
   return (
     <Shell>
       <div className="space-y-5">
-        <PageHeader icon={Landmark} title="Accounts Export" subtitle="Send bills, payments and customer receipts to your accountant, or import them into Tally." />
+        <PageHeader icon={Landmark} title="Accounts Export" subtitle="Download bills, payments, and receipts to share with your accountant or import into Tally." />
         {error && <Alert tone="error" onDismiss={() => setError(null)}>{error}</Alert>}
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
@@ -135,14 +135,14 @@ export default function ExportsPage() {
           <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
-              <h2 className="font-display font-bold text-slate-900">Registers for GST and the bank</h2>
+              <h2 className="font-display font-bold text-slate-900">Sheets for GST & Bank Accounts</h2>
             </div>
-            <p className="mt-1 text-sm text-slate-600">Spreadsheets (CSV) that open in Excel. Send them to your CA for the monthly GST returns.</p>
+            <p className="mt-1 text-sm text-slate-600">Spreadsheets (CSV) that open in Excel. Send them to your accountant for monthly GST returns.</p>
             <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
               {[
                 { kind: "gst-sales", title: "GST sales register", hint: "Each customer receipt with taxable value, CGST and SGST (for GSTR-1 and 3B)" },
                 { kind: "purchases", title: "Purchase register", hint: "Supplier bills with GSTIN, to match input credit in GSTR-2B" },
-                { kind: "payments", title: "Payments list", hint: "Every posted payment, for the bank reconciliation" },
+                { kind: "payments", title: "Payments list", hint: "All completed payments, to match with your bank statement" },
               ].map((r) => (
                 <li key={r.kind} className="flex items-center gap-3 px-3 py-2.5">
                   <div className="min-w-0 flex-1">

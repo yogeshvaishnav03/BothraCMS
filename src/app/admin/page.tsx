@@ -211,7 +211,7 @@ export default function SuperAdminDashboardPage() {
     const payeeName = payment.recipientName || payment.party?.name || "Recipient";
     const amountStr = (payment.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 });
     const confirmed = confirm(
-      `Confirm & Authorize Payment Disbursement of ₹${amountStr}?\n\nRecipient: ${payeeName} (${payment.recipientType || "Party"})\nPaying Account: ${payment.payingAccount || "Company Account"}\nPurpose / Query: ${payment.approvalQuery || "Disbursement"}\n\nThis will post the payment, debit the source account, and settle bill balances.`
+      `Confirm & Approve Payment of ₹${amountStr}?\n\nRecipient: ${payeeName} (${payment.recipientType || "Party"})\nPaying Account: ${payment.payingAccount || "Company Account"}\nPurpose: ${payment.approvalQuery || "Payment"}\n\nThis will make the payment, deduct it from your account, and update the pending balance.`
     );
     if (!confirmed) return;
 
@@ -575,13 +575,13 @@ export default function SuperAdminDashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="text-xs text-amber-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <ShieldAlert className="w-4 h-4" /> Global Platform Administration
+              <ShieldAlert className="w-4 h-4" /> Platform Admin
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
-              Super Admin Executive Console
+              Super Admin Console
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Order approval queries, multi-tenant isolation management, and global platform governance.
+              Approve orders and payments, manage companies, and configure system settings.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
@@ -907,13 +907,13 @@ export default function SuperAdminDashboardPage() {
               </div>
               <div>
                 <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <span>Payment Approval Queries & Confirmations</span>
+                  <span>Payments Waiting for Approval</span>
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-600 text-white font-black">
-                    {pendingPayments.length} Pending Super Admin Approval
+                    {pendingPayments.length} Waiting for Approval
                   </span>
                 </h2>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Authoritative authorization for disbursements to Vendors, Contractors, and Employees. Review paying account, reason, and payee details before authorizing payout.
+                  Approve payments to Vendors, Contractors, and Employees. Check the paying bank account and approve.
                 </p>
               </div>
             </div>
@@ -924,23 +924,23 @@ export default function SuperAdminDashboardPage() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-900 rounded-lg text-xs font-bold transition shadow-2xs self-start sm:self-auto"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${paymentsLoading ? "animate-spin" : ""}`} />
-              <span>Refresh Payment Queries</span>
+              <span>Refresh Payment Requests</span>
             </button>
           </div>
 
           {paymentsLoading ? (
             <div className="py-10 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
               <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              <span>Loading pending payment queries...</span>
+              <span>Loading pending payments...</span>
             </div>
           ) : pendingPayments.length === 0 ? (
             <div className="p-8 text-center">
               <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2.5">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <div className="text-sm font-bold text-slate-900">All Payment Queries Cleared!</div>
+              <div className="text-sm font-bold text-slate-900">All Payments Cleared!</div>
               <div className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                There are no vendor, contractor, or employee disbursements currently awaiting Super Admin authorization. When anyone records a payment, it will appear here for review and confirmation.
+                There are no vendor, contractor, or employee payments waiting for approval. When anyone records a payment, it will appear here for review and confirmation.
               </div>
             </div>
           ) : (
@@ -1018,7 +1018,7 @@ export default function SuperAdminDashboardPage() {
                         </td>
                         <td className="py-3.5 px-4 max-w-xs">
                           <div className="p-2 bg-emerald-50/70 rounded border border-emerald-200 text-[11px] text-emerald-950 font-medium leading-snug">
-                            {p.approvalQuery || p.notes || "Disbursement approval requested."}
+                            {p.approvalQuery || p.notes || "Payment approval requested."}
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
@@ -1034,16 +1034,16 @@ export default function SuperAdminDashboardPage() {
                               onClick={() => handleApprovePayment(p)}
                               disabled={actionLoading === p.id}
                               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition disabled:opacity-50"
-                              title="Confirm & Authorize disbursement from paying account"
+                              title="Confirm & Approve payment from paying account"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{actionLoading === p.id ? "Authorizing..." : "Confirm & Authorize"}</span>
+                              <span>{actionLoading === p.id ? "Approving..." : "Confirm & Approve"}</span>
                             </button>
                             <button
                               onClick={() => handleRejectPayment(p)}
                               disabled={actionLoading === p.id}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition disabled:opacity-50"
-                              title="Reject payment disbursement query"
+                              title="Reject payment request"
                             >
                               <XCircle className="w-3.5 h-3.5" />
                               <span>Reject</span>
@@ -1070,7 +1070,7 @@ export default function SuperAdminDashboardPage() {
               One-Click Comprehensive Demo Data Generator
             </h3>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Instantly populate authoritative construction operations data: 2 active sites (Skyline Heights & Riverside Enclave), 2 projects, 4 material categories, stock receipts & balances, 4 vendor/contractor accounts with posted bills and payments, 5 workforce members with today&apos;s attendance register, and daily site reports.
+              Instantly load sample construction data: 2 active sites, projects, material stock, vendor bills, worker attendance, and daily site reports.
             </p>
           </div>
           <button

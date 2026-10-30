@@ -487,7 +487,7 @@ export default function PayrollPage() {
   return (
     <Shell>
       <div className="space-y-5">
-        <PageHeader icon={Wallet} title="Payroll" subtitle="Wages and salaries worked out from attendance, with advances taken back automatically.">
+        <PageHeader icon={Wallet} title="Payroll & Wages" subtitle="Calculate worker wages and salaries from attendance, with advance payments deducted automatically.">
           {tab === "RUN" && (
             <input type="month" value={month} max={thisMonth()} onChange={(e) => e.target.value && setMonth(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold" />
           )}

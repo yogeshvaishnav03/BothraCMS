@@ -538,7 +538,7 @@ export default function PartiesPage() {
         <PageHeader
           icon={Building2}
           title="Vendors & Contractors"
-          subtitle="Every supplier and subcontractor with contacts, bank details, bills, payments and what is still due."
+          subtitle="Manage suppliers and contractors, their phone numbers, bank details, bills, and pending dues."
         >
           {canWriteFinance && (
             <button

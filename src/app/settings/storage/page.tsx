@@ -57,7 +57,7 @@ export default function StorageSettingsPage() {
         <Link href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" /> Settings
         </Link>
-        <PageHeader icon={HardDrive} title="File storage" subtitle="Where site photos, drawings, bills and other uploads are kept." />
+        <PageHeader icon={HardDrive} title="File Storage" subtitle="Manage cloud storage for site photos, drawings, bills, and documents." />
 
         {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
 
