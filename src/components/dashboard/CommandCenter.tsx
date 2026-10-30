@@ -907,9 +907,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
           <div className="flex flex-wrap items-center gap-2">
             {data?.attention &&
               [
-                { n: data.attention.openSafety, href: "/quality?kind=SAFETY", en: "open safety issues", one: "open safety issue", hi: "सुरक्षा मुद्दे", tone: "bg-rose-50 text-rose-700 ring-rose-200" },
                 { n: data.attention.drawingsWaiting, href: "/drawings", en: "drawings to approve", one: "drawing to approve", hi: "ड्रॉइंग स्वीकृति बाकी", tone: "bg-blue-50 text-blue-700 ring-blue-200" },
-                { n: data.attention.equipmentDown, href: "/equipment", en: "machines under repair", one: "machine under repair", hi: "मशीन मरम्मत में", tone: "bg-slate-100 text-slate-700 ring-slate-200" },
                 { n: data.attention.payrollDraft, href: "/payroll", en: "payrolls to approve", one: "payroll to approve", hi: "वेतन स्वीकृति बाकी", tone: "bg-violet-50 text-violet-700 ring-violet-200" },
               ]
                 .filter((c) => c.n > 0)

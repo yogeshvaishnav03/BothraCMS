@@ -6,7 +6,6 @@ import { PushToggle } from "@/components/layout/PushToggle";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
-  MessageCircle,
   FolderKanban,
   CheckSquare,
   Boxes,
@@ -17,7 +16,6 @@ import {
   LogOut,
   Menu,
   X,
-  HardHat,
   ChevronDown,
   Building2,
   Clock,
@@ -40,7 +38,6 @@ import {
   NotebookPen,
   PackagePlus,
   Layers,
-  Truck,
   Wallet,
   Handshake,
   Landmark,
@@ -298,8 +295,6 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.materials", defaultLabel: "Materials & Stock", href: "/materials", icon: Boxes },
         { key: "nav.materialRequests", defaultLabel: "Material Requests", href: "/material-requests", icon: PackagePlus },
         { key: "nav.drawings", defaultLabel: "Drawings", href: "/drawings", icon: Layers },
-        { key: "nav.quality", defaultLabel: "Quality & Safety", href: "/quality", icon: HardHat },
-        { key: "nav.equipment", defaultLabel: "Equipment", href: "/equipment", icon: Truck },
       ],
     },
     {
@@ -322,9 +317,6 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
         ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Muster", href: "/attendance/muster", icon: ClipboardCheck }] : []),
         { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
-        ...(["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT", "STOREKEEPER", "PROJECT_MANAGER"].includes(user?.role)
-          ? [{ key: "nav.whatsapp", defaultLabel: "WhatsApp Inbox", href: "/whatsapp", icon: MessageCircle }]
-          : []),
       ],
     },
     {

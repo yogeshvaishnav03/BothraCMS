@@ -1,15 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
 import { api, post } from "@/lib/client-api";
 import { Loader2, MessageCircle, Send, Users } from "lucide-react";
 
 /**
  * Sending an order to a vendor:
- * - "Send" goes from the business number; the vendor's reply comes into the WhatsApp inbox.
- * - "Group" copies the order and opens the vendor's own WhatsApp group, where someone presses Send
- *   (WhatsApp does not let apps post into ordinary groups).
+ * - "Send" goes from the business number.
+ * - "Group" copies the order and opens the vendor's own WhatsApp group, where someone presses Send.
  */
 export default function OrderWhatsAppButtons({ po, onSent }: { po: any; onSent?: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -50,7 +48,7 @@ export default function OrderWhatsAppButtons({ po, onSent }: { po: any; onSent?:
           onClick={send}
           disabled={busy}
           className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-2xs hover:bg-emerald-700 disabled:opacity-50"
-          title="Send from the business WhatsApp number; the reply comes into the WhatsApp inbox"
+          title="Send from the business WhatsApp number"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Send
         </button>
@@ -60,9 +58,15 @@ export default function OrderWhatsAppButtons({ po, onSent }: { po: any; onSent?:
           </button>
         )}
         {waId.length === 10 && (
-          <Link href={`/whatsapp?with=91${waId}`} className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-600 hover:bg-slate-50" title="Open the chat with this vendor">
+          <a
+            href={`https://wa.me/91${waId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-600 hover:bg-slate-50"
+            title="Chat on WhatsApp"
+          >
             <MessageCircle className="h-3.5 w-3.5" />
-          </Link>
+          </a>
         )}
       </span>
       {note && <span className={note.ok ? "text-[11px] font-semibold text-emerald-700" : "max-w-[260px] whitespace-normal text-right text-[11px] font-semibold text-rose-600"}>{note.text}</span>}

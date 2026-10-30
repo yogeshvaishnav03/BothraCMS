@@ -87,12 +87,12 @@ describe("Low-Priority Remediation & Accessibility Verification", () => {
       const shellContent = fs.readFileSync(path.join(__dirname, "../components/layout/Shell.tsx"), "utf8");
       expect(shellContent).toContain('label: "Site Work"');
       expect(shellContent).toContain('defaultLabel: "Accounts Export"');
-      expect(shellContent).toContain('defaultLabel: "WhatsApp Inbox"');
+      expect(shellContent).toContain('defaultLabel: "Measurement Book"');
 
       const i18nContent = fs.readFileSync(path.join(__dirname, "../lib/i18n.tsx"), "utf8");
       expect(i18nContent).toContain('"nav.group.siteWork": "Site Work"');
       expect(i18nContent).toContain('"nav.exports": "Accounts Export"');
-      expect(i18nContent).toContain('"nav.whatsapp": "WhatsApp Inbox"');
+      expect(i18nContent).toContain('"nav.measurementBook": "Measurement Book"');
     });
 
     it("enforces Escape key listener and body scroll locking in shared Modal component", () => {
