@@ -698,7 +698,7 @@ export default function SuperAdminDashboardPage() {
                 showExport={true}
               />
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                     <tr>
                       {orderColumns.map((col) => (
@@ -953,7 +953,7 @@ export default function SuperAdminDashboardPage() {
                 showExport={true}
               />
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                     <tr>
                       {paymentColumns.map((col) => (
@@ -1191,7 +1191,7 @@ export default function SuperAdminDashboardPage() {
             showExport={true}
           />
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                 <tr>
                   {tenantColumns.map((col) => (

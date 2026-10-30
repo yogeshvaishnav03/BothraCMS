@@ -1745,7 +1745,7 @@ export default function FinancePage() {
                 showExport={true}
               />
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-left text-sm min-w-[760px]">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
                       {paymentColumns.map((col) => (
@@ -1814,7 +1814,7 @@ export default function FinancePage() {
                               {p.method}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-xs max-w-xs break-words">
+                          <td className="py-3 px-4 text-xs min-w-[180px] max-w-xs break-words">
                             <div className="text-slate-700 break-words whitespace-normal" title={p.approvalQuery || p.notes || ""}>
                               {p.approvalQuery || p.notes || "—"}
                             </div>
@@ -2023,7 +2023,7 @@ export default function FinancePage() {
                 showExport={true}
               />
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-left text-sm min-w-[720px]">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
                       {billColumns.map((col) => (

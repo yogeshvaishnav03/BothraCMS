@@ -826,7 +826,7 @@ export default function PartiesPage() {
           <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
             <ExcelTableToolbar table={excelParties} columns={partyColumns} tableName="partners" showSearch={true} showExport={true} />
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm min-w-[700px]">
                 <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
                   <tr>
                     {partyColumns.map((col) => (

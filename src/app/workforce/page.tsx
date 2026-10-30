@@ -686,7 +686,7 @@ export default function WorkforcePage() {
                     showExport={true}
                   />
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full text-left text-xs min-w-[700px]">
                       <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                         <tr>
                           {headcountColumns.map((col) => (
@@ -825,7 +825,7 @@ export default function WorkforcePage() {
               showExport={true}
             />
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[700px]">
                 <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                   <tr>
                     {workerColumns.map((col) => (

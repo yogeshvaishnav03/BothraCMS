@@ -78,23 +78,27 @@
     font-feature-settings: "tnum";
   }
 
-  /* Wrap long table text to next line instead of truncating with '...' */
-  table th,
+  /* Prevent table column headers from breaking into vertical letters on mobile */
+  table th {
+    white-space: nowrap !important;
+    word-break: normal !important;
+  }
+
+  /* Wrap long table text to next line at word boundaries instead of truncating with '...' */
   table td {
     white-space: normal;
-    word-break: break-word;
+    word-break: normal;
     overflow-wrap: break-word;
   }
 
+  /* Override truncate inside tables so '...' is not shown and text wraps */
   table td .truncate,
   table td.truncate,
-  table th .truncate,
-  table th.truncate,
-  table [class*="truncate"] {
+  table td [class*="truncate"] {
     overflow: visible !important;
     text-overflow: clip !important;
     white-space: normal !important;
-    word-break: break-word !important;
+    word-break: normal !important;
     overflow-wrap: break-word !important;
   }
 
@@ -103,15 +107,22 @@
     -webkit-line-clamp: unset !important;
     overflow: visible !important;
     white-space: normal !important;
-    word-break: break-word !important;
+    word-break: normal !important;
     overflow-wrap: break-word !important;
   }
 
   table [class*="ellipsis"] {
     text-overflow: clip !important;
     white-space: normal !important;
-    word-break: break-word !important;
+    word-break: normal !important;
     overflow-wrap: break-word !important;
+  }
+
+  /* Ensure scrollable tables maintain a readable minimum width on mobile and scroll horizontally */
+  .overflow-x-auto > table,
+  .overflow-x-auto table {
+    width: 100%;
+    min-width: max-content;
   }
 
   /* Visible keyboard focus everywhere, without changing mouse/touch styling */

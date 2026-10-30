@@ -419,7 +419,7 @@ export default function AuditPage() {
               showExport={true}
             />
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm min-w-[750px]">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
                     {auditColumns.map((col) => (

@@ -428,12 +428,12 @@ export function ExcelColumnHeader<T = any>({
               table.handleSort(column.key);
             }
           }}
-          className={`flex items-center gap-2 font-bold transition text-left pr-1 cursor-pointer group/sort ${
+          className={`flex items-center gap-2 font-bold transition text-left pr-1 cursor-pointer group/sort whitespace-nowrap ${
             isDark ? "text-slate-200 hover:text-amber-400" : "text-slate-800 hover:text-amber-600"
           }`}
           title={column.sortable !== false ? `Click to sort by ${column.label}` : column.label}
         >
-          <span className="break-words whitespace-normal">{column.label}</span>
+          <span className="whitespace-nowrap">{column.label}</span>
           {column.sortable !== false && isSorted && (
             <span className="shrink-0 ml-1">
               {table.sortDirection === "asc" ? (
@@ -807,7 +807,7 @@ export default function ExcelTable<T = any>({
 
       {/* Table Container */}
       <div className="overflow-x-auto min-h-[400px]">
-        <table className={`w-full text-left text-xs min-h-[400px] ${tableClassName}`}>
+        <table className={`w-full text-left text-xs min-h-[400px] min-w-[640px] ${tableClassName}`}>
           <thead
             className={`${
               isDark ? "bg-slate-900 text-slate-200" : "bg-slate-50 text-slate-700"

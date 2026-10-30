@@ -382,7 +382,7 @@ export default function MaterialDetailPage() {
                 showExport={true}
               />
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-left text-sm min-w-[650px]">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
                       {orderColumns.map((col) => (
@@ -549,7 +549,7 @@ export default function MaterialDetailPage() {
                 showExport={true}
               />
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-left text-sm min-w-[650px]">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
                       {ledgerColumns.map((col) => (
