@@ -40,7 +40,7 @@ const ROLES: { value: string; label: string; hint: string; tone: string }[] = [
   { value: "SITE_SUPERVISOR", label: "Site Supervisor", hint: "Site work, attendance, material issue and daily reports", tone: "bg-orange-50 text-orange-700 ring-orange-200" },
   { value: "ACCOUNTANT", label: "Accountant", hint: "Bills, payments and vendor bank details", tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
   { value: "STOREKEEPER", label: "Storekeeper", hint: "Stock receipts, issues and transfers", tone: "bg-sky-50 text-sky-700 ring-sky-200" },
-  { value: "HR_VIEWER", label: "HR", hint: "Attendance and workforce records", tone: "bg-pink-50 text-pink-700 ring-pink-200" },
+  { value: "HR_VIEWER", label: "HR", hint: "Attendance and worker records", tone: "bg-pink-50 text-pink-700 ring-pink-200" },
   { value: "AUDITOR", label: "Auditor", hint: "Read-only access to records and the audit log", tone: "bg-slate-100 text-slate-700 ring-slate-200" },
   { value: "SUPER_ADMIN", label: "Super Admin", hint: "Platform owner across all companies", tone: "bg-rose-50 text-rose-700 ring-rose-200" },
 ];

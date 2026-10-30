@@ -589,7 +589,7 @@ export default function SuperAdminDashboardPage() {
               onClick={() => handleSeedDemoData()}
               disabled={seeding || loading}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
-              title="Populate complete sample sites, projects, materials, workforce, bills and attendance in 1 click"
+              title="Populate complete sample sites, projects, materials, workers, bills and attendance in 1 click"
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
               {seeding ? "Populating Demo Data..." : "Add Demo Data (1-Click)"}
@@ -1122,7 +1122,7 @@ export default function SuperAdminDashboardPage() {
                 <div className="text-base font-black text-slate-900">{seedSummary.partiesCreated} Parties</div>
               </div>
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
-                <div className="text-[10px] text-slate-500 uppercase font-semibold">Workforce</div>
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Workers</div>
                 <div className="text-base font-black text-slate-900">{seedSummary.workforceCreated} Workers</div>
               </div>
             </div>

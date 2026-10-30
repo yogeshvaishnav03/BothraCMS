@@ -966,7 +966,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="bg-slate-800/80 p-3 rounded-xl">
-                    <div className="text-slate-400">Workforce</div>
+                    <div className="text-slate-400">Workers</div>
                     <div className="text-lg font-black text-blue-400 mt-0.5">
                       {orgData?._count.workforceMembers || 0}
                     </div>

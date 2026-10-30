@@ -143,7 +143,7 @@ export default function WorkforcePage() {
       }
     } catch (err: any) {
       console.error("Failed to load workforce data:", err);
-      setErrorMessage("Failed to load workforce deployment data");
+      setErrorMessage("Failed to load worker deployment data");
     } finally {
       setLoading(false);
     }
@@ -212,12 +212,12 @@ export default function WorkforcePage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to save workforce count");
+        setErrorMessage(data.error?.message || "Failed to save worker count");
       } else {
         const siteName = sites.find((s) => s.id === modalSiteId)?.name || "Site";
         const saved = data.data;
         setStatusMessage(
-          `Workforce count for ${siteName} on ${formatDate(modalDate)} saved! Total: ${saved.grandTotal} workers (Artisans: ${saved.artisanCount}, Laborers: ${saved.laborerTotal} [${saved.laborerMale}M / ${saved.laborerFemale}F]).`
+          `Worker count for ${siteName} on ${formatDate(modalDate)} saved! Total: ${saved.grandTotal} workers (Artisans: ${saved.artisanCount}, Laborers: ${saved.laborerTotal} [${saved.laborerMale}M / ${saved.laborerFemale}F]).`
         );
         setShowUploadModal(false);
         if (saved) {
@@ -239,14 +239,14 @@ export default function WorkforcePage() {
         await loadData();
       }
     } catch {
-      setErrorMessage("Network error saving workforce headcount");
+      setErrorMessage("Network error saving worker headcount");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteRecord = async (id: string, siteName: string, date: string) => {
-    if (!confirm(`Are you sure you want to delete the workforce count for ${siteName} on ${formatDate(date)}?`)) return;
+    if (!confirm(`Are you sure you want to delete the worker count for ${siteName} on ${formatDate(date)}?`)) return;
 
     setErrorMessage(null);
     setStatusMessage(null);
@@ -259,7 +259,7 @@ export default function WorkforcePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to delete record");
       } else {
-        setStatusMessage(`Workforce headcount record deleted.`);
+        setStatusMessage(`Worker headcount record deleted.`);
         setRecords((prev) => prev.filter((r) => r.id !== id));
         await loadData();
       }
@@ -366,7 +366,7 @@ export default function WorkforcePage() {
       },
       {
         key: "grandTotal",
-        label: "Total Workforce",
+        label: "Total Workers",
         accessor: (r) => Number(r.grandTotal) || 0,
         type: "number",
         align: "right",
@@ -447,10 +447,10 @@ export default function WorkforcePage() {
             </div>
             <div>
               <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <span>Site Workforce Headcount</span>
+                <span>Site Workers & Labor Headcount</span>
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Upload and track daily site labour deployment of Artisans and Laborers (Male and Female) for a single site.
+                Upload and track daily site worker and labor counts (artisans, craftsmen, and male/female laborers) by site.
               </p>
             </div>
           </div>
@@ -460,7 +460,7 @@ export default function WorkforcePage() {
               <button
                 onClick={() => openUploadModal()}
                 className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer"
-                title="Supervisor: Upload daily site workforce count"
+                title="Supervisor: Upload daily site worker count"
               >
                 <Plus className="w-4 h-4" />
                 <span>Upload Site Headcount</span>
@@ -471,7 +471,7 @@ export default function WorkforcePage() {
               onClick={loadData}
               disabled={loading}
               className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition shadow-2xs"
-              title="Refresh workforce records"
+              title="Refresh worker records"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-amber-500" : ""}`} />
             </button>
@@ -567,7 +567,7 @@ export default function WorkforcePage() {
               {/* Grand Total */}
               <div className="col-span-2 sm:col-span-1 bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-xs border border-slate-700">
                 <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">
-                  Total Site Workforce
+                  Total Site Workers
                 </span>
                 <div className="text-2xl font-black mt-1 tabular-nums">
                   {selectedSiteTodayRecord ? selectedSiteTodayRecord.grandTotal : siteGrandTotal}
@@ -656,16 +656,16 @@ export default function WorkforcePage() {
               {loading ? (
                 <div className="p-12 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
                   <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span>Loading site workforce deployment...</span>
+                  <span>Loading site worker deployment...</span>
                 </div>
               ) : filteredRecords.length === 0 ? (
                 <div className="p-16 text-center max-w-sm mx-auto space-y-3">
                   <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
                     <Users className="w-6 h-6" />
                   </div>
-                  <div className="text-sm font-bold text-slate-800">No Workforce Headcount Logged</div>
+                  <div className="text-sm font-bold text-slate-800">No Worker Headcount Logged</div>
                   <div className="text-xs text-slate-500 leading-relaxed">
-                    No workforce counts have been uploaded for {currentSelectedSite?.name || "this site"} yet.
+                    No worker counts have been uploaded for {currentSelectedSite?.name || "this site"} yet.
                   </div>
                   {canWrite && (
                     <button
@@ -880,7 +880,7 @@ export default function WorkforcePage() {
                 <div>
                   <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
                     <Users className="w-5 h-5 text-amber-500" />
-                    <span>Upload Site Workforce Headcount</span>
+                    <span>Upload Site Worker Headcount</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Supervisor submission for Artisan, Craftsman, and Laborer counts on a single site.
@@ -1020,7 +1020,7 @@ export default function WorkforcePage() {
                 <div className="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between shadow-sm">
                   <div>
                     <div className="text-[10px] uppercase tracking-wider font-mono text-amber-400">
-                      Total Calculated Site Workforce:
+                      Total Calculated Site Workers:
                     </div>
                     <div className="text-xs text-slate-300 mt-0.5">
                       Artisans: <strong className="text-white">{artisanCount}</strong> &bull; Laborers: <strong className="text-white">{modalLaborerTotal}</strong> ({laborerMale}M / {laborerFemale}F)

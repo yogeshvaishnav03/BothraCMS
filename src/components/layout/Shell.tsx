@@ -314,7 +314,7 @@ export default function Shell({ children }: ShellProps) {
       label: "People",
       items: [
         { key: "nav.myDay", defaultLabel: "Daily Work", href: "/work-reports", icon: NotebookPen },
-        { key: "nav.workforce", defaultLabel: "Workforce", href: "/workforce", icon: Users },
+        { key: "nav.workforce", defaultLabel: "Workers", href: "/workforce", icon: Users },
         { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
         ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Master", href: "/attendance/muster", icon: ClipboardCheck }] : []),
         { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },

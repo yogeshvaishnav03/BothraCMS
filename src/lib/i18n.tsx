@@ -56,7 +56,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.measurementBook": "Measurement Book",
     "nav.parties": "Vendors & Contractors",
     "nav.finance": "Payments & Bills",
-    "nav.workforce": "Workforce",
+    "nav.workforce": "Workers",
     "nav.attendance": "Attendance",
     "nav.muster": "Site Master",
     "nav.reports": "Reports & Analytics",
@@ -234,8 +234,8 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "materials.transfers": "Stock Transfers",
     "materials.lowStockAlert": "Low Stock Warning",
 
-    // Attendance & Workforce
-    "attendance.title": "Workforce & Attendance",
+    // Attendance & Workers
+    "attendance.title": "Workers & Attendance",
     "attendance.subtitle": "Track daily worker attendance, check-ins, overtime hours, and labor counts.",
     "attendance.markAttendance": "+ Mark Attendance",
     "attendance.present": "Present",
@@ -298,7 +298,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.measurementBook": "माप पुस्तिका (MB)",
     "nav.parties": "विक्रेता व ठेकेदार",
     "nav.finance": "वित्त और बिल",
-    "nav.workforce": "कार्यबल (श्रमिक)",
+    "nav.workforce": "श्रमिक (Workers)",
     "nav.attendance": "उपस्थिति (हाजिरी)",
     "nav.muster": "साइट मास्टर (हाजिरी बही)",
     "nav.reports": "रिपोर्ट्स और विश्लेषण",
@@ -442,7 +442,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "daybook.filterByDate": "दिनांक चुनें",
     "daybook.financialTransactions": "वित्तीय लेन-देन",
     "daybook.materialMovements": "सामग्री आवागमन",
-    "daybook.workforceAttendance": "कार्यबल उपस्थिति",
+    "daybook.workforceAttendance": "श्रमिक उपस्थिति (Workers)",
     "daybook.tasksProgress": "कार्य व प्रगति",
     "daybook.allEntries": "सभी गतिविधियां",
     "daybook.noEntries": "इस दिनांक और साइट के लिए कोई प्रविष्टि नहीं मिली।",

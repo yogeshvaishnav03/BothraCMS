@@ -294,7 +294,7 @@ export default function MusterPage() {
           </div>
         ) : muster && workers.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-            No site workers yet. Add them on the <Link href="/workforce" className="font-semibold text-amber-700 underline">Workforce</Link> page.
+            No site workers yet. Add them on the <Link href="/workforce" className="font-semibold text-amber-700 underline">Workers</Link> page.
           </div>
         ) : (
           muster && (

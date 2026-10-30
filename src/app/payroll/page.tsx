@@ -612,7 +612,7 @@ export default function PayrollPage() {
                     <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       {gaps.pf.length > 0 && <>No UAN for {gaps.pf.join(", ")}, so they are left out of the PF file. </>}
                       {gaps.esi.length > 0 && <>No ESIC number for {gaps.esi.join(", ")}, so they are left out of the ESI file. </>}
-                      Add them under Salaries or Workforce.
+                      Add them under Salaries or Workers.
                     </p>
                   )}
                 </div>
@@ -763,7 +763,7 @@ export default function PayrollPage() {
         {tab === "SALARIES" && (
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
-              <span>Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workforce page, and their PF and ESI are below.</span>
+              <span>Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workers page, and their PF and ESI are below.</span>
               {settings && (
                 <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                   Professional tax

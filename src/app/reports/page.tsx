@@ -338,7 +338,7 @@ export default function ReportsPage() {
             }`}
           >
             <HardHat className="w-4 h-4" />
-            <span>Daily Workforce Attendance ({filteredAttendance.length})</span>
+            <span>Daily Workers Attendance ({filteredAttendance.length})</span>
           </button>
         </div>
 
@@ -544,7 +544,7 @@ export default function ReportsPage() {
             <ExcelTableToolbar
               table={excelAttendanceReport}
               columns={attendanceReportColumns}
-              tableName="workforce attendance"
+              tableName="worker attendance"
               showSearch={true}
               showExport={true}
             />

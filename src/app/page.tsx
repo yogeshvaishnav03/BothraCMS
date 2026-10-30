@@ -733,14 +733,14 @@ export default function DashboardPage() {
 
         return {
           icon: <HardHat className="w-5 h-5 text-emerald-600" />,
-          title: "Workforce & Workers on Site",
+          title: "Workers on Site",
           badge: badgeText,
           badgeColor: isLatestFallback ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-800",
-          subtitle: "Daily site workforce headcount (Artisans, Craftsmen, Laborers) and checked-in personnel",
+          subtitle: "Daily site worker headcount (Artisans, Craftsmen, Laborers) and checked-in personnel",
           actionUrl: "/workforce",
-          actionLabel: "Go to Workforce",
-          emptyTitle: "No workforce logged yet",
-          emptyDesc: "No site workforce headcount or attendance sessions logged yet. Click below to enter site counts.",
+          actionLabel: "Go to Workers",
+          emptyTitle: "No workers logged yet",
+          emptyDesc: "No site worker headcount or attendance sessions logged yet. Click below to enter site counts.",
           content: hasAnyData ? (
             <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
               {/* Fallback Notice Banner if showing previous day's count */}
@@ -770,7 +770,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
                       <Users className="w-4 h-4 text-emerald-600" />
-                      <span>{isLatestFallback ? `Workforce Headcount (${activeDate ? formatDate(activeDate) : 'Latest'})` : `Today's Total Workforce Headcount`}</span>
+                      <span>{isLatestFallback ? `Worker Headcount (${activeDate ? formatDate(activeDate) : 'Latest'})` : `Today's Total Worker Headcount`}</span>
                     </span>
                     <span className="text-xs font-mono font-black text-emerald-900 bg-emerald-200/80 px-2.5 py-0.5 rounded-full">
                       {totalHeadcount} Workers
@@ -808,7 +808,7 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                     <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Site Workforce Headcount Records ({headcountRecords.length})</span>
+                    <span>Site Worker Headcount Records ({headcountRecords.length})</span>
                   </div>
                   {headcountRecords.map((r: any) => (
                     <div
@@ -1860,10 +1860,10 @@ export default function DashboardPage() {
             <div
               onClick={() => setActiveSectionTab("SITES")}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
-              title="Click to view full Workforce & Crew details"
+              title="Click to view full Workers & Crew details"
             >
               <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.workersOnSite", "Workforce on Site")}</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.workersOnSite", "Workers on Site")}</span>
                 <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                   <HardHat className="w-4 h-4" />
                 </div>

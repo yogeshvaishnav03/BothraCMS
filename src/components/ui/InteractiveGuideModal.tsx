@@ -77,7 +77,7 @@ const PAGE_GUIDES: Record<string, PageGuideContent> = {
         number: 1,
         titleEn: "Check Top Metrics",
         titleHi: "मुख्य आंकड़े देखें",
-        descEn: "Look at the big cards at the top for today's present workforce, cash balance, and pending tasks.",
+        descEn: "Look at the big cards at the top for today's present workers, cash balance, and pending tasks.",
         descHi: "स्क्रीन के सबसे ऊपर बड़े कार्ड्स में आज की हाजिरी, रोकड़ बाकी और बाकी काम देखें।",
       },
       {
@@ -429,8 +429,8 @@ const PAGE_GUIDES: Record<string, PageGuideContent> = {
 
   "/workforce": {
     icon: Users,
-    titleEn: "Workforce Directory & Wage Rates",
-    titleHi: "कारीगर व मजदूर डायरेक्टरी (वर्कफोर्स)",
+    titleEn: "Workers Directory & Wage Rates",
+    titleHi: "कारीगर व मजदूर डायरेक्टरी (श्रमिक)",
     subtitleEn: "Manage all site staff, daily wagers & skilled masons",
     subtitleHi: "सभी मिस्त्री, मजदूर, सुपरवाइज़र और उनकी दैनिक मजदूरी",
     whoUsesEn: "Supervisors, HR, Timekeepers, Contractors",
@@ -646,7 +646,7 @@ const PAGE_GUIDES: Record<string, PageGuideContent> = {
     subtitleHi: "मालिक, सीए और क्लाइंट को भेजने लायक पूरी रिपोर्ट",
     whoUsesEn: "Accountants, Project Directors, Auditors, Owners",
     whoUsesHi: "अकाउंटेंट, डायरेक्टर, ऑडिटर, मुनीम",
-    summaryEn: "Generate professional summaries with one click. Download complete Day Book cash reports, Material consumption sheets, Workforce master rolls, and Contractor billing summaries in Excel format.",
+    summaryEn: "Generate professional summaries with one click. Download complete Day Book cash reports, Material consumption sheets, Worker master rolls, and Contractor billing summaries in Excel format.",
     summaryHi: "एक क्लिक में पूरी रिपोर्ट तैयार करें। डे बुक का रोकड़ हिसाब, गोदाम से निकला सामान, मजदूरों का मास्टर रोल और ठेकेदारों के बिल की पूरी एक्सेल शीट डाउनलोड करें।",
     steps: [
       {
