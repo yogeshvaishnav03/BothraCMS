@@ -798,7 +798,7 @@ export default function ExcelTable<T = any>({
   const isDark = theme === "darkHeader";
 
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs ${className}`}>
+    <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs min-h-[400px] ${className}`}>
       {/* Top Excel Toolbar */}
       {showToolbar && (
         <ExcelTableToolbar
@@ -811,8 +811,8 @@ export default function ExcelTable<T = any>({
       )}
 
       {/* Table Container */}
-      <div className="overflow-x-auto">
-        <table className={`w-full text-left text-xs ${tableClassName}`}>
+      <div className="overflow-x-auto min-h-[400px]">
+        <table className={`w-full text-left text-xs min-h-[400px] ${tableClassName}`}>
           <thead
             className={`${
               isDark ? "bg-slate-900 text-slate-200" : "bg-slate-50 text-slate-700"
@@ -838,7 +838,7 @@ export default function ExcelTable<T = any>({
               <tr>
                 <td
                   colSpan={columns.length + (renderRowActions ? 1 : 0)}
-                  className="p-8 text-center text-slate-400"
+                  className="p-8 text-center text-slate-400 h-[300px] align-middle"
                 >
                   <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <p className="text-xs font-semibold text-slate-600">{emptyMessage}</p>
