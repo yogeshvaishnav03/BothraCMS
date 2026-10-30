@@ -171,21 +171,21 @@ export default function MusterPage() {
     try {
       const entries = changed.map((w) => ({ workerId: w.id, mark: marks[w.id].mark, overtimeHours: marks[w.id].ot }));
       const result = await submitOrQueue<Muster & { present: number; halfDay: number; absent: number; kept: number }>({
-        label: `Muster: ${muster.project.name}, ${dayLabel(muster.workDate, muster.today).toLowerCase()} (${entries.length} worker${entries.length === 1 ? "" : "s"})`,
+        label: `Master: ${muster.project.name}, ${dayLabel(muster.workDate, muster.today).toLowerCase()} (${entries.length} worker${entries.length === 1 ? "" : "s"})`,
         url: "/api/attendance/muster",
         body: { projectId: muster.project.id, workDate: muster.workDate, entries },
       });
       if (result.queued) {
         // Show the marks as saved, so the supervisor can carry on.
         setMuster({ ...muster, workers: muster.workers.map((w) => ({ ...w, mark: marks[w.id]?.mark ?? w.mark, overtimeHours: marks[w.id]?.ot ?? w.overtimeHours })) });
-        setNotice({ tone: "info", text: "No signal, so the muster is saved on this phone. It will be sent when you are back online." });
+        setNotice({ tone: "info", text: "No signal, so the master is saved on this phone. It will be sent when you are back online." });
       } else {
         const r = result.data;
         setMuster(r);
         setMarks(Object.fromEntries(r.workers.map((w) => [w.id, { mark: w.mark, ot: w.overtimeHours }])));
         setNotice({
           tone: "success",
-          text: `Muster saved for ${dayLabel(r.workDate, r.today).toLowerCase()}.${r.kept ? ` ${r.kept} already corrected by an admin ${r.kept === 1 ? "was" : "were"} left as is.` : ""}`,
+          text: `Master saved for ${dayLabel(r.workDate, r.today).toLowerCase()}.${r.kept ? ` ${r.kept} already corrected by an admin ${r.kept === 1 ? "was" : "were"} left as is.` : ""}`,
         });
       }
     } catch (e: any) {
@@ -201,7 +201,7 @@ export default function MusterPage() {
   return (
     <Shell>
       <div className="mx-auto max-w-3xl space-y-4 pb-48 lg:pb-28">
-        <PageHeader icon={ClipboardCheck} title="Site Muster" subtitle="Mark each worker present, half day or absent. It goes straight into their wages in payroll.">
+        <PageHeader icon={ClipboardCheck} title="Site Master" subtitle="Mark each worker present, half day or absent. It goes straight into their wages in payroll.">
           <Link href="/attendance" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Attendance
           </Link>

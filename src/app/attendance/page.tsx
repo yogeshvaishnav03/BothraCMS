@@ -647,7 +647,7 @@ export default function AttendancePage() {
                 href="/attendance/muster"
                 className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-slate-800"
               >
-                <Users className="h-3.5 w-3.5" /> Site muster
+                <Users className="h-3.5 w-3.5" /> Site master
               </Link>
             )}
             <button

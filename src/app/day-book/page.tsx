@@ -373,10 +373,10 @@ export default function DayBookPage() {
     },
     WORKFORCE: {
       title: "Record Daily Workforce Headcount",
-      tag: "Site Labor Muster",
+      tag: "Site Labor Master",
       description: "Capture the total construction labor count deployed at the site today across skilled artisans, semi-skilled craftsmen, and general laborers.",
       requiredFields: "Construction Site, Artisans, Craftsmen, Male/Female Laborers",
-      expectedAction: "Updates daily attendance muster and manpower analytics.",
+      expectedAction: "Updates daily attendance master and manpower analytics.",
     },
     DSR: {
       title: "Submit Daily Site Report (DSR)",
@@ -688,7 +688,7 @@ export default function DayBookPage() {
     const total = artisans + craftsmen + laborerMale + laborerFemale;
 
     if (total <= 0) {
-      setStatusMessage("❌ Please enter at least 1 worker for the site muster");
+      setStatusMessage("❌ Please enter at least 1 worker for the site master");
       return;
     }
 
@@ -726,7 +726,7 @@ export default function DayBookPage() {
         setStatusMessage(`❌ Error: ${data.error?.message || "Could not save headcount"}`);
       }
     } catch {
-      setStatusMessage("❌ Server error while saving workforce muster.");
+      setStatusMessage("❌ Server error while saving workforce master.");
     } finally {
       setActionLoading(false);
     }
@@ -827,7 +827,7 @@ export default function DayBookPage() {
         b.status,
       ]),
       [],
-      ["--- WORKFORCE SITE HEADCOUNT MUSTER ---"],
+      ["--- WORKFORCE SITE HEADCOUNT MASTER ---"],
       ["Site", "Shift", "Total Workers", "Artisans", "Craftsmen", "Laborers (M/F)", "Contractor", "Notes"],
       ...(dayData.headcount || []).map((h) => [
         `"${h.siteName || ""}"`,
@@ -1196,7 +1196,7 @@ export default function DayBookPage() {
             className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between"
             role="button"
             tabIndex={0}
-            title="Click to view Workforce & Muster breakdown popup"
+            title="Click to view Workforce & Master breakdown popup"
           >
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -1210,7 +1210,7 @@ export default function DayBookPage() {
               </div>
               <div className="text-[11px] text-slate-400 mt-1 font-medium">
                 {(() => {
-                  if (!dayData?.summary) return "Daily labor muster";
+                  if (!dayData?.summary) return "Daily labor master";
                   const parts: string[] = [];
                   if (dayData.summary.headcountArtisans) parts.push(`${dayData.summary.headcountArtisans} Artisans`);
                   if (dayData.summary.headcountCraftsmen) parts.push(`${dayData.summary.headcountCraftsmen} Craftsmen`);
@@ -1220,7 +1220,7 @@ export default function DayBookPage() {
                   if (total > subSum) {
                     parts.push(`+${total - subSum} Staff`);
                   }
-                  return parts.length > 0 ? parts.join(" · ") : "Daily labor muster";
+                  return parts.length > 0 ? parts.join(" · ") : "Daily labor master";
                 })()}
               </div>
             </div>
@@ -1296,9 +1296,9 @@ export default function DayBookPage() {
             className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "ATTENDANCE" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
             }`}
-            title={`Total Workforce: ${dayData?.summary.workersPresentCount || 0} workers (${(dayData?.headcount?.length || 0) + (dayData?.attendance?.length || 0)} muster records)`}
+            title={`Total Workforce: ${dayData?.summary.workersPresentCount || 0} workers (${(dayData?.headcount?.length || 0) + (dayData?.attendance?.length || 0)} master records)`}
           >
-            <span>Workforce Muster</span>
+            <span>Workforce Master</span>
             <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[10px] font-bold rounded-full">
               {dayData?.summary.workersPresentCount || ((dayData?.headcount?.length || 0) + (dayData?.attendance?.length || 0))}
             </span>
@@ -1496,13 +1496,13 @@ export default function DayBookPage() {
               </div>
             )}
 
-            {/* 3. Workforce Attendance Muster (Site Headcounts + Staff Sessions) */}
+            {/* 3. Workforce Attendance Master (Site Headcounts + Staff Sessions) */}
             {(activeTab === "ALL" || activeTab === "ATTENDANCE") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
                 <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <HardHat className="w-4 h-4 text-emerald-500" />
-                    <h3 className="text-sm font-black text-slate-900">Workforce Attendance Muster</h3>
+                    <h3 className="text-sm font-black text-slate-900">Workforce Attendance Master</h3>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-emerald-700">
@@ -1531,7 +1531,7 @@ export default function DayBookPage() {
                       <HardHat className="w-5 h-5" />
                     </div>
                     <p className="text-xs font-bold text-slate-700">No workforce shifts or headcount logged for this date.</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Log daily artisans, craftsmen, and laborers muster counts for your active sites.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Log daily artisans, craftsmen, and laborers master counts for your active sites.</p>
                     {canWriteAttendance && (
                       <button
                         onClick={() => {
@@ -1555,7 +1555,7 @@ export default function DayBookPage() {
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-emerald-600" />
                             <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                              Site Labor Muster Records ({dayData.headcount.length})
+                              Site Labor Master Records ({dayData.headcount.length})
                             </span>
                           </div>
                           <span className="text-xs font-black text-emerald-700">
@@ -2192,7 +2192,7 @@ export default function DayBookPage() {
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                        <span className="font-bold text-slate-600">Total Workforce Muster:</span>
+                        <span className="font-bold text-slate-600">Total Workforce Master:</span>
                         <span className="font-black text-emerald-700 text-sm">
                           {(Number(wfArtisans) || 0) +
                             (Number(wfCraftsmen) || 0) +
@@ -2244,7 +2244,7 @@ export default function DayBookPage() {
                         disabled={actionLoading}
                         className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm"
                       >
-                        {actionLoading ? "Saving..." : "Save Workforce Muster"}
+                        {actionLoading ? "Saving..." : "Save Workforce Master"}
                       </button>
                     </div>
                   </form>
@@ -2564,7 +2564,7 @@ export default function DayBookPage() {
                       <HardHat className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-black text-base leading-tight">Workforce Present — Muster & Attendance</h3>
+                      <h3 className="font-black text-base leading-tight">Workforce Present — Master & Attendance</h3>
                       <p className="text-xs text-emerald-100">
                         {formatDate(selectedDate)} · Total: {dayData?.summary.workersPresentCount || 0} active workers & staff
                       </p>
@@ -2601,7 +2601,7 @@ export default function DayBookPage() {
                 </div>
 
                 <div className="p-4 overflow-y-auto space-y-4 flex-1">
-                  {/* Labor Headcount Muster */}
+                  {/* Labor Headcount Master */}
                   <div>
                     <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-emerald-600" />
@@ -2697,7 +2697,7 @@ export default function DayBookPage() {
                       className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
                     >
                       <PlusCircle className="w-3.5 h-3.5" />
-                      <span>+ Log Labor Muster</span>
+                      <span>+ Log Labor Master</span>
                     </button>
                   )}
                   <button

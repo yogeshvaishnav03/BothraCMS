@@ -316,7 +316,7 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.myDay", defaultLabel: "Daily Work", href: "/work-reports", icon: NotebookPen },
         { key: "nav.workforce", defaultLabel: "Workforce", href: "/workforce", icon: Users },
         { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
-        ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Muster", href: "/attendance/muster", icon: ClipboardCheck }] : []),
+        ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Master", href: "/attendance/muster", icon: ClipboardCheck }] : []),
         { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
       ],
     },
@@ -338,7 +338,7 @@ export default function Shell({ children }: ShellProps) {
     },
   ];
   const navItemsDef = navGroups.flatMap((g) => g.items);
-  // The longest matching link wins, so /attendance/muster lights up Site Muster, not Attendance.
+  // The longest matching link wins, so /attendance/muster lights up Site Master, not Attendance.
   const currentNav = navItemsDef
     .filter((i) => pathname === i.href || (i.href !== "/" && pathname.startsWith(i.href + "/")))
     .sort((a, b) => b.href.length - a.href.length)[0];

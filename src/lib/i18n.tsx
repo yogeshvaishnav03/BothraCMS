@@ -58,7 +58,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.finance": "Finance & Bills",
     "nav.workforce": "Workforce",
     "nav.attendance": "Attendance",
-    "nav.muster": "Site Muster",
+    "nav.muster": "Site Master",
     "nav.reports": "Reports & Analytics",
     "nav.audit": "Audit Logs",
     "nav.settings": "Settings",
@@ -236,7 +236,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 
     // Attendance & Workforce
     "attendance.title": "Workforce & Attendance",
-    "attendance.subtitle": "Daily muster roll, biometric & supervisor check-ins, overtime, and contractor worker counts.",
+    "attendance.subtitle": "Daily master roll, biometric & supervisor check-ins, overtime, and contractor worker counts.",
     "attendance.markAttendance": "+ Mark Attendance",
     "attendance.present": "Present",
     "attendance.absent": "Absent",
@@ -300,7 +300,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.finance": "वित्त और बिल",
     "nav.workforce": "कार्यबल (श्रमिक)",
     "nav.attendance": "उपस्थिति (हाजिरी)",
-    "nav.muster": "साइट मस्टर (हाजिरी बही)",
+    "nav.muster": "साइट मास्टर (हाजिरी बही)",
     "nav.reports": "रिपोर्ट्स और विश्लेषण",
     "nav.audit": "ऑडिट लॉग्स",
     "nav.settings": "सेटिंग्स",
@@ -480,7 +480,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 
     // Attendance & Workforce
     "attendance.title": "कार्यबल और उपस्थिति",
-    "attendance.subtitle": "दैनिक मस्टर रोल, बायोमेट्रिक व सुपरवाइजर हाजिरी, ओवरटाइम और ठेकेदार श्रमिक गणना।",
+    "attendance.subtitle": "दैनिक मास्टर रोल, बायोमेट्रिक व सुपरवाइजर हाजिरी, ओवरटाइम और ठेकेदार श्रमिक गणना।",
     "attendance.markAttendance": "+ हाजिरी लगाएं",
     "attendance.present": "उपस्थित",
     "attendance.absent": "अनुपस्थित",

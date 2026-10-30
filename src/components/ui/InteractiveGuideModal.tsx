@@ -211,8 +211,8 @@ const PAGE_GUIDES: Record<string, PageGuideContent> = {
         number: 3,
         titleEn: "Click 'Save Attendance'",
         titleHi: "हाजिरी सुरक्षित (Save) करें",
-        descEn: "Press the submit button. Today's muster roll and wage calculation are automatically updated.",
-        descHi: "सेव बटन दबाएं। आज का मस्टर रोल और मजदूरी का हिसाब अपने-आप जुड़ जाएगा।",
+        descEn: "Press the submit button. Today's master roll and wage calculation are automatically updated.",
+        descHi: "सेव बटन दबाएं। आज का मास्टर रोल और मजदूरी का हिसाब अपने-आप जुड़ जाएगा।",
       },
     ],
     jargon: [
@@ -646,8 +646,8 @@ const PAGE_GUIDES: Record<string, PageGuideContent> = {
     subtitleHi: "मालिक, सीए और क्लाइंट को भेजने लायक पूरी रिपोर्ट",
     whoUsesEn: "Accountants, Project Directors, Auditors, Owners",
     whoUsesHi: "अकाउंटेंट, डायरेक्टर, ऑडिटर, मुनीम",
-    summaryEn: "Generate professional summaries with one click. Download complete Day Book cash reports, Material consumption sheets, Workforce muster rolls, and Contractor billing summaries in Excel format.",
-    summaryHi: "एक क्लिक में पूरी रिपोर्ट तैयार करें। डे बुक का रोकड़ हिसाब, गोदाम से निकला सामान, मजदूरों की हाजिरी और ठेकेदारों के बिल की पूरी एक्सेल शीट डाउनलोड करें।",
+    summaryEn: "Generate professional summaries with one click. Download complete Day Book cash reports, Material consumption sheets, Workforce master rolls, and Contractor billing summaries in Excel format.",
+    summaryHi: "एक क्लिक में पूरी रिपोर्ट तैयार करें। डे बुक का रोकड़ हिसाब, गोदाम से निकला सामान, मजदूरों का मास्टर रोल और ठेकेदारों के बिल की पूरी एक्सेल शीट डाउनलोड करें।",
     steps: [
       {
         number: 1,
