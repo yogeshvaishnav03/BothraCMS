@@ -140,7 +140,6 @@ export default function ExportsPage() {
             <p className="mt-1 text-sm text-slate-600">Spreadsheets (CSV) that open in Excel. Send them to your accountant for monthly GST returns.</p>
             <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
               {[
-                { kind: "gst-sales", title: "GST sales register", hint: "Each customer receipt with taxable value, CGST and SGST (for GSTR-1 and 3B)" },
                 { kind: "purchases", title: "Purchase register", hint: "Supplier bills with GSTIN, to match input credit in GSTR-2B" },
                 { kind: "payments", title: "Payments list", hint: "All completed payments, to match with your bank statement" },
               ].map((r) => (
