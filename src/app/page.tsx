@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import React, { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -211,6 +212,8 @@ export default function DashboardPage() {
   };
 
   const isAdminUser = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+  const isSupervisor = currentUser?.role === "SITE_SUPERVISOR" || (currentUser?.role as string) === "SUPERVISOR";
+  const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
   const [kpi, setKpi] = useState<any>(null);
   const [activeKpiModal, setActiveKpiModal] = useState<string | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
@@ -2947,18 +2950,20 @@ export default function DashboardPage() {
                     {displayedPhotos.length} Photos
                   </span>
                 )}
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
-                  <Upload className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{uploadingPhoto ? "Uploading..." : "Upload Photo"}</span>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={handleDashboardPhotoUpload}
-                    disabled={uploadingPhoto}
-                    className="hidden"
-                  />
-                </label>
+                {isSupervisor && (
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
+                    <Upload className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{uploadingPhoto ? "Uploading..." : "Upload Photo"}</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleDashboardPhotoUpload}
+                      disabled={uploadingPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={() => toggleSectionCollapse("photos")}
@@ -2988,25 +2993,32 @@ export default function DashboardPage() {
                 <div className="p-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                   <Camera className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <div className="font-bold text-slate-700">No site photographs uploaded yet</div>
-                  <p className="mt-0.5 mb-3">Supervisors and engineers can capture photos during task execution and material inwards.</p>
-                  <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload First Site Photo</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={handleDashboardPhotoUpload}
-                      disabled={uploadingPhoto}
-                      className="hidden"
-                    />
-                  </label>
+                  <p className="mt-0.5 mb-3">
+                    {isSupervisor
+                      ? "Supervisors and engineers can capture photos during task execution and material inwards."
+                      : "Site photographs will appear here once captured and uploaded by site supervisors in the field."}
+                  </p>
+                  {isSupervisor && (
+                    <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload First Site Photo</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleDashboardPhotoUpload}
+                        disabled={uploadingPhoto}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {displayedPhotos.map((photo: any) => (
                     <div
                       key={photo.id}
-                      className="group relative aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:border-amber-400 transition"
+                      onClick={() => setSelectedPhoto(photo)}
+                      className="group relative aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:border-amber-400 transition cursor-pointer"
                     >
                       <img
                         src={photo.url}
@@ -3014,41 +3026,59 @@ export default function DashboardPage() {
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                       />
 
-                      {/* Card Action Controls: Open in new tab, Replace, and Delete */}
-                      <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-xs p-1 rounded-lg">
+                      {/* Card Action Controls */}
+                      <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-sm p-1 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPhoto(photo);
+                          }}
+                          className="p-1 text-slate-300 hover:text-amber-400 transition cursor-pointer"
+                          title="View enlarged photo"
+                          aria-label={`View enlarged photo ${photo.fileName}`}
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                        </button>
                         <a
                           href={photo.url}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="p-1 text-slate-300 hover:text-amber-400 transition"
                           title="Open photo in new tab"
                           aria-label={`Open photo ${photo.fileName} in new tab`}
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
-                        <label
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1 text-slate-300 hover:text-amber-400 cursor-pointer transition"
-                          title="Replace / Re-upload this photo"
-                          aria-label={`Replace photo ${photo.fileName}`}
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
-                            disabled={uploadingPhoto}
-                            className="hidden"
-                          />
-                        </label>
-                        <button
-                          onClick={(e) => handleDashboardPhotoDelete(photo.id, photo.fileName, e)}
-                          className="p-1 text-slate-300 hover:text-rose-400 transition cursor-pointer"
-                          title="Delete photo"
-                          aria-label={`Delete photo ${photo.fileName}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {(isSupervisor || isAdminUser) && (
+                          <>
+                            <label
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 text-slate-300 hover:text-amber-400 cursor-pointer transition"
+                              title="Replace / Re-upload this photo"
+                              aria-label={`Replace photo ${photo.fileName}`}
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
+                                disabled={uploadingPhoto}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDashboardPhotoDelete(photo.id, photo.fileName, e)}
+                              className="p-1 text-slate-300 hover:text-rose-400 transition cursor-pointer"
+                              title="Delete photo"
+                              aria-label={`Delete photo ${photo.fileName}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
 
                       <div
@@ -3257,7 +3287,74 @@ export default function DashboardPage() {
           );
         })()}
 
-        {/* Lightbox modal removed as per issue log - photos viewable directly via open in new tab link */}
+        {/* Fullscreen Photo Lightbox Modal — viewable by Admin, Super Admin, and Supervisor */}
+        {selectedPhoto && typeof document !== "undefined" && createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/85 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-150"
+            onClick={() => setSelectedPhoto(null)}
+          >
+            <div
+              className="relative max-w-4xl w-full bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-5 py-3.5 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between gap-3 text-white">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-white truncate">{selectedPhoto.fileName}</div>
+                    <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap">
+                      <span>Uploaded by: <strong className="text-slate-300">{selectedPhoto.uploadedBy || "Site Supervisor"}</strong></span>
+                      <span>•</span>
+                      <span>{formatDate(selectedPhoto.createdAt)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={selectedPhoto.url}
+                    download={selectedPhoto.fileName || "site-photo.jpg"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-white font-medium transition"
+                    title="Open full size / Download"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">Open Full Size</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPhoto(null)}
+                    className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                    aria-label="Close photo preview"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Photo Display */}
+              <div className="flex-1 overflow-auto p-2 sm:p-4 bg-black/90 flex items-center justify-center min-h-[300px]">
+                <img
+                  src={selectedPhoto.url}
+                  alt={selectedPhoto.fileName}
+                  className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+                />
+              </div>
+
+              {/* Optional Notes */}
+              {selectedPhoto.notes && (
+                <div className="px-5 py-2.5 bg-slate-950 border-t border-slate-800 text-xs text-slate-300">
+                  <span className="font-semibold text-amber-400">Notes: </span>
+                  {selectedPhoto.notes}
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     </Shell>
   );
