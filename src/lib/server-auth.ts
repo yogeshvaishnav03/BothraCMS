@@ -118,20 +118,6 @@ export async function userHasProjectAccess(
   });
   if (taskCount > 0) return true;
 
-  // If user is a Site Supervisor without explicit project restrictions, grant access to active projects
-  if (user.role === "SITE_SUPERVISOR" || (user.role as string) === "SUPERVISOR") {
-    const totalAssignments = await prisma.projectAssignment.count({
-      where: {
-        userId: user.userId,
-        organizationId: user.organizationId,
-        status: "ACTIVE",
-      },
-    });
-    if (totalAssignments === 0) {
-      return true;
-    }
-  }
-
   return false;
 }
 
@@ -198,19 +184,6 @@ export async function getUserAccessibleProjectIds(
   taskProjects.forEach((t) => {
     if (t.projectId) ids.add(t.projectId);
   });
-
-  // If user is a Site Supervisor with no explicit project assignments, grant access to all active projects
-  if (ids.size === 0 && (user.role === "SITE_SUPERVISOR" || (user.role as string) === "SUPERVISOR")) {
-    const activeProjects = await prisma.project.findMany({
-      where: {
-        organizationId: user.organizationId,
-        isArchived: false,
-        status: { in: ["PLANNING", "IN_PROGRESS", "ACTIVE"] },
-      },
-      select: { id: true },
-    });
-    activeProjects.forEach((p) => ids.add(p.id));
-  }
 
   return Array.from(ids);
 }

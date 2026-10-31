@@ -47,7 +47,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.drawings": "Drawings",
     "nav.payroll": "Payroll",
     "nav.sales": "Sales",
-    "nav.exports": "Download Accounts",
+    "nav.exports": "Accounts Export",
     "nav.dashboard": "Dashboard",
     "nav.dayBook": "Day Book",
     "nav.projects": "Projects",

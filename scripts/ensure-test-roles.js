@@ -14,7 +14,6 @@ async function main() {
     { email: 'admin@buildtrack.pro', name: 'Vikram Malhotra', role: 'SUPER_ADMIN' },
     { email: 'supervisor@buildtrack.pro', name: 'Rajesh Kumar', role: 'SITE_SUPERVISOR' },
     { email: 'accountant@buildtrack.pro', name: 'Pooja Sharma', role: 'ACCOUNTANT' },
-    { email: 'storekeeper@buildtrack.pro', name: 'Dinesh Yadav', role: 'STOREKEEPER' },
     { email: 'engineer@buildtrack.pro', name: 'Arjun Verma', role: 'SITE_ENGINEER' },
   ];
 

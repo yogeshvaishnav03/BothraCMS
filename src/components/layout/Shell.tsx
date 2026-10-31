@@ -306,7 +306,7 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
         ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),
         ...(canUser(user, "sales:read") ? [{ key: "nav.sales", defaultLabel: "Sales", href: "/sales", icon: Handshake }] : []),
-        ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Download Accounts", href: "/exports", icon: Landmark }] : []),
+        ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Accounts Export", href: "/exports", icon: Landmark }] : []),
       ],
     },
     {

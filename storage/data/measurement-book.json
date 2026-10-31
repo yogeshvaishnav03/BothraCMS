@@ -3193,5 +3193,33 @@
     "updatedAt": "2026-10-19T05:00:01.232Z",
     "approvedBy": "526ddb6b-150c-4e73-aa17-16eae8ad92da",
     "billId": "111b8d2f-b317-4ed8-87d3-e04b42ff0c48"
+  },
+  {
+    "id": "e2bc6923-6667-4e7c-848a-aed6b1b914e5",
+    "organizationId": "0ba77cd6-371c-4084-b87d-9da32ad193e3",
+    "projectId": "9c7a86ec-28ee-4237-9d0c-55d33e7131f8",
+    "partyId": "9fc5f67d-d30e-4089-8ef1-93fcfbdb89cc",
+    "itemDescription": "Concrete Casting Grade M35 Core Columns",
+    "unit": "CUM",
+    "count": 4,
+    "length": 6,
+    "breadth": 1.5,
+    "depth": 0.5,
+    "quantity": 18,
+    "unitRate": 650000,
+    "totalAmount": 11700000,
+    "status": "SUBMITTED",
+    "createdBy": "956bafc2-506f-4fc2-a99c-4537a18680d3",
+    "createdAt": "2026-10-31T04:48:45.253Z",
+    "updatedAt": "2026-10-31T04:48:45.253Z",
+    "project": {
+      "id": "9c7a86ec-28ee-4237-9d0c-55d33e7131f8",
+      "name": "Tower C Structural Core",
+      "code": "PRJ-P4-4806"
+    },
+    "party": {
+      "id": "9fc5f67d-d30e-4089-8ef1-93fcfbdb89cc",
+      "name": "Apex Quality Subcontractors"
+    }
   }
 ]

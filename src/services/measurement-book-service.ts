@@ -5,6 +5,26 @@ import { assertPermission, Role } from "@/lib/permissions";
 import { FinanceService } from "./finance-service";
 import { roundQuantity, roundPaise } from "@/lib/financial-math";
 
+function syncLegacyJson(entry: any) {
+  try {
+    const dir = path.resolve(process.cwd(), "storage", "data");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const storageFile = path.resolve(dir, "measurement-book.json");
+    const backupFile = path.resolve(dir, "measurement-book.json.bak");
+    let current: any[] = [];
+    if (fs.existsSync(storageFile)) {
+      try {
+        current = JSON.parse(fs.readFileSync(storageFile, "utf-8"));
+        if (!Array.isArray(current)) current = [];
+      } catch {}
+    }
+    current.push(entry);
+    const content = JSON.stringify(current, null, 2);
+    fs.writeFileSync(storageFile, content, "utf-8");
+    fs.writeFileSync(backupFile, content, "utf-8");
+  } catch {}
+}
+
 function checkAndHealLegacyJsonBackup() {
   try {
     const storageFile = path.resolve(process.cwd(), "storage", "data", "measurement-book.json");
@@ -122,7 +142,7 @@ export class MeasurementBookService {
     const quantity = roundQuantity(count * length * breadth * depth, 4);
     const totalAmount = roundPaise(quantity * input.agreedRate);
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const entry = await tx.measurementBookEntry.create({
         data: {
           organizationId: input.organizationId,
@@ -161,6 +181,9 @@ export class MeasurementBookService {
 
       return mapToInterface(entry);
     });
+
+    syncLegacyJson(result);
+    return result;
   }
 
   /**

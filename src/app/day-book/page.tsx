@@ -358,21 +358,21 @@ export default function DayBookPage() {
 
   const modalModeGuidance = {
     PAYMENT: {
-      title: "Record Payment Out (Cash / Bank)",
+      title: "Log Payment Out (Cash / Bank Disbursement)",
       tag: "Money Paid Out",
       description: "Record money paid to a vendor, contractor, or worker for site expenses, materials, or wages. You can also link this payment to a pending bill.",
       requiredFields: "Recipient / Party, Amount, Payment Method, Ref / Voucher No.",
       expectedAction: "Deducts from account balance and updates payment history.",
     },
     BILL: {
-      title: "Add Vendor Bill / Invoice",
+      title: "Enter Incoming Bill / Tax Invoice",
       tag: "Money to Pay Later",
       description: "Enter a bill or invoice from a supplier or contractor. This records what you owe without deducting money until you pay.",
       requiredFields: "Vendor / Supplier, Bill #, Bill Date, Due Date, Pre-Tax Amount, GST Rate",
       expectedAction: "Adds to pending bills to pay later.",
     },
     WORKFORCE: {
-      title: "Record Daily Worker Count",
+      title: "Record Daily Workforce Headcount",
       tag: "Site Labor Master",
       description: "Enter today's total worker count at the site for skilled, semi-skilled, and helper laborers.",
       requiredFields: "Site, Skilled, Semi-Skilled, Helpers",
