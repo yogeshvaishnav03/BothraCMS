@@ -135,7 +135,7 @@ export async function completeOnlinePayment(input: {
     type: "SALES_ONLINE_PAYMENT",
     title: note ? "Online payment needs a look" : "Payment received online",
     message: `${who} paid ${rupees(op.amount)} online${input.method ? ` by ${input.method}` : ""}.${note ? ` ${note}` : ""}`,
-    href: "/sales",
+    href: "/finance",
     entityType: "SALES_BOOKING",
     entityId: op.bookingId,
     severity: note ? "WARNING" : "INFO",

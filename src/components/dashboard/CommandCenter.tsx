@@ -917,9 +917,9 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                   </Link>
                 ))}
             {data?.attention && data.attention.customerOverdue > 0 && (
-              <Link href="/sales?tab=bookings" className="inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-200">
+              <span className="inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-200">
                 {formatCompactINR(data.attention.customerOverdue)} {hi ? "ग्राहक बकाया" : "overdue from customers"}
-              </Link>
+              </span>
             )}
             {data && data.approvals.materialRequestsPending > 0 && (
               <Link

@@ -102,7 +102,7 @@ export class CommandCenterService {
         detail: [r.receiptNumber, r.booking.unit.unitNumber, r.installment.label, r.booking.unit.project.name].join(" · "),
         amount: r.amount,
         actor: r.creator?.name,
-        href: `/sales/receipt/${r.id}`,
+        href: `/day-book?from=${r.date}&to=${r.date}`,
       });
     }
     for (const b of dayBook.bills as any[]) {
