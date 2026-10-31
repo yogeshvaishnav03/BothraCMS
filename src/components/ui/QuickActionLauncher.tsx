@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -222,9 +223,14 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
   const router = useRouter();
   const { language } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const isHi = language === "hi";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const userRole = currentUser?.role;
 
@@ -298,9 +304,9 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
   return (
     <>
       {/* Quick Action Modal Overlay */}
-      {isOpen && (
+      {mounted && isOpen && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
           onClick={() => setIsOpen(false)}
         >
           <div
@@ -450,7 +456,8 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import {
   HelpCircle,
@@ -780,7 +781,12 @@ export default function InteractiveGuideModal() {
   const pathname = usePathname();
   const { language, setLanguage } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const isHi = language === "hi";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Keyboard shortcut listener: Escape closes the modal
   React.useEffect(() => {
@@ -827,9 +833,9 @@ export default function InteractiveGuideModal() {
       </button>
 
       {/* Interactive Modal */}
-      {isOpen && (
+      {mounted && isOpen && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto"
           onClick={() => setIsOpen(false)}
         >
           <div
@@ -1000,7 +1006,8 @@ export default function InteractiveGuideModal() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

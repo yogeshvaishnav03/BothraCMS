@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import { Loader2, X } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
@@ -28,6 +29,11 @@ export function Modal({
   wide?: boolean;
   children: React.ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -42,9 +48,11 @@ export function Modal({
     };
   }, [onClose]);
 
-  return (
+  if (!mounted || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4 overflow-y-auto"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -81,7 +89,8 @@ export function Modal({
           </footer>
         )}
       </form>
-    </div>
+    </div>,
+    document.body
   );
 }
 
