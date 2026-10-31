@@ -43,6 +43,7 @@ model Organization {
   notifications      Notification[]
   folderPermissions  FolderPermission[]
   measurementBookEntries MeasurementBookEntry[]
+  measurementGroups      MeasurementGroup[]
   workforceHeadcounts     WorkforceHeadcount[]
   dailyWorkReports        DailyWorkReport[]
   staffAttendance         StaffAttendance[]
@@ -182,6 +183,7 @@ model Project {
   salesUnits         SalesUnit[]
   assignments        ProjectAssignment[]
   measurementBookEntries MeasurementBookEntry[]
+  measurementGroups      MeasurementGroup[]
 
   @@unique([organizationId, code])
   @@index([organizationId, siteId])
@@ -410,6 +412,7 @@ model Party {
   payments       Payment[]
   purchaseOrders PurchaseOrder[]
   measurementBookEntries MeasurementBookEntry[]
+  measurementGroups      MeasurementGroup[]
 
   @@index([organizationId, partyType])
 }
@@ -902,40 +905,178 @@ model FolderPermission {
   @@index([folderId, role])
 }
 
-model MeasurementBookEntry {
-  id              String    @id @default(uuid())
+model MeasurementGroup {
+  id              String                 @id @default(uuid())
   organizationId  String
   projectId       String
   partyId         String
+  siteId          String?
+  name            String?
+  description     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  party           Party                  @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  subgroups       MeasurementSubgroup[]
+  entries         MeasurementBookEntry[]
+
+  @@unique([organizationId, projectId, partyId])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([partyId])
+}
+
+model MeasurementSubgroup {
+  id              String                 @id @default(uuid())
+  organizationId  String
+  groupId         String
+  name            String                 // e.g. "Drawing Room", "First Floor"
+  type            String                 @default("ROOM") // ROOM, FLOOR, AREA, LOCATION, WORK_SECTION, CUSTOM
+  description     String?
+  remarks         String?
+  sortOrder       Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  group           MeasurementGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  entries         MeasurementBookEntry[]
+
+  @@index([organizationId])
+  @@index([groupId])
+}
+
+model MeasurementBookEntry {
+  id              String                 @id @default(uuid())
+  organizationId  String
+  projectId       String
+  partyId         String
+  groupId         String?
+  subgroupId      String?
+  referenceNumber String?
+  entryName       String?                // e.g. "Wall 1", "North Wall"
   itemDescription String
-  unit            String    // SQM, CUM, RMT, NOS, TONNE
-  count           Int       @default(1)
-  length          Float     @default(1.0)
+  measurementType String                 @default("WALL") // Wall, Floor, Ceiling, Column, Beam, Footing, Excavation, Concrete, Masonry, Plastering, Painting, Flooring, Waterproofing, Plumbing, Electrical, Other
+  formula         String                 @default("AREA") // AREA, VOLUME, LENGTH, QUANTITY
+  unit            String                 // SQM, CUM, RMT, NOS, TONNE
+  count           Int                    @default(1)
+  length          Float                  @default(1.0)
   breadth         Float?
   depth           Float?
-  quantity        Float     @default(1.0)
-  unitRate        Int       @default(0) // paise
-  totalAmount     Int       @default(0) // paise
-  status          String    @default("SUBMITTED") // DRAFT, SUBMITTED, VERIFIED, APPROVED, REJECTED, BILLED
+  grossQuantity   Float                  @default(1.0)
+  deduction       Float                  @default(0.0)
+  quantity        Float                  @default(1.0) // net quantity
+  unitRate        Int                    @default(0)   // paise
+  totalAmount     Int                    @default(0)   // paise
+  status          String                 @default("SUBMITTED") // DRAFT, SUBMITTED, VERIFIED, APPROVED, REJECTED, BILLED
   billId          String?
   notes           String?
+  remarks         String?
+  measurementDate DateTime               @default(now())
+  version         Int                    @default(1)
+  isDeleted       Boolean                @default(false)
+  deletedAt       DateTime?
+  deletedBy       String?
+  deletedByName   String?
+  deletionReason  String?
   createdBy       String
   createdByName   String?
   approvedBy      String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  party           Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
-  bill            Bill?        @relation("MeasurementToBill", fields: [billId], references: [id])
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  party           Party                  @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  bill            Bill?                  @relation("MeasurementToBill", fields: [billId], references: [id])
+  group           MeasurementGroup?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  subgroup        MeasurementSubgroup?   @relation(fields: [subgroupId], references: [id], onDelete: SetNull)
+
+  attachments     MeasurementAttachment[]
+  changeRequests  MeasurementChangeRequest[]
+  history         MeasurementHistory[]
 
   @@index([organizationId])
   @@index([projectId])
   @@index([partyId])
+  @@index([groupId])
+  @@index([subgroupId])
   @@index([status])
   @@index([billId])
   @@index([createdAt])
+  @@index([isDeleted])
+}
+
+model MeasurementAttachment {
+  id              String                 @id @default(uuid())
+  organizationId  String
+  entryId         String
+  fileName        String
+  fileUrl         String
+  fileSize        Int?
+  mimeType        String?
+  caption         String?
+  version         Int                    @default(1)
+  isDeleted       Boolean                @default(false)
+  deleteReason    String?
+  deletedAt       DateTime?
+  deletedBy       String?
+  replacedById    String?
+  replaceReason   String?
+  uploadedBy      String
+  uploadedByName  String?
+  createdAt       DateTime               @default(now())
+
+  entry           MeasurementBookEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([entryId])
+}
+
+model MeasurementChangeRequest {
+  id              String                 @id @default(uuid())
+  organizationId  String
+  entryId         String
+  requestType     String                 // UPDATE, DELETE
+  reason          String
+  previousData    String                 // JSON
+  proposedData    String                 // JSON
+  status          String                 @default("PENDING") // PENDING, APPROVED, REJECTED
+  requestedBy     String
+  requestedByName String?
+  requestedRole   String?
+  reviewedBy      String?
+  reviewedByName  String?
+  reviewerComments String?
+  reviewedAt      DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  entry           MeasurementBookEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([entryId])
+  @@index([status])
+}
+
+model MeasurementHistory {
+  id              String                 @id @default(uuid())
+  organizationId  String
+  entryId         String
+  action          String                 // CREATED, UPDATED, DELETED, RESTORED, IMAGE_UPLOADED, IMAGE_REPLACED, IMAGE_DELETED, STATUS_CHANGED, CONVERTED_TO_BILL
+  actorUserId     String
+  actorName       String?
+  actorRole       String?
+  reason          String?
+  diff            String?                // JSON
+  createdAt       DateTime               @default(now())
+
+  entry           MeasurementBookEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([entryId])
+  @@index([action])
 }
 
 model WorkforceHeadcount {
