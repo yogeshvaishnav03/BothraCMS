@@ -82,7 +82,7 @@ export async function userHasProjectAccess(
   user: UserContext,
   projectId: string
 ): Promise<boolean> {
-  if (isOrgOwnerOrAdmin(user)) return true;
+  if (isOrgOwnerOrAdmin(user) || user.role === "ACCOUNTANT") return true;
 
   const project = await prisma.project.findFirst({
     where: {
@@ -148,7 +148,7 @@ export async function requireProjectAccess(
 export async function getUserAccessibleProjectIds(
   user: UserContext
 ): Promise<string[] | null> {
-  if (isOrgOwnerOrAdmin(user)) return null;
+  if (isOrgOwnerOrAdmin(user) || user.role === "ACCOUNTANT") return null;
 
   const [managedProjects, assignedProjects, taskProjects] = await Promise.all([
     prisma.project.findMany({
