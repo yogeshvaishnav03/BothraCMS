@@ -102,7 +102,14 @@ export default function ProjectsPage() {
 
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
-      if (statusFilter !== "ALL" && (p.status || "ACTIVE") !== statusFilter) return false;
+      const pStatus = (p.status || "IN_PROGRESS").toUpperCase();
+      if (statusFilter !== "ALL") {
+        if (statusFilter === "ACTIVE") {
+          if (pStatus !== "ACTIVE" && pStatus !== "IN_PROGRESS") return false;
+        } else if (pStatus !== statusFilter) {
+          return false;
+        }
+      }
       if (activeSiteFilter && p.siteId !== activeSiteFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -160,14 +167,19 @@ export default function ProjectsPage() {
   const loadData = (siteIdFilter?: string) => {
     setLoading(true);
     const activeSite = siteIdFilter !== undefined ? siteIdFilter : activeSiteFilter;
-    const projUrl = activeSite ? `/api/projects?siteId=${encodeURIComponent(activeSite)}` : "/api/projects";
-    const repUrl = activeSite ? `/api/daily-reports?siteId=${encodeURIComponent(activeSite)}` : "/api/daily-reports";
+    const cacheBuster = `_t=${Date.now()}`;
+    const projUrl = activeSite
+      ? `/api/projects?siteId=${encodeURIComponent(activeSite)}&${cacheBuster}`
+      : `/api/projects?${cacheBuster}`;
+    const repUrl = activeSite
+      ? `/api/daily-reports?siteId=${encodeURIComponent(activeSite)}&${cacheBuster}`
+      : `/api/daily-reports?${cacheBuster}`;
 
     Promise.all([
-      fetch(projUrl).then((r) => r.json()),
-      fetch("/api/sites").then((r) => r.json()),
-      fetch(repUrl).then((r) => r.json()),
-      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
+      fetch(projUrl, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }).then((r) => r.json()),
+      fetch(`/api/sites?${cacheBuster}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(repUrl, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }).then((r) => r.json()),
+      fetch(`/api/auth/me?${cacheBuster}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
     ])
       .then(([projRes, sitesRes, repRes, authRes]) => {
         if (authRes?.success && authRes.data?.user) {
@@ -184,7 +196,7 @@ export default function ProjectsPage() {
           const rawSites = sitesRes.data || [];
           setSites(rawSites);
           if (rawSites.length > 0) {
-            setSelectedSiteId((prev) => prev || rawSites[0].id);
+            setSelectedSiteId((prev) => prev || activeSite || rawSites[0].id);
           }
         }
         if (repRes.success) {
@@ -281,7 +293,8 @@ export default function ProjectsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to create project");
       } else {
-        setStatusMessage("Project created successfully!");
+        const createdProject = data.data;
+        setStatusMessage(`Project "${createdProject.name}" created successfully!`);
         setShowCreateModal(false);
         setName("");
         setCode("");
@@ -289,7 +302,26 @@ export default function ProjectsPage() {
         setStartDate("");
         setEndDate("");
         setNotes("");
-        loadData();
+
+        // Reset search, filters, and pagination so the new project is guaranteed visible
+        setCurrentPage(1);
+        setSearchQuery("");
+        setStatusFilter("ALL");
+
+        // Immediately prepend to state so the project appears instantly
+        setProjects((prev) => [createdProject, ...prev.filter((p) => p.id !== createdProject.id)]);
+
+        // If currently filtering by a different site, update active site to the new project's site
+        if (activeSiteFilter && activeSiteFilter !== siteToUse) {
+          setActiveSiteFilter(siteToUse);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("buildtrack_active_site", siteToUse);
+            window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: siteToUse } }));
+          }
+        }
+
+        // Fresh authoritative re-sync from server
+        loadData(activeSiteFilter && activeSiteFilter !== siteToUse ? siteToUse : undefined);
       }
     } catch {
       setErrorMessage("Network error during project creation");
@@ -410,7 +442,7 @@ export default function ProjectsPage() {
             {canWriteProjects && (
               <button
                 onClick={() => {
-                  if (sites.length > 0) setSelectedSiteId(sites[0].id);
+                  setSelectedSiteId(activeSiteFilter || (sites.length > 0 ? sites[0].id : ""));
                   setShowCreateModal(true);
                 }}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"

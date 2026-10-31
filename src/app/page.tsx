@@ -407,20 +407,21 @@ export default function DashboardPage() {
 
   const loadDashboard = (siteId?: string) => {
     setLoading(true);
-    const kpiUrl = siteId ? `/api/dashboard/kpi?siteId=${siteId}` : "/api/dashboard/kpi";
-    const projUrl = siteId ? `/api/projects?siteId=${siteId}` : "/api/projects";
+    const cb = `_t=${Date.now()}`;
+    const kpiUrl = siteId ? `/api/dashboard/kpi?siteId=${siteId}&${cb}` : `/api/dashboard/kpi?${cb}`;
+    const projUrl = siteId ? `/api/projects?siteId=${siteId}&${cb}` : `/api/projects?${cb}`;
     const todayStr = new Date().toISOString().split("T")[0];
 
     Promise.all([
-      fetch(kpiUrl).then((r) => r.json()),
-      fetch(projUrl).then((r) => r.json()),
-      fetch("/api/tasks").then((r) => r.json()),
-      fetch(`/api/attendance?workDate=${todayStr}${siteId ? `&siteId=${siteId}` : ""}`).then((r) => r.json()),
-      fetch("/api/materials").then((r) => r.json()),
-      fetch(`/api/workforce${siteId ? `?siteId=${siteId}` : ""}`).then((r) => r.json()),
-      fetch("/api/sites").then((r) => r.json()),
-      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
-      fetch(`/api/attachments?category=PHOTO&entityType=SITE_PHOTO&limit=12${siteId ? `&projectId=${siteId}` : ""}`).then((r) => r.json()).catch(() => ({})),
+      fetch(kpiUrl, { cache: "no-store" }).then((r) => r.json()),
+      fetch(projUrl, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/tasks?${cb}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/attendance?workDate=${todayStr}${siteId ? `&siteId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/materials?${cb}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/workforce${siteId ? `?siteId=${siteId}` : ""}${siteId ? `&${cb}` : `?${cb}`}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/sites?${cb}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/auth/me?${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/attachments?category=PHOTO&entityType=SITE_PHOTO&limit=12${siteId ? `&projectId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
     ])
       .then(([kpiRes, projRes, taskRes, attRes, matRes, wfRes, sitesRes, meRes, photoRes]) => {
         if (meRes.success && meRes.data) {

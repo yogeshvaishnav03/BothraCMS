@@ -141,33 +141,51 @@ export async function POST(req: NextRequest) {
       return jsonError(`Project with code '${data.code}' already exists`, "DUPLICATE_CODE", 409);
     }
 
+    const managerUserId = data.managerUserId || user.userId;
+
     const project = await prisma.project.create({
       data: {
         organizationId: user.organizationId,
         siteId: data.siteId,
         code: data.code,
         name: data.name,
-        managerUserId: data.managerUserId,
+        managerUserId,
         budgetAmount: data.budgetAmount,
         startDate: data.startDate ? new Date(data.startDate) : null,
         endDate: data.endDate ? new Date(data.endDate) : null,
         notes: data.notes,
       },
-      include: { site: true, manager: true },
+      include: {
+        site: true,
+        manager: { select: { id: true, name: true, email: true } },
+        _count: {
+          select: { tasks: true, dailyReports: true, stockMovements: true },
+        },
+      },
     });
 
-    // If managerUserId was specified, assign them
-    if (data.managerUserId) {
-      await prisma.projectAssignment.create({
-        data: {
+    // Ensure the creator and assigned manager have active ProjectAssignment
+    const assignees = new Set<string>([user.userId]);
+    if (data.managerUserId) assignees.add(data.managerUserId);
+
+    for (const uid of Array.from(assignees)) {
+      await prisma.projectAssignment.upsert({
+        where: {
+          projectId_userId: {
+            projectId: project.id,
+            userId: uid,
+          },
+        },
+        update: { status: "ACTIVE" },
+        create: {
           organizationId: user.organizationId,
           projectId: project.id,
-          userId: data.managerUserId,
-          role: "PROJECT_MANAGER",
+          userId: uid,
+          role: uid === data.managerUserId ? "PROJECT_MANAGER" : (user.role as any),
           status: "ACTIVE",
           assignedById: user.userId,
         },
-      });
+      }).catch(() => {});
     }
 
     await prisma.auditEvent.create({
