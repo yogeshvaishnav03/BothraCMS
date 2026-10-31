@@ -14,7 +14,6 @@ import {
   Calendar,
   CalendarDays,
   FileSpreadsheet,
-  Building2,
   RefreshCw,
   Search,
   Filter,
@@ -481,12 +480,6 @@ export default function AttendancePage() {
         accessor: (s) => Number(s.durationHours) || 0,
         type: "number",
         align: "right",
-      },
-      {
-        key: "siteName",
-        label: "Site Location",
-        accessor: (s) => s.siteName || "Head Office",
-        type: "text",
       },
       {
         key: "gpsVerified",
@@ -1358,15 +1351,6 @@ export default function AttendancePage() {
                           >
                             {s.durationFormatted}
                           </span>
-                        </td>
-
-                        <td className="py-3 px-4 text-slate-700">
-                          <div className="flex items-center gap-1 font-semibold">
-                            <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="break-words whitespace-normal">
-                              {s.site?.name || s.project?.name || "Main Site"}
-                            </span>
-                          </div>
                         </td>
 
                         <td className="py-3 px-4 whitespace-nowrap text-slate-500">
