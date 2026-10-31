@@ -180,7 +180,7 @@ export async function fetchDayBookData(
   if (siteId) {
     reportWhere.project = { siteId };
   }
-  const dailyReports = await prisma.dailySiteReport.findMany({
+  const dailyReportsRaw = await prisma.dailySiteReport.findMany({
     where: reportWhere,
     include: {
       project: {
@@ -195,6 +195,36 @@ export async function fetchDayBookData(
     },
     orderBy: { createdAt: "desc" },
   });
+
+  const reportIds = dailyReportsRaw.map((r: any) => r.id);
+  const reportAttachments = reportIds.length > 0 ? await prisma.attachment.findMany({
+    where: {
+      organizationId: orgId,
+      entityType: { in: ["DAILY_REPORT", "DAILY_SITE_REPORT"] },
+      entityId: { in: reportIds },
+      isArchived: false,
+    },
+    select: {
+      id: true,
+      fileId: true,
+      fileName: true,
+      fileSize: true,
+      mimeType: true,
+      category: true,
+      entityId: true,
+      createdAt: true,
+    },
+  }) : [];
+
+  const dailyReports = dailyReportsRaw.map((r: any) => ({
+    ...r,
+    attachments: reportAttachments
+      .filter((a: any) => a.entityId === r.id)
+      .map((a: any) => ({
+        ...a,
+        url: `/api/uploads/${a.fileId}`,
+      })),
+  }));
 
   // 6. Money in: customer receipts against bookings
   const moneyIn = (

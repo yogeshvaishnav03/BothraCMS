@@ -55,7 +55,37 @@ export async function GET(req: NextRequest) {
       orderBy: [{ reportDate: "desc" }, { createdAt: "desc" }],
     });
 
-    return jsonSuccess(reports);
+    const reportIds = reports.map((r: any) => r.id);
+    const attachments = reportIds.length > 0 ? await prisma.attachment.findMany({
+      where: {
+        organizationId: user.organizationId,
+        entityType: { in: ["DAILY_REPORT", "DAILY_SITE_REPORT"] },
+        entityId: { in: reportIds },
+        isArchived: false,
+      },
+      select: {
+        id: true,
+        fileId: true,
+        fileName: true,
+        fileSize: true,
+        mimeType: true,
+        category: true,
+        entityId: true,
+        createdAt: true,
+      },
+    }) : [];
+
+    const reportsWithAttachments = reports.map((r: any) => ({
+      ...r,
+      attachments: attachments
+        .filter((a: any) => a.entityId === r.id)
+        .map((a: any) => ({
+          ...a,
+          url: `/api/uploads/${a.fileId}`,
+        })),
+    }));
+
+    return jsonSuccess(reportsWithAttachments);
   } catch (error) {
     return handleApiError(error);
   }

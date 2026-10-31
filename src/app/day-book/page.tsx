@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import React, { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import {
@@ -32,6 +33,11 @@ import {
   Sparkles,
   CalendarX,
   Info,
+  Camera,
+  UploadCloud,
+  Eye,
+  Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -438,6 +444,55 @@ export default function DayBookPage() {
   const [dsrProgress, setDsrProgress] = useState("");
   const [dsrBlockers, setDsrBlockers] = useState("");
   const [dsrSafety, setDsrSafety] = useState("");
+  const [dsrPhotos, setDsrPhotos] = useState<File[]>([]);
+  const [dsrPhotoPreviews, setDsrPhotoPreviews] = useState<{ id: string; url: string; name: string; size: number }[]>([]);
+  const [activePhotoLightbox, setActivePhotoLightbox] = useState<string | null>(null);
+  const [uploadingPhotosCount, setUploadingPhotosCount] = useState<number>(0);
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const newFiles = Array.from(e.target.files);
+
+    const validFiles: File[] = [];
+    newFiles.forEach((file) => {
+      if (!file.type.startsWith("image/")) {
+        alert(`File "${file.name}" is not an image.`);
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`Image "${file.name}" exceeds the 10 MB limit.`);
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    if (validFiles.length === 0) return;
+
+    setDsrPhotos((prev) => [...prev, ...validFiles]);
+    const newPreviews = validFiles.map((file) => ({
+      id: `${file.name}-${file.lastModified}-${Math.random()}`,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+    }));
+    setDsrPhotoPreviews((prev) => [...prev, ...newPreviews]);
+    e.target.value = "";
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setDsrPhotos((prev) => prev.filter((_, i) => i !== index));
+    setDsrPhotoPreviews((prev) => {
+      if (prev[index]?.url) URL.revokeObjectURL(prev[index].url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleCloseLogModal = () => {
+    dsrPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+    setDsrPhotos([]);
+    setDsrPhotoPreviews([]);
+    setShowLogModal(false);
+  };
 
   const loadDayBook = (fromDate: string, toDateStr?: string, siteId?: string) => {
     setLoading(true);
@@ -753,7 +808,42 @@ export default function DayBookPage() {
 
       const data = await res.json();
       if (data.success) {
-        setStatusMessage("✅ Daily Site Progress logged in Day Book!");
+        const reportId = data.data?.id;
+
+        // Upload any attached photos to /api/attachments linked to this report
+        if (reportId && dsrPhotos.length > 0) {
+          setUploadingPhotosCount(dsrPhotos.length);
+          for (let i = 0; i < dsrPhotos.length; i++) {
+            const photo = dsrPhotos[i];
+            const fd = new FormData();
+            fd.append("file", photo);
+            fd.append("entityType", "DAILY_REPORT");
+            fd.append("entityId", reportId);
+            fd.append("projectId", dsrProjectId);
+            fd.append("category", "PHOTO");
+            fd.append("notes", `Site DSR Photo - ${selectedDate}`);
+            try {
+              await fetch("/api/attachments", {
+                method: "POST",
+                body: fd,
+              });
+            } catch (photoErr) {
+              console.error("Failed uploading photo:", photo.name, photoErr);
+            }
+          }
+          setUploadingPhotosCount(0);
+        }
+
+        // Clean up preview URLs
+        dsrPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+        setDsrPhotos([]);
+        setDsrPhotoPreviews([]);
+
+        setStatusMessage(
+          dsrPhotos.length > 0
+            ? `✅ Daily Site Progress & ${dsrPhotos.length} site photo(s) saved in Day Book!`
+            : "✅ Daily Site Progress logged in Day Book!"
+        );
         setShowLogModal(false);
         setDsrProgress("");
         setDsrBlockers("");
@@ -766,6 +856,7 @@ export default function DayBookPage() {
       setStatusMessage("❌ Server error while saving daily report.");
     } finally {
       setActionLoading(false);
+      setUploadingPhotosCount(0);
     }
   };
 
@@ -1691,6 +1782,32 @@ export default function DayBookPage() {
                             <strong>Safety Notes:</strong> {r.safetyNotes}
                           </div>
                         )}
+                        {r.attachments && r.attachments.length > 0 && (
+                          <div className="pt-2 border-t border-slate-200/70">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+                              <Camera className="w-3 h-3 text-blue-600" />
+                              Attached Photos ({r.attachments.length})
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {r.attachments.map((att: any) => (
+                                <button
+                                  key={att.id}
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(att.url)}
+                                  className="relative w-16 h-12 rounded-lg overflow-hidden border border-slate-300 hover:opacity-90 transition group shadow-2xs cursor-pointer"
+                                  title={att.fileName || "View site photo"}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={att.url}
+                                    alt={att.fileName || "Site photo"}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1705,7 +1822,7 @@ export default function DayBookPage() {
           <div
             className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
             onClick={(e) => {
-              if (e.target === e.currentTarget) setShowLogModal(false);
+              if (e.target === e.currentTarget) handleCloseLogModal();
             }}
           >
             <div
@@ -1721,7 +1838,7 @@ export default function DayBookPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowLogModal(false)}
+                  onClick={handleCloseLogModal}
                   className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
                   aria-label="Close Day Book entry modal"
                 >
@@ -2311,10 +2428,97 @@ export default function DayBookPage() {
                       />
                     </div>
 
+                    {/* Site Photos & Visual Evidence */}
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-amber-600" />
+                          <span>Site Photos & Evidence (Optional)</span>
+                        </label>
+                        {dsrPhotos.length > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                            {dsrPhotos.length} {dsrPhotos.length === 1 ? "photo" : "photos"} selected
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Option 1: Live Camera Shutter / Mobile Capture */}
+                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
+                          <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
+                          <span className="text-xs font-bold text-amber-900">Click Photo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handlePhotoSelect}
+                            className="hidden"
+                          />
+                        </label>
+
+                        {/* Option 2: Choose / Upload from Files */}
+                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
+                          <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
+                          <span className="text-xs font-bold text-slate-700">Choose Files</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handlePhotoSelect}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
+                      {/* Photo Previews Grid */}
+                      {dsrPhotoPreviews.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 pt-1">
+                          {dsrPhotoPreviews.map((preview, index) => (
+                            <div
+                              key={preview.id}
+                              className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={preview.url}
+                                alt={preview.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition"
+                              />
+                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(preview.url)}
+                                  title="View full size"
+                                  className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePhoto(index)}
+                                  title="Remove image"
+                                  className="p-1 rounded-full bg-rose-600/90 hover:bg-rose-600 text-white transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <div className="absolute bottom-0 inset-x-0 bg-slate-950/75 px-1 py-0.5 text-[9px] text-white truncate font-medium">
+                                {preview.name} ({(preview.size / 1024).toFixed(0)} KB)
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-[10px] text-slate-400">
+                        Accepted: JPEG, PNG, WEBP (Max 10 MB per photo). Attached images will be stored with this DSR.
+                      </p>
+                    </div>
+
                     <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                       <button
                         type="button"
-                        onClick={() => setShowLogModal(false)}
+                        onClick={handleCloseLogModal}
                         className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
                       >
                         Cancel
@@ -2322,9 +2526,20 @@ export default function DayBookPage() {
                       <button
                         type="submit"
                         disabled={actionLoading}
-                        className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm"
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm flex items-center gap-1.5"
                       >
-                        {actionLoading ? "Saving..." : "Save Daily Report"}
+                        {actionLoading ? (
+                          <>
+                            <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                            <span>
+                              {uploadingPhotosCount > 0
+                                ? `Uploading ${uploadingPhotosCount} Photo(s)...`
+                                : "Saving Report..."}
+                            </span>
+                          </>
+                        ) : (
+                          "Save Daily Report"
+                        )}
                       </button>
                     </div>
                   </form>
@@ -2772,7 +2987,7 @@ export default function DayBookPage() {
                             {r.project?.name || "General Site Operations"}
                           </span>
                           <span className="text-xs text-slate-500 font-medium">
-                            Supervisor: {r.user?.name || "Site Engineer"}
+                            Supervisor: {r.creator?.name || r.user?.name || "Site Engineer"}
                           </span>
                         </div>
 
@@ -2797,6 +3012,36 @@ export default function DayBookPage() {
                             <div>
                               <strong className="block font-bold">Safety & Weather:</strong>
                               <span>{r.safetyNotes}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {r.attachments && r.attachments.length > 0 && (
+                          <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-2">
+                            <span className="font-bold text-slate-900 block text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                              <Camera className="w-3.5 h-3.5 text-blue-600" />
+                              Site Photos & Visual Evidence ({r.attachments.length}):
+                            </span>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                              {r.attachments.map((att: any) => (
+                                <button
+                                  key={att.id}
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(att.url)}
+                                  className="group relative rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 hover:ring-2 hover:ring-blue-500 transition shadow-2xs cursor-pointer"
+                                  title={att.fileName || "View site photo"}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={att.url}
+                                    alt={att.fileName || "Site photo"}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition"
+                                  />
+                                  <div className="absolute inset-0 bg-slate-950/20 group-hover:bg-slate-950/40 transition flex items-center justify-center">
+                                    <Eye className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition drop-shadow-md" />
+                                  </div>
+                                </button>
+                              ))}
                             </div>
                           </div>
                         )}
@@ -3088,6 +3333,47 @@ export default function DayBookPage() {
           </div>
         </div>
       </div>
+
+      {/* Lightbox for Fullscreen Site Photo Preview */}
+      {activePhotoLightbox && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setActivePhotoLightbox(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+              <a
+                href={activePhotoLightbox}
+                target="_blank"
+                rel="noreferrer"
+                download
+                className="p-2 rounded-full bg-black/60 hover:bg-black/90 text-white transition"
+                title="Download / Open original"
+              >
+                <Download className="w-5 h-5" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setActivePhotoLightbox(null)}
+                className="p-2 rounded-full bg-black/60 hover:bg-black/90 text-white transition"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={activePhotoLightbox}
+              alt="Site Photo Evidence"
+              className="max-h-[85vh] w-auto object-contain mx-auto"
+            />
+          </div>
+        </div>,
+        document.body
+      )}
     </Shell>
   );
 }
