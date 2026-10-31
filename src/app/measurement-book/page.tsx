@@ -2654,6 +2654,7 @@ export default function MeasurementBookPage() {
                         <input
                           type="file"
                           accept="image/*,application/pdf"
+                          capture="environment"
                           required
                           onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
                           className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-600 cursor-pointer"

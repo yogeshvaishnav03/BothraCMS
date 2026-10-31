@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
@@ -114,14 +114,106 @@ export default function DashboardPage() {
           throw new Error(data.error?.message || "Failed to upload site photo");
         }
       }
-      setPhotoMsg("Site photograph(s) uploaded and saved successfully!");
+      setPhotoMsg("Site photograph clicked with camera and saved successfully!");
       await refreshRecentPhotos(activeSiteId);
     } catch (err: any) {
-      alert(err.message || "Failed to upload photo");
+      alert(err.message || "Failed to upload clicked photo");
     } finally {
       setUploadingPhoto(false);
       e.target.value = "";
     }
+  };
+
+  const uploadSingleSitePhoto = async (file: File) => {
+    setUploadingPhoto(true);
+    setPhotoMsg(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", "PHOTO");
+      formData.append("entityType", "SITE_PHOTO");
+      formData.append("entityId", activeSiteId || "SITE");
+      if (activeSiteId) formData.append("projectId", activeSiteId);
+
+      const res = await fetch("/api/attachments", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to save clicked site photo");
+      }
+      setPhotoMsg("Site photograph clicked with camera and saved successfully!");
+      await refreshRecentPhotos(activeSiteId);
+    } catch (err: any) {
+      alert(err.message || "Failed to save photo");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const startLiveCamera = async () => {
+    setCameraError(null);
+    setCameraModalOpen(true);
+    try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        throw new Error("Live in-browser camera stream is not supported on this browser. Please use the mobile camera app.");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      console.warn("Direct getUserMedia camera failed or permission denied:", err);
+      setCameraError(err.message || "Camera access permission denied or unavailable. Please enable camera permissions or use the mobile camera app.");
+    }
+  };
+
+  const stopLiveCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+    setCameraModalOpen(false);
+    setCameraError(null);
+  };
+
+  const takeSnapshotAndUpload = async () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      alert("Camera feed is warming up. Please wait a moment.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) return;
+        const clickedFile = new File([blob], `site-photo-${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
+        stopLiveCamera();
+        await uploadSingleSitePhoto(clickedFile);
+      },
+      "image/jpeg",
+      0.92
+    );
   };
 
   const handleDashboardPhotoReplace = async (photoId: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,6 +306,20 @@ export default function DashboardPage() {
   const isAdminUser = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
   const isSupervisor = currentUser?.role === "SITE_SUPERVISOR" || (currentUser?.role as string) === "SUPERVISOR";
   const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
+
+  // Live Camera state for Site Supervisors
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (cameraModalOpen && cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraModalOpen, cameraStream]);
   const [kpi, setKpi] = useState<any>(null);
   const [activeKpiModal, setActiveKpiModal] = useState<string | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
@@ -2941,7 +3047,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-slate-900">Recent Site Photos & Quality Checks</h2>
-                  <p className="text-xs text-slate-500">Site photos, delivery receipts, and daily work updates from field staff</p>
+                  <p className="text-xs text-slate-500">Live site photos and quality inspections clicked directly via camera by field staff</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -2951,18 +3057,33 @@ export default function DashboardPage() {
                   </span>
                 )}
                 {isSupervisor && (
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
-                    <Upload className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{uploadingPhoto ? "Uploading..." : "Upload Photo"}</span>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={handleDashboardPhotoUpload}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={startLiveCamera}
                       disabled={uploadingPhoto}
-                      className="hidden"
-                    />
-                  </label>
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs disabled:opacity-50"
+                      title="Open live camera viewfinder to click photo"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{uploadingPhoto ? "Saving..." : "Click Photo (Camera)"}</span>
+                    </button>
+                    <label
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg cursor-pointer transition"
+                      title="Direct Device Native Camera App (Mobile)"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-amber-600" />
+                      <input
+                        ref={cameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleDashboardPhotoUpload}
+                        disabled={uploadingPhoto}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
                 )}
                 <button
                   type="button"
@@ -2995,21 +3116,33 @@ export default function DashboardPage() {
                   <div className="font-bold text-slate-700">No site photographs uploaded yet</div>
                   <p className="mt-0.5 mb-3">
                     {isSupervisor
-                      ? "Supervisors and engineers can capture photos during task execution and material inwards."
+                      ? "Capture live site inspection photos, delivery receipts, and work progress directly using your device camera."
                       : "Site photographs will appear here once captured and uploaded by site supervisors in the field."}
                   </p>
                   {isSupervisor && (
-                    <label className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Upload First Site Photo</span>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handleDashboardPhotoUpload}
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={startLiveCamera}
                         disabled={uploadingPhoto}
-                        className="hidden"
-                      />
-                    </label>
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl cursor-pointer transition shadow-xs"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>Click Photo (Live Camera)</span>
+                      </button>
+                      <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer transition shadow-xs">
+                        <Camera className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Open Mobile Camera App</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleDashboardPhotoUpload}
+                          disabled={uploadingPhoto}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
                   )}
                 </div>
               ) : (
@@ -3056,13 +3189,14 @@ export default function DashboardPage() {
                             <label
                               onClick={(e) => e.stopPropagation()}
                               className="p-1 text-slate-300 hover:text-amber-400 cursor-pointer transition"
-                              title="Replace / Re-upload this photo"
-                              aria-label={`Replace photo ${photo.fileName}`}
+                              title="Re-click photo with camera"
+                              aria-label={`Re-click photo with camera ${photo.fileName}`}
                             >
                               <RefreshCw className="w-3.5 h-3.5" />
                               <input
                                 type="file"
-                                accept="image/jpeg,image/png,image/webp"
+                                accept="image/*"
+                                capture="environment"
                                 onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
                                 disabled={uploadingPhoto}
                                 className="hidden"
@@ -3351,6 +3485,119 @@ export default function DashboardPage() {
                   {selectedPhoto.notes}
                 </div>
               )}
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Live Camera Viewfinder Modal for Site Supervisor */}
+        {cameraModalOpen && typeof document !== "undefined" && createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-in fade-in duration-150"
+            onClick={stopLiveCamera}
+          >
+            <div
+              className="relative max-w-2xl w-full bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Camera Header */}
+              <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3 text-white">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                  <div className="font-bold text-sm flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-amber-400" />
+                    <span>Live Site Camera Viewfinder</span>
+                  </div>
+                  <span className="text-[10px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                    Camera Only
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={stopLiveCamera}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                  aria-label="Close camera"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Viewfinder Video Area */}
+              <div className="relative bg-black flex items-center justify-center min-h-[360px] sm:min-h-[440px] overflow-hidden">
+                {cameraError ? (
+                  <div className="p-6 text-center max-w-md space-y-3">
+                    <Camera className="w-12 h-12 text-rose-400 mx-auto" />
+                    <div className="text-white font-bold text-sm">Camera Permission / Access Error</div>
+                    <p className="text-xs text-slate-400 leading-relaxed">{cameraError}</p>
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          stopLiveCamera();
+                          cameraInputRef.current?.click();
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-xs transition"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>Use Native Device Camera App</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover max-h-[60vh]"
+                    />
+
+                    {/* Viewfinder Crosshair & Overlay */}
+                    <div className="absolute inset-0 pointer-events-none border-2 border-white/20 m-4 rounded-xl flex items-center justify-center">
+                      <div className="w-12 h-12 border border-white/40 rounded-full" />
+                      <div className="absolute top-2 left-3 text-[10px] text-white/70 font-mono tracking-wider">
+                        BOTHRA CMS · LIVE INSPECTION
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Camera Shutter Footer */}
+              <div className="px-5 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopLiveCamera();
+                    cameraInputRef.current?.click();
+                  }}
+                  className="text-xs text-slate-400 hover:text-amber-400 font-semibold flex items-center gap-1.5 transition"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Switch to Phone Camera App</span>
+                </button>
+
+                {!cameraError && (
+                  <button
+                    type="button"
+                    onClick={takeSnapshotAndUpload}
+                    disabled={uploadingPhoto}
+                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-brand text-slate-950 font-black text-sm rounded-full shadow-lg hover:brightness-110 active:scale-95 transition cursor-pointer"
+                  >
+                    <div className="w-3.5 h-3.5 rounded-full bg-slate-950" />
+                    <span>{uploadingPhoto ? "Saving..." : "CLICK PHOTO"}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={stopLiveCamera}
+                  className="px-3.5 py-1.5 text-xs text-slate-400 hover:text-white font-semibold transition"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>,
           document.body
