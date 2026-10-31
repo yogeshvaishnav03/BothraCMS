@@ -556,7 +556,7 @@ export default function Shell({ children }: ShellProps) {
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex flex-col justify-end animate-fade-in"
+          className="lg:hidden fixed inset-0 z-[60] bg-slate-950/70 backdrop-blur-sm flex flex-col justify-end animate-fade-in overflow-y-auto"
           onClick={() => setMobileMenuOpen(false)}
         >
           <div
@@ -717,11 +717,11 @@ export default function Shell({ children }: ShellProps) {
       {/* Real-Time Operational Notifications Drawer */}
       {notificationsOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-end p-4 lg:p-6 bg-slate-950/40 backdrop-blur-xs"
+          className="fixed inset-0 z-[60] flex items-start justify-end p-4 lg:p-6 bg-slate-950/40 backdrop-blur-sm overflow-y-auto"
           onClick={() => setNotificationsOpen(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl shadow-xl ring-1 ring-slate-200 overflow-hidden mt-14 animate-slide-in-right"
+            className="w-full max-w-sm bg-white rounded-2xl shadow-xl ring-1 ring-slate-200 overflow-hidden mt-14 max-h-[calc(100vh-5rem)] flex flex-col animate-slide-in-right"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 bg-gradient-chrome text-white flex items-center justify-between">
@@ -869,7 +869,7 @@ export default function Shell({ children }: ShellProps) {
       {/* 1-Click Interactive Language Switcher Modal */}
       {langDropdownOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm overflow-y-auto animate-fade-in"
           onClick={() => setLangDropdownOpen(false)}
         >
           <div

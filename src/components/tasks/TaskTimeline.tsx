@@ -189,7 +189,7 @@ export default function TaskTimeline({
   const contributors = new Set(entries.map((e) => e.author?.id).filter(Boolean)).size;
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/50 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
       <aside
         className="flex h-full w-full max-w-xl flex-col bg-white shadow-xl animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
@@ -365,7 +365,7 @@ export default function TaskTimeline({
       </aside>
 
       {lightbox && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/90 p-4" onClick={(e) => (e.stopPropagation(), setLightbox(null))}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 overflow-y-auto cursor-pointer" onClick={(e) => (e.stopPropagation(), setLightbox(null))}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="Task photo" className="max-h-full max-w-full rounded-lg shadow-xl" />
           <button className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Close photo">

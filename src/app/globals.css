@@ -218,6 +218,13 @@
      would push a fixed overlay down and leave a strip of page showing. */
   .fixed.inset-0 {
     margin: 0 !important;
+    overscroll-behavior: contain;
+  }
+
+  /* When any modal overlay is present, cancel parent animation transforms so fixed overlays are never constrained */
+  .page-enter:has(.fixed.inset-0) > * {
+    transform: none !important;
+    animation: none !important;
   }
 
   /* Page entrance: children rise in, staggered. `backwards` fill leaves no

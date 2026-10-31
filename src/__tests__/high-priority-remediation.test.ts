@@ -134,7 +134,17 @@ describe("High-Priority Remediation & Architecture Verification", () => {
 
   // Issue 1 & 2: Active Projects Visibility for Supervisor & Dashboard
   describe("Issue 1 & 2: Supervisor Active Projects & Dashboard Access", () => {
-    it("allows a Site Supervisor to view active projects in their org when not explicitly restricted", async () => {
+    it("allows a Site Supervisor to view active projects in their org when assigned to project", async () => {
+      await prisma.projectAssignment.create({
+        data: {
+          organizationId: testOrgId,
+          projectId: testProjectId,
+          userId: testSupervisorId,
+          assignedById: testAdminId,
+          status: "ACTIVE",
+        },
+      });
+
       const userContext = {
         userId: testSupervisorId,
         organizationId: testOrgId,
@@ -147,6 +157,8 @@ describe("High-Priority Remediation & Architecture Verification", () => {
       const accessibleIds = await getUserAccessibleProjectIds(userContext);
       expect(accessibleIds).not.toBeNull();
       expect(accessibleIds).toContain(testProjectId);
+
+      await prisma.projectAssignment.deleteMany({ where: { userId: testSupervisorId } });
     });
 
     it("restricts supervisor if assigned to specific projects only", async () => {

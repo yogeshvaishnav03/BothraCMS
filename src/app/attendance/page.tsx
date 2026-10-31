@@ -1408,7 +1408,7 @@ export default function AttendancePage() {
         {/* Attendance Time-Tag & Status Correction Modal */}
         {correctionSession && (
           <div
-            className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+            className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
             onClick={(e) => {
               if (e.target === e.currentTarget) setCorrectionSession(null);
             }}

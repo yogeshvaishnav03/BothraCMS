@@ -426,7 +426,7 @@ export default function AttachmentManager({
       {/* Lightbox Modal */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 z-[90] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer overflow-y-auto"
           onClick={() => setPreviewImage(null)}
         >
           <div className="relative max-w-4xl max-h-[90vh] bg-black/40 rounded-2xl overflow-hidden p-2" onClick={(e) => e.stopPropagation()}>

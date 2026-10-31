@@ -1780,8 +1780,8 @@ export default function MeasurementBookPage() {
 
         {/* 1. ADD MAIN GROUP MODAL */}
         {showAddGroupModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                   <FolderPlus className="w-5 h-5 text-amber-600" />
@@ -1896,8 +1896,8 @@ export default function MeasurementBookPage() {
 
         {/* 2. ADD SUBGROUP MODAL */}
         {showAddSubgroupModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                   <Layers className="w-5 h-5 text-blue-600" />
@@ -1992,7 +1992,7 @@ export default function MeasurementBookPage() {
 
         {/* 3. ADD / DUPLICATE MEASUREMENT MODAL */}
         {showAddEntryModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
@@ -2310,7 +2310,7 @@ export default function MeasurementBookPage() {
 
         {/* 4. EDIT MEASUREMENT MODAL (WITH MANDATORY REASON) */}
         {showEditEntryModal && activeEntry && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
@@ -2492,8 +2492,8 @@ export default function MeasurementBookPage() {
 
         {/* 5. DELETE MEASUREMENT MODAL (WITH MANDATORY REASON) */}
         {showDeleteEntryModal && activeEntry && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center gap-3 pb-3 border-b border-slate-100 text-rose-600">
                 <Trash2 className="w-6 h-6 shrink-0" />
                 <h3 className="text-lg font-bold text-slate-900">Delete Wall Measurement</h3>
@@ -2546,7 +2546,7 @@ export default function MeasurementBookPage() {
 
         {/* 6. EVIDENCE IMAGES MANAGEMENT MODAL */}
         {showImagesModal && activeEntry && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5 text-slate-900 font-bold text-lg">
@@ -2743,7 +2743,7 @@ export default function MeasurementBookPage() {
 
         {/* 7. CHANGE REQUESTS REVIEW MODAL (FOR SUPER ADMIN / ORG ADMIN) */}
         {showChangeRequestsModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
@@ -2812,7 +2812,7 @@ export default function MeasurementBookPage() {
 
         {/* 8. MB ABSTRACT MODAL / PRINT VIEW */}
         {showAbstractModal && abstractData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 print:hidden">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
@@ -2919,7 +2919,7 @@ export default function MeasurementBookPage() {
 
         {/* 9. AUDIT TRAIL / HISTORY DRAWER */}
         {showHistoryModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
@@ -2974,8 +2974,8 @@ export default function MeasurementBookPage() {
 
         {/* 10. CONVERT TO BILL MODAL */}
         {showBillModal && billTargetEntry && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                   <Receipt className="w-5 h-5 text-purple-600" />

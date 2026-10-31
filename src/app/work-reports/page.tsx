@@ -849,7 +849,7 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
       )}
 
       {lightbox && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/90 p-4" onClick={() => setLightbox(null)}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 overflow-y-auto cursor-pointer" onClick={() => setLightbox(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="Report photo" className="max-h-full max-w-full rounded-lg shadow-xl" />
           <button className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white" aria-label="Close photo">
@@ -1013,7 +1013,7 @@ function Register({ canManage }: { canManage: boolean }) {
       </div>
 
       {editing && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setEditing(null)}>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-sm overflow-y-auto animate-fade-in" onClick={() => setEditing(null)}>
           <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm font-bold text-slate-900">{editing.name}</div>
             <div className="text-xs text-slate-500">{prettyDate(editing.date)}</div>

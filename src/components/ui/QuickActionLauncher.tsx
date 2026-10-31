@@ -300,7 +300,7 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
       {/* Quick Action Modal Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
           onClick={() => setIsOpen(false)}
         >
           <div

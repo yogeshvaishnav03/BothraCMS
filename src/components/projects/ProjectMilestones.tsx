@@ -546,7 +546,7 @@ export default function ProjectMilestones({
       )}
 
       {lightbox && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/90 p-4" onClick={() => setLightbox(null)}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 overflow-y-auto cursor-pointer" onClick={() => setLightbox(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={lightbox} alt="Site photo" className="max-h-full max-w-full rounded-lg shadow-xl" />
         </div>

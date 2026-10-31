@@ -874,7 +874,7 @@ export default function WorkforcePage() {
 
         {/* Modal: Upload Site Workforce Headcount */}
         {showUploadModal && canWrite && (
-          <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="fixed inset-0 z-[70] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
             <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
               <div className="flex items-center justify-between p-5 pb-3 border-b border-slate-100 shrink-0 bg-white">
                 <div>
@@ -1096,7 +1096,7 @@ export default function WorkforcePage() {
 
         {/* Modal: Register Individual Worker */}
         {showRegisterWorkerModal && canWrite && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-base flex items-center gap-2">

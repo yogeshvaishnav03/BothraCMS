@@ -1703,7 +1703,7 @@ export default function DayBookPage() {
         {/* Modal: Log Day Entry (Multi-category) */}
         {showLogModal && canLogDayEntry && (
           <div
-            className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+            className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
             onClick={(e) => {
               if (e.target === e.currentTarget) setShowLogModal(false);
             }}
@@ -2340,7 +2340,7 @@ export default function DayBookPage() {
             onClick={(e) => {
               if (e.target === e.currentTarget) setKpiPopupType(null);
             }}
-            className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 transition-all"
+            className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto transition-all"
           >
             {/* 1. PAYMENTS POPUP */}
             {kpiPopupType === "PAYMENTS" && (
