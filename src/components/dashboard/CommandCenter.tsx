@@ -10,6 +10,8 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   HardHat,
   IndianRupee,
@@ -77,7 +79,21 @@ interface Overview {
     delayedStages: number;
   }[];
   finance: { outstandingPayables: number; trend: { date: string; paid: number; billed: number; received?: number }[] };
-  team: { userId: string; name: string; role: string; actions: number; taskUpdates: number; lastActiveAt: string }[];
+  team: {
+    userId: string;
+    name: string;
+    role: string;
+    actions: number;
+    taskUpdates: number;
+    lastActiveAt: string;
+    updates?: {
+      id: string;
+      at: string;
+      action: string;
+      details: string | null;
+      entityType?: string | null;
+    }[];
+  }[];
   activity: { id: string; at: string; actor: string; action: string; entityType: string; reason: string | null }[];
   taskFeed: {
     id: string;
@@ -330,7 +346,15 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   const [error, setError] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<Kind | "ALL">("ALL");
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  const [expandedTeamUsers, setExpandedTeamUsers] = useState<Record<string, boolean>>({});
   const isToday = date === todayIst();
+
+  const toggleTeamUser = (userId: string) => {
+    setExpandedTeamUsers((prev) => ({
+      ...prev,
+      [userId]: !(prev[userId] ?? (data?.team.length === 1 || (data?.team.find((m) => m.userId === userId)?.updates?.length || 0) > 0)),
+    }));
+  };
 
   const load = useCallback(
     async (quiet = false) => {
@@ -728,24 +752,95 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             ) : data.team.length === 0 ? (
               <p className="text-xs text-slate-500">{hi ? "इस दिन कोई गतिविधि दर्ज नहीं हुई।" : "No recorded activity by staff on this day."}</p>
             ) : (
-              <ul className="space-y-2.5">
-                {data.team.slice(0, 8).map((m) => (
-                  <li key={m.userId} className="flex items-center gap-3">
-                    <span className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-800 to-slate-600 text-amber-300 text-xs font-bold flex items-center justify-center shrink-0">
-                      {initials(m.name)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-slate-900 truncate">{m.name}</div>
-                      <div className="text-[11px] text-slate-500 truncate capitalize">
-                        {m.role.toLowerCase().replace(/_/g, " ")} · {hi ? "आखिरी" : "last"} {timeOf(m.lastActiveAt)}
+              <ul className="space-y-3">
+                {data.team.slice(0, 8).map((m) => {
+                  const totalUpdates = m.actions + m.taskUpdates;
+                  const isExpanded = expandedTeamUsers[m.userId] ?? (data.team.length === 1 || totalUpdates > 0);
+
+                  return (
+                    <li key={m.userId} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-2.5 transition hover:border-slate-300">
+                      <div
+                        onClick={() => toggleTeamUser(m.userId)}
+                        className="flex items-center gap-3 cursor-pointer select-none"
+                      >
+                        <span className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-800 to-slate-600 text-amber-300 text-xs font-bold flex items-center justify-center shrink-0 shadow-2xs">
+                          {initials(m.name)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-semibold text-slate-900 truncate">{m.name}</span>
+                            <span className="text-[10px] text-amber-800 bg-amber-50 font-bold px-1.5 py-0.2 rounded border border-amber-200/60 uppercase">
+                              {m.role.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                            {hi ? "आखिरी" : "Last"} {timeOf(m.lastActiveAt)}
+                            {m.updates?.[0] && !isExpanded && (
+                              <span className="text-slate-600 font-medium ml-1.5 truncate">
+                                · {humanize(m.updates[0].action)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-slate-900 tabular-nums">{totalUpdates}</div>
+                            <div className="text-[10px] text-slate-400">{hi ? "काम" : "updates"}</div>
+                          </div>
+                          <div className="text-slate-400 hover:text-slate-600 p-0.5">
+                            {isExpanded ? (
+                              <ChevronUp className="w-4 h-4 text-slate-500" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-slate-500" />
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-bold text-slate-900 tabular-nums">{m.actions + m.taskUpdates}</div>
-                      <div className="text-[10px] text-slate-400">{hi ? "काम" : "updates"}</div>
-                    </div>
-                  </li>
-                ))}
+
+                      {/* Expanded Updates Breakdown */}
+                      {isExpanded && (
+                        <div className="mt-2.5 pt-2 border-t border-slate-200/80 space-y-1.5">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between mb-1 px-1">
+                            <span>{hi ? "हाल के काम / अपडेट" : "Recorded Updates & Activity"}</span>
+                            <span className="text-[10px] font-normal text-slate-400">({m.updates?.length || 0})</span>
+                          </div>
+                          {m.updates && m.updates.length > 0 ? (
+                            m.updates.map((u) => (
+                              <div
+                                key={u.id}
+                                className="text-xs bg-white rounded-lg p-2 border border-slate-200/70 flex items-start justify-between gap-2 shadow-2xs"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-semibold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                    <span>{humanize(u.action)}</span>
+                                    {u.entityType && (
+                                      <span className="text-[9px] font-mono font-medium text-slate-400 bg-slate-100 px-1 py-0.2 rounded">
+                                        {u.entityType}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {u.details && (
+                                    <div className="text-[11px] text-slate-600 truncate mt-0.5 pl-3">
+                                      {u.details}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-mono font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 shrink-0">
+                                  {timeOf(u.at)}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-xs text-slate-400 italic py-1 px-1">
+                              {hi ? "कोई विस्तृत रिकॉर्ड नहीं मिला" : "No detailed updates found for this day."}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

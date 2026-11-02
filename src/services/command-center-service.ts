@@ -293,20 +293,79 @@ export class CommandCenterService {
 
     const team = new Map<
       string,
-      { userId: string; name: string; role: string; actions: number; taskUpdates: number; lastActiveAt: string }
+      {
+        userId: string;
+        name: string;
+        role: string;
+        actions: number;
+        taskUpdates: number;
+        lastActiveAt: string;
+        updates: {
+          id: string;
+          at: string;
+          action: string;
+          details: string | null;
+          entityType?: string | null;
+        }[];
+      }
     >();
-    const touch = (u: { id: string; name: string; role: string }, at: Date, isTask: boolean) => {
+    const touch = (
+      u: { id: string; name: string; role: string },
+      at: Date,
+      isTask: boolean,
+      item?: { id: string; at: string; action: string; details: string | null; entityType?: string | null }
+    ) => {
       const row =
         team.get(u.id) ||
-        { userId: u.id, name: u.name, role: u.role, actions: 0, taskUpdates: 0, lastActiveAt: at.toISOString() };
+        { userId: u.id, name: u.name, role: u.role, actions: 0, taskUpdates: 0, lastActiveAt: at.toISOString(), updates: [] };
       if (isTask) row.taskUpdates += 1;
       else row.actions += 1;
       if (at.toISOString() > row.lastActiveAt) row.lastActiveAt = at.toISOString();
+      if (item) {
+        row.updates.push(item);
+      }
       team.set(u.id, row);
     };
-    auditEvents.forEach((e) => e.actor && touch(e.actor, e.createdAt, false));
-    taskUpdates.forEach((h) => h.user && touch(h.user, h.createdAt, true));
-    taskComments.forEach((c) => c.user && touch(c.user, c.createdAt, true));
+    auditEvents.forEach((e) => {
+      if (!e.actor) return;
+      let details = e.reason || null;
+      if (!details && e.afterJson) {
+        try {
+          const parsed = JSON.parse(e.afterJson);
+          if (parsed.billNumber) details = `Bill #${parsed.billNumber}`;
+          else if (parsed.entryName) details = parsed.entryName;
+          else if (parsed.materialId) details = `Stock movement (${parsed.quantity || 0} units)`;
+          else if (parsed.title) details = parsed.title;
+        } catch {}
+      }
+      touch(e.actor, e.createdAt, false, {
+        id: e.id,
+        at: e.createdAt.toISOString(),
+        action: e.action,
+        details,
+        entityType: e.entityType,
+      });
+    });
+    taskUpdates.forEach((h) => {
+      if (!h.user) return;
+      touch(h.user, h.createdAt, true, {
+        id: `task-${h.id}`,
+        at: h.createdAt.toISOString(),
+        action: `Moved task to ${statusLabel(h.newStatus)}`,
+        details: h.task?.title || h.note || null,
+        entityType: "TASK",
+      });
+    });
+    taskComments.forEach((c) => {
+      if (!c.user) return;
+      touch(c.user, c.createdAt, true, {
+        id: `comment-${c.id}`,
+        at: c.createdAt.toISOString(),
+        action: c.type === "PROGRESS_UPDATE" ? "Posted task update" : "Commented on task",
+        details: c.content || c.task?.title || null,
+        entityType: "TASK_COMMENT",
+      });
+    });
 
     // ── 6. Task updates from the field, with their photos ─────────────────
     const taskFeed = [
@@ -399,7 +458,12 @@ export class CommandCenterService {
         outstandingPayables,
         trend,
       },
-      team: Array.from(team.values()).sort((a, b) => b.actions + b.taskUpdates - (a.actions + a.taskUpdates)),
+      team: Array.from(team.values())
+        .map((m) => ({
+          ...m,
+          updates: m.updates.sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 20),
+        }))
+        .sort((a, b) => b.actions + b.taskUpdates - (a.actions + a.taskUpdates)),
       activity,
       taskFeed: mergedFeed.slice(0, 20).map(({ userId: _userId, ...rest }) => rest),
       people: {
