@@ -235,23 +235,39 @@ export default function AttendancePage() {
     loadData(tab === "all" ? "all" : "self");
   };
 
-  const getGpsCoords = async (): Promise<{ lat?: number; lng?: number; acc?: number }> => {
-    if (typeof window === "undefined" || !navigator.geolocation) return {};
-    try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 5000,
-          enableHighAccuracy: true,
-        });
-      });
-      return {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        acc: pos.coords.accuracy,
-      };
-    } catch {
-      return {};
+  const getGpsCoords = async (): Promise<{ lat: number; lng: number; acc: number }> => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      throw new Error("📍 GPS/Geolocation is not supported by your browser or connection. GPS capture is mandatory to check in.");
     }
+    return new Promise<{ lat: number; lng: number; acc: number }>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            acc: pos.coords.accuracy,
+          });
+        },
+        (err) => {
+          let msg = "📍 GPS location is mandatory to check in.";
+          if (err.code === 1) {
+            msg = "📍 Location access denied. GPS capture is mandatory before check-in can be submitted. Please allow location permissions in your browser or device settings and try again.";
+          } else if (err.code === 2) {
+            msg = "📍 GPS location unavailable. Please ensure device location/GPS is enabled and try again.";
+          } else if (err.code === 3) {
+            msg = "📍 GPS location request timed out. Please check your device GPS signal and try again.";
+          } else {
+            msg = `📍 GPS error: ${err.message || "Failed to capture GPS coordinates. GPS is mandatory to check in."}`;
+          }
+          reject(new Error(msg));
+        },
+        {
+          timeout: 10000,
+          enableHighAccuracy: true,
+          maximumAge: 0,
+        }
+      );
+    });
   };
 
   const handleCheckIn = async () => {
@@ -259,8 +275,23 @@ export default function AttendancePage() {
     setErrorMessage(null);
     setStatusMessage(null);
 
+    // Enforce mandatory GPS capture
+    let gps: { lat: number; lng: number; acc: number };
     try {
-      const gps = await getGpsCoords();
+      gps = await getGpsCoords();
+    } catch (gpsErr: any) {
+      setErrorMessage(gpsErr.message || "📍 GPS location capture is mandatory before check-in can be submitted.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!gps || typeof gps.lat !== "number" || typeof gps.lng !== "number" || isNaN(gps.lat) || isNaN(gps.lng)) {
+      setErrorMessage("📍 GPS location capture is mandatory before check-in can be submitted. Please allow location permissions and try again.");
+      setSubmitting(false);
+      return;
+    }
+
+    try {
       const res = await fetch("/api/attendance/check-in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -277,7 +308,7 @@ export default function AttendancePage() {
         setErrorMessage(data.error?.message || "Failed to check in");
       } else {
         const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
+        const gpsStr = ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)})`;
         setStatusMessage(`Checked in successfully at ${timeStr}${gpsStr}! Shift attendance recorded.`);
         await loadData();
       }
@@ -359,7 +390,12 @@ export default function AttendancePage() {
     setStatusMessage(null);
 
     try {
-      const gps = await getGpsCoords();
+      let gps: { lat?: number; lng?: number; acc?: number } = {};
+      try {
+        gps = await getGpsCoords();
+      } catch {
+        // Attempt GPS on check-out, but do not block shift completion if signal drops
+      }
       const res = await fetch("/api/attendance/check-out", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -783,6 +819,9 @@ export default function AttendancePage() {
                       <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold uppercase">
                         Pending Today
                       </span>
+                      <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded flex items-center gap-1">
+                        <MapPin className="w-2.5 h-2.5 text-emerald-600" /> GPS Mandatory
+                      </span>
                     </div>
                     <div className="text-[11px] text-slate-500 mt-0.5">
                       Admins must log their daily attendance. Select site and mark check-in, or switch to &quot;My Attendance&quot;.
@@ -983,23 +1022,29 @@ export default function AttendancePage() {
                 {/* Action Button */}
                 <div>
                   {!isCheckedIn ? (
-                    <button
-                      onClick={handleCheckIn}
-                      disabled={submitting}
-                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-102 active:scale-98 disabled:opacity-50 cursor-pointer"
-                    >
-                      {submitting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
-                          <span>Checking In...</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserCheck className="w-5 h-5 text-slate-950" />
-                          <span>Check In Today</span>
-                        </>
-                      )}
-                    </button>
+                    <div>
+                      <button
+                        onClick={handleCheckIn}
+                        disabled={submitting}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-102 active:scale-98 disabled:opacity-50 cursor-pointer"
+                      >
+                        {submitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                            <span>Checking In (Verifying GPS)...</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-5 h-5 text-slate-950" />
+                            <span>Check In Today</span>
+                          </>
+                        )}
+                      </button>
+                      <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] text-amber-400/90 mt-1.5 font-medium">
+                        <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
+                        <span>Mandatory GPS capture required</span>
+                      </div>
+                    </div>
                   ) : !isCheckedOut ? (
                     <button
                       onClick={handleCheckOut}

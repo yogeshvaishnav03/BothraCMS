@@ -664,23 +664,46 @@ export default function DashboardPage() {
   const isUserCheckedIn = !!currentUserSession;
   const isUserCheckedOut = !!currentUserSession?.checkOutAt;
 
-  const getGpsCoords = async (): Promise<{ lat?: number; lng?: number; acc?: number }> => {
-    if (typeof window === "undefined" || !navigator.geolocation) return {};
-    try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 4000,
-          enableHighAccuracy: true,
-        });
-      });
-      return {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        acc: pos.coords.accuracy,
-      };
-    } catch {
+  const getGpsCoords = async (mandatory: boolean = false): Promise<{ lat?: number; lng?: number; acc?: number }> => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      if (mandatory) {
+        throw new Error("📍 Geolocation is not supported by your browser or connection. GPS capture is mandatory to check in.");
+      }
       return {};
     }
+    return new Promise<{ lat?: number; lng?: number; acc?: number }>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            acc: pos.coords.accuracy,
+          });
+        },
+        (err) => {
+          if (mandatory) {
+            let msg = "📍 GPS location is mandatory to check in.";
+            if (err.code === 1) {
+              msg = "📍 Location access denied. GPS capture is mandatory before check-in can be submitted. Please allow location permissions in your browser/device settings and try again.";
+            } else if (err.code === 2) {
+              msg = "📍 GPS location unavailable. Please ensure device location/GPS is enabled and try again.";
+            } else if (err.code === 3) {
+              msg = "📍 GPS location request timed out. Please check your GPS signal and try again.";
+            } else {
+              msg = `📍 GPS error: ${err.message || "Failed to capture GPS coordinates. GPS is mandatory to check in."}`;
+            }
+            reject(new Error(msg));
+          } else {
+            resolve({});
+          }
+        },
+        {
+          timeout: 10000,
+          enableHighAccuracy: true,
+          maximumAge: 0,
+        }
+      );
+    });
   };
 
   const handleQuickCheckInOut = async () => {
@@ -690,8 +713,21 @@ export default function DashboardPage() {
     setStatusMessage(null);
 
     try {
-      const gps = await getGpsCoords();
       if (!isUserCheckedIn) {
+        // Enforce mandatory GPS capture before check-in
+        let gps: { lat?: number; lng?: number; acc?: number };
+        try {
+          gps = await getGpsCoords(true);
+        } catch (err: any) {
+          setErrorMessage(err.message || "📍 GPS location capture is mandatory before check-in can be submitted.");
+          return;
+        }
+
+        if (gps.lat == null || gps.lng == null || isNaN(gps.lat) || isNaN(gps.lng)) {
+          setErrorMessage("📍 GPS location capture is mandatory before check-in can be submitted. Please allow location permissions and try again.");
+          return;
+        }
+
         // Perform self check-in
         const res = await fetch("/api/attendance/check-in", {
           method: "POST",
@@ -710,11 +746,12 @@ export default function DashboardPage() {
           return;
         }
         const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
+        const gpsStr = ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)})`;
         setStatusMessage(`Checked in successfully at ${timeStr}${gpsStr}!`);
         loadDashboard(activeSiteId);
       } else if (!isUserCheckedOut) {
         // Perform self check-out
+        const gps = await getGpsCoords(false);
         const res = await fetch("/api/attendance/check-out", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

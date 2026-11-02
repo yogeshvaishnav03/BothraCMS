@@ -34,6 +34,13 @@ export async function POST(req: NextRequest) {
       await requireProjectAccess(user, data.projectId, data.workforceMemberId ? "attendance:write" : undefined);
     }
 
+    // MANDATORY GPS CHECK:
+    // GPS capture is strictly mandatory before check-in can be submitted.
+    // If coordinates are missing or invalid, reject immediately.
+    if (!data.workforceMemberId && (data.latitude == null || data.longitude == null || isNaN(data.latitude) || isNaN(data.longitude))) {
+      return jsonError("GPS location capture is mandatory before check-in can be submitted. Please allow location permissions in your browser or device.", "GPS_LOCATION_REQUIRED", 400);
+    }
+
     const workDate = data.workDate || new Date().toISOString().split("T")[0];
 
     const session = await AttendanceService.checkIn({
