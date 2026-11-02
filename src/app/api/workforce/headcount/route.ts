@@ -10,6 +10,7 @@ export const revalidate = 0;
 
 const saveHeadcountSchema = z.object({
   siteId: z.string().min(1, "Site is required"),
+  projectId: z.string().optional(),
   date: z.string().min(8, "Date is required"),
   shift: z.enum(["GENERAL", "DAY", "NIGHT"]).default("GENERAL"),
   artisanCount: z.number().min(0).default(0).optional(),

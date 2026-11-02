@@ -68,18 +68,26 @@ export default function WorkforcePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
 
   const [activeTab, setActiveTab] = useState<"headcount" | "roster">("headcount");
   const [records, setRecords] = useState<HeadcountRecord[]>([]);
   const [workers, setWorkers] = useState<WorkerRosterItem[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Modal: Upload / Record Headcount
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [modalSiteId, setModalSiteId] = useState("");
+  const [modalProjectId, setModalProjectId] = useState<string>("");
   const [modalDate, setModalDate] = useState(new Date().toISOString().split("T")[0]);
   const [modalShift, setModalShift] = useState<"GENERAL" | "DAY" | "NIGHT">("GENERAL");
+
+  const siteProjects = useMemo(() => {
+    if (!modalSiteId) return [];
+    return projects.filter((p) => p.siteId === modalSiteId);
+  }, [projects, modalSiteId]);
 
   // Headcount breakdown state: Direct count for Artisan; Male & Female for Laborer
   const [artisanCount, setArtisanCount] = useState<number>(0);
@@ -137,11 +145,12 @@ export default function WorkforcePage() {
     setErrorMessage(null);
 
     try {
-      const [authRes, sitesRes, headcountRes, workforceRes] = await Promise.all([
+      const [authRes, sitesRes, headcountRes, workforceRes, projectsRes] = await Promise.all([
         fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
         fetch("/api/sites", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
         fetch("/api/workforce/headcount", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
         fetch("/api/workforce", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/projects", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
       ]);
 
       if (authRes?.success && authRes.data?.user) {
@@ -154,6 +163,10 @@ export default function WorkforcePage() {
         if (rawSites.length > 0 && !modalSiteId) {
           setModalSiteId(rawSites[0].id);
         }
+      }
+
+      if (projectsRes?.success && projectsRes.data) {
+        setProjects(projectsRes.data || []);
       }
 
       if (headcountRes?.success) {
@@ -187,8 +200,28 @@ export default function WorkforcePage() {
       setContractorName(existing.contractorName || "");
       setNotes(existing.notes || "");
       setIsCustomContractor(false);
+
+      if (existing.notes && existing.notes.includes("[Project: ")) {
+        const match = existing.notes.match(/\[Project:\s*(.*?)(?:\s*\((.*?)\))?\]/);
+        if (match) {
+          const pName = match[1]?.trim().toLowerCase();
+          const pCode = match[2]?.trim().toLowerCase();
+          const found = projects.find(
+            (p) =>
+              p.siteId === existing.siteId &&
+              ((pCode && p.code?.toLowerCase() === pCode) || (pName && p.name?.toLowerCase().includes(pName)))
+          );
+          if (found) setModalProjectId(found.id);
+          else setModalProjectId("");
+        } else {
+          setModalProjectId("");
+        }
+      } else {
+        setModalProjectId("");
+      }
     } else {
       setModalSiteId(selectedSiteId || (sites.length > 0 ? sites[0].id : ""));
+      setModalProjectId(selectedProjectId || "");
       setModalDate(selectedDate);
       setModalShift("GENERAL");
       setArtisanCount(0);
@@ -218,11 +251,21 @@ export default function WorkforcePage() {
     setStatusMessage(null);
 
     try {
+      let finalNotes = notes.trim();
+      const selectedProj = siteProjects.find((p) => p.id === modalProjectId);
+      if (selectedProj) {
+        const projTag = `[Project: ${selectedProj.name} (${selectedProj.code})]`;
+        if (!finalNotes.includes(projTag)) {
+          finalNotes = finalNotes ? `${projTag} ${finalNotes}` : projTag;
+        }
+      }
+
       const res = await fetch("/api/workforce/headcount", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           siteId: modalSiteId,
+          projectId: modalProjectId || undefined,
           date: modalDate,
           shift: modalShift,
           artisanCount,
@@ -230,7 +273,7 @@ export default function WorkforcePage() {
           laborerMale,
           laborerFemale,
           contractorName: contractorName.trim() || undefined,
-          notes: notes.trim() || undefined,
+          notes: finalNotes || undefined,
         }),
       });
 
@@ -341,16 +384,28 @@ export default function WorkforcePage() {
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
       if (selectedSiteId && r.siteId !== selectedSiteId) return false;
+      if (selectedProjectId) {
+        const proj = projects.find((p) => p.id === selectedProjectId);
+        if (proj) {
+          const matchCode = (proj.code || "").toLowerCase();
+          const matchName = (proj.name || "").toLowerCase();
+          const noteText = (r.notes || "").toLowerCase();
+          if (!noteText.includes(matchCode) && !noteText.includes(matchName)) {
+            return false;
+          }
+        }
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const dateMatch = r.date.toLowerCase().includes(q);
         const siteMatch = r.siteName?.toLowerCase().includes(q) || false;
         const contractorMatch = r.contractorName?.toLowerCase().includes(q) || false;
-        return dateMatch || siteMatch || contractorMatch;
+        const notesMatch = r.notes?.toLowerCase().includes(q) || false;
+        return dateMatch || siteMatch || contractorMatch || notesMatch;
       }
       return true;
     });
-  }, [records, selectedSiteId, searchQuery]);
+  }, [records, selectedSiteId, selectedProjectId, projects, searchQuery]);
 
   // Selected site summary for today
   const selectedSiteTodayRecord = useMemo(() => {
@@ -517,7 +572,10 @@ export default function WorkforcePage() {
               <div className="relative">
                 <select
                   value={selectedSiteId}
-                  onChange={(e) => setSelectedSiteId(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedSiteId(e.target.value);
+                    setSelectedProjectId("");
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 >
                   <option value="">All Sites (All Deployments)</option>
@@ -529,6 +587,29 @@ export default function WorkforcePage() {
                 </select>
               </div>
             </div>
+
+            {/* Target Project Selector */}
+            {selectedSiteId && (
+              <div className="min-w-[200px]">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                  Target Project:
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  >
+                    <option value="">All Projects on Site</option>
+                    {projects.filter((p) => p.siteId === selectedSiteId).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* Date Filter */}
             <div>
@@ -772,8 +853,17 @@ export default function WorkforcePage() {
                               <span className="text-slate-400 italic">Direct / Self</span>
                             )}
                             {r.notes && (
-                              <div className="text-[10px] text-slate-500 break-words whitespace-normal">
-                                {r.notes}
+                              <div className="text-[10px] text-slate-500 break-words whitespace-normal mt-0.5">
+                                {r.notes.includes("[Project:") ? (
+                                  <>
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold mr-1">
+                                      {r.notes.match(/\[Project:\s*(.*?)\]/)?.[1] || "Project"}
+                                    </span>
+                                    <span>{r.notes.replace(/\[Project:\s*.*?\]\s*/, "")}</span>
+                                  </>
+                                ) : (
+                                  r.notes
+                                )}
                               </div>
                             )}
                           </td>
@@ -919,21 +1009,46 @@ export default function WorkforcePage() {
               </div>
 
               <form id="headcount-upload-modal-form" onSubmit={handleHeadcountSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
-                {/* Site & Date Selectors */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                {/* Site, Project, Date & Shift Selectors */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
                       Single Site: *
                     </label>
                     <select
                       value={modalSiteId}
-                      onChange={(e) => setModalSiteId(e.target.value)}
+                      onChange={(e) => {
+                        setModalSiteId(e.target.value);
+                        setModalProjectId("");
+                      }}
                       required
                       className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                     >
                       {sites.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                      Project:
+                    </label>
+                    <select
+                      value={modalProjectId}
+                      onChange={(e) => setModalProjectId(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    >
+                      <option value="">
+                        {siteProjects.length === 0
+                          ? "All Projects / General Site"
+                          : "All Projects / General Site Deployment"}
+                      </option>
+                      {siteProjects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.code})
                         </option>
                       ))}
                     </select>
