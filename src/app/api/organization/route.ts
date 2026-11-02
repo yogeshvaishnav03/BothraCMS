@@ -78,10 +78,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
+
     // WhatsApp, SMS and Razorpay keys stay on the server; Settings → Messages and Online payments have their own routes.
     const { messaging: _messaging, payments: _payments, ...settings } = parsedSettings as any;
     return jsonSuccess({
       ...organization,
+      users: isAdmin ? organization.users : [],
       settingsJson: undefined,
       settings,
     });
