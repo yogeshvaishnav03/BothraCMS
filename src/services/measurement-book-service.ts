@@ -490,6 +490,7 @@ export class MeasurementBookService {
     partyId: string;
     groupId?: string;
     subgroupId?: string;
+    subgroupName?: string;
     referenceNumber?: string;
     entryName?: string;
     itemDescription: string;
@@ -539,15 +540,55 @@ export class MeasurementBookService {
     let targetGroupId = input.groupId;
     let targetSubgroupId = input.subgroupId;
 
-    if (!targetGroupId || !targetSubgroupId) {
+    if (!targetGroupId) {
       const defaults = await this.getOrCreateDefaultGroupAndSubgroup(
         input.organizationId,
         input.projectId,
         input.partyId,
         project.siteId
       );
-      targetGroupId = targetGroupId || defaults.groupId;
+      targetGroupId = defaults.groupId;
       targetSubgroupId = targetSubgroupId || defaults.subgroupId;
+    }
+
+    if (input.subgroupName && input.subgroupName.trim() && targetGroupId) {
+      let customSubgroup = await prisma.measurementSubgroup.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          groupId: targetGroupId,
+          name: input.subgroupName.trim(),
+        },
+      });
+      if (!customSubgroup) {
+        customSubgroup = await prisma.measurementSubgroup.create({
+          data: {
+            organizationId: input.organizationId,
+            groupId: targetGroupId,
+            name: input.subgroupName.trim(),
+            type: "ROOM",
+          },
+        });
+      }
+      targetSubgroupId = customSubgroup.id;
+    } else if (!targetSubgroupId && targetGroupId) {
+      let defaultSg = await prisma.measurementSubgroup.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          groupId: targetGroupId,
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      if (!defaultSg) {
+        defaultSg = await prisma.measurementSubgroup.create({
+          data: {
+            organizationId: input.organizationId,
+            groupId: targetGroupId,
+            name: "General / Main Work Section",
+            type: "WORK_SECTION",
+          },
+        });
+      }
+      targetSubgroupId = defaultSg.id;
     }
 
     const count = input.count && input.count > 0 ? input.count : 1;
@@ -1555,7 +1596,7 @@ export class MeasurementBookService {
     if (filters?.projectId) groupWhere.projectId = filters.projectId;
     if (filters?.partyId) groupWhere.partyId = filters.partyId;
 
-    const existingGroups = await prisma.measurementGroup.findMany({
+    let existingGroups = await prisma.measurementGroup.findMany({
       where: groupWhere,
       include: {
         project: { select: { id: true, name: true, code: true, siteId: true, site: { select: { id: true, name: true } } } },
@@ -1565,6 +1606,43 @@ export class MeasurementBookService {
         },
       },
     });
+
+    if (existingGroups.length === 0 && !filters?.projectId && !filters?.partyId) {
+      // Auto-bootstrap default groups for active projects and contractor parties in the organization
+      const activeProjects = await prisma.project.findMany({
+        where: { organizationId, status: { not: "CANCELLED" } },
+        take: 10,
+      });
+      let activeParties = await prisma.party.findMany({
+        where: { organizationId, partyType: "CONTRACTOR", active: true },
+        take: 5,
+      });
+      if (activeParties.length === 0) {
+        activeParties = await prisma.party.findMany({
+          where: { organizationId, active: true },
+          take: 5,
+        });
+      }
+
+      if (activeProjects.length > 0 && activeParties.length > 0) {
+        for (const pr of activeProjects.slice(0, 5)) {
+          for (const pa of activeParties.slice(0, 2)) {
+            await this.getOrCreateDefaultGroupAndSubgroup(organizationId, pr.id, pa.id, pr.siteId);
+          }
+        }
+
+        existingGroups = await prisma.measurementGroup.findMany({
+          where: groupWhere,
+          include: {
+            project: { select: { id: true, name: true, code: true, siteId: true, site: { select: { id: true, name: true } } } },
+            party: { select: { id: true, name: true, partyType: true } },
+            subgroups: {
+              orderBy: { sortOrder: "asc" },
+            },
+          },
+        });
+      }
+    }
 
     // Build map of groups
     const groupMap = new Map<string, MeasurementGroupItem>();

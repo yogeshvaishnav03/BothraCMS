@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     if (projectId) where.projectId = projectId;
     if (partyId) where.partyId = partyId;
 
-    const groups = await prisma.measurementGroup.findMany({
+    let groups = await prisma.measurementGroup.findMany({
       where,
       include: {
         project: { select: { id: true, name: true, code: true, siteId: true, site: { select: { id: true, name: true } } } },
@@ -37,6 +37,46 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    if (groups.length === 0 && !projectId && !partyId) {
+      const activeProjects = await prisma.project.findMany({
+        where: { organizationId: user.organizationId, status: { not: "CANCELLED" } },
+        take: 10,
+      });
+      let activeParties = await prisma.party.findMany({
+        where: { organizationId: user.organizationId, partyType: "CONTRACTOR", active: true },
+        take: 5,
+      });
+      if (activeParties.length === 0) {
+        activeParties = await prisma.party.findMany({
+          where: { organizationId: user.organizationId, active: true },
+          take: 5,
+        });
+      }
+
+      if (activeProjects.length > 0 && activeParties.length > 0) {
+        for (const pr of activeProjects.slice(0, 5)) {
+          for (const pa of activeParties.slice(0, 2)) {
+            await MeasurementBookService.getOrCreateDefaultGroupAndSubgroup(
+              user.organizationId,
+              pr.id,
+              pa.id,
+              pr.siteId
+            );
+          }
+        }
+
+        groups = await prisma.measurementGroup.findMany({
+          where,
+          include: {
+            project: { select: { id: true, name: true, code: true, siteId: true, site: { select: { id: true, name: true } } } },
+            party: { select: { id: true, name: true, partyType: true } },
+            subgroups: { orderBy: { sortOrder: "asc" } },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+      }
+    }
 
     return jsonSuccess(groups);
   } catch (error) {

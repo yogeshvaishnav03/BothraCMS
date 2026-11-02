@@ -134,6 +134,23 @@ interface MainGroupItem {
   totalAmount?: number;
 }
 
+const STANDARD_ROOMS = [
+  "General / Main Work Section",
+  "Living Room / Hall",
+  "Master Bedroom",
+  "Bedroom 1",
+  "Bedroom 2",
+  "Kitchen",
+  "Dining Area",
+  "Balcony / Terrace",
+  "Bathroom / Toilet",
+  "Passage / Corridor",
+  "Staircase",
+  "External Elevation / Plaster",
+  "Boundary Wall / Compound",
+  "Basement / Parking",
+];
+
 export default function MeasurementBookPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canWriteProjects = canUser(currentUser, "projects:write");
@@ -203,6 +220,11 @@ export default function MeasurementBookPage() {
   // Add/Edit Measurement Form
   const [formGroupId, setFormGroupId] = useState("");
   const [formSubgroupId, setFormSubgroupId] = useState("");
+  const [formProjectId, setFormProjectId] = useState("");
+  const [formPartyId, setFormPartyId] = useState("");
+  const [formCustomRoom, setFormCustomRoom] = useState("");
+  const [isCustomRoom, setIsCustomRoom] = useState(false);
+  const [useDirectSelection, setUseDirectSelection] = useState(false);
   const [formRefNumber, setFormRefNumber] = useState("");
   const [formEntryName, setFormEntryName] = useState("Wall 1");
   const [formItemDesc, setFormItemDesc] = useState("");
@@ -264,6 +286,12 @@ export default function MeasurementBookPage() {
 
       if (mbData.success && Array.isArray(mbData.data)) {
         setGroups(mbData.data);
+        if (mbData.data.length > 0 && !formGroupId) {
+          setFormGroupId(mbData.data[0].id);
+          setFormProjectId(mbData.data[0].projectId);
+          setFormPartyId(mbData.data[0].partyId);
+          setFormSubgroupId(mbData.data[0].subgroups?.[0]?.id || STANDARD_ROOMS[0]);
+        }
         // Default expand first 2 groups
         const initExpanded: Record<string, boolean> = {};
         const initSubExpanded: Record<string, boolean> = {};
@@ -282,12 +310,18 @@ export default function MeasurementBookPage() {
         if (projData.data.length > 0 && !grpProjectId) {
           setGrpProjectId(projData.data[0].id);
         }
+        if (projData.data.length > 0 && !formProjectId) {
+          setFormProjectId(projData.data[0].id);
+        }
       }
 
       if (partyData.success && Array.isArray(partyData.data)) {
         setParties(partyData.data);
         if (partyData.data.length > 0 && !grpPartyId) {
           setGrpPartyId(partyData.data[0].id);
+        }
+        if (partyData.data.length > 0 && !formPartyId) {
+          setFormPartyId(partyData.data[0].id);
         }
       }
 
@@ -496,11 +530,28 @@ export default function MeasurementBookPage() {
   const openAddMeasurementModal = (groupId?: string, subgroupId?: string) => {
     setErrorMessage(null);
     setStatusMessage(null);
-    const targetG = groupId || (groups.length > 0 ? groups[0].id : "");
+    let targetG = groupId || formGroupId || (groups.length > 0 ? groups[0].id : "");
+    if (!targetG && groups.length > 0) {
+      targetG = groups[0].id;
+    }
     setFormGroupId(targetG);
+
     const grp = groups.find((g) => g.id === targetG);
-    const targetS = subgroupId || (grp && grp.subgroups.length > 0 ? grp.subgroups[0].id : "");
-    setFormSubgroupId(targetS);
+    if (grp) {
+      setFormProjectId(grp.projectId);
+      setFormPartyId(grp.partyId);
+      const targetS = subgroupId || (grp.subgroups.length > 0 ? grp.subgroups[0].id : STANDARD_ROOMS[0]);
+      setFormSubgroupId(targetS);
+      setUseDirectSelection(false);
+    } else {
+      setUseDirectSelection(true);
+      if (projects.length > 0) setFormProjectId(selectedProject !== "ALL" ? selectedProject : projects[0].id);
+      if (parties.length > 0) setFormPartyId(selectedParty !== "ALL" ? selectedParty : parties[0].id);
+      setFormSubgroupId(STANDARD_ROOMS[0]);
+    }
+
+    setIsCustomRoom(false);
+    setFormCustomRoom("");
     setFormRefNumber("");
     setFormEntryName("Wall 1");
     setFormItemDesc("");
@@ -524,7 +575,21 @@ export default function MeasurementBookPage() {
     setErrorMessage(null);
     setStatusMessage(null);
     setFormGroupId(entry.groupId || "");
-    setFormSubgroupId(entry.subgroupId || "");
+    setFormSubgroupId(entry.subgroupId || STANDARD_ROOMS[0]);
+    if (entry.groupId) {
+      const grp = groups.find((g) => g.id === entry.groupId);
+      if (grp) {
+        setFormProjectId(grp.projectId);
+        setFormPartyId(grp.partyId);
+        setUseDirectSelection(false);
+      }
+    } else {
+      if (entry.projectId) setFormProjectId(entry.projectId);
+      if (entry.partyId) setFormPartyId(entry.partyId);
+      setUseDirectSelection(true);
+    }
+    setIsCustomRoom(false);
+    setFormCustomRoom("");
     setFormRefNumber(entry.referenceNumber ? `${entry.referenceNumber}-COPY` : "");
     setFormEntryName(`${entry.entryName || "Entry"} (Copy)`);
     setFormItemDesc(entry.itemDescription);
@@ -546,15 +611,48 @@ export default function MeasurementBookPage() {
   // Handle Add Measurement submit
   const handleAddMeasurementSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const grp = groups.find((g) => g.id === formGroupId);
-    if (!grp) {
-      setErrorMessage("Please select a valid Main Group.");
+
+    let targetProjectId = formProjectId;
+    let targetPartyId = formPartyId;
+    let targetGroupId: string | undefined = undefined;
+
+    if (!useDirectSelection && formGroupId && formGroupId !== "__DIRECT_PICK__") {
+      const grp = groups.find((g) => g.id === formGroupId);
+      if (grp) {
+        targetProjectId = grp.projectId;
+        targetPartyId = grp.partyId;
+        targetGroupId = grp.id;
+      }
+    }
+
+    if (!targetProjectId || !targetPartyId) {
+      setErrorMessage("Please select both a Project and a Contractor/Vendor Party.");
       return;
     }
     if (!formItemDesc.trim() || !formRateRupees) {
       setErrorMessage("Work Description and Unit Rate are required.");
       return;
     }
+
+    // Resolve room / subgroup
+    let targetSubgroupId: string | undefined = undefined;
+    let targetSubgroupName: string | undefined = undefined;
+
+    if (isCustomRoom || formSubgroupId === "__CUSTOM__") {
+      targetSubgroupName = formCustomRoom.trim() || STANDARD_ROOMS[0];
+    } else if (STANDARD_ROOMS.includes(formSubgroupId)) {
+      const matchingSg = currentSubgroupsForForm.find((sg) => sg.name.toLowerCase() === formSubgroupId.toLowerCase());
+      if (matchingSg) {
+        targetSubgroupId = matchingSg.id;
+      } else {
+        targetSubgroupName = formSubgroupId;
+      }
+    } else if (formSubgroupId) {
+      targetSubgroupId = formSubgroupId;
+    } else {
+      targetSubgroupName = STANDARD_ROOMS[0];
+    }
+
     setActionLoading(true);
     setErrorMessage(null);
     try {
@@ -563,10 +661,11 @@ export default function MeasurementBookPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "CREATE",
-          projectId: grp.projectId,
-          partyId: grp.partyId,
-          groupId: formGroupId,
-          subgroupId: formSubgroupId || undefined,
+          projectId: targetProjectId,
+          partyId: targetPartyId,
+          groupId: targetGroupId,
+          subgroupId: targetSubgroupId,
+          subgroupName: targetSubgroupName,
           referenceNumber: formRefNumber || undefined,
           entryName: formEntryName || "Wall 1",
           itemDescription: formItemDesc.trim(),
@@ -2010,53 +2109,226 @@ export default function MeasurementBookPage() {
 
               <form onSubmit={handleAddMeasurementSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
                 <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Main Group (Project + Party) <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={formGroupId}
-                      onChange={(e) => {
-                        setFormGroupId(e.target.value);
-                        const g = groups.find((grp) => grp.id === e.target.value);
-                        if (g && g.subgroups.length > 0) {
-                          setFormSubgroupId(g.subgroups[0].id);
-                        } else {
-                          setFormSubgroupId("");
-                        }
-                      }}
-                      required
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="">-- Select Main Group --</option>
-                      {groups.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.project?.name} — {g.party?.name} ({g.party?.partyType})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                {groups.length > 0 && !useDirectSelection ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Main Group (Project + Party) <span className="text-rose-500">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseDirectSelection(true);
+                            if (!formProjectId && projects.length > 0) setFormProjectId(projects[0].id);
+                            if (!formPartyId && parties.length > 0) setFormPartyId(parties[0].id);
+                          }}
+                          className="text-[11px] text-amber-600 hover:text-amber-700 font-medium"
+                        >
+                          + Pick Project & Party Directly
+                        </button>
+                      </div>
+                      <select
+                        value={formGroupId}
+                        onChange={(e) => {
+                          if (e.target.value === "__DIRECT_PICK__") {
+                            setUseDirectSelection(true);
+                            if (!formProjectId && projects.length > 0) setFormProjectId(projects[0].id);
+                            if (!formPartyId && parties.length > 0) setFormPartyId(parties[0].id);
+                            return;
+                          }
+                          setFormGroupId(e.target.value);
+                          const g = groups.find((grp) => grp.id === e.target.value);
+                          if (g) {
+                            setFormProjectId(g.projectId);
+                            setFormPartyId(g.partyId);
+                            if (g.subgroups.length > 0) {
+                              setFormSubgroupId(g.subgroups[0].id);
+                            } else {
+                              setFormSubgroupId(STANDARD_ROOMS[0]);
+                            }
+                          }
+                        }}
+                        required
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                      >
+                        <option value="">-- Select Main Group --</option>
+                        {groups.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.project?.name || "Project"} — {g.party?.name || "Party"} ({g.party?.partyType || "Party"})
+                          </option>
+                        ))}
+                        <option value="__DIRECT_PICK__">+ Select Different Project & Contractor...</option>
+                      </select>
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Room / Subgroup <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={formSubgroupId}
-                      onChange={(e) => setFormSubgroupId(e.target.value)}
-                      required
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="">-- Select Subgroup / Room --</option>
-                      {currentSubgroupsForForm.map((sg) => (
-                        <option key={sg.id} value={sg.id}>
-                          {sg.name} ({sg.type})
-                        </option>
-                      ))}
-                    </select>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Room / Subgroup <span className="text-rose-500">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCustomRoom(!isCustomRoom);
+                            if (!isCustomRoom) setFormSubgroupId("__CUSTOM__");
+                          }}
+                          className="text-[11px] text-amber-600 hover:text-amber-700 font-medium"
+                        >
+                          {isCustomRoom ? "Select From List" : "+ Type Custom Room"}
+                        </button>
+                      </div>
+                      {isCustomRoom ? (
+                        <input
+                          type="text"
+                          placeholder="e.g. Master Bedroom, Living Room, External Plaster"
+                          value={formCustomRoom}
+                          onChange={(e) => setFormCustomRoom(e.target.value)}
+                          required
+                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
+                        />
+                      ) : (
+                        <select
+                          value={formSubgroupId}
+                          onChange={(e) => {
+                            if (e.target.value === "__CUSTOM__") {
+                              setIsCustomRoom(true);
+                            } else {
+                              setFormSubgroupId(e.target.value);
+                            }
+                          }}
+                          required
+                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                        >
+                          {currentSubgroupsForForm.length > 0 && (
+                            <optgroup label="Existing Rooms / Sections in Group">
+                              {currentSubgroupsForForm.map((sg) => (
+                                <option key={sg.id} value={sg.id}>
+                                  {sg.name} ({sg.type})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <optgroup label="Standard Rooms / Work Sections">
+                            {STANDARD_ROOMS.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <option value="__CUSTOM__">+ Type Custom Room / Subgroup...</option>
+                        </select>
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-900">
+                        Direct Project, Contractor & Room Selection
+                      </span>
+                      {groups.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseDirectSelection(false);
+                            if (groups.length > 0) setFormGroupId(groups[0].id);
+                          }}
+                          className="text-[11px] text-amber-800 hover:underline font-semibold"
+                        >
+                          Use Existing Groups
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-800 mb-1">
+                          Project <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          value={formProjectId}
+                          onChange={(e) => setFormProjectId(e.target.value)}
+                          required
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                        >
+                          <option value="">-- Select Project --</option>
+                          {projects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} {p.code ? `(${p.code})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-800 mb-1">
+                          Contractor / Vendor <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          value={formPartyId}
+                          onChange={(e) => setFormPartyId(e.target.value)}
+                          required
+                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                        >
+                          <option value="">-- Select Contractor / Party --</option>
+                          {parties.map((pa) => (
+                            <option key={pa.id} value={pa.id}>
+                              {pa.name} ({pa.partyType})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-slate-800">
+                            Room / Subgroup <span className="text-rose-500">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCustomRoom(!isCustomRoom);
+                              if (!isCustomRoom) setFormSubgroupId("__CUSTOM__");
+                            }}
+                            className="text-[11px] text-amber-700 hover:underline font-medium"
+                          >
+                            {isCustomRoom ? "Select From List" : "+ Type Custom"}
+                          </button>
+                        </div>
+                        {isCustomRoom ? (
+                          <input
+                            type="text"
+                            placeholder="e.g. Master Bedroom, Living Room"
+                            value={formCustomRoom}
+                            onChange={(e) => setFormCustomRoom(e.target.value)}
+                            required
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
+                          />
+                        ) : (
+                          <select
+                            value={formSubgroupId}
+                            onChange={(e) => {
+                              if (e.target.value === "__CUSTOM__") {
+                                setIsCustomRoom(true);
+                              } else {
+                                setFormSubgroupId(e.target.value);
+                              }
+                            }}
+                            required
+                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                          >
+                            <optgroup label="Standard Rooms / Work Sections">
+                              {STANDARD_ROOMS.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <option value="__CUSTOM__">+ Type Custom Room / Subgroup...</option>
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
