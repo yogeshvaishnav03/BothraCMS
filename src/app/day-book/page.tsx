@@ -30,6 +30,7 @@ import {
   Layers,
   Filter,
   Users,
+  UserCheck,
   Sparkles,
   CalendarX,
   Info,
@@ -1281,38 +1282,28 @@ export default function DayBookPage() {
             </div>
           </div>
 
-          {/* Attendance Card */}
+          {/* Staff Present (Staff only) */}
           <div
             onClick={() => setKpiPopupType("WORKFORCE")}
             className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between"
             role="button"
             tabIndex={0}
-            title="Click to view Workers & Master breakdown popup"
+            title="Click to view Staff attendance breakdown popup"
           >
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-emerald-600 transition">Workers Present</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-emerald-600 transition">Staff Present</span>
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition">
-                  <HardHat className="w-4 h-4" />
+                  <UserCheck className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-xl sm:text-2xl font-black text-slate-900">
-                {dayData?.summary.workersPresentCount || 0}
+                {dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0)}
               </div>
               <div className="text-[11px] text-slate-400 mt-1 font-medium">
-                {(() => {
-                  if (!dayData?.summary) return "Daily labor master";
-                  const parts: string[] = [];
-                  if (dayData.summary.headcountArtisans) parts.push(`${dayData.summary.headcountArtisans} Artisans`);
-                  if (dayData.summary.headcountCraftsmen) parts.push(`${dayData.summary.headcountCraftsmen} Craftsmen`);
-                  if (dayData.summary.headcountLaborers) parts.push(`${dayData.summary.headcountLaborers} Laborers`);
-                  const subSum = (dayData.summary.headcountArtisans || 0) + (dayData.summary.headcountCraftsmen || 0) + (dayData.summary.headcountLaborers || 0);
-                  const total = dayData.summary.workersPresentCount || 0;
-                  if (total > subSum) {
-                    parts.push(`+${total - subSum} Staff`);
-                  }
-                  return parts.length > 0 ? parts.join(" · ") : "Daily labor master";
-                })()}
+                {(dayData?.summary?.staffPresentCount || dayData?.attendance?.length || 0) > 0
+                  ? `${dayData?.summary?.staffPresentCount || dayData?.attendance?.length} Staff checked in`
+                  : "No staff logged today"}
               </div>
             </div>
             <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-emerald-600 transition">
@@ -2776,12 +2767,12 @@ export default function DayBookPage() {
                 <div className="p-4 bg-emerald-600 text-white flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 bg-white/10 rounded-lg">
-                      <HardHat className="w-5 h-5 text-white" />
+                      <UserCheck className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-black text-base leading-tight">Workers Present — Master & Attendance</h3>
+                      <h3 className="font-black text-base leading-tight">Staff Present — Attendance Logs</h3>
                       <p className="text-xs text-emerald-100">
-                        {formatDate(selectedDate)} · Total: {dayData?.summary.workersPresentCount || 0} active workers & staff
+                        {formatDate(selectedDate)} · Total: {dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0)} active staff checked in
                       </p>
                     </div>
                   </div>
@@ -2797,25 +2788,62 @@ export default function DayBookPage() {
                 <div className="p-4 bg-emerald-50/70 border-b border-emerald-100">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-slate-500">Artisans</span>
-                      <div className="text-xl font-black text-slate-900">{dayData?.summary.headcountArtisans || 0}</div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500">Staff Present</span>
+                      <div className="text-xl font-black text-emerald-700">{dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0)}</div>
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-slate-500">Craftsmen</span>
-                      <div className="text-xl font-black text-slate-900">{dayData?.summary.headcountCraftsmen || 0}</div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500">Present</span>
+                      <div className="text-xl font-black text-slate-900">{dayData?.attendance?.filter((a: any) => a.status === "PRESENT").length || 0}</div>
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-slate-500">Laborers (M/F)</span>
-                      <div className="text-xl font-black text-slate-900">{dayData?.summary.headcountLaborers || 0}</div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500">Half Day / Overtime</span>
+                      <div className="text-xl font-black text-slate-900">{dayData?.attendance?.filter((a: any) => ["HALF_DAY", "OVERTIME"].includes(a.status)).length || 0}</div>
                     </div>
                     <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-slate-500">Staff Attendance</span>
-                      <div className="text-xl font-black text-emerald-700">{dayData?.attendance?.length || 0}</div>
+                      <span className="text-[10px] uppercase font-bold text-slate-500">Total Logged</span>
+                      <div className="text-xl font-black text-slate-900">{dayData?.attendance?.length || 0}</div>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-4 overflow-y-auto space-y-4 flex-1">
+                  {/* Individual Staff Attendance */}
+                  <div>
+                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Individual Staff & Team Attendance</span>
+                    </h4>
+                    {(!dayData?.attendance || dayData.attendance.length === 0) ? (
+                      <p className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        No staff attendance check-ins logged for this date.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {dayData.attendance.map((a: any, idx: number) => (
+                          <div key={a.id || idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                            <div>
+                              <div className="font-bold text-xs text-slate-900">{a.workforceMember?.name || "Staff Member"}</div>
+                              <div className="text-[11px] text-slate-500">
+                                {a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}
+                                {a.workforceMember?.employeeCode ? ` · ${a.workforceMember.employeeCode}` : ""}
+                              </div>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 text-[10px] font-bold rounded ${
+                                a.status === "PRESENT"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : a.status === "HALF_DAY"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {a.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   {/* Labor Headcount Master */}
                   <div>
                     <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -2856,44 +2884,6 @@ export default function DayBookPage() {
                             {h.notes && (
                               <p className="text-[11px] text-slate-500 italic mt-1.5">&ldquo;{h.notes}&rdquo;</p>
                             )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Individual Staff Attendance */}
-                  <div>
-                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <HardHat className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Individual Staff & Skilled Trades</span>
-                    </h4>
-                    {(!dayData?.attendance || dayData.attendance.length === 0) ? (
-                      <p className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-lg border border-slate-200">
-                        No individual attendance check-ins logged for this date.
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {dayData.attendance.map((a: any, idx: number) => (
-                          <div key={a.id || idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                            <div>
-                              <div className="font-bold text-xs text-slate-900">{a.workforceMember?.name || "Worker"}</div>
-                              <div className="text-[11px] text-slate-500">
-                                {a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}
-                                {a.workforceMember?.employeeCode ? ` · ${a.workforceMember.employeeCode}` : ""}
-                              </div>
-                            </div>
-                            <span
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded ${
-                                a.status === "PRESENT"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : a.status === "HALF_DAY"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-slate-200 text-slate-700"
-                              }`}
-                            >
-                              {a.status}
-                            </span>
                           </div>
                         ))}
                       </div>
