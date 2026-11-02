@@ -226,6 +226,68 @@ export async function fetchDayBookData(
       })),
   }));
 
+  // Attachments for bills
+  const billIds = bills.map((b: any) => b.id);
+  const billAttachments = billIds.length > 0 ? await prisma.attachment.findMany({
+    where: {
+      organizationId: orgId,
+      entityType: "BILL",
+      entityId: { in: billIds },
+      isArchived: false,
+    },
+    select: {
+      id: true,
+      fileId: true,
+      fileName: true,
+      fileSize: true,
+      mimeType: true,
+      category: true,
+      entityId: true,
+      createdAt: true,
+    },
+  }) : [];
+
+  const enrichedBills = bills.map((b: any) => ({
+    ...b,
+    attachments: billAttachments
+      .filter((a: any) => a.entityId === b.id)
+      .map((a: any) => ({
+        ...a,
+        url: `/api/uploads/${a.fileId}`,
+      })),
+  }));
+
+  // Attachments for payments
+  const paymentIds = payments.map((p: any) => p.id);
+  const paymentAttachments = paymentIds.length > 0 ? await prisma.attachment.findMany({
+    where: {
+      organizationId: orgId,
+      entityType: "PAYMENT",
+      entityId: { in: paymentIds },
+      isArchived: false,
+    },
+    select: {
+      id: true,
+      fileId: true,
+      fileName: true,
+      fileSize: true,
+      mimeType: true,
+      category: true,
+      entityId: true,
+      createdAt: true,
+    },
+  }) : [];
+
+  const enrichedPayments = payments.map((p: any) => ({
+    ...p,
+    attachments: paymentAttachments
+      .filter((a: any) => a.entityId === p.id)
+      .map((a: any) => ({
+        ...a,
+        url: `/api/uploads/${a.fileId}`,
+      })),
+  }));
+
   // 6. Money in: customer receipts against bookings
   const moneyIn = (
     await prisma.salesReceipt.findMany({
@@ -291,9 +353,9 @@ export async function fetchDayBookData(
       staffPresentCount,
       reportsCount: dailyReports.length,
     },
-    payments,
+    payments: enrichedPayments,
     moneyIn,
-    bills,
+    bills: enrichedBills,
     receipts,
     issues,
     attendance,

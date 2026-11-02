@@ -152,6 +152,26 @@ export default function DayBookPage() {
           </span>
         ),
       },
+      {
+        key: "attachment",
+        label: "Receipt / Doc",
+        accessor: (p) => (p.attachments && p.attachments.length > 0 ? "Attached" : "None"),
+        render: (p) => {
+          const att = p.attachments?.[0];
+          if (!att) return <span className="text-slate-300 text-xs">—</span>;
+          return (
+            <button
+              type="button"
+              onClick={() => setActivePhotoLightbox(att.url)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200 transition"
+              title={`View ${att.fileName}`}
+            >
+              <ImageIcon className="w-3 h-3 text-rose-600" />
+              <span>Voucher</span>
+            </button>
+          );
+        },
+      },
     ],
     []
   );
@@ -198,6 +218,26 @@ export default function DayBookPage() {
             {formatCurrency(b.totalAmount)}
           </span>
         ),
+      },
+      {
+        key: "attachment",
+        label: "Doc / Image",
+        accessor: (b) => (b.attachments && b.attachments.length > 0 ? "Attached" : "None"),
+        render: (b) => {
+          const att = b.attachments?.[0];
+          if (!att) return <span className="text-slate-300 text-xs">—</span>;
+          return (
+            <button
+              type="button"
+              onClick={() => setActivePhotoLightbox(att.url)}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition"
+              title={`View ${att.fileName}`}
+            >
+              <ImageIcon className="w-3 h-3 text-amber-600" />
+              <span>View Doc</span>
+            </button>
+          );
+        },
       },
     ],
     []
@@ -421,6 +461,8 @@ export default function DayBookPage() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [pendingPartyBills, setPendingPartyBills] = useState<any[]>([]);
   const [selectedPaymentBillId, setSelectedPaymentBillId] = useState<string>("");
+  const [paymentPhotos, setPaymentPhotos] = useState<File[]>([]);
+  const [paymentPhotoPreviews, setPaymentPhotoPreviews] = useState<{ id: string; url: string; name: string; size: number }[]>([]);
 
   // Form states - Bill
   const [billPartyId, setBillPartyId] = useState("");
@@ -428,6 +470,8 @@ export default function DayBookPage() {
   const [billNumber, setBillNumber] = useState("");
   const [billAmount, setBillAmount] = useState("");
   const [billNotes, setBillNotes] = useState("");
+  const [billPhotos, setBillPhotos] = useState<File[]>([]);
+  const [billPhotoPreviews, setBillPhotoPreviews] = useState<{ id: string; url: string; name: string; size: number }[]>([]);
 
   // Form states - Workforce Headcount
   const [wfSiteId, setWfSiteId] = useState("");
@@ -488,10 +532,92 @@ export default function DayBookPage() {
     });
   };
 
+  const handleBillPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const newFiles = Array.from(e.target.files);
+
+    const validFiles: File[] = [];
+    newFiles.forEach((file) => {
+      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+        alert(`File "${file.name}" is not a supported image or PDF document.`);
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`File "${file.name}" exceeds the 10 MB limit.`);
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    if (validFiles.length === 0) return;
+
+    setBillPhotos((prev) => [...prev, ...validFiles]);
+    const newPreviews = validFiles.map((file) => ({
+      id: `${file.name}-${file.lastModified}-${Math.random()}`,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+    }));
+    setBillPhotoPreviews((prev) => [...prev, ...newPreviews]);
+    e.target.value = "";
+  };
+
+  const handleRemoveBillPhoto = (index: number) => {
+    setBillPhotos((prev) => prev.filter((_, i) => i !== index));
+    setBillPhotoPreviews((prev) => {
+      if (prev[index]?.url) URL.revokeObjectURL(prev[index].url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handlePaymentPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const newFiles = Array.from(e.target.files);
+
+    const validFiles: File[] = [];
+    newFiles.forEach((file) => {
+      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+        alert(`File "${file.name}" is not a supported image or PDF document.`);
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`File "${file.name}" exceeds the 10 MB limit.`);
+        return;
+      }
+      validFiles.push(file);
+    });
+
+    if (validFiles.length === 0) return;
+
+    setPaymentPhotos((prev) => [...prev, ...validFiles]);
+    const newPreviews = validFiles.map((file) => ({
+      id: `${file.name}-${file.lastModified}-${Math.random()}`,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+    }));
+    setPaymentPhotoPreviews((prev) => [...prev, ...newPreviews]);
+    e.target.value = "";
+  };
+
+  const handleRemovePaymentPhoto = (index: number) => {
+    setPaymentPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPaymentPhotoPreviews((prev) => {
+      if (prev[index]?.url) URL.revokeObjectURL(prev[index].url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
   const handleCloseLogModal = () => {
     dsrPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
     setDsrPhotos([]);
     setDsrPhotoPreviews([]);
+    billPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+    setBillPhotos([]);
+    setBillPhotoPreviews([]);
+    paymentPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+    setPaymentPhotos([]);
+    setPaymentPhotoPreviews([]);
     setShowLogModal(false);
   };
 
@@ -661,7 +787,36 @@ export default function DayBookPage() {
 
       const data = await res.json();
       if (data.success) {
-        setStatusMessage("✅ Day Book payment recorded successfully!");
+        const paymentId = data.data?.payment?.id || data.data?.id;
+        if (paymentId && paymentPhotos.length > 0) {
+          for (let i = 0; i < paymentPhotos.length; i++) {
+            const photo = paymentPhotos[i];
+            const fd = new FormData();
+            fd.append("file", photo);
+            fd.append("entityType", "PAYMENT");
+            fd.append("entityId", paymentId);
+            if (paymentProjectId) fd.append("projectId", paymentProjectId);
+            fd.append("category", "RECEIPT");
+            fd.append("notes", `Payment voucher ${paymentRef.trim()}`);
+            try {
+              await fetch("/api/attachments", {
+                method: "POST",
+                body: fd,
+              });
+            } catch (err) {
+              console.error("Failed uploading payment photo:", photo.name, err);
+            }
+          }
+        }
+        paymentPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+        setPaymentPhotos([]);
+        setPaymentPhotoPreviews([]);
+
+        setStatusMessage(
+          paymentPhotos.length > 0
+            ? `✅ Day Book payment & ${paymentPhotos.length} voucher file(s) recorded successfully!`
+            : "✅ Day Book payment recorded successfully!"
+        );
         setShowLogModal(false);
         setPaymentAmount("");
         setPaymentNotes("");
@@ -713,12 +868,41 @@ export default function DayBookPage() {
 
       const data = await res.json();
       if (data.success) {
-        setStatusMessage("✅ Day Book bill entered successfully!");
+        const billId = data.data?.id;
+        if (billId && billPhotos.length > 0) {
+          for (let i = 0; i < billPhotos.length; i++) {
+            const photo = billPhotos[i];
+            const fd = new FormData();
+            fd.append("file", photo);
+            fd.append("entityType", "BILL");
+            fd.append("entityId", billId);
+            if (billProjectId) fd.append("projectId", billProjectId);
+            fd.append("category", "INVOICE");
+            fd.append("notes", `Bill #${generatedBillNo} document`);
+            try {
+              await fetch("/api/attachments", {
+                method: "POST",
+                body: fd,
+              });
+            } catch (err) {
+              console.error("Failed uploading bill photo:", photo.name, err);
+            }
+          }
+        }
+        billPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+        setBillPhotos([]);
+        setBillPhotoPreviews([]);
+
+        setStatusMessage(
+          billPhotos.length > 0
+            ? `✅ Day Book bill & ${billPhotos.length} document file(s) saved successfully!`
+            : "✅ Day Book bill entered successfully!"
+        );
         setShowLogModal(false);
         setBillAmount("");
         setBillNumber("");
         setBillNotes("");
-        loadDayBook(selectedDate, selectedSiteId);
+        loadDayBook(selectedDate, toDate, selectedSiteId);
       } else {
         setStatusMessage(`❌ Error: ${data.error?.message || "Could not enter bill"}`);
       }
@@ -2073,6 +2257,90 @@ export default function DayBookPage() {
                       />
                     </div>
 
+                    {/* Payment Receipt / Voucher Upload */}
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-amber-600" />
+                          <span>Payment Receipt / Voucher (Optional)</span>
+                        </label>
+                        {paymentPhotos.length > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                            {paymentPhotos.length} {paymentPhotos.length === 1 ? "file" : "files"} selected
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
+                          <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
+                          <span className="text-xs font-bold text-amber-900">Click Photo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handlePaymentPhotoSelect}
+                            className="hidden"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
+                          <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
+                          <span className="text-xs font-bold text-slate-700">Choose Receipt / PDF</span>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            multiple
+                            onChange={handlePaymentPhotoSelect}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
+                      {paymentPhotoPreviews.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 pt-1">
+                          {paymentPhotoPreviews.map((preview, index) => (
+                            <div
+                              key={preview.id}
+                              className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
+                            >
+                              {preview.url.startsWith("blob:") && !preview.name.toLowerCase().endsWith(".pdf") ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={preview.url}
+                                  alt={preview.name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-white p-2 bg-slate-800">
+                                  <FileText className="w-6 h-6 text-amber-400" />
+                                  <span className="text-[10px] truncate max-w-full text-slate-300 mt-1">{preview.name}</span>
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(preview.url)}
+                                  title="View preview"
+                                  className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePaymentPhoto(index)}
+                                  title="Remove image"
+                                  className="p-1 rounded-full bg-rose-500 hover:bg-rose-600 text-white transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
                       <button
                         type="button"
@@ -2178,6 +2446,93 @@ export default function DayBookPage() {
                         placeholder="e.g. Supply of 100 bags cement or shuttering labor charge"
                         className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
                       />
+                    </div>
+
+                    {/* Bill / Invoice Image or Document Upload */}
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-amber-600" />
+                          <span>Bill / Invoice Photo or Document (Optional)</span>
+                        </label>
+                        {billPhotos.length > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                            {billPhotos.length} {billPhotos.length === 1 ? "file" : "files"} selected
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Option 1: Live Camera Capture */}
+                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
+                          <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
+                          <span className="text-xs font-bold text-amber-900">Click Photo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleBillPhotoSelect}
+                            className="hidden"
+                          />
+                        </label>
+
+                        {/* Option 2: Choose / Upload Files or PDF */}
+                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
+                          <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
+                          <span className="text-xs font-bold text-slate-700">Choose Files / PDF</span>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            multiple
+                            onChange={handleBillPhotoSelect}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
+                      {/* Photo / Document Previews */}
+                      {billPhotoPreviews.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 pt-1">
+                          {billPhotoPreviews.map((preview, index) => (
+                            <div
+                              key={preview.id}
+                              className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
+                            >
+                              {preview.url.startsWith("blob:") && !preview.name.toLowerCase().endsWith(".pdf") ? (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={preview.url}
+                                  alt={preview.name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-white p-2 bg-slate-800">
+                                  <FileText className="w-6 h-6 text-amber-400" />
+                                  <span className="text-[10px] truncate max-w-full text-slate-300 mt-1">{preview.name}</span>
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(preview.url)}
+                                  title="View preview"
+                                  className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBillPhoto(index)}
+                                  title="Remove image"
+                                  className="p-1 rounded-full bg-rose-500 hover:bg-rose-600 text-white transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
@@ -2635,6 +2990,24 @@ export default function DayBookPage() {
                               &ldquo;{p.notes}&rdquo;
                             </p>
                           )}
+                          {p.attachments && p.attachments.length > 0 && (
+                            <div className="flex items-center gap-2 mt-2 pt-1.5 border-t border-slate-200/60">
+                              <span className="text-[11px] font-bold text-slate-500">📎 Voucher:</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {p.attachments.map((att: any, aIdx: number) => (
+                                  <button
+                                    key={att.id || aIdx}
+                                    type="button"
+                                    onClick={() => setActivePhotoLightbox(att.url)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-lg text-[10px] font-bold transition border border-rose-200"
+                                  >
+                                    <ImageIcon className="w-3 h-3 text-rose-600" />
+                                    <span>View Voucher {p.attachments.length > 1 ? `#${aIdx + 1}` : ""}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="text-left sm:text-right shrink-0">
                           <div className="text-lg font-black text-rose-600">
@@ -2738,6 +3111,24 @@ export default function DayBookPage() {
                             <p className="text-xs text-slate-600 italic bg-white/70 p-1.5 rounded border border-slate-100 mt-1">
                               &ldquo;{b.notes}&rdquo;
                             </p>
+                          )}
+                          {b.attachments && b.attachments.length > 0 && (
+                            <div className="flex items-center gap-2 mt-2 pt-1.5 border-t border-slate-200/60">
+                              <span className="text-[11px] font-bold text-slate-500">📎 Bill / Doc:</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {b.attachments.map((att: any, aIdx: number) => (
+                                  <button
+                                    key={att.id || aIdx}
+                                    type="button"
+                                    onClick={() => setActivePhotoLightbox(att.url)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-[10px] font-bold transition border border-amber-200"
+                                  >
+                                    <ImageIcon className="w-3 h-3 text-amber-600" />
+                                    <span>View Image {b.attachments.length > 1 ? `#${aIdx + 1}` : ""}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                         <div className="text-left sm:text-right shrink-0">
@@ -3354,12 +3745,20 @@ export default function DayBookPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={activePhotoLightbox}
-              alt="Site Photo Evidence"
-              className="max-h-[85vh] w-auto object-contain mx-auto"
-            />
+            {activePhotoLightbox.toLowerCase().includes(".pdf") ? (
+              <iframe
+                src={activePhotoLightbox}
+                className="w-[85vw] max-w-4xl h-[80vh] rounded-b-xl bg-white"
+                title="Document Preview"
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={activePhotoLightbox}
+                alt="Document / Photo Preview"
+                className="max-h-[85vh] w-auto object-contain mx-auto"
+              />
+            )}
           </div>
         </div>,
         document.body
