@@ -1,0 +1,30 @@
+import { NextRequest } from "next/server";
+import { getUserContext } from "@/lib/auth";
+import { MeasurementBookService } from "@/services/measurement-book-service";
+import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+
+export const dynamic = "force-dynamic";
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserContext(req);
+    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    const result = await MeasurementBookService.deleteGroup({
+      organizationId: user.organizationId,
+      groupId: params.id,
+      role: user.role,
+      userId: user.userId,
+    });
+
+    return jsonSuccess({
+      message: "Main Group and associated items deleted successfully",
+      ...result,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

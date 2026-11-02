@@ -562,4 +562,126 @@ describe("Measurement Book: Complete Hierarchical Table, Formulas, Images & Audi
       })
     ).rejects.toThrow(/converted to a Bill and cannot be deleted/i);
   });
+
+  it("should delete group and subgroup, while rejecting deletion if any entry is billed", async () => {
+    // 1. Create a group with a subgroup and unbilled entry
+    const group = await prisma.measurementGroup.create({
+      data: {
+        organizationId: orgId,
+        projectId,
+        partyId: contractorPartyId,
+      },
+    });
+
+    const subgroup = await prisma.measurementSubgroup.create({
+      data: {
+        organizationId: orgId,
+        groupId: group.id,
+        name: "Test Living Room",
+        type: "ROOM",
+      },
+    });
+
+    const entry = await MeasurementBookService.createEntry({
+      organizationId: orgId,
+      projectId,
+      partyId: contractorPartyId,
+      groupId: group.id,
+      subgroupId: subgroup.id,
+      entryName: "Living Wall North",
+      itemDescription: "Brickwork",
+      formula: "AREA",
+      unit: "SQM",
+      count: 1,
+      length: 10,
+      breadth: 1,
+      depth: 3,
+      deduction: 0,
+      agreedRate: 200,
+      userId: adminUserId,
+      role: "SUPER_ADMIN",
+    });
+
+    // 2. Delete subgroup should succeed
+    const delSubgroupRes = await MeasurementBookService.deleteSubgroup({
+      organizationId: orgId,
+      subgroupId: subgroup.id,
+      role: "SUPER_ADMIN",
+      userId: adminUserId,
+    });
+    expect(delSubgroupRes.success).toBe(true);
+    expect(delSubgroupRes.deletedCount).toBe(1);
+
+    // Verify subgroup and entry are gone
+    const checkSubgroup = await prisma.measurementSubgroup.findUnique({ where: { id: subgroup.id } });
+    expect(checkSubgroup).toBeNull();
+    const checkEntry = await prisma.measurementBookEntry.findUnique({ where: { id: entry.id } });
+    expect(checkEntry).toBeNull();
+
+    // 3. Create a new subgroup with an entry that gets BILLED
+    const subgroup2 = await prisma.measurementSubgroup.create({
+      data: {
+        organizationId: orgId,
+        groupId: group.id,
+        name: "Kitchen",
+        type: "ROOM",
+      },
+    });
+
+    const entry2 = await MeasurementBookService.createEntry({
+      organizationId: orgId,
+      projectId,
+      partyId: contractorPartyId,
+      groupId: group.id,
+      subgroupId: subgroup2.id,
+      entryName: "Kitchen Wall",
+      itemDescription: "Plaster",
+      formula: "AREA",
+      unit: "SQM",
+      count: 1,
+      length: 5,
+      breadth: 1,
+      depth: 3,
+      deduction: 0,
+      agreedRate: 150,
+      userId: adminUserId,
+      role: "SUPER_ADMIN",
+    });
+
+    await MeasurementBookService.updateStatus({
+      organizationId: orgId,
+      entryId: entry2.id,
+      status: "APPROVED",
+      userId: adminUserId,
+      role: "SUPER_ADMIN",
+    });
+
+    await MeasurementBookService.convertToBill({
+      organizationId: orgId,
+      entryId: entry2.id,
+      billNumber: "BILL-MB-TEST-002",
+      userId: adminUserId,
+      role: "SUPER_ADMIN",
+    });
+
+    // Subgroup deletion MUST fail because entry2 is BILLED
+    await expect(
+      MeasurementBookService.deleteSubgroup({
+        organizationId: orgId,
+        subgroupId: subgroup2.id,
+        role: "SUPER_ADMIN",
+        userId: adminUserId,
+      })
+    ).rejects.toThrow(/Cannot delete a Subgroup containing billed measurements/i);
+
+    // Group deletion MUST also fail because entry2 is BILLED
+    await expect(
+      MeasurementBookService.deleteGroup({
+        organizationId: orgId,
+        groupId: group.id,
+        role: "SUPER_ADMIN",
+        userId: adminUserId,
+      })
+    ).rejects.toThrow(/Cannot delete a Main Group containing billed measurements/i);
+  });
 });

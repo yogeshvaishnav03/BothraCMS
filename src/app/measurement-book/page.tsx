@@ -186,6 +186,10 @@ export default function MeasurementBookPage() {
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   const [showEditEntryModal, setShowEditEntryModal] = useState(false);
   const [showDeleteEntryModal, setShowDeleteEntryModal] = useState(false);
+  const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<MainGroupItem | null>(null);
+  const [showDeleteSubgroupModal, setShowDeleteSubgroupModal] = useState(false);
+  const [subgroupToDelete, setSubgroupToDelete] = useState<{ subgroup: SubgroupItem; group: MainGroupItem } | null>(null);
   const [showImagesModal, setShowImagesModal] = useState(false);
   const [showChangeRequestsModal, setShowChangeRequestsModal] = useState(false);
   const [showAbstractModal, setShowAbstractModal] = useState(false);
@@ -814,6 +818,68 @@ export default function MeasurementBookPage() {
       loadData();
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to delete measurement.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Open Delete Group Modal
+  const openDeleteGroupModal = (grp: MainGroupItem) => {
+    setGroupToDelete(grp);
+    setShowDeleteGroupModal(true);
+  };
+
+  // Submit Delete Group
+  const handleDeleteGroupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupToDelete) return;
+    setActionLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch(`/api/measurement-book/groups/${groupToDelete.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to delete Main Group.");
+      }
+      setStatusMessage(`Main Group "${groupToDelete.project?.name || "Project"} - ${groupToDelete.party?.name || "Party"}" deleted successfully.`);
+      setShowDeleteGroupModal(false);
+      setGroupToDelete(null);
+      loadData();
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to delete Main Group.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Open Delete Subgroup Modal
+  const openDeleteSubgroupModal = (subgroup: SubgroupItem, group: MainGroupItem) => {
+    setSubgroupToDelete({ subgroup, group });
+    setShowDeleteSubgroupModal(true);
+  };
+
+  // Submit Delete Subgroup
+  const handleDeleteSubgroupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subgroupToDelete) return;
+    setActionLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch(`/api/measurement-book/subgroups/${subgroupToDelete.subgroup.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to delete Room / Subgroup.");
+      }
+      setStatusMessage(`Room / Subgroup "${subgroupToDelete.subgroup.name}" deleted successfully.`);
+      setShowDeleteSubgroupModal(false);
+      setSubgroupToDelete(null);
+      loadData();
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to delete Room / Subgroup.");
     } finally {
       setActionLoading(false);
     }
@@ -1584,6 +1650,13 @@ export default function MeasurementBookPage() {
                           >
                             + Measurement
                           </button>
+                          <button
+                            onClick={() => openDeleteGroupModal(grp)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+                            title="Delete this Main Group"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1643,13 +1716,22 @@ export default function MeasurementBookPage() {
                                   </div>
 
                                   {canWriteProjects && (
-                                    <button
-                                      onClick={() => openAddMeasurementModal(grp.id, sg.id)}
-                                      className="px-2 py-1 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold shadow-xs transition"
-                                      title="Add wall measurement to this room"
-                                    >
-                                      + Add Wall
-                                    </button>
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        onClick={() => openAddMeasurementModal(grp.id, sg.id)}
+                                        className="px-2 py-1 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold shadow-xs transition"
+                                        title="Add wall measurement to this room"
+                                      >
+                                        + Add Wall
+                                      </button>
+                                      <button
+                                        onClick={() => openDeleteSubgroupModal(sg, grp)}
+                                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                                        title="Delete Room / Subgroup"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   )}
                                 </div>
                               </div>
@@ -2823,6 +2905,159 @@ export default function MeasurementBookPage() {
                     {actionLoading ? "Archiving..." : "Confirm Deletion with Reason"}
                   </button>
                 </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 5B. DELETE MAIN GROUP MODAL */}
+        {showDeleteGroupModal && groupToDelete && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100 text-rose-600">
+                <div className="p-2 bg-rose-50 rounded-xl text-rose-600">
+                  <Trash2 className="w-6 h-6 shrink-0" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Delete Main Group</h3>
+                  <p className="text-xs text-slate-500">Project & Contractor Linkage</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3 text-xs text-slate-600">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Project:</span>
+                    <span className="font-bold text-slate-900">
+                      {groupToDelete.project?.name || "Unknown Project"}
+                      {groupToDelete.project?.code ? ` (${groupToDelete.project.code})` : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Party / Contractor:</span>
+                    <span className="font-bold text-slate-900">
+                      {groupToDelete.party?.name || "Unknown Party"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+                    <span className="text-slate-500 font-medium">Rooms / Subgroups:</span>
+                    <span className="font-semibold text-slate-800">
+                      {groupToDelete.subgroups?.length || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Measurement Total:</span>
+                    <span className="font-bold text-emerald-700">
+                      {formatCurrency(groupToDelete.totalAmount)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-rose-50/80 border border-rose-200 rounded-xl text-rose-900 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Permanent Deletion:</span> This action will remove this Main Group and all of its rooms, measurement entries, evidence photos, and audit logs.
+                    <span className="block mt-1 text-[11px] text-rose-700 font-medium">
+                      If any measurement in this group has already been BILLED, deletion is prohibited.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleDeleteGroupSubmit} className="mt-5 flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteGroupModal(false);
+                    setGroupToDelete(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow transition disabled:opacity-50"
+                >
+                  {actionLoading ? "Deleting..." : "Confirm & Delete Main Group"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 5C. DELETE ROOM / SUBGROUP MODAL */}
+        {showDeleteSubgroupModal && subgroupToDelete && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100 text-rose-600">
+                <div className="p-2 bg-rose-50 rounded-xl text-rose-600">
+                  <Trash2 className="w-6 h-6 shrink-0" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Delete Room / Subgroup</h3>
+                  <p className="text-xs text-slate-500">Work Section or Room</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3 text-xs text-slate-600">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Room / Subgroup:</span>
+                    <span className="font-bold text-slate-900">
+                      {subgroupToDelete.subgroup.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Group:</span>
+                    <span className="font-semibold text-slate-800 text-right truncate max-w-[200px]">
+                      {subgroupToDelete.group.project?.name} • {subgroupToDelete.group.party?.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+                    <span className="text-slate-500 font-medium">Measurement Entries:</span>
+                    <span className="font-semibold text-slate-800">
+                      {subgroupToDelete.subgroup.entries?.length || 0} entries
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Subgroup Total:</span>
+                    <span className="font-bold text-emerald-700">
+                      {formatCurrency(subgroupToDelete.subgroup.totalAmount)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-rose-50/80 border border-rose-200 rounded-xl text-rose-900 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Permanent Deletion:</span> This will delete this room/subgroup and all associated wall measurements and photos.
+                    <span className="block mt-1 text-[11px] text-rose-700 font-medium">
+                      If any measurement in this room has already been BILLED, deletion is prohibited.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleDeleteSubgroupSubmit} className="mt-5 flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteSubgroupModal(false);
+                    setSubgroupToDelete(null);
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow transition disabled:opacity-50"
+                >
+                  {actionLoading ? "Deleting..." : "Confirm & Delete Room"}
+                </button>
               </form>
             </div>
           </div>

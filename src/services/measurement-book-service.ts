@@ -483,6 +483,92 @@ export class MeasurementBookService {
   }
 
   /**
+   * Delete a Main Group (Level 1: Project + Contractor)
+   */
+  static async deleteGroup(input: {
+    organizationId: string;
+    groupId: string;
+    role: Role;
+    userId: string;
+  }): Promise<{ success: boolean; deletedCount: number }> {
+    assertPermission(input.role, "projects:write");
+
+    const group = await prisma.measurementGroup.findFirst({
+      where: { id: input.groupId, organizationId: input.organizationId },
+      include: {
+        entries: { select: { id: true, status: true } },
+        subgroups: { select: { id: true } },
+      },
+    });
+
+    if (!group) {
+      throw new Error("NotFound: Measurement Main Group not found.");
+    }
+
+    const hasBilled = group.entries.some((e) => e.status === "BILLED");
+    if (hasBilled) {
+      throw new Error("Forbidden: Cannot delete a Main Group containing billed measurements.");
+    }
+
+    const entryIds = group.entries.map((e) => e.id);
+
+    await prisma.$transaction(async (tx) => {
+      if (entryIds.length > 0) {
+        await tx.measurementAttachment.deleteMany({ where: { entryId: { in: entryIds } } });
+        await tx.measurementChangeRequest.deleteMany({ where: { entryId: { in: entryIds } } });
+        await tx.measurementHistory.deleteMany({ where: { entryId: { in: entryIds } } });
+        await tx.measurementBookEntry.deleteMany({ where: { id: { in: entryIds } } });
+      }
+      await tx.measurementSubgroup.deleteMany({ where: { groupId: group.id } });
+      await tx.measurementGroup.delete({ where: { id: group.id } });
+    });
+
+    return { success: true, deletedCount: entryIds.length };
+  }
+
+  /**
+   * Delete a Subgroup / Room (Level 2)
+   */
+  static async deleteSubgroup(input: {
+    organizationId: string;
+    subgroupId: string;
+    role: Role;
+    userId: string;
+  }): Promise<{ success: boolean; deletedCount: number }> {
+    assertPermission(input.role, "projects:write");
+
+    const subgroup = await prisma.measurementSubgroup.findFirst({
+      where: { id: input.subgroupId, organizationId: input.organizationId },
+      include: {
+        entries: { select: { id: true, status: true } },
+      },
+    });
+
+    if (!subgroup) {
+      throw new Error("NotFound: Room / Subgroup not found.");
+    }
+
+    const hasBilled = subgroup.entries.some((e) => e.status === "BILLED");
+    if (hasBilled) {
+      throw new Error("Forbidden: Cannot delete a Subgroup containing billed measurements.");
+    }
+
+    const entryIds = subgroup.entries.map((e) => e.id);
+
+    await prisma.$transaction(async (tx) => {
+      if (entryIds.length > 0) {
+        await tx.measurementAttachment.deleteMany({ where: { entryId: { in: entryIds } } });
+        await tx.measurementChangeRequest.deleteMany({ where: { entryId: { in: entryIds } } });
+        await tx.measurementHistory.deleteMany({ where: { entryId: { in: entryIds } } });
+        await tx.measurementBookEntry.deleteMany({ where: { id: { in: entryIds } } });
+      }
+      await tx.measurementSubgroup.delete({ where: { id: subgroup.id } });
+    });
+
+    return { success: true, deletedCount: entryIds.length };
+  }
+
+  /**
    * Create a new Measurement Entry (Level 3)
    */
   static async createEntry(input: {
