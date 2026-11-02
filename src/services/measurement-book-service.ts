@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { assertPermission, Role } from "@/lib/permissions";
 import { FinanceService } from "./finance-service";
 import { roundQuantity, roundPaise } from "@/lib/financial-math";
+import { autoMigrateDatabase } from "@/lib/db-auto-migrate";
 
 function syncLegacyJson(entry: any) {
   try {
@@ -485,6 +486,53 @@ export class MeasurementBookService {
    * Create a new Measurement Entry (Level 3)
    */
   static async createEntry(input: {
+    organizationId: string;
+    projectId: string;
+    partyId: string;
+    groupId?: string;
+    subgroupId?: string;
+    subgroupName?: string;
+    referenceNumber?: string;
+    entryName?: string;
+    itemDescription: string;
+    measurementType?: string;
+    formula?: string;
+    unit: string;
+    count?: number;
+    length?: number;
+    breadth?: number;
+    depth?: number;
+    deduction?: number;
+    agreedRate: number; // paise
+    notes?: string;
+    remarks?: string;
+    measurementDate?: string | Date;
+    userId: string;
+    userName?: string;
+    role: Role;
+  }): Promise<MeasurementEntry> {
+    try {
+      return await this._doCreateEntry(input);
+    } catch (err: any) {
+      if (
+        err?.message &&
+        (err.message.includes("does not exist") ||
+          err.message.includes("relation") ||
+          err.message.includes("column") ||
+          err.message.includes("table"))
+      ) {
+        try {
+          await autoMigrateDatabase(prisma);
+          return await this._doCreateEntry(input);
+        } catch (retryErr) {
+          console.error("[AUTO_MIGRATE_RETRY_ERROR]", retryErr);
+        }
+      }
+      throw err;
+    }
+  }
+
+  private static async _doCreateEntry(input: {
     organizationId: string;
     projectId: string;
     partyId: string;
@@ -1561,6 +1609,38 @@ export class MeasurementBookService {
    * Level 3: Measurement Entries (Wall 1, Wall 2...)
    */
   static async listHierarchical(
+    organizationId: string,
+    filters?: {
+      projectId?: string;
+      partyId?: string;
+      partyType?: string;
+      siteId?: string;
+      status?: string;
+      search?: string;
+    }
+  ): Promise<MeasurementGroupItem[]> {
+    try {
+      return await this._doListHierarchical(organizationId, filters);
+    } catch (err: any) {
+      if (
+        err?.message &&
+        (err.message.includes("does not exist") ||
+          err.message.includes("relation") ||
+          err.message.includes("column") ||
+          err.message.includes("table"))
+      ) {
+        try {
+          await autoMigrateDatabase(prisma);
+          return await this._doListHierarchical(organizationId, filters);
+        } catch (retryErr) {
+          console.error("[AUTO_MIGRATE_LIST_RETRY_ERROR]", retryErr);
+        }
+      }
+      throw err;
+    }
+  }
+
+  private static async _doListHierarchical(
     organizationId: string,
     filters?: {
       projectId?: string;

@@ -4,6 +4,7 @@ import { getUserContext } from "@/lib/auth";
 import { MeasurementBookService } from "@/services/measurement-book-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { prisma } from "@/lib/db";
+import { autoMigrateDatabase } from "@/lib/db-auto-migrate";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,24 @@ export async function GET(req: NextRequest) {
     }
 
     return jsonSuccess(groups);
-  } catch (error) {
+  } catch (error: any) {
+    if (
+      error?.message &&
+      (error.message.includes("does not exist") ||
+        error.message.includes("relation") ||
+        error.message.includes("column") ||
+        error.message.includes("table"))
+    ) {
+      try {
+        await autoMigrateDatabase(prisma);
+        const retryGroups = await prisma.measurementGroup.findMany({
+          orderBy: { createdAt: "desc" },
+        });
+        return jsonSuccess(retryGroups);
+      } catch (retryErr) {
+        console.error("[AUTO_MIGRATE_GROUPS_GET_ERROR]", retryErr);
+      }
+    }
     return handleApiError(error);
   }
 }
