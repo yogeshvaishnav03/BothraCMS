@@ -306,6 +306,9 @@ export class CommandCenterService {
           action: string;
           details: string | null;
           entityType?: string | null;
+          entityId?: string | null;
+          before?: string | null;
+          after?: string | null;
         }[];
       }
     >();
@@ -313,7 +316,16 @@ export class CommandCenterService {
       u: { id: string; name: string; role: string },
       at: Date,
       isTask: boolean,
-      item?: { id: string; at: string; action: string; details: string | null; entityType?: string | null }
+      item?: {
+        id: string;
+        at: string;
+        action: string;
+        details: string | null;
+        entityType?: string | null;
+        entityId?: string | null;
+        before?: string | null;
+        after?: string | null;
+      }
     ) => {
       const row =
         team.get(u.id) ||
@@ -336,6 +348,7 @@ export class CommandCenterService {
           else if (parsed.entryName) details = parsed.entryName;
           else if (parsed.materialId) details = `Stock movement (${parsed.quantity || 0} units)`;
           else if (parsed.title) details = parsed.title;
+          else if (parsed.name) details = parsed.name;
         } catch {}
       }
       touch(e.actor, e.createdAt, false, {
@@ -344,6 +357,9 @@ export class CommandCenterService {
         action: e.action,
         details,
         entityType: e.entityType,
+        entityId: e.entityId,
+        before: e.beforeJson,
+        after: e.afterJson,
       });
     });
     taskUpdates.forEach((h) => {
@@ -354,6 +370,9 @@ export class CommandCenterService {
         action: `Moved task to ${statusLabel(h.newStatus)}`,
         details: h.task?.title || h.note || null,
         entityType: "TASK",
+        entityId: h.taskId,
+        before: h.oldStatus ? JSON.stringify({ status: h.oldStatus }) : null,
+        after: JSON.stringify({ status: h.newStatus, note: h.note || null }),
       });
     });
     taskComments.forEach((c) => {
@@ -364,6 +383,8 @@ export class CommandCenterService {
         action: c.type === "PROGRESS_UPDATE" ? "Posted task update" : "Commented on task",
         details: c.content || c.task?.title || null,
         entityType: "TASK_COMMENT",
+        entityId: c.taskId,
+        after: JSON.stringify({ content: c.content, type: c.type }),
       });
     });
 

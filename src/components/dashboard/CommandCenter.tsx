@@ -27,11 +27,12 @@ import {
   GitCommitHorizontal,
   NotebookPen,
   Building2,
+  ExternalLink,
 } from "lucide-react";
 import { ContactActions } from "@/components/ui/ContactActions";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { formatCompactINR, formatCurrency } from "@/lib/formatters";
+import { formatCompactINR, formatCurrency, formatDateTime } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
 
 type Kind = "PAYMENT" | "MONEY_IN" | "BILL" | "RECEIPT" | "ISSUE" | "ATTENDANCE" | "HEADCOUNT" | "SITE_REPORT";
@@ -92,6 +93,9 @@ interface Overview {
       action: string;
       details: string | null;
       entityType?: string | null;
+      entityId?: string | null;
+      before?: string | null;
+      after?: string | null;
     }[];
   }[];
   activity: { id: string; at: string; actor: string; action: string; entityType: string; reason: string | null }[];
@@ -173,6 +177,16 @@ function humanize(action: string): string {
     .split("_")
     .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
     .join(" ");
+}
+
+function parseJsonSafe(str?: string | null): Record<string, any> | null {
+  if (!str) return null;
+  try {
+    const parsed = JSON.parse(str);
+    return typeof parsed === "object" && parsed !== null ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function initials(name: string): string {
@@ -347,6 +361,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   const [kindFilter, setKindFilter] = useState<Kind | "ALL">("ALL");
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [expandedTeamUsers, setExpandedTeamUsers] = useState<Record<string, boolean>>({});
+  const [expandedUpdateId, setExpandedUpdateId] = useState<string | null>(null);
   const isToday = date === todayIst();
 
   const toggleTeamUser = (userId: string) => {
@@ -805,32 +820,189 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                             <span className="text-[10px] font-normal text-slate-400">({m.updates?.length || 0})</span>
                           </div>
                           {m.updates && m.updates.length > 0 ? (
-                            m.updates.map((u) => (
-                              <div
-                                key={u.id}
-                                className="text-xs bg-white rounded-lg p-2 border border-slate-200/70 flex items-start justify-between gap-2 shadow-2xs"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <div className="font-semibold text-slate-900 flex items-center gap-1.5 flex-wrap">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                                    <span>{humanize(u.action)}</span>
-                                    {u.entityType && (
-                                      <span className="text-[9px] font-mono font-medium text-slate-400 bg-slate-100 px-1 py-0.2 rounded">
-                                        {u.entityType}
+                            m.updates.map((u) => {
+                              const isItemExpanded = expandedUpdateId === u.id;
+
+                              return (
+                                <div
+                                  key={u.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedUpdateId(isItemExpanded ? null : u.id);
+                                  }}
+                                  className={cn(
+                                    "text-xs bg-white rounded-xl p-2.5 border transition cursor-pointer select-none shadow-2xs",
+                                    isItemExpanded
+                                      ? "border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/20"
+                                      : "border-slate-200/80 hover:border-amber-300 hover:bg-slate-50/90"
+                                  )}
+                                  title="Click to view full detail"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-semibold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                        <span>{humanize(u.action)}</span>
+                                        {u.entityType && (
+                                          <span className="text-[9px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                                            {u.entityType}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {u.details && !isItemExpanded && (
+                                        <div className="text-[11px] text-slate-600 truncate mt-0.5 pl-3.5">
+                                          {u.details}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span className="text-[10px] font-mono font-medium text-slate-500 bg-slate-100/90 px-1.5 py-0.5 rounded border border-slate-200/70">
+                                        {timeOf(u.at)}
                                       </span>
-                                    )}
+                                      <div className="text-slate-400 hover:text-slate-600">
+                                        {isItemExpanded ? (
+                                          <ChevronUp className="w-3.5 h-3.5 text-amber-600" />
+                                        ) : (
+                                          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                  {u.details && (
-                                    <div className="text-[11px] text-slate-600 truncate mt-0.5 pl-3">
-                                      {u.details}
+
+                                  {/* Expanded Full Detail View */}
+                                  {isItemExpanded && (
+                                    <div className="mt-2.5 pt-2.5 border-t border-slate-200/90 space-y-2 text-xs animate-in fade-in duration-150">
+                                      {/* Full un-truncated description */}
+                                      {u.details && (
+                                        <div className="bg-amber-50/90 p-2.5 rounded-lg border border-amber-200/90 text-slate-800 leading-relaxed font-medium">
+                                          <div className="text-[10px] font-bold uppercase tracking-wider text-amber-900 mb-0.5">
+                                            Full Description & Summary:
+                                          </div>
+                                          <div className="text-xs break-words">{u.details}</div>
+                                        </div>
+                                      )}
+
+                                      {/* Exact timestamp & entity metadata */}
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200/80">
+                                        <div>
+                                          <span className="text-slate-400">Timestamp:</span>{" "}
+                                          <strong className="text-slate-900 font-mono">{formatDateTime(u.at)}</strong>
+                                        </div>
+                                        {u.entityType && (
+                                          <div>
+                                            <span className="text-slate-400">Target Entity:</span>{" "}
+                                            <strong className="text-slate-900 font-mono">{u.entityType}</strong>
+                                            {u.entityId && (
+                                              <span className="text-slate-400 font-mono text-[10px] ml-1">
+                                                ({u.entityId.slice(0, 8)}...)
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Diff & Field Changes Table */}
+                                      {(() => {
+                                        const before = parseJsonSafe(u.before);
+                                        const after = parseJsonSafe(u.after);
+                                        if (!before && !after) return null;
+
+                                        const allKeys = Array.from(new Set([...Object.keys(before || {}), ...Object.keys(after || {})]));
+                                        const diffKeys = allKeys.filter((k) => !["createdAt", "updatedAt", "version", "id"].includes(k));
+
+                                        if (diffKeys.length === 0) return null;
+
+                                        return (
+                                          <div className="bg-white rounded-lg border border-slate-200 p-2.5 space-y-1.5 shadow-2xs">
+                                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
+                                              <span>Field Changes & Data Recorded:</span>
+                                              <span className="text-[9px] text-slate-400">({diffKeys.length} fields)</span>
+                                            </div>
+                                            <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 text-[11px] pr-1">
+                                              {diffKeys.map((k) => {
+                                                const bVal = before?.[k];
+                                                const aVal = after?.[k];
+                                                const hasChanged = JSON.stringify(bVal) !== JSON.stringify(aVal);
+
+                                                return (
+                                                  <div key={k} className="py-1 flex items-start justify-between gap-2">
+                                                    <span className="font-semibold text-slate-700 capitalize shrink-0 max-w-[40%] truncate">
+                                                      {humanize(k)}:
+                                                    </span>
+                                                    <div className="text-right text-slate-800 break-all font-mono text-[10px]">
+                                                      {before && bVal !== undefined && hasChanged && (
+                                                        <span className="text-rose-600 line-through mr-1.5 opacity-80">
+                                                          {typeof bVal === "object" ? JSON.stringify(bVal) : String(bVal)}
+                                                        </span>
+                                                      )}
+                                                      <span className={hasChanged ? "text-emerald-700 font-bold" : "text-slate-700"}>
+                                                        {aVal !== undefined
+                                                          ? typeof aVal === "object"
+                                                            ? JSON.stringify(aVal)
+                                                            : String(aVal)
+                                                          : "—"}
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {/* Action Navigation Links */}
+                                      <div className="flex items-center justify-between pt-1">
+                                        <div className="flex items-center gap-3">
+                                          {u.entityType === "PARTY" && (
+                                            <Link
+                                              href={u.entityId ? `/parties?q=${encodeURIComponent(u.entityId)}` : "/parties"}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline inline-flex items-center gap-1"
+                                            >
+                                              <span>View Party</span>
+                                              <ExternalLink className="w-3 h-3" />
+                                            </Link>
+                                          )}
+                                          {u.entityType === "BILL" && (
+                                            <Link
+                                              href="/finance?tab=bills"
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline inline-flex items-center gap-1"
+                                            >
+                                              <span>View Bills</span>
+                                              <ExternalLink className="w-3 h-3" />
+                                            </Link>
+                                          )}
+                                          {u.entityType === "TASK" && (
+                                            <Link
+                                              href="/tasks"
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline inline-flex items-center gap-1"
+                                            >
+                                              <span>View Tasks</span>
+                                              <ExternalLink className="w-3 h-3" />
+                                            </Link>
+                                          )}
+                                          <Link
+                                            href="/audit"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 hover:underline inline-flex items-center gap-1"
+                                          >
+                                            <span>Audit Trail</span>
+                                            <ExternalLink className="w-3 h-3" />
+                                          </Link>
+                                        </div>
+
+                                        <span className="text-[10px] text-amber-700 hover:text-amber-900 font-semibold">
+                                          Click to collapse ▴
+                                        </span>
+                                      </div>
                                     </div>
                                   )}
                                 </div>
-                                <span className="text-[10px] font-mono font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 shrink-0">
-                                  {timeOf(u.at)}
-                                </span>
-                              </div>
-                            ))
+                              );
+                            })
                           ) : (
                             <div className="text-xs text-slate-400 italic py-1 px-1">
                               {hi ? "कोई विस्तृत रिकॉर्ड नहीं मिला" : "No detailed updates found for this day."}
