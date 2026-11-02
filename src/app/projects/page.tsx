@@ -87,10 +87,10 @@ export default function ProjectsPage() {
     data: dailyReports,
     columns: reportColumns,
   });
-  // Authorized operational roles: Supervisors, Project Managers, and Admins (Finance/Accountants excluded)
+  // Authorized operational roles: Supervisors, Project Managers, and Org Admins (Super Admin and Finance/Accountants excluded)
   const canSubmitDailyReport = Boolean(
     currentUser &&
-      ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"].includes(currentUser.role)
+      ["ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"].includes(currentUser.role)
   );
 
   // Active Site Filter state synchronized with global shell
@@ -697,7 +697,9 @@ export default function ProjectsPage() {
               <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-2" />
               <div className="text-sm font-bold text-slate-700">No daily site reports filed yet</div>
               <div className="text-xs text-slate-400 mt-1">
-                Click &quot;+ Submit Daily Report&quot; above to file supervisor progress and site blocker notes.
+                {canSubmitDailyReport
+                  ? 'Click "+ Submit Daily Report" above to file supervisor progress and site blocker notes.'
+                  : "Supervisor progress and site blocker notes will appear here once submitted."}
               </div>
             </div>
           ) : (
