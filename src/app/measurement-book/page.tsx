@@ -1992,19 +1992,24 @@ export default function MeasurementBookPage() {
 
         {/* 3. ADD / DUPLICATE MEASUREMENT MODAL */}
         {showAddEntryModal && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                  <Ruler className="w-5 h-5 text-amber-600" />
-                  Record Wall / Work Measurement (Level 3)
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
+                  <Ruler className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>Record Wall / Work Measurement (Level 3)</span>
                 </div>
-                <button onClick={() => setShowAddEntryModal(false)} className="text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setShowAddEntryModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleAddMeasurementSubmit} className="space-y-4 mt-4">
+              <form onSubmit={handleAddMeasurementSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -2286,19 +2291,20 @@ export default function MeasurementBookPage() {
                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
+                </div>
 
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <div className="flex justify-end gap-2 p-4 bg-slate-50 border-t border-slate-100 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowAddEntryModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={actionLoading}
-                    className="px-5 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 rounded-lg shadow"
+                    className="px-5 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 rounded-lg shadow transition"
                   >
                     {actionLoading ? "Saving..." : "Record Measurement"}
                   </button>
@@ -2310,33 +2316,38 @@ export default function MeasurementBookPage() {
 
         {/* 4. EDIT MEASUREMENT MODAL (WITH MANDATORY REASON) */}
         {showEditEntryModal && activeEntry && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                  <Edit2 className="w-5 h-5 text-blue-600" />
-                  Edit Measurement (v{activeEntry.version})
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
+                  <Edit2 className="w-5 h-5 text-blue-600 shrink-0" />
+                  <span>Edit Measurement (v{activeEntry.version})</span>
                 </div>
-                <button onClick={() => setShowEditEntryModal(false)} className="text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setShowEditEntryModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Notice for Supervisor vs Admin */}
-              <div className="p-3 my-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2">
-                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">Strict Audit Requirement:</span> Silently overwriting measurement entries is prohibited. Every modification creates an immutable audit record with previous vs new values.
-                  {currentUser?.role === "SITE_SUPERVISOR" && (
-                    <span className="block mt-1 font-semibold text-amber-900">
-                      Note: As Site Supervisor, modifying approved records will automatically generate a Change Request for Admin approval.
-                    </span>
-                  )}
-                </div>
-              </div>
+              <form onSubmit={handleEditMeasurementSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                  {/* Notice for Supervisor vs Admin */}
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2">
+                    <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Strict Audit Requirement:</span> Silently overwriting measurement entries is prohibited. Every modification creates an immutable audit record with previous vs new values.
+                      {currentUser?.role === "SITE_SUPERVISOR" && (
+                        <span className="block mt-1 font-semibold text-amber-900">
+                          Note: As Site Supervisor, modifying approved records will automatically generate a Change Request for Admin approval.
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-              <form onSubmit={handleEditMeasurementSubmit} className="space-y-4">
-                {/* MANDATORY REASON FIELD */}
+                  {/* MANDATORY REASON FIELD */}
                 <div className="p-3 bg-amber-50/70 border-2 border-amber-300 rounded-xl">
                   <label className="block text-xs font-bold text-amber-950 mb-1">
                     Mandatory Reason for Modification <span className="text-rose-600">*</span>
@@ -2468,19 +2479,20 @@ export default function MeasurementBookPage() {
                     <span className="font-mono font-black text-emerald-950">₹{calculatedFormTotalRupees}</span>
                   </div>
                 </div>
+                </div>
 
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <div className="flex justify-end gap-2 p-4 bg-slate-50 border-t border-slate-100 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowEditEntryModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={actionLoading}
-                    className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow"
+                    className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow transition"
                   >
                     {actionLoading ? "Saving..." : "Confirm & Update with Audit Reason"}
                   </button>
@@ -2546,20 +2558,25 @@ export default function MeasurementBookPage() {
 
         {/* 6. EVIDENCE IMAGES MANAGEMENT MODAL */}
         {showImagesModal && activeEntry && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 my-8">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2.5 text-slate-900 font-bold text-lg">
-                  <ImageIcon className="w-5 h-5 text-amber-600" />
-                  Evidence Photos — {activeEntry.entryName || "Wall"} ({activeEntry.itemDescription})
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
+                <div className="flex items-center gap-2.5 text-slate-900 font-bold text-base sm:text-lg">
+                  <ImageIcon className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>Evidence Photos — {activeEntry.entryName || "Wall"} ({activeEntry.itemDescription})</span>
                 </div>
-                <button onClick={() => setShowImagesModal(false)} className="text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setShowImagesModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Tabs: Active Photos vs Archived Version History */}
-              <div className="flex items-center gap-2 mt-4 border-b border-slate-200 pb-2">
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                {/* Tabs: Active Photos vs Archived Version History */}
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
                 <button
                   onClick={() => setImageModalTab("ACTIVE")}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
@@ -2738,25 +2755,40 @@ export default function MeasurementBookPage() {
                   )}
                 </div>
               )}
+              </div>
+
+              <div className="flex justify-end p-4 bg-slate-50 border-t border-slate-100 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowImagesModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg transition"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* 7. CHANGE REQUESTS REVIEW MODAL (FOR SUPER ADMIN / ORG ADMIN) */}
         {showChangeRequestsModal && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 my-8">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                  <GitPullRequest className="w-5 h-5 text-rose-600" />
-                  Supervisor Change Requests & Audits
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
+                  <GitPullRequest className="w-5 h-5 text-rose-600 shrink-0" />
+                  <span>Supervisor Change Requests & Audits</span>
                 </div>
-                <button onClick={() => setShowChangeRequestsModal(false)} className="text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setShowChangeRequestsModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-3 flex-1">
                 {changeRequests.filter((cr) => cr.status === "PENDING").length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-sm">
                     No pending change requests awaiting manager approval.
@@ -2813,27 +2845,31 @@ export default function MeasurementBookPage() {
 
         {/* 8. MB ABSTRACT MODAL / PRINT VIEW */}
         {showAbstractModal && abstractData && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 my-8">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 print:hidden">
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                  <Calculator className="w-5 h-5 text-amber-600" />
-                  Measurement Book Abstract Summary
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white print:hidden">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
+                  <Calculator className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>Measurement Book Abstract Summary</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => window.print()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition"
                   >
                     <Printer className="w-4 h-4" /> Print Abstract
                   </button>
-                  <button onClick={() => setShowAbstractModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => setShowAbstractModal(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                  >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              <div className="mt-4 space-y-6">
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
                 {/* Abstract Header */}
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
@@ -2920,19 +2956,23 @@ export default function MeasurementBookPage() {
 
         {/* 9. AUDIT TRAIL / HISTORY DRAWER */}
         {showHistoryModal && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
-                  <History className="w-5 h-5 text-slate-700" />
-                  Append-Only Audit Trail (All Modifications)
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
+                  <History className="w-5 h-5 text-slate-700 shrink-0" />
+                  <span>Append-Only Audit Trail (All Modifications)</span>
                 </div>
-                <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="mt-4 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-3 flex-1">
                 {historyList.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-sm">
                     No audit records found.
