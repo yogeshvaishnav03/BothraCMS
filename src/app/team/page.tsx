@@ -20,6 +20,10 @@ import {
   UserX,
   Users,
   X,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Lock,
 } from "lucide-react";
 
 interface TeamMember {
@@ -81,9 +85,18 @@ export default function TeamPage() {
   const [editing, setEditing] = useState<TeamMember | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
+  const [editPassword, setEditPassword] = useState("");
+  const [showEditPasswordText, setShowEditPasswordText] = useState(false);
   const [saving, setSaving] = useState(false);
   const [credentials, setCredentials] = useState<{ name: string; email: string; password: string; isNew: boolean } | null>(null);
+  const [showCredentialPassword, setShowCredentialPassword] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  // Dedicated Password Modal for Admins & Super Admins
+  const [passwordTarget, setPasswordTarget] = useState<TeamMember | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPasswordText, setShowPasswordText] = useState(false);
+  const [passwordMode, setPasswordMode] = useState<"CUSTOM" | "GENERATE">("CUSTOM");
 
   const canManage = canUser(me, "users:manage");
 
@@ -129,13 +142,56 @@ export default function TeamPage() {
 
   const openCreate = () => {
     setEditing(null);
+    setEditPassword("");
+    setShowEditPasswordText(false);
     setForm({ ...EMPTY });
     setShowForm(true);
   };
   const openEdit = (m: TeamMember) => {
     setEditing(m);
+    setEditPassword("");
+    setShowEditPasswordText(false);
     setForm({ name: m.name, email: m.email, role: m.role, phone: m.phone || "", jobTitle: m.jobTitle || "" });
     setShowForm(true);
+  };
+
+  const openPasswordModal = (m: TeamMember) => {
+    setPasswordTarget(m);
+    setNewPassword("");
+    setShowPasswordText(false);
+    setPasswordMode("CUSTOM");
+  };
+
+  const handleGeneratePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    let p = "";
+    for (let i = 0; i < 8; i++) p += chars.charAt(Math.floor(Math.random() * chars.length));
+    setNewPassword(`Bothra!${p}7`);
+    setShowPasswordText(true);
+  };
+
+  const submitPasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordTarget) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = passwordMode === "CUSTOM" && newPassword.trim() ? { password: newPassword.trim() } : {};
+      const data = await call(`/api/users/${passwordTarget.id}/reset-password`, "POST", payload);
+      setCredentials({
+        name: passwordTarget.name,
+        email: passwordTarget.email,
+        password: data.temporaryPassword,
+        isNew: false,
+      });
+      setShowCredentialPassword(true);
+      setPasswordTarget(null);
+      setNotice(`Password updated successfully for ${passwordTarget.name}!`);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const call = async (url: string, method: string, body?: unknown) => {
@@ -155,13 +211,28 @@ export default function TeamPage() {
     setError(null);
     try {
       if (editing) {
-        await call(`/api/users/${editing.id}`, "PATCH", {
+        const patchPayload: any = {
           name: form.name,
           role: form.role,
           phone: form.phone || null,
           jobTitle: form.jobTitle || null,
-        });
-        setNotice(`${form.name} updated.`);
+        };
+        if (editPassword.trim()) {
+          patchPayload.password = editPassword.trim();
+        }
+        await call(`/api/users/${editing.id}`, "PATCH", patchPayload);
+        if (editPassword.trim()) {
+          setCredentials({
+            name: form.name,
+            email: editing.email,
+            password: editPassword.trim(),
+            isNew: false,
+          });
+          setShowCredentialPassword(true);
+          setNotice(`${form.name} profile and password updated successfully.`);
+        } else {
+          setNotice(`${form.name} updated.`);
+        }
       } else {
         const data = await call("/api/users", "POST", {
           name: form.name,
@@ -171,6 +242,7 @@ export default function TeamPage() {
           jobTitle: form.jobTitle || null,
         });
         setCredentials({ name: data.user.name, email: data.user.email, password: data.temporaryPassword, isNew: true });
+        setShowCredentialPassword(true);
       }
       setShowForm(false);
       load();
@@ -332,7 +404,7 @@ export default function TeamPage() {
                         </button>
                         {!isMe && (
                           <>
-                            <button onClick={() => reset(m)} title="Reset password" className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-amber-700 hover:bg-amber-50">
+                            <button onClick={() => openPasswordModal(m)} title="Update / Reset password" className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-amber-700 hover:bg-amber-50">
                               <KeyRound className="w-3.5 h-3.5" />
                             </button>
                             <button
@@ -400,6 +472,45 @@ export default function TeamPage() {
                     <label className={labelCls}>Job title</label>
                     <input placeholder="e.g. Site Engineer" value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} className={inputCls} />
                   </div>
+
+                  {editing && (
+                    <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls}>Update Password (optional)</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+                            let p = "";
+                            for (let i = 0; i < 8; i++) p += chars.charAt(Math.floor(Math.random() * chars.length));
+                            setEditPassword(`Bothra!${p}7`);
+                            setShowEditPasswordText(true);
+                          }}
+                          className="text-[11px] font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3" /> Auto-suggest strong
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showEditPasswordText ? "text" : "password"}
+                          placeholder="Type new password to update..."
+                          value={editPassword}
+                          onChange={(e) => setEditPassword(e.target.value)}
+                          className={cn(inputCls, "font-mono pr-10")}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEditPasswordText(!showEditPasswordText)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          title={showEditPasswordText ? "Hide password" : "Show password"}
+                        >
+                          {showEditPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">If set, the user&apos;s password will be updated immediately and shown for you to copy.</p>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className={labelCls}>What can they do?</label>
@@ -436,26 +547,164 @@ export default function TeamPage() {
           </div>
         )}
 
-        {/* One-time credentials */}
+        {/* Modal: Update / Reset Password for User */}
+        {passwordTarget && (
+          <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl ring-1 ring-slate-200 overflow-hidden animate-scale-in">
+              <div className="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-display font-bold text-base text-slate-900">Update User Password</div>
+                    <div className="text-xs text-slate-500">{passwordTarget.name} &bull; {passwordTarget.email}</div>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setPasswordTarget(null)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="Close">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={submitPasswordUpdate} className="p-6 space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-2">Select how to reset or update this password:</label>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setPasswordMode("CUSTOM")}
+                      className={cn(
+                        "p-3 rounded-xl border text-xs font-semibold text-left transition",
+                        passwordMode === "CUSTOM"
+                          ? "border-amber-500 bg-amber-50/50 text-amber-900 ring-2 ring-amber-400/30"
+                          : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                      )}
+                    >
+                      <div className="font-bold flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-amber-600" />
+                        Type Password
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-normal mt-0.5">Enter or view visible password</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPasswordMode("GENERATE")}
+                      className={cn(
+                        "p-3 rounded-xl border text-xs font-semibold text-left transition",
+                        passwordMode === "GENERATE"
+                          ? "border-amber-500 bg-amber-50/50 text-amber-900 ring-2 ring-amber-400/30"
+                          : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                      )}
+                    >
+                      <div className="font-bold flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        Auto-Generate
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-normal mt-0.5">System random temporary pass</div>
+                    </button>
+                  </div>
+
+                  {passwordMode === "CUSTOM" && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-slate-700">New Password (visible to you) *</label>
+                        <button
+                          type="button"
+                          onClick={handleGeneratePassword}
+                          className="text-[11px] font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3" /> Auto-suggest strong
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showPasswordText ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="e.g. BuildTrack@2026!"
+                          className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-mono pr-10 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswordText(!showPasswordText)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          title={showPasswordText ? "Hide password" : "Show password"}
+                        >
+                          {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">Minimum 6 characters. You can view, copy, and share this password immediately.</p>
+                    </div>
+                  )}
+
+                  {passwordMode === "GENERATE" && (
+                    <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/60 text-xs text-amber-900 space-y-1">
+                      <div className="font-semibold flex items-center gap-1.5">
+                        <KeyRound className="w-4 h-4 text-amber-600" />
+                        A new secure password will be generated
+                      </div>
+                      <div className="text-[11px] text-slate-600">
+                        The current password will stop working immediately. You will see the new password on screen to copy and send to the user.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPasswordTarget(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-2 bg-gradient-brand text-slate-950 font-bold text-xs rounded-xl shadow-glow hover:brightness-110 disabled:opacity-50 transition"
+                  >
+                    {saving ? "Updating..." : "Update Password"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Credentials Display / Reveal Card */}
         {credentials && (
           <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
             <div className="bg-white rounded-3xl max-w-md w-full shadow-xl ring-1 ring-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in">
               <div className="bg-gradient-chrome text-white p-5">
                 <div className="text-[11px] uppercase tracking-wider text-amber-300 font-semibold flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5" /> {credentials.isNew ? "Login created" : "Password reset"}
+                  <KeyRound className="w-3.5 h-3.5" /> {credentials.isNew ? "Login created" : "Password updated"}
                 </div>
                 <div className="font-display text-lg font-bold mt-1">{credentials.name}</div>
               </div>
               <div className="p-5 space-y-3">
-                <Alert tone="warning">This password is shown only once. Copy it now and share it privately.</Alert>
-                <div className="rounded-xl bg-slate-50 p-3 space-y-1.5 text-sm">
+                <Alert tone="warning">This password is shown only once. Copy it now and share it privately with the user.</Alert>
+                <div className="rounded-xl bg-slate-50 p-3 space-y-2 text-sm">
                   <div className="flex justify-between gap-2">
                     <span className="text-slate-500">Email</span>
                     <span className="font-semibold text-slate-900 truncate">{credentials.email}</span>
                   </div>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-slate-500">Temporary password</span>
-                    <span className="font-mono font-semibold text-slate-900">{credentials.password}</span>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-slate-500">New Password</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-slate-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        {showCredentialPassword ? credentials.password : "••••••••••••"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCredentialPassword(!showCredentialPassword)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                        title={showCredentialPassword ? "Hide password" : "View password"}
+                      >
+                        {showCredentialPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2">

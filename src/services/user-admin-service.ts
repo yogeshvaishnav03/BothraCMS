@@ -101,7 +101,7 @@ export class UserAdminService {
   static async update(
     actor: UserContext,
     userId: string,
-    input: { name?: string; role?: string; status?: "ACTIVE" | "INACTIVE"; phone?: string | null; jobTitle?: string | null }
+    input: { name?: string; role?: string; status?: "ACTIVE" | "INACTIVE"; phone?: string | null; jobTitle?: string | null; password?: string }
   ) {
     const target = await findInOrg(actor, userId);
     const isSelf = target.id === actor.userId;
@@ -139,6 +139,13 @@ export class UserAdminService {
     if (input.status !== undefined) data.status = input.status;
     if (input.phone !== undefined) data.phone = input.phone?.trim() || null;
     if (input.jobTitle !== undefined) data.jobTitle = input.jobTitle?.trim() || null;
+    if (input.password !== undefined && input.password.trim()) {
+      const trimmedPwd = input.password.trim();
+      if (trimmedPwd.length < 6) {
+        throw new Error("Password must be at least 6 characters long");
+      }
+      data.passwordHash = await hashPassword(trimmedPwd);
+    }
 
     const updated = await prisma.user.update({ where: { id: target.id }, data, select: PUBLIC_USER_SELECT });
 
@@ -167,10 +174,17 @@ export class UserAdminService {
     return updated;
   }
 
-  static async resetPassword(actor: UserContext, userId: string) {
+  static async resetPassword(actor: UserContext, userId: string, customPassword?: string) {
     const target = await findInOrg(actor, userId);
-    const temporaryPassword = generateTemporaryPassword();
-    await prisma.user.update({ where: { id: target.id }, data: { passwordHash: await hashPassword(temporaryPassword) } });
+    let finalPassword = customPassword?.trim();
+    if (finalPassword) {
+      if (finalPassword.length < 6) {
+        throw new Error("Password must be at least 6 characters long");
+      }
+    } else {
+      finalPassword = generateTemporaryPassword();
+    }
+    await prisma.user.update({ where: { id: target.id }, data: { passwordHash: await hashPassword(finalPassword) } });
     await prisma.auditEvent.create({
       data: {
         organizationId: actor.organizationId,
@@ -178,9 +192,9 @@ export class UserAdminService {
         action: "PASSWORD_RESET",
         entityType: "USER",
         entityId: target.id,
-        reason: `Password reset for ${target.name}`,
+        reason: customPassword ? `Password explicitly set for ${target.name} by administrator` : `Password reset for ${target.name}`,
       },
     });
-    return { temporaryPassword };
+    return { temporaryPassword: finalPassword };
   }
 }
