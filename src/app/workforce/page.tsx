@@ -86,7 +86,29 @@ export default function WorkforcePage() {
   const [laborerMale, setLaborerMale] = useState<number>(0);
   const [laborerFemale, setLaborerFemale] = useState<number>(0);
   const [contractorName, setContractorName] = useState("");
+  const [isCustomContractor, setIsCustomContractor] = useState(false);
   const [notes, setNotes] = useState("");
+
+  const existingContractors = useMemo(() => {
+    const set = new Set<string>();
+    records.forEach((r) => {
+      if (r.contractorName?.trim()) set.add(r.contractorName.trim());
+    });
+    set.add("Apex Civil Contractors");
+    set.add("Direct Site Deployment / Company");
+    return Array.from(set);
+  }, [records]);
+
+  const selectedWorker = useMemo(() => {
+    if (!contractorName) return null;
+    return workers.find(
+      (w) =>
+        contractorName.includes(w.employeeCode) ||
+        contractorName.toLowerCase() === w.name.toLowerCase() ||
+        contractorName === `${w.name} (${w.employeeCode})` ||
+        contractorName === `${w.name} (${w.employeeCode} - ${w.workerType})`
+    );
+  }, [contractorName, workers]);
 
   // Modal: Register Individual Worker
   const [showRegisterWorkerModal, setShowRegisterWorkerModal] = useState(false);
@@ -164,6 +186,7 @@ export default function WorkforcePage() {
       setLaborerFemale(existing.laborerFemale || 0);
       setContractorName(existing.contractorName || "");
       setNotes(existing.notes || "");
+      setIsCustomContractor(false);
     } else {
       setModalSiteId(selectedSiteId || (sites.length > 0 ? sites[0].id : ""));
       setModalDate(selectedDate);
@@ -173,6 +196,7 @@ export default function WorkforcePage() {
       setLaborerFemale(0);
       setContractorName("");
       setNotes("");
+      setIsCustomContractor(false);
     }
     setShowUploadModal(true);
   };
@@ -1034,16 +1058,132 @@ export default function WorkforcePage() {
                 {/* Optional Contractor & Notes */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                      Contractor / Labour Agency (Optional):
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Apex Civil Contractors / Direct"
-                      value={contractorName}
-                      onChange={(e) => setContractorName(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block">
+                        Contractor / Labour Agency (Optional):
+                      </label>
+                      {contractorName && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContractorName("");
+                            setIsCustomContractor(false);
+                          }}
+                          className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {!isCustomContractor ? (
+                      <div className="space-y-1.5">
+                        <select
+                          value={contractorName}
+                          onChange={(e) => {
+                            if (e.target.value === "__CUSTOM__") {
+                              setIsCustomContractor(true);
+                              setContractorName("");
+                            } else {
+                              setContractorName(e.target.value);
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        >
+                          <option value="">-- Select from Registered Trade Workers / Contractor --</option>
+
+                          {/* Optgroup 1: Registered Trade Workers Directory */}
+                          <optgroup label={`👷 Registered Trade Workers Directory (${workers.length})`}>
+                            {workers.map((w) => {
+                              const wageStr = w.dailyWageRate ? ` • ₹${Number(w.dailyWageRate) / 100}/day` : "";
+                              const siteStr = w.defaultSite?.name ? ` • ${w.defaultSite.name}` : "";
+                              const val = `${w.name} (${w.employeeCode} - ${w.workerType})`;
+                              return (
+                                <option key={w.id} value={val}>
+                                  {w.name} ({w.employeeCode}) — {w.workerType}{wageStr}{siteStr}
+                                </option>
+                              );
+                            })}
+                          </optgroup>
+
+                          {/* Optgroup 2: Contractors & Labour Agencies */}
+                          <optgroup label="🏢 Contractors & Labour Agencies">
+                            {existingContractors.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </optgroup>
+
+                          {/* Option 3: Custom Entry */}
+                          <option value="__CUSTOM__">✏️ + Enter Custom Contractor / Agency Name...</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            placeholder="e.g. Apex Civil Contractors / Direct"
+                            value={contractorName}
+                            onChange={(e) => setContractorName(e.target.value)}
+                            autoFocus
+                            className="w-full bg-white border border-amber-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomContractor(false)}
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg shrink-0 transition"
+                            title="Back to dropdown selection"
+                          >
+                            Back
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rich Details Card when a Registered Trade Worker is Selected */}
+                    {selectedWorker && (
+                      <div className="mt-2 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1.5 shadow-2xs animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between pb-1 border-b border-amber-200/60">
+                          <span className="font-bold text-amber-950 flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Registered Trade Worker Details</span>
+                          </span>
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-200 text-amber-900">
+                            {selectedWorker.employeeCode}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-700">
+                          <div>
+                            <span className="text-slate-400">Worker:</span>{" "}
+                            <strong className="text-slate-900">{selectedWorker.name}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Trade:</span>{" "}
+                            <strong className="text-amber-800 uppercase font-mono">{selectedWorker.workerType}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Daily Wage:</span>{" "}
+                            <strong className="text-emerald-700">
+                              ₹{(Number(selectedWorker.dailyWageRate) || 0) / 100} / day
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Assigned Site:</span>{" "}
+                            <strong className="text-slate-900">
+                              {selectedWorker.defaultSite?.name || "Main Site"}
+                            </strong>
+                          </div>
+                          {selectedWorker.phone && (
+                            <div className="col-span-2">
+                              <span className="text-slate-400">Contact Phone:</span>{" "}
+                              <strong className="font-mono text-slate-900">{selectedWorker.phone}</strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>
