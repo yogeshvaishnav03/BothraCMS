@@ -278,6 +278,33 @@ describe("Medium-Priority Remediation & Architecture Verification", () => {
       expect(emptySiteData.payments.length).toBe(0);
       expect(emptySiteData.summary.totalPaymentsAmount).toBe(0);
     });
+
+    it("segregates rejected payments into totalRejectedPaymentsAmount and excludes from totalPaymentsAmount", async () => {
+      await prisma.payment.create({
+        data: {
+          organizationId: testOrgId,
+          partyId: testPartyAId,
+          projectId: testProjectId,
+          paymentDate: new Date(),
+          amount: 50000, // ₹500
+          method: "CASH",
+          status: "REJECTED",
+          rejectionReason: "Invalid invoice copy attached",
+          referenceNumber: "REJECTED-DB-01",
+          idempotencyKey: "IDEM-DB-REJECTED-" + Date.now(),
+          createdBy: testAdminId,
+        },
+      });
+
+      const data = await fetchDayBookData(testOrgId, today);
+      expect(data.summary.totalRejectedPaymentsAmount).toBeGreaterThanOrEqual(50000);
+      expect(data.summary.rejectedPaymentsCount).toBeGreaterThanOrEqual(1);
+
+      const foundRejected = data.payments.find((p: any) => p.referenceNumber === "REJECTED-DB-01");
+      expect(foundRejected).toBeDefined();
+      expect(foundRejected?.status).toBe("REJECTED");
+      expect(foundRejected?.rejectionReason).toBe("Invalid invoice copy attached");
+    });
   });
 
   // =========================================================================

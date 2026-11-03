@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  XCircle,
   X,
   CreditCard,
   Layers,
@@ -45,10 +46,12 @@ interface DayBookData {
   date: string;
   summary: {
     totalPaymentsAmount: number;
+    totalRejectedPaymentsAmount?: number;
     totalBillsAmount: number;
     totalMoneyInAmount?: number;
     moneyInCount?: number;
     paymentsCount: number;
+    rejectedPaymentsCount?: number;
     billsCount: number;
     receiptsCount: number;
     issuesCount: number;
@@ -94,6 +97,11 @@ export default function DayBookPage() {
           <div>
             <div className="font-bold text-slate-900">{p.party?.name || "Direct Expense"}</div>
             {p.notes && <div className="text-[11px] text-slate-400 italic break-words whitespace-normal">{p.notes}</div>}
+            {p.status === "REJECTED" && p.rejectionReason && (
+              <div className="text-[10px] text-rose-600 font-semibold mt-0.5 break-words whitespace-normal">
+                Declined: {p.rejectionReason}
+              </div>
+            )}
           </div>
         ),
       },
@@ -130,6 +138,8 @@ export default function DayBookPage() {
             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
               p.status === "POSTED"
                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : p.status === "REJECTED"
+                ? "bg-rose-50 text-rose-700 border border-rose-200"
                 : "bg-amber-50 text-amber-700 border border-amber-200"
             }`}
           >
@@ -144,7 +154,7 @@ export default function DayBookPage() {
         align: "right",
         accessor: (p) => p.amount,
         render: (p) => (
-          <span className="font-black text-rose-600">
+          <span className={`font-black ${p.status === "REJECTED" ? "text-rose-500 line-through decoration-rose-400" : "text-rose-600"}`}>
             {formatCurrency(p.amount)}
           </span>
         ),
@@ -398,8 +408,39 @@ export default function DayBookPage() {
   const [showLogModal, setShowLogModal] = useState(false);
   const [modalMode, setModalMode] = useState<"PAYMENT" | "BILL" | "WORKFORCE" | "DSR">("PAYMENT");
   const [kpiPopupType, setKpiPopupType] = useState<"PAYMENTS" | "BILLS" | "WORKFORCE" | "DSR" | null>(null);
+  const [paymentPopupFilter, setPaymentPopupFilter] = useState<"ALL" | "DISBURSED" | "REJECTED">("ALL");
   const [actionLoading, setActionLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Segregated disbursed and rejected payments
+  const { disbursedPayments, rejectedPayments, disbursedTotal, rejectedTotal } = useMemo(() => {
+    if (!dayData?.payments) {
+      return { disbursedPayments: [], rejectedPayments: [], disbursedTotal: 0, rejectedTotal: 0 };
+    }
+    const disbursed = dayData.payments.filter((p: any) => p.status !== "REJECTED");
+    const rejected = dayData.payments.filter((p: any) => p.status === "REJECTED");
+
+    const dTotal =
+      dayData.summary?.totalPaymentsAmount ??
+      disbursed.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
+    const rTotal =
+      dayData.summary?.totalRejectedPaymentsAmount ??
+      rejected.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
+
+    return {
+      disbursedPayments: disbursed,
+      rejectedPayments: rejected,
+      disbursedTotal: dTotal,
+      rejectedTotal: rTotal,
+    };
+  }, [dayData]);
+
+  const filteredPopupPayments = useMemo(() => {
+    if (!dayData?.payments) return [];
+    if (paymentPopupFilter === "DISBURSED") return disbursedPayments;
+    if (paymentPopupFilter === "REJECTED") return rejectedPayments;
+    return dayData.payments;
+  }, [dayData?.payments, paymentPopupFilter, disbursedPayments, rejectedPayments]);
 
   const modalModeGuidance = {
     PAYMENT: {
@@ -1347,11 +1388,16 @@ export default function DayBookPage() {
                   <ArrowUpRight className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-rose-600">
-                {dayData ? formatCurrency(dayData.summary.totalPaymentsAmount) : "₹0.00"}
+              <div className="text-xl sm:text-2xl font-black text-rose-600 font-mono">
+                {dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
               </div>
-              <div className="text-[11px] text-slate-400 mt-1 font-medium">
-                {dayData?.summary.paymentsCount || 0} transactions disbursed
+              <div className="text-[11px] text-slate-500 mt-1 font-medium flex flex-wrap items-center gap-1">
+                <span>{disbursedPayments.length} disbursed</span>
+                {rejectedPayments.length > 0 && (
+                  <span className="text-rose-600 font-bold">
+                    • {rejectedPayments.length} rejected ({formatCurrency(rejectedTotal)})
+                  </span>
+                )}
               </div>
             </div>
             <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
@@ -1574,7 +1620,12 @@ export default function DayBookPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-rose-600">
-                      {dayData ? formatCurrency(dayData.summary.totalPaymentsAmount) : "₹0.00"}
+                      Disbursed: {dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
+                      {rejectedPayments.length > 0 && (
+                        <span className="text-rose-500 font-semibold ml-2">
+                          (Rejected: {formatCurrency(rejectedTotal)})
+                        </span>
+                      )}
                     </span>
                     {canWriteFinance && (
                       <button
@@ -2827,7 +2878,7 @@ export default function DayBookPage() {
           >
             {/* 1. PAYMENTS POPUP */}
             {kpiPopupType === "PAYMENTS" && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-3xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
                 <div className="p-4 bg-rose-600 text-white flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 bg-white/10 rounded-lg">
@@ -2836,7 +2887,8 @@ export default function DayBookPage() {
                     <div>
                       <h3 className="font-black text-base leading-tight">Payments Out — Details</h3>
                       <p className="text-xs text-rose-100">
-                        {formatDate(selectedDate)} · {dayData?.payments.length || 0} transaction{(dayData?.payments.length || 0) === 1 ? "" : "s"} disbursed
+                        {formatDate(selectedDate)} · {disbursedPayments.length} disbursed
+                        {rejectedPayments.length > 0 && ` · ${rejectedPayments.length} rejected`}
                       </p>
                     </div>
                   </div>
@@ -2849,95 +2901,219 @@ export default function DayBookPage() {
                   </button>
                 </div>
 
-                <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Payments Disbursed</span>
-                    <div className="text-2xl font-black text-rose-600">
-                      {dayData ? formatCurrency(dayData.summary.totalPaymentsAmount) : "₹0.00"}
+                {/* Separate Cards for Disbursed & Rejected Payments */}
+                <div className="p-4 bg-slate-50/80 border-b border-slate-200/80">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
+                    {/* Disbursed Card */}
+                    <div className="bg-white rounded-xl p-3.5 border border-emerald-200 shadow-xs relative overflow-hidden flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Total Payments Disbursed
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          {disbursedPayments.length} Disbursed
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-black text-emerald-700 tracking-tight font-mono">
+                          {formatCurrency(disbursedTotal)}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                          Net cash & bank disbursements debited
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Rejected Card */}
+                    <div className="bg-white rounded-xl p-3.5 border border-rose-200 shadow-xs relative overflow-hidden flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+                          <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                          Rejected Payments
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          rejectedPayments.length > 0 ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-600"
+                        }`}>
+                          {rejectedPayments.length} Rejected
+                        </span>
+                      </div>
+                      <div>
+                        <div className={`text-2xl font-black tracking-tight font-mono ${
+                          rejectedPayments.length > 0 ? "text-rose-600" : "text-slate-400"
+                        }`}>
+                          {formatCurrency(rejectedTotal)}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                          Declined requests (excluded from balance)
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  {canWriteFinance && (
-                    <button
-                      onClick={() => {
-                        setKpiPopupType(null);
-                        setModalMode("PAYMENT");
-                        setShowLogModal(true);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
-                    >
-                      <PlusCircle className="w-4 h-4" />
-                      <span>+ Record Payment</span>
-                    </button>
-                  )}
+
+                  {/* Filter Tabs & Quick Action */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center p-1 bg-slate-200/70 rounded-lg text-xs font-bold text-slate-600">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentPopupFilter("ALL")}
+                        className={`px-3 py-1 rounded-md transition ${
+                          paymentPopupFilter === "ALL"
+                            ? "bg-white text-slate-900 shadow-xs"
+                            : "hover:text-slate-900"
+                        }`}
+                      >
+                        All ({dayData?.payments.length || 0})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentPopupFilter("DISBURSED")}
+                        className={`px-3 py-1 rounded-md transition ${
+                          paymentPopupFilter === "DISBURSED"
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "hover:text-slate-900"
+                        }`}
+                      >
+                        Disbursed ({disbursedPayments.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentPopupFilter("REJECTED")}
+                        className={`px-3 py-1 rounded-md transition ${
+                          paymentPopupFilter === "REJECTED"
+                            ? "bg-rose-600 text-white shadow-xs"
+                            : "hover:text-slate-900"
+                        }`}
+                      >
+                        Rejected ({rejectedPayments.length})
+                      </button>
+                    </div>
+
+                    {canWriteFinance && (
+                      <button
+                        onClick={() => {
+                          setKpiPopupType(null);
+                          setModalMode("PAYMENT");
+                          setShowLogModal(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        <span>+ Record Payment</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="p-4 overflow-y-auto space-y-3 flex-1">
-                  {(!dayData?.payments || dayData.payments.length === 0) ? (
+                  {filteredPopupPayments.length === 0 ? (
                     <div className="text-center py-10 text-slate-400">
-                      <ArrowUpRight className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                      <p className="text-xs font-semibold text-slate-600">No payments recorded on this date.</p>
-                      <p className="text-[11px] text-slate-400 mt-1">Cash, UPI, and bank transfers recorded today will appear here.</p>
+                      {paymentPopupFilter === "REJECTED" ? (
+                        <>
+                          <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                          <p className="text-xs font-semibold text-slate-700">No rejected payments on this date.</p>
+                          <p className="text-[11px] text-slate-400 mt-1">All payment vouchers were approved and processed.</p>
+                        </>
+                      ) : paymentPopupFilter === "DISBURSED" ? (
+                        <>
+                          <ArrowUpRight className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-xs font-semibold text-slate-700">No disbursed payments on this date.</p>
+                        </>
+                      ) : (
+                        <>
+                          <ArrowUpRight className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-xs font-semibold text-slate-600">No payments recorded on this date.</p>
+                          <p className="text-[11px] text-slate-400 mt-1">Cash, UPI, and bank transfers recorded today will appear here.</p>
+                        </>
+                      )}
                     </div>
                   ) : (
-                    dayData.payments.map((p: any, idx: number) => (
-                      <div
-                        key={p.id || idx}
-                        className="p-3.5 bg-slate-50 hover:bg-slate-100/70 rounded-xl border border-slate-200/80 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-black text-sm text-slate-900">{p.party?.name || "Direct Expense / Recipient"}</span>
-                            <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded-md">
-                              {p.paymentMethod || "CASH"}
-                            </span>
-                            <span
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
-                                p.status === "POSTED" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                              }`}
-                            >
-                              {p.status || "POSTED"}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                            {p.project?.name && <span>🏗️ {p.project.name}</span>}
-                            {p.referenceNumber && (
-                              <span>
-                                Ref: <strong className="text-slate-700 font-mono">{p.referenceNumber}</strong>
+                    filteredPopupPayments.map((p: any, idx: number) => {
+                      const isRejected = p.status === "REJECTED";
+                      return (
+                        <div
+                          key={p.id || idx}
+                          className={`p-3.5 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                            isRejected
+                              ? "bg-rose-50/40 hover:bg-rose-50/70 border-rose-200"
+                              : "bg-slate-50 hover:bg-slate-100/70 border-slate-200/80"
+                          }`}
+                        >
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-sm text-slate-900">{p.party?.name || "Direct Expense / Recipient"}</span>
+                              <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded-md">
+                                {p.paymentMethod || "CASH"}
                               </span>
-                            )}
-                            {p.payingAccount && <span>A/C: {p.payingAccount}</span>}
-                          </div>
-                          {p.notes && (
-                            <p className="text-xs text-slate-600 italic bg-white/70 p-1.5 rounded border border-slate-100 mt-1">
-                              &ldquo;{p.notes}&rdquo;
-                            </p>
-                          )}
-                          {p.attachments && p.attachments.length > 0 && (
-                            <div className="flex items-center gap-2 mt-2 pt-1.5 border-t border-slate-200/60">
-                              <span className="text-[11px] font-bold text-slate-500">📎 Voucher:</span>
-                              <div className="flex flex-wrap gap-1.5">
-                                {p.attachments.map((att: any, aIdx: number) => (
-                                  <button
-                                    key={att.id || aIdx}
-                                    type="button"
-                                    onClick={() => setActivePhotoLightbox(att.url)}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-lg text-[10px] font-bold transition border border-rose-200"
-                                  >
-                                    <ImageIcon className="w-3 h-3 text-rose-600" />
-                                    <span>View Voucher {p.attachments.length > 1 ? `#${aIdx + 1}` : ""}</span>
-                                  </button>
-                                ))}
-                              </div>
+                              <span
+                                className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                                  isRejected
+                                    ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                    : p.status === "POSTED"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {p.status || "POSTED"}
+                              </span>
                             </div>
-                          )}
-                        </div>
-                        <div className="text-left sm:text-right shrink-0">
-                          <div className="text-lg font-black text-rose-600">
-                            {formatCurrency(p.amount)}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                              {p.project?.name && <span>🏗️ {p.project.name}</span>}
+                              {p.referenceNumber && (
+                                <span>
+                                  Ref: <strong className="text-slate-700 font-mono">{p.referenceNumber}</strong>
+                                </span>
+                              )}
+                              {p.payingAccount && <span>A/C: {p.payingAccount}</span>}
+                            </div>
+                            {p.notes && (
+                              <p className="text-xs text-slate-600 italic bg-white/70 p-1.5 rounded border border-slate-100 mt-1">
+                                &ldquo;{p.notes}&rdquo;
+                              </p>
+                            )}
+                            {isRejected && (
+                              <div className="mt-1.5 p-2 bg-rose-100/70 rounded-lg border border-rose-200 text-xs text-rose-900 flex items-start gap-1.5">
+                                <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="font-bold">Declined / Rejected:</span>{" "}
+                                  <span>{p.rejectionReason || "No specific reason provided."}</span>
+                                </div>
+                              </div>
+                            )}
+                            {p.attachments && p.attachments.length > 0 && (
+                              <div className="flex items-center gap-2 mt-2 pt-1.5 border-t border-slate-200/60">
+                                <span className="text-[11px] font-bold text-slate-500">📎 Voucher:</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {p.attachments.map((att: any, aIdx: number) => (
+                                    <button
+                                      key={att.id || aIdx}
+                                      type="button"
+                                      onClick={() => setActivePhotoLightbox(att.url)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-lg text-[10px] font-bold transition border border-rose-200"
+                                    >
+                                      <ImageIcon className="w-3 h-3 text-rose-600" />
+                                      <span>View Voucher {p.attachments.length > 1 ? `#${aIdx + 1}` : ""}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-left sm:text-right shrink-0">
+                            <div className={`text-lg font-black font-mono ${
+                              isRejected ? "text-rose-500 line-through decoration-rose-400" : "text-rose-600"
+                            }`}>
+                              {formatCurrency(p.amount)}
+                            </div>
+                            {isRejected && (
+                              <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">
+                                Rejected
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 

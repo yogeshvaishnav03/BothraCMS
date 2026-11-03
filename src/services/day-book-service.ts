@@ -308,7 +308,12 @@ export async function fetchDayBookData(
 
   // Summaries
   // Money that left the bank: TDS held back from a contractor stays until it is deposited.
-  const totalPaymentsAmount = payments.reduce((acc: number, p: any) => acc + bankAmount(p), 0);
+  // Note: REJECTED payments are not disbursed from the bank, so they are tracked separately.
+  const disbursedPayments = payments.filter((p: any) => p.status !== "REJECTED");
+  const rejectedPayments = payments.filter((p: any) => p.status === "REJECTED");
+
+  const totalPaymentsAmount = disbursedPayments.reduce((acc: number, p: any) => acc + bankAmount(p), 0);
+  const totalRejectedPaymentsAmount = rejectedPayments.reduce((acc: number, p: any) => acc + bankAmount(p), 0);
   const totalBillsAmount = bills.reduce((acc: number, b: any) => acc + (b.totalAmount || 0), 0);
 
   const totalHeadcount = headcountRecords.reduce((s, r) => s + (r.grandTotal || 0), 0);
@@ -338,10 +343,12 @@ export async function fetchDayBookData(
     toDate,
     summary: {
       totalPaymentsAmount,
+      totalRejectedPaymentsAmount,
       totalBillsAmount,
       totalMoneyInAmount: moneyIn.reduce((acc, r) => acc + r.amount, 0),
       moneyInCount: moneyIn.length,
-      paymentsCount: payments.length,
+      paymentsCount: disbursedPayments.length,
+      rejectedPaymentsCount: rejectedPayments.length,
       billsCount: bills.length,
       receiptsCount: receipts.length,
       issuesCount: issues.length,
