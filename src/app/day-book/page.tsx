@@ -395,6 +395,7 @@ export default function DayBookPage() {
   const [activeTab, setActiveTab] = useState<"ALL" | "PAYMENTS" | "BILLS" | "ATTENDANCE" | "REPORTS">("ALL");
   const [loading, setLoading] = useState(true);
   const [dayData, setDayData] = useState<DayBookData | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   // Quick Action Modal states
   const [showLogModal, setShowLogModal] = useState(false);
@@ -658,6 +659,7 @@ export default function DayBookPage() {
   }, [paymentPartyId]);
 
   useEffect(() => {
+    setMounted(true);
     // Load metadata (sites, parties, projects, auth)
     Promise.all([
       fetch("/api/sites").then((r) => r.json()),
@@ -1158,7 +1160,7 @@ export default function DayBookPage() {
 
   return (
     <Shell>
-      <div className="screen-only-section space-y-6">
+      <div className="screen-only-section space-y-6 print:hidden">
         {/* Header Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
           <div>
@@ -3455,8 +3457,19 @@ export default function DayBookPage() {
             size: A4 portrait;
             margin: 10mm 10mm 12mm 10mm;
           }
+          /* Hide everything in document.body except the print portal */
+          body > *:not(.print-portal-root) {
+            display: none !important;
+          }
           aside, nav, header, [role="navigation"], .no-print, .print-hidden, button, input, select, .quick-action-fab, .fixed, .sticky, div[class*="glass"] {
             display: none !important;
+          }
+          *, ::before, ::after {
+            animation: none !important;
+            -webkit-animation: none !important;
+            transition: none !important;
+            opacity: 1 !important;
+            visibility: visible !important;
           }
           html, body {
             overflow: visible !important;
@@ -3468,33 +3481,26 @@ export default function DayBookPage() {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          div[class*="min-h-screen"], main, .app-main, div[class*="max-w-7xl"], div[class*="overflow-"], .page-enter {
-            overflow: visible !important;
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: none !important;
-            max-width: 100% !important;
-            width: 100% !important;
-            display: block !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-            background: #ffffff !important;
-            transform: none !important;
-            animation: none !important;
-          }
           .screen-only-section {
             display: none !important;
           }
+          .print-portal-root,
           .print-only-sheet {
             display: block !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            position: static !important;
             font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
             color: #0f172a !important;
             background: #ffffff !important;
             width: 100% !important;
             padding: 0 !important;
             margin: 0 !important;
+          }
+          .print-portal-root *,
+          .print-only-sheet * {
+            opacity: 1 !important;
+            visibility: visible !important;
           }
           .print-section {
             margin-bottom: 14px !important;
@@ -3518,6 +3524,12 @@ export default function DayBookPage() {
             border-collapse: collapse !important;
             margin-bottom: 4px !important;
             page-break-inside: auto !important;
+          }
+          .print-table thead {
+            display: table-header-group !important;
+          }
+          .print-table tfoot {
+            display: table-footer-group !important;
           }
           .print-table tr {
             page-break-inside: avoid !important;
@@ -3554,13 +3566,16 @@ export default function DayBookPage() {
           }
         }
         @media screen {
+          .print-portal-root,
           .print-only-sheet {
             display: none !important;
+            visibility: hidden !important;
           }
         }
       `}</style>
 
-      <div className="print-only-sheet bg-white text-slate-900">
+      {mounted && typeof document !== "undefined" && createPortal(
+        <div className="print-portal-root print-only-sheet bg-white text-slate-900">
         {/* Document Header */}
         <div className="border-b-2 border-slate-900 pb-3 mb-3">
           <div className="flex items-start justify-between">
@@ -4040,7 +4055,9 @@ export default function DayBookPage() {
             System generated document from Bothra CMS. Certified valid for audit and accounting reconciliation.
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
+    )}
 
       {/* Lightbox for Fullscreen Site Photo Preview */}
       {activePhotoLightbox && typeof document !== "undefined" && createPortal(

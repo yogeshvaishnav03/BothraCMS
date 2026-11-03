@@ -690,7 +690,7 @@ export default function Shell({ children }: ShellProps) {
 
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:px-8 lg:py-6 space-y-4">
           {/* Mobile helper bar: site, guide, language */}
-          <div className="lg:hidden flex items-center justify-between gap-2 bg-white/80 ring-1 ring-slate-200 px-3 py-2 rounded-2xl shadow-xs">
+          <div className="lg:hidden flex items-center justify-between gap-2 bg-white/80 ring-1 ring-slate-200 px-3 py-2 rounded-2xl shadow-xs print:hidden no-print">
             <span className="flex items-center gap-2 min-w-0 text-xs font-semibold text-slate-800">
               <span
                 className={`w-2 h-2 rounded-full shrink-0 ${activeSiteId ? "bg-emerald-500" : "bg-amber-400"}`}
