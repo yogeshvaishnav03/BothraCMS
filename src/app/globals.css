@@ -258,7 +258,7 @@
 }
 
 @layer utilities {
-  /* Horizontally scrolling table containers: smooth on touch, never scroll the page */
+  /* Horizontally scrolling table containers: smooth on touch, never scroll the page, with 400px min-height for dropdown visibility */
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
@@ -266,7 +266,7 @@
   }
 
   .overflow-x-auto:has(table) {
-    min-height: auto;
+    min-height: 400px;
   }
 
   .backdrop-blur-xs {

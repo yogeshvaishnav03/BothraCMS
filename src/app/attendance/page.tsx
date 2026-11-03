@@ -1536,7 +1536,7 @@ export default function AttendancePage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm min-h-[400px]">
               <ExcelTableToolbar
                 table={excelAttendance}
                 columns={attendanceColumns}
@@ -1544,7 +1544,7 @@ export default function AttendancePage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                     <tr>
