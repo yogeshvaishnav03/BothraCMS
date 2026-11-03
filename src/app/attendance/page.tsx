@@ -24,6 +24,12 @@ import {
   ChevronRight,
   Info,
   X,
+  BellRing,
+  Sliders,
+  UserPlus,
+  AlertCircle,
+  Save,
+  Check,
 } from "lucide-react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 
@@ -150,10 +156,30 @@ export default function AttendancePage() {
   // Attendance correction modal state
   const [correctionSession, setCorrectionSession] = useState<any>(null);
   const [correctionStatus, setCorrectionStatus] = useState<string>("PRESENT");
+  const [correctionShift, setCorrectionShift] = useState<"GENERAL" | "DAY" | "NIGHT">("GENERAL");
   const [correctionCheckIn, setCorrectionCheckIn] = useState<string>("");
   const [correctionCheckOut, setCorrectionCheckOut] = useState<string>("");
   const [correctionReason, setCorrectionReason] = useState<string>("");
   const [correcting, setCorrecting] = useState<boolean>(false);
+
+  // Shift timings & reminders state
+  const [shiftSettings, setShiftSettings] = useState<any>(null);
+  const [showShiftSettingsModal, setShowShiftSettingsModal] = useState<boolean>(false);
+  const [shiftModalLoading, setShiftModalLoading] = useState<boolean>(false);
+  const [tempShiftSettings, setTempShiftSettings] = useState<any>(null);
+
+  // Alter staff attendance modal state (for Admin & Super Admin)
+  const [showAlterModal, setShowAlterModal] = useState<boolean>(false);
+  const [alterStaffLoading, setAlterStaffLoading] = useState<boolean>(false);
+  const [staffUsers, setStaffUsers] = useState<any[]>([]);
+  const [alterUserId, setAlterUserId] = useState<string>("");
+  const [alterSiteId, setAlterSiteId] = useState<string>("");
+  const [alterDate, setAlterDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [alterShift, setAlterShift] = useState<"GENERAL" | "DAY" | "NIGHT">("GENERAL");
+  const [alterStatus, setAlterStatus] = useState<string>("PRESENT");
+  const [alterCheckIn, setAlterCheckIn] = useState<string>("");
+  const [alterCheckOut, setAlterCheckOut] = useState<string>("");
+  const [alterReason, setAlterReason] = useState<string>("");
 
   // Live clock
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -172,10 +198,15 @@ export default function AttendancePage() {
     setErrorMessage(null);
 
     try {
-      const [authRes, sitesRes] = await Promise.all([
+      const [authRes, sitesRes, shiftRes] = await Promise.all([
         fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
         fetch("/api/sites", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/attendance/shifts", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
       ]);
+
+      if (shiftRes?.success && shiftRes.data) {
+        setShiftSettings(shiftRes.data);
+      }
 
       const user = authRes?.data?.user;
       if (user) {
@@ -184,6 +215,21 @@ export default function AttendancePage() {
         if (!["SUPER_ADMIN", "ORG_ADMIN", "HR_VIEWER", "AUDITOR"].includes(user.role)) {
           setActiveTab("my");
         }
+
+        // Pre-fetch team users for admin alteration modal
+        if (["SUPER_ADMIN", "ORG_ADMIN"].includes(user.role)) {
+          fetch("/api/users", { cache: "no-store" })
+            .then((r) => r.json())
+            .then((usersRes) => {
+              if (usersRes?.success && usersRes.data) {
+                setStaffUsers(usersRes.data);
+                if (usersRes.data.length > 0) {
+                  setAlterUserId((prev) => prev || usersRes.data[0].id);
+                }
+              }
+            })
+            .catch(() => {});
+        }
       }
 
       if (sitesRes?.success && sitesRes.data) {
@@ -191,6 +237,7 @@ export default function AttendancePage() {
         setSites(rawSites);
         if (rawSites.length > 0) {
           setSelectedSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
+          setAlterSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
         }
       }
 
@@ -322,6 +369,8 @@ export default function AttendancePage() {
   const handleOpenCorrection = (session: any) => {
     setCorrectionSession(session);
     setCorrectionStatus(session.status || "PRESENT");
+    const matchedShift = (session.notes?.match(/\[Shift:\s*(GENERAL|DAY|NIGHT)\]/i)?.[1]?.toUpperCase() as any) || "GENERAL";
+    setCorrectionShift(matchedShift);
     setCorrectionCheckIn(session.checkInAt ? new Date(session.checkInAt).toISOString().slice(0, 16) : "");
     setCorrectionCheckOut(session.checkOutAt ? new Date(session.checkOutAt).toISOString().slice(0, 16) : "");
     setCorrectionReason("");
@@ -347,6 +396,7 @@ export default function AttendancePage() {
           status: correctionStatus,
           checkInAt: correctionCheckIn ? new Date(correctionCheckIn).toISOString() : undefined,
           checkOutAt: correctionCheckOut ? new Date(correctionCheckOut).toISOString() : undefined,
+          shift: correctionShift,
           reason: correctionReason.trim(),
         }),
       });
@@ -366,6 +416,138 @@ export default function AttendancePage() {
       setCorrecting(false);
     }
   };
+
+  // Alter Staff Attendance Handlers (Admin & Super Admin)
+  const handleOpenAlterModal = () => {
+    const today = new Date().toISOString().split("T")[0];
+    setAlterDate(today);
+    setAlterShift("GENERAL");
+    setAlterStatus("PRESENT");
+    setAlterCheckIn(`${today}T09:30`);
+    setAlterCheckOut(`${today}T18:30`);
+    setAlterReason("");
+    if (staffUsers.length > 0 && !alterUserId) {
+      setAlterUserId(staffUsers[0].id);
+    }
+    if (sites.length > 0 && !alterSiteId) {
+      setAlterSiteId(sites[0].id);
+    }
+    setShowAlterModal(true);
+  };
+
+  const handleAlterStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!alterUserId) {
+      setErrorMessage("Please select a staff member to alter attendance.");
+      return;
+    }
+    if (!alterSiteId) {
+      setErrorMessage("Please select a site location.");
+      return;
+    }
+    if (!alterReason.trim() || alterReason.trim().length < 5) {
+      setErrorMessage("Mandatory administrative justification (min 5 characters) is required.");
+      return;
+    }
+
+    setAlterStaffLoading(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: alterUserId,
+          siteId: alterSiteId,
+          workDate: alterDate,
+          shift: alterShift,
+          status: alterStatus,
+          checkInAt: alterCheckIn ? new Date(alterCheckIn).toISOString() : undefined,
+          checkOutAt: alterCheckOut ? new Date(alterCheckOut).toISOString() : undefined,
+          reason: alterReason.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to alter staff attendance.");
+        return;
+      }
+
+      setStatusMessage(data.data?.message || "Staff attendance successfully altered and audited.");
+      setShowAlterModal(false);
+      await loadData();
+    } catch {
+      setErrorMessage("Network error altering staff attendance.");
+    } finally {
+      setAlterStaffLoading(false);
+    }
+  };
+
+  // Shift Settings Handlers (Admin & Super Admin)
+  const handleOpenShiftSettings = () => {
+    setTempShiftSettings(JSON.parse(JSON.stringify(shiftSettings || {
+      enableCheckoutReminder: true,
+      reminderGraceMinutes: 15,
+      standardWorkHours: 8,
+      shifts: [
+        { code: "GENERAL", name: "General Shift", startTime: "09:30", endTime: "18:30", durationHours: 9 },
+        { code: "DAY", name: "Morning / Day Shift", startTime: "08:00", endTime: "17:00", durationHours: 9 },
+        { code: "NIGHT", name: "Night Shift", startTime: "20:00", endTime: "05:00", durationHours: 9 },
+      ],
+    })));
+    setShowShiftSettingsModal(true);
+  };
+
+  const handleSaveShiftSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tempShiftSettings) return;
+    setShiftModalLoading(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch("/api/attendance/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tempShiftSettings),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to update shift timings.");
+        return;
+      }
+
+      setShiftSettings(data.data?.settings);
+      setStatusMessage("Shift timings and checkout reminder policies updated successfully.");
+      setShowShiftSettingsModal(false);
+    } catch {
+      setErrorMessage("Network error saving shift settings.");
+    } finally {
+      setShiftModalLoading(false);
+    }
+  };
+
+  // Real-time Checkout Reminder check for account holders
+  const isShiftEndedForToday = useMemo(() => {
+    if (!todaySession || todaySession.checkOutAt) return false;
+    // 1. Duration check
+    const targetHours = shiftSettings?.standardWorkHours || 8;
+    if (todaySession.durationHours >= targetHours) return true;
+
+    // 2. Scheduled timing check (Current IST time past 18:30 for General Shift)
+    const now = currentTime;
+    const istHours = (now.getUTCHours() + 5 + Math.floor((now.getUTCMinutes() + 30) / 60)) % 24;
+    const istMinutes = (now.getUTCMinutes() + 30) % 60;
+    const currentMins = istHours * 60 + istMinutes;
+
+    // General Shift finishes at 18:30 (1110 mins)
+    const shiftEndMinutes = 18 * 60 + 30;
+    return currentMins >= shiftEndMinutes;
+  }, [todaySession, shiftSettings, currentTime]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -670,7 +852,30 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+            {isPrivileged && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleOpenAlterModal}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs transition shadow-sm cursor-pointer"
+                  title="Alter or record attendance for another account holder"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>+ Alter Staff Attendance</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenShiftSettings}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                  title="Alter Shift Timings and Automatic Checkout Reminders"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Shift Timings & Reminders</span>
+                </button>
+              </>
+            )}
+
             {["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR", "HR_VIEWER"].includes(currentUser?.role) && (
               <Link
                 href="/attendance/muster"
@@ -698,6 +903,55 @@ export default function AttendancePage() {
             </button>
           </div>
         </div>
+
+        {/* REAL-TIME CHECKOUT REMINDER BANNER FOR ACTIVE UNCLOSED SHIFTS */}
+        {isShiftEndedForToday && (
+          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-slate-950 p-4 sm:p-5 rounded-2xl shadow-lg border border-amber-300 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="p-2.5 bg-slate-950 text-amber-400 rounded-xl shadow-md shrink-0">
+                  <BellRing className="w-6 h-6 animate-bounce" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm sm:text-base text-slate-950 tracking-tight">
+                      ⏰ Shift Completed — Checkout Reminder!
+                    </span>
+                    <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-950 text-amber-300">
+                      Action Required
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-950/90 mt-1">
+                    Your scheduled shift has concluded. You checked in at{" "}
+                    <strong>
+                      {todaySession
+                        ? new Date(todaySession.checkInAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "shift start"}
+                    </strong>{" "}
+                    ({todaySession?.durationFormatted} logged so far). Please tap Check Out Now to record your departure with GPS verification.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCheckOut}
+                disabled={submitting}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-950 hover:bg-slate-900 text-white rounded-xl text-xs font-black shadow-md transition transform hover:scale-105 active:scale-95 shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {submitting ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Clock className="w-4 h-4 text-amber-400" />
+                )}
+                <span>Check Out Now (GPS)</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tab Switcher for Admin (Org Admin can view All Staff and My Attendance) */}
         {isAdmin && (
@@ -1473,20 +1727,37 @@ export default function AttendancePage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Shift Status *
-                  </label>
-                  <select
-                    value={correctionStatus}
-                    onChange={(e) => setCorrectionStatus(e.target.value)}
-                    className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="PRESENT">Present (Full Day)</option>
-                    <option value="HALF_DAY">Half Day</option>
-                    <option value="ABSENT">Absent</option>
-                    <option value="ON_LEAVE">On Approved Leave</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Shift Timing *
+                    </label>
+                    <select
+                      value={correctionShift}
+                      onChange={(e) => setCorrectionShift(e.target.value as any)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="GENERAL">General Shift (09:30 - 18:30)</option>
+                      <option value="DAY">Morning / Day Shift (08:00 - 17:00)</option>
+                      <option value="NIGHT">Night Shift (20:00 - 05:00)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Shift Status *
+                    </label>
+                    <select
+                      value={correctionStatus}
+                      onChange={(e) => setCorrectionStatus(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="PRESENT">Present (Full Day)</option>
+                      <option value="HALF_DAY">Half Day</option>
+                      <option value="OVERTIME">Overtime</option>
+                      <option value="ABSENT">Absent</option>
+                      <option value="ON_LEAVE">On Approved Leave</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1542,6 +1813,397 @@ export default function AttendancePage() {
                     className="px-5 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition"
                   >
                     {correcting ? "Saving Correction..." : "Save Correction"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ALTER / RECORD STAFF ATTENDANCE MODAL (Super Admin & Admin) */}
+        {showAlterModal && (
+          <div
+            className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowAlterModal(false);
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-150"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-amber-400" />
+                  <div>
+                    <h3 className="font-black text-sm">Alter / Record Staff Attendance</h3>
+                    <p className="text-[11px] text-slate-400">Admin & Super Admin Operational Override</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAlterModal(false)}
+                  className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAlterStaffSubmit} className="p-5 overflow-y-auto space-y-4">
+                <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-slate-800 flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="text-slate-600 text-[11px] leading-relaxed">
+                    As an Admin / Super Admin, you can record or alter shift attendance for any employee who forgot to check in or out. An audited record will be created.
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Select Account Holder / Employee <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    required
+                    value={alterUserId}
+                    onChange={(e) => setAlterUserId(e.target.value)}
+                    className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                  >
+                    {staffUsers.length === 0 ? (
+                      <option value="">No staff accounts found</option>
+                    ) : (
+                      staffUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} — {u.role?.replace(/_/g, " ")} ({u.email})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Site Location <span className="text-rose-600">*</span>
+                    </label>
+                    <select
+                      required
+                      value={alterSiteId}
+                      onChange={(e) => setAlterSiteId(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    >
+                      {sites.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Work Date <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={alterDate}
+                      onChange={(e) => {
+                        setAlterDate(e.target.value);
+                        if (alterCheckIn) setAlterCheckIn(`${e.target.value}T${alterCheckIn.split("T")[1] || "09:30"}`);
+                        if (alterCheckOut) setAlterCheckOut(`${e.target.value}T${alterCheckOut.split("T")[1] || "18:30"}`);
+                      }}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Shift Timing <span className="text-rose-600">*</span>
+                    </label>
+                    <select
+                      value={alterShift}
+                      onChange={(e) => {
+                        const s = e.target.value as any;
+                        setAlterShift(s);
+                        if (s === "DAY") {
+                          setAlterCheckIn(`${alterDate}T08:00`);
+                          setAlterCheckOut(`${alterDate}T17:00`);
+                        } else if (s === "NIGHT") {
+                          setAlterCheckIn(`${alterDate}T20:00`);
+                          setAlterCheckOut(`${alterDate}T05:00`);
+                        } else {
+                          setAlterCheckIn(`${alterDate}T09:30`);
+                          setAlterCheckOut(`${alterDate}T18:30`);
+                        }
+                      }}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="GENERAL">General Shift (09:30 - 18:30)</option>
+                      <option value="DAY">Morning / Day Shift (08:00 - 17:00)</option>
+                      <option value="NIGHT">Night Shift (20:00 - 05:00)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Attendance Status <span className="text-rose-600">*</span>
+                    </label>
+                    <select
+                      value={alterStatus}
+                      onChange={(e) => setAlterStatus(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="PRESENT">Present (Full Day)</option>
+                      <option value="HALF_DAY">Half Day</option>
+                      <option value="OVERTIME">Overtime</option>
+                      <option value="ON_LEAVE">On Approved Leave</option>
+                      <option value="ABSENT">Absent</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Check-In Timestamp
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={alterCheckIn}
+                      onChange={(e) => setAlterCheckIn(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Check-Out Timestamp
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={alterCheckOut}
+                      onChange={(e) => setAlterCheckOut(e.target.value)}
+                      className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Administrative Reason / Justification <span className="text-rose-600">*</span> (min. 5 chars)
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={alterReason}
+                    onChange={(e) => setAlterReason(e.target.value)}
+                    placeholder="e.g. Employee forgot to punch out after late night shuttering; verified with Site Engineer..."
+                    className="w-full text-xs font-normal p-3 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAlterModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={alterStaffLoading || alterReason.trim().length < 5}
+                    className="px-5 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition"
+                  >
+                    {alterStaffLoading ? "Saving Attendance..." : "Save Staff Attendance"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* SHIFT TIMINGS & REMINDERS SETTINGS MODAL (Super Admin & Admin) */}
+        {showShiftSettingsModal && tempShiftSettings && (
+          <div
+            className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowShiftSettingsModal(false);
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-150"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-amber-400" />
+                  <div>
+                    <h3 className="font-black text-sm">Shift Timings & Automatic Checkout Reminders</h3>
+                    <p className="text-[11px] text-slate-400">Configure operational shifts, work hours, and staff reminder policies</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowShiftSettingsModal(false)}
+                  className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveShiftSettings} className="p-5 overflow-y-auto space-y-5">
+                {/* General Policies */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">Automatic Shift Checkout Reminders</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        Alert account holders on their dashboard and notification center when their scheduled shift has concluded and they haven&apos;t checked out.
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={tempShiftSettings.enableCheckoutReminder}
+                        onChange={(e) =>
+                          setTempShiftSettings({ ...tempShiftSettings, enableCheckoutReminder: e.target.checked })
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Reminder Grace Window (Minutes)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={180}
+                        value={tempShiftSettings.reminderGraceMinutes}
+                        onChange={(e) =>
+                          setTempShiftSettings({ ...tempShiftSettings, reminderGraceMinutes: Number(e.target.value) })
+                        }
+                        className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">Minutes after shift completion before urgent alert</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Standard Work Day Hours
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min={4}
+                        max={16}
+                        value={tempShiftSettings.standardWorkHours}
+                        onChange={(e) =>
+                          setTempShiftSettings({ ...tempShiftSettings, standardWorkHours: Number(e.target.value) })
+                        }
+                        className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">Default working shift duration across company</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Shift Timings Configurations */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                    Shift Timings Schedule
+                  </h4>
+
+                  <div className="space-y-3">
+                    {tempShiftSettings.shifts?.map((shift: any, idx: number) => (
+                      <div key={shift.code} className="p-3.5 border border-slate-200 rounded-xl bg-white shadow-2xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-amber-500" />
+                            <span>{shift.name} ({shift.code})</span>
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">
+                            {shift.durationHours} Hours Duration
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                              Start Time (HH:mm)
+                            </label>
+                            <input
+                              type="time"
+                              value={shift.startTime}
+                              onChange={(e) => {
+                                const copy = [...tempShiftSettings.shifts];
+                                copy[idx] = { ...copy[idx], startTime: e.target.value };
+                                setTempShiftSettings({ ...tempShiftSettings, shifts: copy });
+                              }}
+                              className="w-full text-xs font-semibold px-2.5 py-1.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                              End Time (HH:mm)
+                            </label>
+                            <input
+                              type="time"
+                              value={shift.endTime}
+                              onChange={(e) => {
+                                const copy = [...tempShiftSettings.shifts];
+                                copy[idx] = { ...copy[idx], endTime: e.target.value };
+                                setTempShiftSettings({ ...tempShiftSettings, shifts: copy });
+                              }}
+                              className="w-full text-xs font-semibold px-2.5 py-1.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                              Shift Hours
+                            </label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min={1}
+                              max={24}
+                              value={shift.durationHours}
+                              onChange={(e) => {
+                                const copy = [...tempShiftSettings.shifts];
+                                copy[idx] = { ...copy[idx], durationHours: Number(e.target.value) };
+                                setTempShiftSettings({ ...tempShiftSettings, shifts: copy });
+                              }}
+                              className="w-full text-xs font-semibold px-2.5 py-1.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowShiftSettingsModal(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={shiftModalLoading}
+                    className="px-5 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 rounded-xl shadow-xs transition"
+                  >
+                    {shiftModalLoading ? "Saving Policies..." : "Save Shift Settings"}
                   </button>
                 </div>
               </form>

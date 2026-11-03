@@ -10,7 +10,7 @@ import { prisma } from "@/lib/db";
  * also make the location or a selfie compulsory, or refuse check-ins away
  * from every site.
  *
- * Rules live in the organization's settings under `attendance`.
+ * Rules and Shift Policies live in the organization's settings under `attendance` and `shiftTiming`.
  */
 
 export interface AttendanceRules {
@@ -18,6 +18,32 @@ export interface AttendanceRules {
   requireSelfie: boolean;
   blockOffSite: boolean;
 }
+
+export interface ShiftTimingConfig {
+  code: "GENERAL" | "DAY" | "NIGHT";
+  name: string;
+  startTime: string; // e.g. "09:30" (24-hour HH:mm)
+  endTime: string;   // e.g. "18:30" (24-hour HH:mm)
+  durationHours: number; // e.g. 9
+}
+
+export interface AttendanceShiftSettings {
+  enableCheckoutReminder: boolean;
+  reminderGraceMinutes: number; // e.g. 15 mins after shift finishes
+  standardWorkHours: number; // e.g. 8.0
+  shifts: ShiftTimingConfig[];
+}
+
+export const DEFAULT_SHIFT_SETTINGS: AttendanceShiftSettings = {
+  enableCheckoutReminder: true,
+  reminderGraceMinutes: 15,
+  standardWorkHours: 8,
+  shifts: [
+    { code: "GENERAL", name: "General Shift", startTime: "09:30", endTime: "18:30", durationHours: 9 },
+    { code: "DAY", name: "Morning / Day Shift", startTime: "08:00", endTime: "17:00", durationHours: 9 },
+    { code: "NIGHT", name: "Night Shift", startTime: "20:00", endTime: "05:00", durationHours: 9 },
+  ],
+};
 
 export const ATTENDANCE_DEFAULTS: AttendanceRules = { requireGps: false, requireSelfie: false, blockOffSite: false };
 export const DEFAULT_GEOFENCE_M = 300;
@@ -31,6 +57,54 @@ export async function attendanceRules(organizationId: string): Promise<Attendanc
     settings = {};
   }
   return { ...ATTENDANCE_DEFAULTS, ...(settings.attendance || {}) };
+}
+
+export async function attendanceShiftSettings(organizationId: string): Promise<AttendanceShiftSettings> {
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { settingsJson: true } });
+  let settings: any = {};
+  try {
+    settings = org?.settingsJson ? JSON.parse(org.settingsJson) : {};
+  } catch {
+    settings = {};
+  }
+  const saved = settings.shiftTiming || {};
+  return {
+    enableCheckoutReminder: saved.enableCheckoutReminder ?? DEFAULT_SHIFT_SETTINGS.enableCheckoutReminder,
+    reminderGraceMinutes: saved.reminderGraceMinutes ?? DEFAULT_SHIFT_SETTINGS.reminderGraceMinutes,
+    standardWorkHours: saved.standardWorkHours ?? settings.workDayHours ?? DEFAULT_SHIFT_SETTINGS.standardWorkHours,
+    shifts: Array.isArray(saved.shifts) && saved.shifts.length > 0 ? saved.shifts : DEFAULT_SHIFT_SETTINGS.shifts,
+  };
+}
+
+export async function saveAttendanceShiftSettings(
+  organizationId: string,
+  updates: Partial<AttendanceShiftSettings>
+): Promise<AttendanceShiftSettings> {
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { settingsJson: true } });
+  let settings: any = {};
+  try {
+    settings = org?.settingsJson ? JSON.parse(org.settingsJson) : {};
+  } catch {
+    settings = {};
+  }
+  const current = await attendanceShiftSettings(organizationId);
+  const next: AttendanceShiftSettings = {
+    ...current,
+    ...updates,
+    shifts: updates.shifts || current.shifts,
+  };
+
+  settings.shiftTiming = next;
+  if (next.standardWorkHours) {
+    settings.workDayHours = next.standardWorkHours;
+  }
+
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: { settingsJson: JSON.stringify(settings) },
+  });
+
+  return next;
 }
 
 /** Metres between two points on the earth (haversine). */

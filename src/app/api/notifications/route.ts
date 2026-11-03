@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireUserContext, canReadFinance } from "@/lib/server-auth";
 import { InventoryService } from "@/services/inventory-service";
 import { ReminderService } from "@/services/reminder-service";
+import { attendanceShiftSettings } from "@/lib/attendance-rules";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -259,6 +260,81 @@ export async function GET(req: NextRequest) {
         createdAt: sess.checkInAt.toISOString(),
         isRead,
       });
+    }
+
+    // 5B. Real-Time Shift Checkout Reminder for Today's Active Shifts
+    const shiftSettings = await attendanceShiftSettings(user.organizationId);
+    if (shiftSettings.enableCheckoutReminder) {
+      // 5B.1: Reminder for the current account holder if their shift has ended
+      const userTodaySession = await prisma.attendanceSession.findFirst({
+        where: {
+          organizationId: user.organizationId,
+          workDate: todayStr,
+          createdBy: user.userId,
+          checkOutAt: null,
+          isArchived: false,
+        },
+        include: { site: true },
+      });
+
+      if (userTodaySession) {
+        const elapsedMinutes = Math.max(0, Math.round((now.getTime() - new Date(userTodaySession.checkInAt).getTime()) / 60000));
+        const shiftDurationMinutes = (shiftSettings.standardWorkHours || 8) * 60;
+        const graceMinutes = shiftSettings.reminderGraceMinutes || 15;
+
+        // Check if IST time is past standard shift end or duration has exceeded shift hours
+        const istHours = (now.getUTCHours() + 5 + Math.floor((now.getUTCMinutes() + 30) / 60)) % 24;
+        const isPastEvening = istHours >= 18; // Past 6:00 PM IST
+        const isDurationOver = elapsedMinutes >= shiftDurationMinutes;
+
+        if (isDurationOver || isPastEvening) {
+          const alertId = `checkout-reminder-${user.userId}-${todayStr}`;
+          const isRead = readEntityIdSet.has(alertId);
+          alerts.unshift({
+            id: alertId,
+            type: "ATTENDANCE_ANOMALY",
+            severity: "WARNING",
+            title: "⏰ Shift Ended: Checkout Reminder",
+            message: `Your shift at ${userTodaySession.site?.name || "Site"} has ended (${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m logged). You haven't checked out yet. Click here to record your check-out.`,
+            href: "/attendance",
+            createdAt: now.toISOString(),
+            isRead,
+          });
+        }
+      }
+
+      // 5B.2: For Admin & Super Admin: Alerts for other account holders who finished shift but forgot to checkout
+      if (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN") {
+        const otherOpenSessions = await prisma.attendanceSession.findMany({
+          where: {
+            organizationId: user.organizationId,
+            workDate: todayStr,
+            checkOutAt: null,
+            isArchived: false,
+            createdBy: { not: user.userId },
+          },
+          include: { workforceMember: true, site: true },
+          take: 5,
+        });
+
+        for (const sess of otherOpenSessions) {
+          const elapsed = (now.getTime() - new Date(sess.checkInAt).getTime()) / 60000;
+          if (elapsed >= (shiftSettings.standardWorkHours * 60)) {
+            const alertId = `staff-unclosed-today-${sess.id}`;
+            const isRead = readEntityIdSet.has(alertId);
+            alerts.push({
+              id: alertId,
+              type: "ATTENDANCE_ANOMALY",
+              severity: "INFO",
+              title: `Shift Ended: ${sess.workforceMember.name}`,
+              message: `${sess.workforceMember.name} (${sess.site.name}) completed scheduled shift timing (${Math.floor(elapsed / 60)}h logged) and has not checked out yet. Admin can alter or close this attendance.`,
+              href: "/attendance",
+              createdAt: now.toISOString(),
+              isRead,
+            });
+          }
+        }
+      }
     }
 
     // 6. Approved / Active Purchase Orders Placed to Vendors

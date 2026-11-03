@@ -7,10 +7,11 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 const correctSchema = z.object({
-  status: z.enum(["PRESENT", "HALF_DAY", "OVERTIME", "ABSENT"]),
+  status: z.enum(["PRESENT", "HALF_DAY", "OVERTIME", "ABSENT", "ON_LEAVE"]),
   checkInAt: z.string().optional(),
   checkOutAt: z.string().optional(),
-  reason: z.string().min(5),
+  shift: z.enum(["GENERAL", "DAY", "NIGHT"]).optional(),
+  reason: z.string().min(5, "Reason must be at least 5 characters"),
 });
 
 export async function POST(
@@ -30,6 +31,7 @@ export async function POST(
       status: data.status,
       checkInAt: data.checkInAt ? new Date(data.checkInAt) : undefined,
       checkOutAt: data.checkOutAt ? new Date(data.checkOutAt) : undefined,
+      shift: data.shift,
       reason: data.reason,
       userId: user.userId,
       role: user.role,
