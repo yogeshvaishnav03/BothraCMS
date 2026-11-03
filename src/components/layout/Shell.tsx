@@ -441,7 +441,7 @@ export default function Shell({ children }: ShellProps) {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row overflow-x-clip">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-[260px] bg-gradient-chrome text-slate-200 shrink-0 lg:sticky lg:top-0 lg:h-screen border-r border-white/5">
+      <aside className="hidden lg:flex lg:flex-col lg:w-[260px] bg-gradient-chrome text-slate-200 shrink-0 lg:sticky lg:top-0 lg:h-screen border-r border-white/5 print:hidden no-print">
         <div className="px-5 pt-5 pb-4 flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-gradient-brand flex items-center justify-center font-display font-extrabold text-slate-950 text-xl shadow-glow shrink-0">
             B
@@ -511,7 +511,7 @@ export default function Shell({ children }: ShellProps) {
       </aside>
 
       {/* Mobile Top Header */}
-      <header className="lg:hidden glass-dark text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 border-b border-white/10">
+      <header className="lg:hidden glass-dark text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 border-b border-white/10 print:hidden no-print">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-gradient-brand flex items-center justify-center font-display font-extrabold text-slate-950 text-base shadow-glow shrink-0">
             B
@@ -619,7 +619,7 @@ export default function Shell({ children }: ShellProps) {
       {/* Main Content Area */}
       <main className="app-main flex-1 min-w-0 pb-24 lg:pb-8">
         {/* Desktop top bar */}
-        <div className="hidden lg:block sticky top-0 z-30 glass border-b border-slate-200/70">
+        <div className="hidden lg:block sticky top-0 z-30 glass border-b border-slate-200/70 print:hidden no-print">
           <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-[11px] text-slate-500">
@@ -706,7 +706,9 @@ export default function Shell({ children }: ShellProps) {
             </div>
           </div>
 
-          <OfflineBar />
+          <div className="print:hidden no-print">
+            <OfflineBar />
+          </div>
           <div className="page-enter">
             {children}
           </div>
@@ -802,7 +804,7 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Mobile Supervisor Bottom Dock */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around z-30 shadow-2xl">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around z-30 shadow-2xl print:hidden no-print">
         <Link
           href="/"
           className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${
@@ -981,11 +983,13 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Global Interactive Quick Action Launcher (Speed Dial FAB & Keyboard Shortcut Alt+Q) */}
-      <QuickActionLauncher
-        currentUser={user}
-        activeSiteId={activeSiteId}
-        activeSiteName={sites.find((s) => s.id === activeSiteId)?.name}
-      />
+      <div className="print:hidden no-print">
+        <QuickActionLauncher
+          currentUser={user}
+          activeSiteId={activeSiteId}
+          activeSiteName={sites.find((s) => s.id === activeSiteId)?.name}
+        />
+      </div>
     </div>
   );
 }

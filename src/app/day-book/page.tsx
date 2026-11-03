@@ -1217,11 +1217,12 @@ export default function DayBookPage() {
             {/* Print */}
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition"
-              title="Print Day Book"
+              disabled={loading || !dayData}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Print Official Day Book Statement"
             >
               <Printer className="w-4 h-4 text-slate-500" />
-              <span>Print</span>
+              <span>{loading ? "Loading..." : "Print Day Book"}</span>
             </button>
           </div>
         </div>
@@ -3452,30 +3453,70 @@ export default function DayBookPage() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 12mm 10mm;
+            margin: 10mm 10mm 12mm 10mm;
           }
-          aside, nav, header, [role="navigation"], .no-print, button, input, select, .quick-action-fab, .fixed {
+          aside, nav, header, [role="navigation"], .no-print, .print-hidden, button, input, select, .quick-action-fab, .fixed, .sticky, div[class*="glass"] {
             display: none !important;
           }
-          body, main, div[class*="min-h-screen"], div[class*="bg-slate-50"] {
+          html, body {
+            overflow: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
             background: #ffffff !important;
-            color: #000000 !important;
+            color: #0f172a !important;
+            font-size: 10pt !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          div[class*="min-h-screen"], main, .app-main, div[class*="max-w-7xl"], div[class*="overflow-"], .page-enter {
+            overflow: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            display: block !important;
             padding: 0 !important;
             margin: 0 !important;
+            border: none !important;
             box-shadow: none !important;
+            background: #ffffff !important;
+            transform: none !important;
+            animation: none !important;
           }
           .screen-only-section {
             display: none !important;
           }
           .print-only-sheet {
             display: block !important;
-            font-family: ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
             color: #0f172a !important;
+            background: #ffffff !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .print-section {
+            margin-bottom: 14px !important;
+            page-break-inside: auto !important;
+          }
+          .print-section-header {
+            font-size: 10.5pt !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.04em !important;
+            color: #0f172a !important;
+            border-bottom: 1.5px solid #0f172a !important;
+            padding-bottom: 3px !important;
+            margin-bottom: 5px !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
           }
           .print-table {
             width: 100% !important;
             border-collapse: collapse !important;
-            margin-bottom: 16px !important;
+            margin-bottom: 4px !important;
             page-break-inside: auto !important;
           }
           .print-table tr {
@@ -3483,17 +3524,30 @@ export default function DayBookPage() {
             page-break-after: auto !important;
           }
           .print-table th, .print-table td {
-            border: 1px solid #cbd5e1 !important;
-            padding: 5px 8px !important;
-            font-size: 10px !important;
-            line-height: 1.3 !important;
+            border: 1px solid #94a3b8 !important;
+            padding: 4px 6px !important;
+            font-size: 8pt !important;
+            line-height: 1.25 !important;
+            vertical-align: top !important;
           }
           .print-table th {
-            background-color: #f8fafc !important;
+            background-color: #f1f5f9 !important;
             font-weight: 700 !important;
             text-transform: uppercase !important;
-            letter-spacing: 0.05em !important;
-            color: #1e293b !important;
+            letter-spacing: 0.03em !important;
+            color: #0f172a !important;
+            font-size: 7.5pt !important;
+          }
+          .print-table tbody tr:nth-child(even) {
+            background-color: #f8fafc !important;
+          }
+          .print-table tfoot tr {
+            background-color: #f1f5f9 !important;
+            font-weight: 800 !important;
+            border-top: 2px solid #0f172a !important;
+          }
+          .print-avoid-break {
+            page-break-inside: avoid !important;
           }
           .print-page-break {
             page-break-before: always !important;
@@ -3501,97 +3555,154 @@ export default function DayBookPage() {
         }
         @media screen {
           .print-only-sheet {
-            display: none;
+            display: none !important;
           }
         }
       `}</style>
 
-      <div className="print-only-sheet p-6 bg-white text-slate-900">
+      <div className="print-only-sheet bg-white text-slate-900">
         {/* Document Header */}
-        <div className="border-b-2 border-slate-900 pb-3 mb-4">
+        <div className="border-b-2 border-slate-900 pb-3 mb-3">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">
-                Bothra Construction Management System
-              </h1>
-              <h2 className="text-sm font-bold text-slate-700 tracking-wide uppercase mt-0.5">
-                Official Daily Site Record & Financial Day Book
-              </h2>
-            </div>
-            <div className="text-right text-[11px] text-slate-600">
-              <div className="font-bold text-slate-900">
-                Site: {sites.find((s) => s.id === selectedSiteId)?.name || "All Operational Sites"}
+              <div className="text-[10px] font-black tracking-widest text-amber-700 uppercase">
+                Bothra Infrastructure & Builders
               </div>
-              <div>Period: {selectedDate === toDate ? formatDate(selectedDate) : `${formatDate(selectedDate)} — ${formatDate(toDate)}`}</div>
-              <div>Generated: {new Date().toLocaleString("en-IN")}</div>
+              <h1 className="text-lg font-black uppercase tracking-tight text-slate-900 leading-tight">
+                Official Daily Site Record & Financial Day Book
+              </h1>
+              <p className="text-[10px] text-slate-600 font-medium">
+                Certified Daily Operational, Workforce & Financial Audit Trail
+              </p>
+            </div>
+            <div className="text-right text-[10px] text-slate-700 space-y-0.5 border border-slate-300 rounded p-2 bg-slate-50 min-w-[240px]">
+              <div>
+                <strong className="text-slate-900">Site:</strong>{" "}
+                {sites.find((s) => s.id === selectedSiteId)?.name || "All Operational Sites (Company-wide)"}
+              </div>
+              <div>
+                <strong className="text-slate-900">Period:</strong>{" "}
+                {selectedDate === toDate ? formatDate(selectedDate) : `${formatDate(selectedDate)} — ${formatDate(toDate)}`}
+              </div>
+              <div>
+                <strong className="text-slate-900">Generated:</strong>{" "}
+                {new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })}
+              </div>
+              <div>
+                <strong className="text-slate-900">Operator:</strong>{" "}
+                {currentUser?.name || "System User"} ({currentUser?.role || "Staff"})
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Executive Summary Financial Cards */}
-        <div className="grid grid-cols-4 gap-3 mb-4 border border-slate-300 rounded-lg p-3 bg-slate-50">
-          <div>
-            <div className="text-[10px] font-bold uppercase text-slate-500">Total Money In (Receipts)</div>
-            <div className="text-sm font-black text-emerald-700">{formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}</div>
+        {/* Executive Summary Financial & Workforce KPIs */}
+        <div className="grid grid-cols-5 gap-2 mb-4 border border-slate-300 rounded p-2 bg-slate-50 text-slate-900">
+          <div className="border-r border-slate-200 pr-2">
+            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Total Money In</div>
+            <div className="text-xs font-black text-emerald-700">
+              {formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}
+            </div>
+            <div className="text-[8px] text-slate-500">{dayData?.summary.moneyInCount || 0} customer receipts</div>
           </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase text-slate-500">Total Disbursed (Payments)</div>
-            <div className="text-sm font-black text-rose-700">{formatCurrency(dayData?.summary.totalPaymentsAmount || 0)}</div>
+          <div className="border-r border-slate-200 pr-2">
+            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Total Disbursed</div>
+            <div className="text-xs font-black text-rose-700">
+              {formatCurrency(dayData?.summary.totalPaymentsAmount || 0)}
+            </div>
+            <div className="text-[8px] text-slate-500">{dayData?.summary.paymentsCount || 0} vouchers paid</div>
           </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase text-slate-500">Net Flow</div>
-            <div className="text-sm font-black text-slate-900">
+          <div className="border-r border-slate-200 pr-2">
+            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Net Daily Cash Flow</div>
+            <div className={`text-xs font-black ${
+              ((dayData?.summary.totalMoneyInAmount || 0) - (dayData?.summary.totalPaymentsAmount || 0)) >= 0
+                ? "text-emerald-700"
+                : "text-rose-700"
+            }`}>
               {formatCurrency((dayData?.summary.totalMoneyInAmount || 0) - (dayData?.summary.totalPaymentsAmount || 0))}
             </div>
+            <div className="text-[8px] text-slate-500">Collections vs Outflows</div>
+          </div>
+          <div className="border-r border-slate-200 pr-2">
+            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Workforce Deployed</div>
+            <div className="text-xs font-black text-blue-800">
+              {dayData?.summary.workersPresentCount || 0} Workers
+            </div>
+            <div className="text-[8px] text-slate-500">
+              {dayData?.summary.headcountArtisans || 0} Art / {dayData?.summary.headcountCraftsmen || 0} Crf / {dayData?.summary.headcountLaborers || 0} Lab
+            </div>
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase text-slate-500">Worker Headcount</div>
-            <div className="text-sm font-black text-blue-700">{dayData?.summary.workersPresentCount || 0} Workers</div>
+            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Vendor Bills</div>
+            <div className="text-xs font-black text-amber-800">
+              {formatCurrency(dayData?.summary.totalBillsAmount || 0)}
+            </div>
+            <div className="text-[8px] text-slate-500">{dayData?.summary.billsCount || 0} vendor invoices</div>
           </div>
         </div>
 
-        {/* Section 1: Disbursed Payments Table */}
-        <div className="mb-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-300 pb-0.5">
-            1. Disbursed Payments & Vouchers ({dayData?.payments.length || 0})
-          </h3>
+        {/* Section 1: Disbursed Payments & Vouchers Table */}
+        <div className="print-section">
+          <div className="print-section-header">
+            <span>1. Disbursed Payments & Expense Vouchers ({dayData?.payments.length || 0})</span>
+            <span className="text-[9pt] font-black text-slate-900">
+              Total: {formatCurrency(dayData?.summary.totalPaymentsAmount || 0)}
+            </span>
+          </div>
           <table className="print-table">
             <thead>
               <tr>
-                <th style={{ width: "80px" }}>Date</th>
-                <th style={{ width: "90px" }}>Voucher #</th>
+                <th style={{ width: "70px" }}>Date</th>
+                <th style={{ width: "85px" }}>Voucher #</th>
                 <th>Recipient / Vendor</th>
-                <th style={{ width: "70px" }}>Mode</th>
-                <th>Project / Site</th>
+                <th style={{ width: "85px" }}>Mode / A/C</th>
+                <th style={{ width: "110px" }}>Project / Site</th>
                 <th>Description / Bill Ref</th>
+                <th style={{ width: "65px", textAlign: "center" }}>Status</th>
                 <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
               </tr>
             </thead>
             <tbody>
               {(!dayData?.payments || dayData.payments.length === 0) ? (
                 <tr>
-                  <td colSpan={7} className="text-center text-slate-400 italic py-2">
-                    No payments recorded for this period.
+                  <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                    No disbursed payments or vouchers recorded for this period.
                   </td>
                 </tr>
               ) : (
                 dayData.payments.map((p, idx) => (
-                  <tr key={idx}>
-                    <td>{formatDate(p.paymentDate || p.createdAt)}</td>
-                    <td className="font-mono">{p.referenceNumber || "—"}</td>
-                    <td className="font-semibold">{p.party?.name || "Direct Site Expense"}</td>
-                    <td>{p.paymentMethod || p.method || "CASH"}</td>
+                  <tr key={p.id || idx}>
+                    <td className="whitespace-nowrap">{formatDate(p.paymentDate || p.createdAt)}</td>
+                    <td className="font-mono font-bold text-slate-900">{p.referenceNumber || "—"}</td>
+                    <td>
+                      <div className="font-bold text-slate-900">{p.party?.name || p.recipientName || "Direct Site Expense"}</div>
+                      {p.recipientType && <span className="text-[7.5pt] text-slate-500 uppercase">{p.recipientType}</span>}
+                    </td>
+                    <td>
+                      <div className="font-semibold">{p.paymentMethod || p.method || "CASH"}</div>
+                      {p.payingAccount && <div className="text-[7.5pt] text-slate-500 truncate">{p.payingAccount}</div>}
+                    </td>
                     <td>{p.project?.name || "General / HQ"}</td>
-                    <td>{p.notes || (p.allocations?.[0]?.bill?.billNumber ? `Bill #${p.allocations[0].bill.billNumber}` : "—")}</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency((p.amount || 0) / 100)}</td>
+                    <td>
+                      <div className="text-slate-800">{p.notes || "—"}</div>
+                      {p.allocations?.[0]?.bill?.billNumber && (
+                        <div className="text-[7.5pt] text-amber-700 font-medium">Against Bill #{p.allocations[0].bill.billNumber}</div>
+                      )}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <span className="font-semibold text-[7.5pt]">{p.status || "POSTED"}</span>
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>
+                      {formatCurrency(p.amount)}
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
             {dayData?.payments && dayData.payments.length > 0 && (
               <tfoot>
-                <tr className="font-bold bg-slate-100">
-                  <td colSpan={6} style={{ textAlign: "right" }}>Total Disbursed:</td>
+                <tr>
+                  <td colSpan={7} style={{ textAlign: "right" }}>Total Disbursed:</td>
                   <td style={{ textAlign: "right" }}>{formatCurrency(dayData.summary.totalPaymentsAmount)}</td>
                 </tr>
               </tfoot>
@@ -3599,69 +3710,219 @@ export default function DayBookPage() {
           </table>
         </div>
 
-        {/* Section 2: Money In Table */}
-        {dayData?.moneyIn && dayData.moneyIn.length > 0 && (
-          <div className="mb-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-300 pb-0.5">
-              2. Customer Collections & Money In ({dayData.moneyIn.length})
-            </h3>
-            <table className="print-table">
-              <thead>
+        {/* Section 2: Money In / Customer Collections Table */}
+        <div className="print-section">
+          <div className="print-section-header">
+            <span>2. Customer Collections & Money In ({dayData?.moneyIn?.length || 0})</span>
+            <span className="text-[9pt] font-black text-emerald-800">
+              Total: {formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}
+            </span>
+          </div>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th style={{ width: "70px" }}>Date</th>
+                <th style={{ width: "85px" }}>Receipt #</th>
+                <th>Customer / Booking Name</th>
+                <th style={{ width: "130px" }}>Unit / Project</th>
+                <th style={{ width: "80px" }}>Method</th>
+                <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!dayData?.moneyIn || dayData.moneyIn.length === 0) ? (
                 <tr>
-                  <th style={{ width: "80px" }}>Date</th>
-                  <th style={{ width: "90px" }}>Receipt #</th>
-                  <th>Customer / Booking</th>
-                  <th>Unit / Project</th>
-                  <th style={{ width: "70px" }}>Method</th>
-                  <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
+                  <td colSpan={6} className="text-center text-slate-400 italic py-2">
+                    No customer collections or money in recorded for this period.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {dayData.moneyIn.map((r, idx) => (
-                  <tr key={idx}>
-                    <td>{formatDate(r.date)}</td>
-                    <td className="font-mono">{r.receiptNumber || `REC-${idx + 1}`}</td>
-                    <td className="font-semibold">{r.booking?.customerName || "Customer"}</td>
-                    <td>{r.booking?.unit?.project?.name} - Unit {r.booking?.unit?.unitNumber}</td>
-                    <td>{r.paymentMethod || "BANK"}</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency(r.amount)}</td>
+              ) : (
+                dayData.moneyIn.map((r, idx) => (
+                  <tr key={r.id || idx}>
+                    <td className="whitespace-nowrap">{formatDate(r.date)}</td>
+                    <td className="font-mono font-bold">{r.receiptNumber || `REC-${idx + 1}`}</td>
+                    <td className="font-semibold text-slate-900">{r.booking?.customerName || "Customer"}</td>
+                    <td>{r.booking?.unit?.project?.name ? `${r.booking.unit.project.name} - Unit ${r.booking.unit.unitNumber || ""}` : "Direct Sale"}</td>
+                    <td>{r.paymentMethod || r.mode || "BANK"}</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold", color: "#065f46" }}>
+                      {formatCurrency(r.amount)}
+                    </td>
                   </tr>
-                ))}
-              </tbody>
+                ))
+              )}
+            </tbody>
+            {dayData?.moneyIn && dayData.moneyIn.length > 0 && (
               <tfoot>
-                <tr className="font-bold bg-slate-100">
+                <tr>
                   <td colSpan={5} style={{ textAlign: "right" }}>Total Collected:</td>
                   <td style={{ textAlign: "right" }}>{formatCurrency(dayData.summary.totalMoneyInAmount || 0)}</td>
                 </tr>
               </tfoot>
-            </table>
-          </div>
-        )}
+            )}
+          </table>
+        </div>
 
         {/* Section 3: Vendor Bills Recorded */}
-        {dayData?.bills && dayData.bills.length > 0 && (
-          <div className="mb-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-300 pb-0.5">
-              3. Vendor Bills Recorded ({dayData.bills.length})
-            </h3>
+        <div className="print-section">
+          <div className="print-section-header">
+            <span>3. Vendor & Contractor Invoices Recorded ({dayData?.bills?.length || 0})</span>
+            <span className="text-[9pt] font-black text-amber-900">
+              Total: {formatCurrency(dayData?.summary.totalBillsAmount || 0)}
+            </span>
+          </div>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th style={{ width: "70px" }}>Date</th>
+                <th style={{ width: "85px" }}>Bill #</th>
+                <th>Vendor / Party</th>
+                <th style={{ width: "110px" }}>Project / Site</th>
+                <th style={{ width: "75px" }}>Due Date</th>
+                <th>Description / Cost Head</th>
+                <th style={{ width: "65px", textAlign: "center" }}>Status</th>
+                <th style={{ width: "90px", textAlign: "right" }}>Total (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!dayData?.bills || dayData.bills.length === 0) ? (
+                <tr>
+                  <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                    No vendor or contractor bills recorded for this period.
+                  </td>
+                </tr>
+              ) : (
+                dayData.bills.map((b, idx) => (
+                  <tr key={b.id || idx}>
+                    <td className="whitespace-nowrap">{formatDate(b.billDate || b.createdAt)}</td>
+                    <td className="font-mono font-bold text-amber-800">{b.billNumber || "—"}</td>
+                    <td className="font-semibold text-slate-900">{b.party?.name || "Vendor"}</td>
+                    <td>{b.project?.name || "General"}</td>
+                    <td>{b.dueDate ? formatDate(b.dueDate) : "—"}</td>
+                    <td>{b.notes || b.costHead || "Materials / Contracting"}</td>
+                    <td style={{ textAlign: "center" }}>{b.status || "POSTED"}</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency(b.totalAmount || 0)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {dayData?.bills && dayData.bills.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={7} style={{ textAlign: "right" }}>Total Invoiced:</td>
+                  <td style={{ textAlign: "right" }}>{formatCurrency(dayData.summary.totalBillsAmount || 0)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* Section 4: Workforce Headcount & Labour Deployments */}
+        <div className="print-section">
+          <div className="print-section-header">
+            <span>4. Workforce Headcount & Labour Deployments ({dayData?.headcount?.length || 0} Shift Logs)</span>
+            <span className="text-[9pt] font-black text-blue-900">
+              Total: {dayData?.summary.headcountTotal || dayData?.summary.workersPresentCount || 0} Workers
+            </span>
+          </div>
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th style={{ width: "120px" }}>Site Location</th>
+                <th style={{ width: "75px", textAlign: "center" }}>Shift</th>
+                <th>Contractor / Gang Name</th>
+                <th style={{ width: "65px", textAlign: "center" }}>Artisans</th>
+                <th style={{ width: "70px", textAlign: "center" }}>Craftsmen</th>
+                <th style={{ width: "95px", textAlign: "center" }}>Laborers (M/F)</th>
+                <th style={{ width: "75px", textAlign: "center" }}>Total</th>
+                <th>Remarks / Work Area</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!dayData?.headcount || dayData.headcount.length === 0) ? (
+                <tr>
+                  <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                    No workforce headcount logs recorded for this period.
+                  </td>
+                </tr>
+              ) : (
+                dayData.headcount.map((h, idx) => (
+                  <tr key={h.id || idx}>
+                    <td className="font-semibold text-slate-900">{h.siteName || "Operational Site"}</td>
+                    <td style={{ textAlign: "center" }}>
+                      <span className="font-bold text-[7.5pt]">{h.shift || "GENERAL"}</span>
+                    </td>
+                    <td className="font-bold text-slate-800">{h.contractorName || "Direct Site Gang"}</td>
+                    <td style={{ textAlign: "center" }}>{h.artisanCount ?? h.artisanTotal ?? 0}</td>
+                    <td style={{ textAlign: "center" }}>{h.craftsmanCount ?? h.craftsmanTotal ?? 0}</td>
+                    <td style={{ textAlign: "center" }}>
+                      <strong>{h.laborerTotal || ((h.laborerMale || 0) + (h.laborerFemale || 0)) || 0}</strong>
+                      {((h.laborerMale || 0) > 0 || (h.laborerFemale || 0) > 0) && (
+                        <span className="text-[7pt] text-slate-500 ml-1">
+                          ({h.laborerMale || 0}M/{h.laborerFemale || 0}F)
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: "center", fontWeight: "bold", color: "#1e3a8a" }}>
+                      {h.grandTotal || 0}
+                    </td>
+                    <td>{h.notes || "—"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {dayData?.headcount && dayData.headcount.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "right" }}>Total Labour Headcount:</td>
+                  <td style={{ textAlign: "center" }}>
+                    {dayData.headcount.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0)}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* Section 5: Staff & Supervisor Site Attendance */}
+        {dayData?.attendance && dayData.attendance.length > 0 && (
+          <div className="print-section">
+            <div className="print-section-header">
+              <span>5. Staff & Supervisor Site Attendance ({dayData.attendance.length} Sessions)</span>
+              <span className="text-[9pt] font-black text-slate-900">
+                Present: {dayData.summary.staffPresentCount || dayData.attendance.filter((a) => a.status === "PRESENT").length}
+              </span>
+            </div>
             <table className="print-table">
               <thead>
                 <tr>
-                  <th style={{ width: "80px" }}>Date</th>
-                  <th style={{ width: "90px" }}>Bill #</th>
-                  <th>Vendor / Party</th>
-                  <th>Project</th>
-                  <th style={{ width: "90px", textAlign: "right" }}>Total (₹)</th>
+                  <th style={{ width: "80px" }}>Emp Code</th>
+                  <th>Staff / Worker Name</th>
+                  <th style={{ width: "110px" }}>Trade / Designation</th>
+                  <th style={{ width: "110px" }}>Site</th>
+                  <th style={{ width: "70px", textAlign: "center" }}>Status</th>
+                  <th style={{ width: "70px", textAlign: "center" }}>Check-In</th>
+                  <th style={{ width: "70px", textAlign: "center" }}>Check-Out</th>
+                  <th style={{ width: "60px", textAlign: "center" }}>Hours</th>
                 </tr>
               </thead>
               <tbody>
-                {dayData.bills.map((b, idx) => (
-                  <tr key={idx}>
-                    <td>{formatDate(b.billDate || b.createdAt)}</td>
-                    <td className="font-mono">{b.billNumber}</td>
-                    <td className="font-semibold">{b.party?.name}</td>
-                    <td>{b.project?.name || "General"}</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency(b.totalAmount || 0)}</td>
+                {dayData.attendance.map((a, idx) => (
+                  <tr key={a.id || idx}>
+                    <td className="font-mono">{a.workforceMember?.employeeCode || "—"}</td>
+                    <td className="font-bold text-slate-900">{a.workforceMember?.name || "Staff Member"}</td>
+                    <td>{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}</td>
+                    <td>{a.site?.name || "Operational Site"}</td>
+                    <td style={{ textAlign: "center", fontWeight: "bold" }}>{a.status || "PRESENT"}</td>
+                    <td style={{ textAlign: "center" }}>
+                      {a.checkInAt ? new Date(a.checkInAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : "—"}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      {a.checkOutAt ? new Date(a.checkOutAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : (a.status === "PRESENT" ? "Active" : "—")}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      {a.totalHours ? `${a.totalHours}h` : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -3669,48 +3930,114 @@ export default function DayBookPage() {
           </div>
         )}
 
-        {/* Section 4: Daily Site Reports & Observations */}
+        {/* Section 6: Material Stock Movements (Receipts & Issues) */}
+        {((dayData?.receipts && dayData.receipts.length > 0) || (dayData?.issues && dayData.issues.length > 0)) && (
+          <div className="print-section">
+            <div className="print-section-header">
+              <span>6. Site Material Stock Movements ({((dayData?.receipts?.length || 0) + (dayData?.issues?.length || 0))} Movements)</span>
+              <span className="text-[9pt] font-black text-slate-700">
+                {dayData?.receipts?.length || 0} Inward / {dayData?.issues?.length || 0} Outward
+              </span>
+            </div>
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "75px", textAlign: "center" }}>Type</th>
+                  <th style={{ width: "75px" }}>Date</th>
+                  <th>Material Name (SKU)</th>
+                  <th style={{ width: "80px", textAlign: "right" }}>Quantity</th>
+                  <th style={{ width: "110px" }}>Store Location</th>
+                  <th>Notes / Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(dayData.receipts || []).map((m: any, idx: number) => (
+                  <tr key={`rec-${m.id || idx}`}>
+                    <td style={{ textAlign: "center", fontWeight: "bold", color: "#047857" }}>RECEIPT (IN)</td>
+                    <td>{formatDate(m.movementAt || m.createdAt)}</td>
+                    <td className="font-semibold text-slate-900">{m.material?.name} ({m.material?.sku || "—"})</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{m.quantity} {m.material?.unitCode || ""}</td>
+                    <td>{m.store?.name || "Central Store"}</td>
+                    <td>{m.notes || m.creator?.name || "Stock Receipt"}</td>
+                  </tr>
+                ))}
+                {(dayData.issues || []).map((m: any, idx: number) => (
+                  <tr key={`iss-${m.id || idx}`}>
+                    <td style={{ textAlign: "center", fontWeight: "bold", color: "#b91c1c" }}>ISSUE (OUT)</td>
+                    <td>{formatDate(m.movementAt || m.createdAt)}</td>
+                    <td className="font-semibold text-slate-900">{m.material?.name} ({m.material?.sku || "—"})</td>
+                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{m.quantity} {m.material?.unitCode || ""}</td>
+                    <td>{m.store?.name || "Site Store"}</td>
+                    <td>{m.notes || m.creator?.name || "Material Issue"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Section 7: Daily Site Reports & Observations */}
         {dayData?.dailyReports && dayData.dailyReports.length > 0 && (
-          <div className="mb-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 border-b border-slate-300 pb-0.5">
-              4. Daily Site Progress & Log Notes ({dayData.dailyReports.length})
-            </h3>
-            <div className="space-y-2 text-xs">
+          <div className="print-section print-avoid-break">
+            <div className="print-section-header">
+              <span>7. Daily Site Progress Reports & Field Logs ({dayData.dailyReports.length})</span>
+            </div>
+            <div className="space-y-2 text-[8.5pt]">
               {dayData.dailyReports.map((dr, idx) => (
-                <div key={idx} className="border border-slate-300 rounded p-2 bg-slate-50">
-                  <div className="font-bold text-slate-900 flex justify-between">
-                    <span>{dr.project?.name} ({dr.project?.site?.name})</span>
-                    <span className="text-[10px] text-slate-500">By {dr.creator?.name || "Supervisor"}</span>
+                <div key={dr.id || idx} className="border border-slate-300 rounded p-2 bg-slate-50">
+                  <div className="font-bold text-slate-900 flex justify-between border-b border-slate-200 pb-1 mb-1">
+                    <span>
+                      {dr.project?.name} {dr.project?.site?.name ? `(${dr.project.site.name})` : ""}
+                    </span>
+                    <span className="text-[7.5pt] text-slate-600 font-normal">
+                      Logged By: <strong>{dr.creator?.name || "Site Supervisor"}</strong> ({dr.creator?.role || "Field Officer"})
+                    </span>
                   </div>
-                  {dr.progressSummary && <div className="mt-1 text-slate-700"><strong>Progress:</strong> {dr.progressSummary}</div>}
-                  {dr.blockers && <div className="mt-0.5 text-rose-700"><strong>Issues:</strong> {dr.blockers}</div>}
+                  {dr.progressSummary && (
+                    <div className="text-slate-800">
+                      <strong>Work Progress Executed:</strong> {dr.progressSummary}
+                    </div>
+                  )}
+                  {dr.blockers && (
+                    <div className="mt-1 text-rose-800">
+                      <strong>Site Blockers / Issues:</strong> {dr.blockers}
+                    </div>
+                  )}
+                  {dr.safetyNotes && (
+                    <div className="mt-1 text-slate-700">
+                      <strong>Safety & Quality Observations:</strong> {dr.safetyNotes}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Verification & Signatures Block */}
-        <div className="mt-8 pt-4 border-t-2 border-slate-800">
-          <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-8 text-center">
-            Verification & Authorization Sign-Off
+        {/* Section 8: Formal Verification & Signatures Block */}
+        <div className="print-avoid-break mt-6 pt-3 border-t-2 border-slate-900">
+          <div className="text-[8pt] uppercase font-extrabold text-slate-700 tracking-wider mb-8 text-center">
+            Official Corporate Verification & Authorization Sign-Off
           </div>
-          <div className="grid grid-cols-3 gap-6 text-center text-xs">
+          <div className="grid grid-cols-3 gap-6 text-center text-[8.5pt]">
             <div className="border-t border-slate-400 pt-2">
               <div className="font-bold text-slate-900">Prepared By</div>
-              <div className="text-slate-500 text-[10px]">Site Supervisor / Accountant</div>
-              <div className="text-slate-400 text-[10px] mt-4">Signature & Date</div>
+              <div className="text-slate-500 text-[7.5pt]">Site Supervisor / Site Accountant</div>
+              <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
             </div>
             <div className="border-t border-slate-400 pt-2">
               <div className="font-bold text-slate-900">Verified By</div>
-              <div className="text-slate-500 text-[10px]">Project Manager / Resident Engineer</div>
-              <div className="text-slate-400 text-[10px] mt-4">Signature & Date</div>
+              <div className="text-slate-500 text-[7.5pt]">Project Manager / Resident Engineer</div>
+              <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
             </div>
             <div className="border-t border-slate-400 pt-2">
               <div className="font-bold text-slate-900">Approved By</div>
-              <div className="text-slate-500 text-[10px]">Finance Controller / Authorized Signatory</div>
-              <div className="text-slate-400 text-[10px] mt-4">Signature & Date</div>
+              <div className="text-slate-500 text-[7.5pt]">Finance Controller / Authorized Signatory</div>
+              <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
             </div>
+          </div>
+          <div className="text-center text-[7pt] text-slate-400 mt-4">
+            System generated document from Bothra CMS. Certified valid for audit and accounting reconciliation.
           </div>
         </div>
       </div>

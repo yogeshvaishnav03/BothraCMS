@@ -303,10 +303,72 @@
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm 12mm 10mm;
+  }
+
+  html,
+  body {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Reset all shell wrappers so print engine paginates naturally across multiple pages */
+  div[class*="min-h-screen"],
+  main,
+  .app-main,
+  div[class*="max-w-7xl"],
+  div[class*="overflow-"],
+  .page-enter,
+  #root {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    display: block !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Suppress screen navigation, drawers, sticky headers, actions */
+  aside,
+  header,
+  nav,
+  [role="navigation"],
+  .no-print,
+  .print-hidden,
+  .quick-action-fab,
+  .fixed:not(.print-allow),
+  .sticky,
+  .offline-bar,
+  #offline-bar,
+  div[class*="glass"] {
+    display: none !important;
+  }
+
   table {
     min-height: auto !important;
+    border-collapse: collapse !important;
   }
-  .overflow-x-auto:has(table) {
+
+  .overflow-x-auto {
+    overflow: visible !important;
     min-height: auto !important;
   }
 }
