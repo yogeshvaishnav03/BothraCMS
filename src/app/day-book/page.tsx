@@ -1769,8 +1769,8 @@ export default function DayBookPage() {
                             Staff & Individual Worker Sessions ({dayData.attendance.length})
                           </span>
                         </div>
-                        <div className="overflow-x-auto min-h-[400px]">
-                          <table className="w-full text-left text-xs min-h-[400px]">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
                             <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
                               <tr>
                                 <th className="p-3">Emp Code</th>

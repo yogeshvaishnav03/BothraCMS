@@ -2152,7 +2152,7 @@ export default function ExcelTable<T = any>({
   const isDark = theme === "darkHeader";
 
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs min-h-[400px] ${className}`}>
+    <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs ${className}`}>
       {/* Top Excel Toolbar */}
       {showToolbar && (
         <ExcelTableToolbar
@@ -2165,8 +2165,8 @@ export default function ExcelTable<T = any>({
       )}
 
       {/* Table Container */}
-      <div className="overflow-x-auto min-h-[400px]">
-        <table className={`w-full text-left text-xs min-h-[400px] min-w-[640px] ${tableClassName}`}>
+      <div className="overflow-x-auto">
+        <table className={`w-full text-left text-xs min-w-[640px] ${tableClassName}`}>
           <thead
             className={`${
               isDark ? "bg-slate-900 text-slate-200" : "bg-slate-50 text-slate-700"

@@ -2,24 +2,23 @@ import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 
-describe("Table Minimum Height Specification", () => {
-  it("enforces minimum height 400px for tables and containers in globals.css", () => {
+describe("Table View & Row Top-Alignment Specification", () => {
+  it("enforces natural height and top alignment for tables in globals.css so single records appear on top", () => {
     const cssPath = path.join(__dirname, "../app/globals.css");
     const cssContent = fs.readFileSync(cssPath, "utf8");
 
-    // Must define min-height: 400px for table
-    expect(cssContent).toMatch(/table\s*\{[^}]*min-height:\s*400px/);
-
-    // Must define min-height: 400px for .overflow-x-auto:has(table)
-    expect(cssContent).toMatch(/\.overflow-x-auto:has\(table\)\s*\{[^}]*min-height:\s*400px/);
+    // Table must have min-height: auto / height: auto to prevent stretching single rows into center
+    expect(cssContent).toMatch(/table\s*\{[^}]*min-height:\s*auto/);
+    expect(cssContent).toMatch(/table tbody\s*\{[^}]*vertical-align:\s*top/);
+    expect(cssContent).toMatch(/table td\s*\{[^}]*vertical-align:\s*top/);
   });
 
-  it("enforces min-h-[400px] in shared ExcelTable component", () => {
+  it("ensures shared ExcelTable table element does not force min-h-[400px] on the table itself", () => {
     const excelTablePath = path.join(__dirname, "../components/ui/ExcelTable.tsx");
     const excelTableContent = fs.readFileSync(excelTablePath, "utf8");
 
-    // ExcelTable wrapper or table container must have min-h-[400px]
-    expect(excelTableContent).toContain("min-h-[400px]");
+    // The <table> tag inside ExcelTable should not force min-h-[400px]
+    expect(excelTableContent).not.toMatch(/<table[^>]*min-h-\[400px\]/);
   });
 
   it("does not render default ArrowUpDown icon on table headers", () => {

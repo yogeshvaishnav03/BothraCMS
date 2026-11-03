@@ -72,7 +72,14 @@
     border-color: var(--hairline);
   }
   table {
-    min-height: 400px;
+    min-height: auto;
+    height: auto;
+  }
+  table tbody {
+    vertical-align: top;
+  }
+  table tbody tr {
+    height: auto;
   }
   thead th {
     font-feature-settings: "tnum";
@@ -86,6 +93,7 @@
 
   /* Wrap long table text to next line at word boundaries instead of truncating with '...' */
   table td {
+    vertical-align: top;
     white-space: normal;
     word-break: normal;
     overflow-wrap: break-word;
@@ -250,7 +258,7 @@
 }
 
 @layer utilities {
-  /* Horizontally scrolling table containers: smooth on touch, never scroll the page, with 400px min-height */
+  /* Horizontally scrolling table containers: smooth on touch, never scroll the page */
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
@@ -258,7 +266,7 @@
   }
 
   .overflow-x-auto:has(table) {
-    min-height: 400px;
+    min-height: auto;
   }
 
   .backdrop-blur-xs {
