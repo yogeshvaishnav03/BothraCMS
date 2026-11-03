@@ -730,11 +730,11 @@ export class MeasurementBookService {
     let formula = input.formula ? input.formula.toUpperCase() : undefined;
     if (!formula) {
       const u = input.unit.toUpperCase();
-      if (u === "CUM" || (input.breadth !== undefined && input.breadth !== null && input.depth !== undefined && input.depth !== null)) {
+      if (["CUM", "CFT", "BRASS"].includes(u) || (input.breadth !== undefined && input.breadth !== null && input.depth !== undefined && input.depth !== null)) {
         formula = "VOLUME";
-      } else if (u === "RMT") {
+      } else if (["RMT", "RFT", "MM", "INCH"].includes(u)) {
         formula = "LENGTH";
-      } else if (u === "NOS") {
+      } else if (["NOS", "BAG", "TONNE", "KG", "LOT"].includes(u)) {
         formula = "QUANTITY";
       } else {
         formula = "AREA";

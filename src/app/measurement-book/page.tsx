@@ -151,6 +151,373 @@ const STANDARD_ROOMS = [
   "Basement / Parking",
 ];
 
+export interface UnitOption {
+  code: string;
+  name: string;
+  label: string;
+  system: "IMPERIAL" | "METRIC" | "SITE";
+  systemLabel: string;
+  dimUnit: string;
+  formula: "AREA" | "VOLUME" | "LENGTH" | "QUANTITY";
+  description: string;
+  badgeBg: string;
+}
+
+export const MEASUREMENT_UNIT_GROUPS: {
+  category: string;
+  system: "IMPERIAL" | "METRIC" | "SITE";
+  badge: string;
+  color: string;
+  units: UnitOption[];
+}[] = [
+  {
+    category: "Imperial / FPS System",
+    system: "IMPERIAL",
+    badge: "Feet & Inches",
+    color: "amber",
+    units: [
+      {
+        code: "SQFT",
+        name: "Square Feet",
+        label: "SQFT (Square Feet / Sq. Ft)",
+        system: "IMPERIAL",
+        systemLabel: "Imperial (FPS)",
+        dimUnit: "ft",
+        formula: "AREA",
+        description: "Area in square feet (ft × ft). Flooring, plaster, painting, shuttering.",
+        badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      },
+      {
+        code: "INCH",
+        name: "Inches",
+        label: "INCH (Linear Inches / in)",
+        system: "IMPERIAL",
+        systemLabel: "Imperial (FPS)",
+        dimUnit: "in",
+        formula: "LENGTH",
+        description: "Linear inches. Frames, pipes, small structural thickness.",
+        badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      },
+      {
+        code: "SQINCH",
+        name: "Square Inches",
+        label: "SQ.INCH (Square Inches / sq.in)",
+        system: "IMPERIAL",
+        systemLabel: "Imperial (FPS)",
+        dimUnit: "in",
+        formula: "AREA",
+        description: "Surface area in square inches (in × in). Openings, small cutouts.",
+        badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      },
+      {
+        code: "CFT",
+        name: "Cubic Feet",
+        label: "CFT (Cubic Feet / Cu. Ft)",
+        system: "IMPERIAL",
+        systemLabel: "Imperial (FPS)",
+        dimUnit: "ft",
+        formula: "VOLUME",
+        description: "Volume in cubic feet (ft × ft × ft). Sand, aggregate, excavation, timber.",
+        badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      },
+      {
+        code: "RFT",
+        name: "Running Feet",
+        label: "RFT (Running Feet / Linear Feet)",
+        system: "IMPERIAL",
+        systemLabel: "Imperial (FPS)",
+        dimUnit: "ft",
+        formula: "LENGTH",
+        description: "Linear running feet. Skirting, railings, pipes, boundary fencing.",
+        badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      },
+    ],
+  },
+  {
+    category: "Metric System (MKS / SI)",
+    system: "METRIC",
+    badge: "Meters & Millimeters",
+    color: "blue",
+    units: [
+      {
+        code: "MM",
+        name: "Millimeters",
+        label: "MM (Linear Millimeter / mm)",
+        system: "METRIC",
+        systemLabel: "Metric (SI)",
+        dimUnit: "mm",
+        formula: "LENGTH",
+        description: "Linear millimeters. Architectural drawings, rebar, steel sections.",
+        badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+      },
+      {
+        code: "SQMM",
+        name: "Square Millimeters",
+        label: "SQ.MM (Square Millimeter / sq.mm)",
+        system: "METRIC",
+        systemLabel: "Metric (SI)",
+        dimUnit: "mm",
+        formula: "AREA",
+        description: "Square millimeters. Precision sections, steel bar cross-sections.",
+        badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+      },
+      {
+        code: "SQM",
+        name: "Square Meter",
+        label: "SQM (Square Meter / Sq. M)",
+        system: "METRIC",
+        systemLabel: "Metric (SI)",
+        dimUnit: "m",
+        formula: "AREA",
+        description: "Area in square meters (m × m). Civil masonry, plaster, flooring.",
+        badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+      },
+      {
+        code: "CUM",
+        name: "Cubic Meter",
+        label: "CUM (Cubic Meter / Cu. M)",
+        system: "METRIC",
+        systemLabel: "Metric (SI)",
+        dimUnit: "m",
+        formula: "VOLUME",
+        description: "Volume in cubic meters (m × m × m). RCC concrete, bulk earthwork.",
+        badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+      },
+      {
+        code: "RMT",
+        name: "Running Meter",
+        label: "RMT (Running Meter / Linear Meter)",
+        system: "METRIC",
+        systemLabel: "Metric (SI)",
+        dimUnit: "m",
+        formula: "LENGTH",
+        description: "Linear running meters. Electrical conduits, plumbing, kerb stones.",
+        badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+      },
+    ],
+  },
+  {
+    category: "Counts, Bulk & Site Units",
+    system: "SITE",
+    badge: "Quantities & Site Loads",
+    color: "emerald",
+    units: [
+      {
+        code: "NOS",
+        name: "Numbers",
+        label: "NOS (Numbers / Pieces / Units)",
+        system: "SITE",
+        systemLabel: "Count",
+        dimUnit: "qty",
+        formula: "QUANTITY",
+        description: "Piece/Unit count. Precast items, doors, windows, sanitary fixtures.",
+        badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+      },
+      {
+        code: "BAG",
+        name: "Bags",
+        label: "BAG (Bags - Cement / Putty)",
+        system: "SITE",
+        systemLabel: "Count",
+        dimUnit: "bags",
+        formula: "QUANTITY",
+        description: "Standard 50kg bags. Cement, wall putty, tile adhesive.",
+        badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+      },
+      {
+        code: "BRASS",
+        name: "Brass",
+        label: "BRASS (100 Cu. Ft - Bulk Sand / Aggregate)",
+        system: "SITE",
+        systemLabel: "Bulk Volume",
+        dimUnit: "brass",
+        formula: "VOLUME",
+        description: "Traditional site bulk volume (1 Brass = 100 CFT = 2.83 CUM).",
+        badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+      },
+      {
+        code: "TONNE",
+        name: "Metric Tonne",
+        label: "TONNE (Metric Tonne / MT - Steel)",
+        system: "SITE",
+        systemLabel: "Weight",
+        dimUnit: "tonne",
+        formula: "QUANTITY",
+        description: "Metric tonne (1,000 kg). TMT reinforcement steel, bulk supply.",
+        badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+      },
+      {
+        code: "KG",
+        name: "Kilograms",
+        label: "KG (Kilograms)",
+        system: "SITE",
+        systemLabel: "Weight",
+        dimUnit: "kg",
+        formula: "QUANTITY",
+        description: "Kilograms. Binding wire, hardware, small metal fabrications.",
+        badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+      },
+      {
+        code: "LOT",
+        name: "Lot / Job",
+        label: "LOT (Lump Sum / Job Contract)",
+        system: "SITE",
+        systemLabel: "Lump Sum",
+        dimUnit: "lot",
+        formula: "QUANTITY",
+        description: "Lump sum subcontract package or turnkey work phase.",
+        badgeBg: "bg-emerald-100 text-emerald-900 border-emerald-300",
+      },
+    ],
+  },
+];
+
+export const MEASUREMENT_TYPE_GROUPS = [
+  {
+    category: "Structural Elements",
+    types: [
+      { code: "SLAB", name: "Slab / Roof Slab", label: "Slab / Roof Slab (RCC)", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "BEAM", name: "Beam / Plinth Beam", label: "Beam / Plinth Beam / Tie Beam", defaultUnit: "CFT", defaultFormula: "VOLUME" },
+      { code: "COLUMN", name: "Column / Pillar", label: "Column / Pillar (RCC)", defaultUnit: "CFT", defaultFormula: "VOLUME" },
+      { code: "FOOTING", name: "Footing / Foundation", label: "Footing / Foundation / Raft", defaultUnit: "CFT", defaultFormula: "VOLUME" },
+      { code: "LINTEL", name: "Lintel / Chhajja", label: "Lintel / Chhajja / Sunshade", defaultUnit: "RFT", defaultFormula: "LENGTH" },
+      { code: "STAIRCASE", name: "Staircase / Steps", label: "Staircase / Steps / Waist Slab", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "RETAINING_WALL", name: "Retaining Wall", label: "Retaining Wall / Shear Wall", defaultUnit: "SQFT", defaultFormula: "AREA" },
+    ],
+  },
+  {
+    category: "Masonry & Civil Works",
+    types: [
+      { code: "WALL", name: "Brick Wall", label: "Brick Wall (9\" / 4.5\" Masonry)", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "BLOCK_MASONRY", name: "Block Masonry", label: "AAC Block / Concrete Block Masonry", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "STONE_MASONRY", name: "Stone Masonry", label: "Stone / Rubble Masonry", defaultUnit: "CFT", defaultFormula: "VOLUME" },
+      { code: "EXCAVATION", name: "Excavation", label: "Earthwork / Trench Excavation", defaultUnit: "CFT", defaultFormula: "VOLUME" },
+      { code: "BACKFILLING", name: "Backfilling / Earthwork", label: "Backfilling / Earth Compaction", defaultUnit: "CFT", defaultFormula: "VOLUME" },
+      { code: "CONCRETE", name: "PCC Concrete", label: "Plain Cement Concrete (PCC)", defaultUnit: "CUM", defaultFormula: "VOLUME" },
+      { code: "RCC", name: "RCC Concrete", label: "Reinforced Cement Concrete (RCC)", defaultUnit: "CUM", defaultFormula: "VOLUME" },
+      { code: "DPC", name: "DPC", label: "Damp Proof Course (DPC)", defaultUnit: "SQFT", defaultFormula: "AREA" },
+    ],
+  },
+  {
+    category: "Finishing & Architectural",
+    types: [
+      { code: "PLASTERING", name: "Plastering", label: "Plastering (Internal / External 12mm/20mm)", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "FLOORING", name: "Flooring", label: "Flooring (Tile / Marble / Granite / IPS)", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "WALL_TILING", name: "Wall Tiling / Dado", label: "Wall Tiling / Dado Work", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "SKIRTING", name: "Skirting", label: "Skirting (Border Tiles / Marble)", defaultUnit: "RFT", defaultFormula: "LENGTH" },
+      { code: "PAINTING", name: "Painting & Putty", label: "Painting / Putty / Primer / Texture", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "CEILING", name: "Ceiling / False Ceiling", label: "Ceiling / False Ceiling (Gypsum / POP)", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "WATERPROOFING", name: "Waterproofing", label: "Waterproofing (Terrace / Toilets / Basement)", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "DOORS_WINDOWS", name: "Doors & Windows", label: "Doors, Windows & Frame Joinery", defaultUnit: "SQFT", defaultFormula: "AREA" },
+    ],
+  },
+  {
+    category: "Steel, Formwork & Fabrication",
+    types: [
+      { code: "STEEL_REBAR", name: "Rebar / TMT Steel", label: "Reinforcement Steel / TMT Rebar", defaultUnit: "TONNE", defaultFormula: "QUANTITY" },
+      { code: "SHUTTERING", name: "Shuttering / Formwork", label: "Shuttering / Centering / Formwork", defaultUnit: "SQFT", defaultFormula: "AREA" },
+      { code: "FABRICATION", name: "MS Fabrication / Grills", label: "MS Fabrication / Grills / Railings", defaultUnit: "RFT", defaultFormula: "LENGTH" },
+      { code: "STRUCTURAL_STEEL", name: "Structural Steel", label: "Structural Steel / Trusses / Purlins", defaultUnit: "KG", defaultFormula: "QUANTITY" },
+    ],
+  },
+  {
+    category: "MEP & Infrastructure",
+    types: [
+      { code: "PLUMBING", name: "Plumbing & Sanitary", label: "Plumbing / Sanitary / Water Supply Lines", defaultUnit: "RMT", defaultFormula: "LENGTH" },
+      { code: "ELECTRICAL", name: "Electrical & Conduits", label: "Electrical Conduits / Wiring / Points", defaultUnit: "RMT", defaultFormula: "LENGTH" },
+      { code: "DRAINAGE", name: "Drainage & Sewerage", label: "Drainage / Storm Water / Sewer Line", defaultUnit: "RMT", defaultFormula: "LENGTH" },
+      { code: "ROAD_PAVING", name: "Road & Paving", label: "Paver Blocks / Road Work / Kerb Stones", defaultUnit: "SQM", defaultFormula: "AREA" },
+      { code: "FENCING", name: "Boundary & Fencing", label: "Boundary Wall / Compound / Wire Fencing", defaultUnit: "RFT", defaultFormula: "LENGTH" },
+      { code: "OTHER", name: "Other / Misc Work", label: "Other / Miscellaneous Work", defaultUnit: "NOS", defaultFormula: "QUANTITY" },
+    ],
+  },
+];
+
+export function getUnitMetadata(unitCode: string): UnitOption {
+  const code = (unitCode || "").toUpperCase().trim();
+  for (const group of MEASUREMENT_UNIT_GROUPS) {
+    const found = group.units.find((u) => u.code === code);
+    if (found) return found;
+  }
+  // Dynamic inference for arbitrary unit codes
+  if (code.includes("SQFT") || code.includes("SQ.FT") || code.includes("SQUARE FEET") || code.includes("SFT") || code.includes("SQ FEET")) {
+    return {
+      code,
+      name: "Square Feet",
+      label: `${code} (Sq. Ft)`,
+      system: "IMPERIAL",
+      systemLabel: "Imperial (FPS)",
+      dimUnit: "ft",
+      formula: "AREA",
+      description: "Imperial surface area in square feet",
+      badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+    };
+  }
+  if (code === "INCH" || code === "IN" || code.includes("INCH")) {
+    return {
+      code,
+      name: "Inches",
+      label: `${code} (Inches)`,
+      system: "IMPERIAL",
+      systemLabel: "Imperial (FPS)",
+      dimUnit: "in",
+      formula: "LENGTH",
+      description: "Imperial linear inches",
+      badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+    };
+  }
+  if (code === "MM" || code.includes("MILLI")) {
+    return {
+      code,
+      name: "Millimeters",
+      label: `${code} (mm)`,
+      system: "METRIC",
+      systemLabel: "Metric (SI)",
+      dimUnit: "mm",
+      formula: "LENGTH",
+      description: "Metric linear millimeters",
+      badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+    };
+  }
+  if (code.includes("FT") || code.includes("FEET") || code.includes("FOOT")) {
+    return {
+      code,
+      name: code,
+      label: code,
+      system: "IMPERIAL",
+      systemLabel: "Imperial (FPS)",
+      dimUnit: "ft",
+      formula: code.includes("C") ? "VOLUME" : "LENGTH",
+      description: "Imperial measurement in feet",
+      badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+    };
+  }
+  if (code.includes("M")) {
+    return {
+      code,
+      name: code,
+      label: code,
+      system: "METRIC",
+      systemLabel: "Metric (SI)",
+      dimUnit: "m",
+      formula: code.includes("CU") ? "VOLUME" : "AREA",
+      description: "Metric measurement in meters",
+      badgeBg: "bg-blue-100 text-blue-900 border-blue-300",
+    };
+  }
+  return {
+    code,
+    name: code,
+    label: code,
+    system: "SITE",
+    systemLabel: "Count/Qty",
+    dimUnit: "qty",
+    formula: "QUANTITY",
+    description: "Standard quantity measurement",
+    badgeBg: "bg-slate-100 text-slate-900 border-slate-300",
+  };
+}
+
 export default function MeasurementBookPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canWriteProjects = canUser(currentUser, "projects:write");
@@ -234,7 +601,15 @@ export default function MeasurementBookPage() {
   const [formItemDesc, setFormItemDesc] = useState("");
   const [formMeasurementType, setFormMeasurementType] = useState("WALL");
   const [formFormula, setFormFormula] = useState("AREA");
-  const [formUnit, setFormUnit] = useState("SQM");
+  const [formUnit, setFormUnit] = useState("SQFT");
+  const activeUnitMeta = useMemo(() => getUnitMetadata(formUnit), [formUnit]);
+
+  const handleSelectQuickUnit = (unitCode: string, recommendedFormula: string) => {
+    setFormUnit(unitCode);
+    if (recommendedFormula) {
+      setFormFormula(recommendedFormula);
+    }
+  };
   const [formCount, setFormCount] = useState<number | string>(1);
   const [formLength, setFormLength] = useState<number | string>(1);
   const [formBreadth, setFormBreadth] = useState<number | string>("");
@@ -561,7 +936,7 @@ export default function MeasurementBookPage() {
     setFormItemDesc("");
     setFormMeasurementType("WALL");
     setFormFormula("AREA");
-    setFormUnit("SQM");
+    setFormUnit("SQFT");
     setFormCount(1);
     setFormLength(1);
     setFormBreadth(1);
@@ -1786,8 +2161,8 @@ export default function MeasurementBookPage() {
 
                                               {/* Measurement Type */}
                                               <td className="py-2.5 px-3">
-                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
-                                                  {entry.measurementType}
+                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                                                  {entry.measurementType.replace(/_/g, " ")}
                                                 </span>
                                               </td>
 
@@ -1819,8 +2194,10 @@ export default function MeasurementBookPage() {
                                               </td>
 
                                               {/* Unit */}
-                                              <td className="py-2.5 px-3 font-semibold text-slate-700">
-                                                {entry.unit}
+                                              <td className="py-2.5 px-3 font-semibold">
+                                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${getUnitMetadata(entry.unit).badgeBg}`}>
+                                                  {entry.unit}
+                                                </span>
                                               </td>
 
                                               {/* Rate */}
@@ -2465,28 +2842,23 @@ export default function MeasurementBookPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Measurement Type</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Measurement Element / Type
+                    </label>
                     <select
                       value={formMeasurementType}
                       onChange={(e) => setFormMeasurementType(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
                     >
-                      <option value="WALL">Wall</option>
-                      <option value="FLOOR">Floor</option>
-                      <option value="CEILING">Ceiling</option>
-                      <option value="COLUMN">Column</option>
-                      <option value="BEAM">Beam</option>
-                      <option value="FOOTING">Footing</option>
-                      <option value="EXCAVATION">Excavation</option>
-                      <option value="CONCRETE">Concrete</option>
-                      <option value="MASONRY">Masonry</option>
-                      <option value="PLASTERING">Plastering</option>
-                      <option value="PAINTING">Painting</option>
-                      <option value="FLOORING">Flooring</option>
-                      <option value="WATERPROOFING">Waterproofing</option>
-                      <option value="PLUMBING">Plumbing</option>
-                      <option value="ELECTRICAL">Electrical</option>
-                      <option value="OTHER">Other</option>
+                      {MEASUREMENT_TYPE_GROUPS.map((grp) => (
+                        <optgroup key={grp.category} label={`🔹 ${grp.category}`}>
+                          {grp.types.map((t) => (
+                            <option key={t.code} value={t.code}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
 
@@ -2497,7 +2869,7 @@ export default function MeasurementBookPage() {
                       onChange={(e) => setFormFormula(e.target.value)}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold"
                     >
-                      <option value="AREA">AREA (N × L × H)</option>
+                      <option value="AREA">AREA (N × L × H/B)</option>
                       <option value="VOLUME">VOLUME (N × L × B × H)</option>
                       <option value="LENGTH">LENGTH (N × L)</option>
                       <option value="QUANTITY">QUANTITY (N × Unit Qty)</option>
@@ -2505,28 +2877,144 @@ export default function MeasurementBookPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Unit</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">Unit of Measure</label>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
+                        {activeUnitMeta.systemLabel}
+                      </span>
+                    </div>
                     <select
                       value={formUnit}
-                      onChange={(e) => setFormUnit(e.target.value)}
+                      onChange={(e) => {
+                        const newUnit = e.target.value;
+                        setFormUnit(newUnit);
+                        const meta = getUnitMetadata(newUnit);
+                        if (meta.formula) setFormFormula(meta.formula);
+                      }}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-bold"
                     >
-                      <option value="SQM">SQM (Square Meter)</option>
-                      <option value="CUM">CUM (Cubic Meter)</option>
-                      <option value="RMT">RMT (Running Meter)</option>
-                      <option value="NOS">NOS (Numbers)</option>
-                      <option value="TONNE">TONNE</option>
-                      <option value="KG">KG</option>
-                      <option value="BAG">BAG</option>
+                      {MEASUREMENT_UNIT_GROUPS.map((grp) => (
+                        <optgroup
+                          key={grp.system}
+                          label={`${grp.system === "IMPERIAL" ? "📐" : grp.system === "METRIC" ? "📏" : "📦"} ${grp.category} (${grp.badge})`}
+                        >
+                          {grp.units.map((u) => (
+                            <option key={u.code} value={u.code}>
+                              {u.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
+                  </div>
+                </div>
+
+                {/* Quick Unit Selection Bar (Segregated Systems) */}
+                <div className="p-2.5 bg-slate-100/90 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                      <Ruler className="w-3.5 h-3.5 text-amber-600" />
+                      Quick Unit Selection (Separated Systems)
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Click any unit to auto-apply formula & dimension units
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Imperial / FPS (Square Feet, Inch, CFT, RFT) */}
+                    <div className="flex flex-wrap items-center gap-1 bg-amber-50/90 border border-amber-200 rounded-lg p-1">
+                      <span className="text-[10px] font-black text-amber-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                        <span>📐</span> FPS / Imperial:
+                      </span>
+                      {MEASUREMENT_UNIT_GROUPS[0].units.map((u) => {
+                        const isSelected = formUnit.toUpperCase() === u.code;
+                        return (
+                          <button
+                            key={u.code}
+                            type="button"
+                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                            title={u.description}
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                              isSelected
+                                ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-700"
+                                : "bg-white text-amber-950 border border-amber-300 hover:bg-amber-100"
+                            }`}
+                          >
+                            <span>{u.code}</span>
+                            <span className={`text-[9px] ${isSelected ? "text-amber-100" : "text-amber-700"}`}>
+                              ({u.dimUnit})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Metric System (MKS / SI - MM, SQM, CUM, RMT) */}
+                    <div className="flex flex-wrap items-center gap-1 bg-blue-50/90 border border-blue-200 rounded-lg p-1">
+                      <span className="text-[10px] font-black text-blue-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                        <span>📏</span> Metric (SI):
+                      </span>
+                      {MEASUREMENT_UNIT_GROUPS[1].units.map((u) => {
+                        const isSelected = formUnit.toUpperCase() === u.code;
+                        return (
+                          <button
+                            key={u.code}
+                            type="button"
+                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                            title={u.description}
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                              isSelected
+                                ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-700"
+                                : "bg-white text-blue-950 border border-blue-300 hover:bg-blue-100"
+                            }`}
+                          >
+                            <span>{u.code}</span>
+                            <span className={`text-[9px] ${isSelected ? "text-blue-100" : "text-blue-700"}`}>
+                              ({u.dimUnit})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Counts, Bulk & Site Units */}
+                    <div className="flex flex-wrap items-center gap-1 bg-emerald-50/90 border border-emerald-200 rounded-lg p-1">
+                      <span className="text-[10px] font-black text-emerald-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                        <span>📦</span> Counts & Bulk:
+                      </span>
+                      {MEASUREMENT_UNIT_GROUPS[2].units.map((u) => {
+                        const isSelected = formUnit.toUpperCase() === u.code;
+                        return (
+                          <button
+                            key={u.code}
+                            type="button"
+                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                            title={u.description}
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                              isSelected
+                                ? "bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-700"
+                                : "bg-white text-emerald-950 border border-emerald-300 hover:bg-emerald-100"
+                            }`}
+                          >
+                            <span>{u.code}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
                 {/* Dimension Inputs */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider flex items-center gap-1.5">
-                    <Calculator className="w-3.5 h-3.5 text-amber-600" />
-                    Dimensions & Quantity Calculation
+                  <div className="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Calculator className="w-3.5 h-3.5 text-amber-600" />
+                      Dimensions & Quantity Calculation
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
+                      Active: {activeUnitMeta.code} · {activeUnitMeta.dimUnit} ({activeUnitMeta.systemLabel})
+                    </span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
                     <div>
@@ -2542,7 +3030,9 @@ export default function MeasurementBookPage() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Length (L)</label>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        Length (L - {activeUnitMeta.dimUnit})
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -2554,7 +3044,9 @@ export default function MeasurementBookPage() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Breadth (B)</label>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        Breadth (B - {activeUnitMeta.dimUnit})
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -2567,7 +3059,9 @@ export default function MeasurementBookPage() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Height/Depth (H)</label>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        Height/Depth (H - {activeUnitMeta.dimUnit})
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -2580,7 +3074,9 @@ export default function MeasurementBookPage() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Deduction (Openings)</label>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        Deduction ({activeUnitMeta.code})
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -2721,14 +3217,62 @@ export default function MeasurementBookPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Wall / Entry Name</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Component / Entry Name <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="text"
                       required
                       value={formEntryName}
                       onChange={(e) => setFormEntryName(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Measurement Date</label>
+                    <input
+                      type="date"
+                      value={formDate}
+                      onChange={(e) => setFormDate(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Work Description <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formItemDesc}
+                    onChange={(e) => setFormItemDesc(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Measurement Element / Type
+                    </label>
+                    <select
+                      value={formMeasurementType}
+                      onChange={(e) => setFormMeasurementType(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
+                    >
+                      {MEASUREMENT_TYPE_GROUPS.map((grp) => (
+                        <optgroup key={grp.category} label={`🔹 ${grp.category}`}>
+                          {grp.types.map((t) => (
+                            <option key={t.code} value={t.code}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -2736,79 +3280,215 @@ export default function MeasurementBookPage() {
                     <select
                       value={formFormula}
                       onChange={(e) => setFormFormula(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold"
                     >
-                      <option value="AREA">AREA (N × L × H)</option>
+                      <option value="AREA">AREA (N × L × H/B)</option>
                       <option value="VOLUME">VOLUME (N × L × B × H)</option>
                       <option value="LENGTH">LENGTH (N × L)</option>
                       <option value="QUANTITY">QUANTITY (N × Unit Qty)</option>
                     </select>
                   </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">Unit of Measure</label>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
+                        {activeUnitMeta.systemLabel}
+                      </span>
+                    </div>
+                    <select
+                      value={formUnit}
+                      onChange={(e) => {
+                        const newUnit = e.target.value;
+                        setFormUnit(newUnit);
+                        const meta = getUnitMetadata(newUnit);
+                        if (meta.formula) setFormFormula(meta.formula);
+                      }}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-bold"
+                    >
+                      {MEASUREMENT_UNIT_GROUPS.map((grp) => (
+                        <optgroup
+                          key={grp.system}
+                          label={`${grp.system === "IMPERIAL" ? "📐" : grp.system === "METRIC" ? "📏" : "📦"} ${grp.category} (${grp.badge})`}
+                        >
+                          {grp.units.map((u) => (
+                            <option key={u.code} value={u.code}>
+                              {u.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Work Description</label>
-                  <input
-                    type="text"
-                    required
-                    value={formItemDesc}
-                    onChange={(e) => setFormItemDesc(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg"
-                  />
+                {/* Quick Unit Selection Bar in Edit Modal */}
+                <div className="p-2.5 bg-slate-100/90 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                      <Ruler className="w-3.5 h-3.5 text-blue-600" />
+                      Quick Unit Selection (Separated Systems)
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Click any unit to auto-apply formula & dimension units
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Imperial / FPS (Square Feet, Inch, CFT, RFT) */}
+                    <div className="flex flex-wrap items-center gap-1 bg-amber-50/90 border border-amber-200 rounded-lg p-1">
+                      <span className="text-[10px] font-black text-amber-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                        <span>📐</span> FPS / Imperial:
+                      </span>
+                      {MEASUREMENT_UNIT_GROUPS[0].units.map((u) => {
+                        const isSelected = formUnit.toUpperCase() === u.code;
+                        return (
+                          <button
+                            key={u.code}
+                            type="button"
+                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                            title={u.description}
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                              isSelected
+                                ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-700"
+                                : "bg-white text-amber-950 border border-amber-300 hover:bg-amber-100"
+                            }`}
+                          >
+                            <span>{u.code}</span>
+                            <span className={`text-[9px] ${isSelected ? "text-amber-100" : "text-amber-700"}`}>
+                              ({u.dimUnit})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Metric System (MKS / SI - MM, SQM, CUM, RMT) */}
+                    <div className="flex flex-wrap items-center gap-1 bg-blue-50/90 border border-blue-200 rounded-lg p-1">
+                      <span className="text-[10px] font-black text-blue-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                        <span>📏</span> Metric (SI):
+                      </span>
+                      {MEASUREMENT_UNIT_GROUPS[1].units.map((u) => {
+                        const isSelected = formUnit.toUpperCase() === u.code;
+                        return (
+                          <button
+                            key={u.code}
+                            type="button"
+                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                            title={u.description}
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                              isSelected
+                                ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-700"
+                                : "bg-white text-blue-950 border border-blue-300 hover:bg-blue-100"
+                            }`}
+                          >
+                            <span>{u.code}</span>
+                            <span className={`text-[9px] ${isSelected ? "text-blue-100" : "text-blue-700"}`}>
+                              ({u.dimUnit})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Counts, Bulk & Site Units */}
+                    <div className="flex flex-wrap items-center gap-1 bg-emerald-50/90 border border-emerald-200 rounded-lg p-1">
+                      <span className="text-[10px] font-black text-emerald-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                        <span>📦</span> Counts & Bulk:
+                      </span>
+                      {MEASUREMENT_UNIT_GROUPS[2].units.map((u) => {
+                        const isSelected = formUnit.toUpperCase() === u.code;
+                        return (
+                          <button
+                            key={u.code}
+                            type="button"
+                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                            title={u.description}
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                              isSelected
+                                ? "bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-700"
+                                : "bg-white text-emerald-950 border border-emerald-300 hover:bg-emerald-100"
+                            }`}
+                          >
+                            <span>{u.code}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Dimensions */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Count (N)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={formCount}
-                      onChange={(e) => setFormCount(e.target.value)}
-                      className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
-                    />
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Calculator className="w-3.5 h-3.5 text-blue-600" />
+                      Dimensions & Modification Calculation
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
+                      Active: {activeUnitMeta.code} · {activeUnitMeta.dimUnit} ({activeUnitMeta.systemLabel})
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Length (L)</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={formLength}
-                      onChange={(e) => setFormLength(e.target.value)}
-                      className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Breadth (B)</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={formBreadth}
-                      onChange={(e) => setFormBreadth(e.target.value)}
-                      className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Height/Depth</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={formDepth}
-                      onChange={(e) => setFormDepth(e.target.value)}
-                      className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Deduction</label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={formDeduction}
-                      onChange={(e) => setFormDeduction(e.target.value)}
-                      className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono text-rose-600"
-                    />
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Count (N)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={formCount}
+                        onChange={(e) => setFormCount(e.target.value)}
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        Length (L - {activeUnitMeta.dimUnit})
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={formLength}
+                        onChange={(e) => setFormLength(e.target.value)}
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        Breadth (B - {activeUnitMeta.dimUnit})
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={formBreadth}
+                        onChange={(e) => setFormBreadth(e.target.value)}
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        Height/Depth (H - {activeUnitMeta.dimUnit})
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={formDepth}
+                        onChange={(e) => setFormDepth(e.target.value)}
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        Deduction ({activeUnitMeta.code})
+                      </label>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={formDeduction}
+                        onChange={(e) => setFormDeduction(e.target.value)}
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono text-rose-600"
+                      />
+                    </div>
                   </div>
                 </div>
 
