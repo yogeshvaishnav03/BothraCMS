@@ -2190,139 +2190,156 @@ export default function MeasurementBookPage() {
         {/* 3. ADD / DUPLICATE MEASUREMENT MODAL */}
         {showAddEntryModal && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
-                  <Ruler className="w-5 h-5 text-amber-600 shrink-0" />
-                  <span>Record Wall / Work Measurement (Level 3)</span>
+            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200/90 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-slate-100 bg-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shadow-sm shrink-0">
+                    <Ruler className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-slate-900 tracking-tight">Record Measurement Entry</h2>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                        Item Record
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Record site measurements with automatic quantity calculations, segregated units & rates
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowAddEntryModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                  className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition"
+                  aria-label="Close modal"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
               <form onSubmit={handleAddMeasurementSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                <div className="p-4 sm:px-6 sm:py-3.5 overflow-y-auto space-y-3 flex-1">
                 {groups.length > 0 && !useDirectSelection ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-semibold text-slate-700">
-                          Main Group (Project + Party) <span className="text-rose-500">*</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUseDirectSelection(true);
-                            if (!formProjectId && projects.length > 0) setFormProjectId(projects[0].id);
-                            if (!formPartyId && parties.length > 0) setFormPartyId(parties[0].id);
-                          }}
-                          className="text-[11px] text-amber-600 hover:text-amber-700 font-medium"
-                        >
-                          + Pick Project & Party Directly
-                        </button>
-                      </div>
-                      <select
-                        value={formGroupId}
-                        onChange={(e) => {
-                          if (e.target.value === "__DIRECT_PICK__") {
-                            setUseDirectSelection(true);
-                            if (!formProjectId && projects.length > 0) setFormProjectId(projects[0].id);
-                            if (!formPartyId && parties.length > 0) setFormPartyId(parties[0].id);
-                            return;
-                          }
-                          setFormGroupId(e.target.value);
-                          const g = groups.find((grp) => grp.id === e.target.value);
-                          if (g) {
-                            setFormProjectId(g.projectId);
-                            setFormPartyId(g.partyId);
-                            if (g.subgroups.length > 0) {
-                              setFormSubgroupId(g.subgroups[0].id);
-                            } else {
-                              setFormSubgroupId(STANDARD_ROOMS[0]);
-                            }
-                          }
-                        }}
-                        required
-                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
-                      >
-                        <option value="">-- Select Main Group --</option>
-                        {groups.map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.project?.name || "Project"} — {g.party?.name || "Party"} ({g.party?.partyType || "Party"})
-                          </option>
-                        ))}
-                        <option value="__DIRECT_PICK__">+ Select Different Project & Contractor...</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-semibold text-slate-700">
-                          Room / Subgroup <span className="text-rose-500">*</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsCustomRoom(!isCustomRoom);
-                            if (!isCustomRoom) setFormSubgroupId("__CUSTOM__");
-                          }}
-                          className="text-[11px] text-amber-600 hover:text-amber-700 font-medium"
-                        >
-                          {isCustomRoom ? "Select From List" : "+ Type Custom Room"}
-                        </button>
-                      </div>
-                      {isCustomRoom ? (
-                        <input
-                          type="text"
-                          placeholder="e.g. Master Bedroom, Living Room, External Plaster"
-                          value={formCustomRoom}
-                          onChange={(e) => setFormCustomRoom(e.target.value)}
-                          required
-                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
-                        />
-                      ) : (
+                  <div className="p-3 bg-slate-50/70 border border-slate-200/80 rounded-xl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-slate-700">
+                            Main Group (Project + Party) <span className="text-rose-500">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUseDirectSelection(true);
+                              if (!formProjectId && projects.length > 0) setFormProjectId(projects[0].id);
+                              if (!formPartyId && parties.length > 0) setFormPartyId(parties[0].id);
+                            }}
+                            className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold hover:underline"
+                          >
+                            + Pick Project & Party Directly
+                          </button>
+                        </div>
                         <select
-                          value={formSubgroupId}
+                          value={formGroupId}
                           onChange={(e) => {
-                            if (e.target.value === "__CUSTOM__") {
-                              setIsCustomRoom(true);
-                            } else {
-                              setFormSubgroupId(e.target.value);
+                            if (e.target.value === "__DIRECT_PICK__") {
+                              setUseDirectSelection(true);
+                              if (!formProjectId && projects.length > 0) setFormProjectId(projects[0].id);
+                              if (!formPartyId && parties.length > 0) setFormPartyId(parties[0].id);
+                              return;
+                            }
+                            setFormGroupId(e.target.value);
+                            const g = groups.find((grp) => grp.id === e.target.value);
+                            if (g) {
+                              setFormProjectId(g.projectId);
+                              setFormPartyId(g.partyId);
+                              if (g.subgroups.length > 0) {
+                                setFormSubgroupId(g.subgroups[0].id);
+                              } else {
+                                setFormSubgroupId(STANDARD_ROOMS[0]);
+                              }
                             }
                           }}
                           required
-                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
                         >
-                          {currentSubgroupsForForm.length > 0 && (
-                            <optgroup label="Existing Rooms / Sections in Group">
-                              {currentSubgroupsForForm.map((sg) => (
-                                <option key={sg.id} value={sg.id}>
-                                  {sg.name} ({sg.type})
+                          <option value="">-- Select Main Group --</option>
+                          {groups.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.project?.name || "Project"} — {g.party?.name || "Party"} ({g.party?.partyType || "Party"})
+                            </option>
+                          ))}
+                          <option value="__DIRECT_PICK__">+ Select Different Project & Contractor...</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-slate-700">
+                            Room / Subgroup <span className="text-rose-500">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCustomRoom(!isCustomRoom);
+                              if (!isCustomRoom) setFormSubgroupId("__CUSTOM__");
+                            }}
+                            className="text-[11px] text-amber-600 hover:text-amber-700 font-semibold hover:underline"
+                          >
+                            {isCustomRoom ? "Select From List" : "+ Type Custom Room"}
+                          </button>
+                        </div>
+                        {isCustomRoom ? (
+                          <input
+                            type="text"
+                            placeholder="e.g. Master Bedroom, Living Room, External Plaster"
+                            value={formCustomRoom}
+                            onChange={(e) => setFormCustomRoom(e.target.value)}
+                            required
+                            className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                          />
+                        ) : (
+                          <select
+                            value={formSubgroupId}
+                            onChange={(e) => {
+                              if (e.target.value === "__CUSTOM__") {
+                                setIsCustomRoom(true);
+                              } else {
+                                setFormSubgroupId(e.target.value);
+                              }
+                            }}
+                            required
+                            className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                          >
+                            {currentSubgroupsForForm.length > 0 && (
+                              <optgroup label="Existing Rooms / Sections in Group">
+                                {currentSubgroupsForForm.map((sg) => (
+                                  <option key={sg.id} value={sg.id}>
+                                    {sg.name} ({sg.type})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <optgroup label="Standard Rooms / Work Sections">
+                              {STANDARD_ROOMS.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
                                 </option>
                               ))}
                             </optgroup>
-                          )}
-                          <optgroup label="Standard Rooms / Work Sections">
-                            {STANDARD_ROOMS.map((r) => (
-                              <option key={r} value={r}>
-                                {r}
-                              </option>
-                            ))}
-                          </optgroup>
-                          <option value="__CUSTOM__">+ Type Custom Room / Subgroup...</option>
-                        </select>
-                      )}
+                            <option value="__CUSTOM__">+ Type Custom Room / Subgroup...</option>
+                          </select>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3 p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl">
+                  <div className="p-3 bg-amber-50/70 border border-amber-200/90 rounded-xl space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-900">
+                      <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-amber-600" />
                         Direct Project, Contractor & Room Selection
                       </span>
                       {groups.length > 0 && (
@@ -2332,13 +2349,13 @@ export default function MeasurementBookPage() {
                             setUseDirectSelection(false);
                             if (groups.length > 0) setFormGroupId(groups[0].id);
                           }}
-                          className="text-[11px] text-amber-800 hover:underline font-semibold"
+                          className="text-[11px] text-amber-800 hover:underline font-bold"
                         >
                           Use Existing Groups
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                       <div>
                         <label className="block text-xs font-semibold text-slate-800 mb-1">
                           Project <span className="text-rose-500">*</span>
@@ -2347,7 +2364,7 @@ export default function MeasurementBookPage() {
                           value={formProjectId}
                           onChange={(e) => setFormProjectId(e.target.value)}
                           required
-                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
                         >
                           <option value="">-- Select Project --</option>
                           {projects.map((p) => (
@@ -2365,7 +2382,7 @@ export default function MeasurementBookPage() {
                           value={formPartyId}
                           onChange={(e) => setFormPartyId(e.target.value)}
                           required
-                          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
                         >
                           <option value="">-- Select Contractor / Party --</option>
                           {parties.map((pa) => (
@@ -2386,7 +2403,7 @@ export default function MeasurementBookPage() {
                               setIsCustomRoom(!isCustomRoom);
                               if (!isCustomRoom) setFormSubgroupId("__CUSTOM__");
                             }}
-                            className="text-[11px] text-amber-700 hover:underline font-medium"
+                            className="text-[11px] text-amber-700 hover:underline font-semibold"
                           >
                             {isCustomRoom ? "Select From List" : "+ Type Custom"}
                           </button>
@@ -2398,7 +2415,7 @@ export default function MeasurementBookPage() {
                             value={formCustomRoom}
                             onChange={(e) => setFormCustomRoom(e.target.value)}
                             required
-                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
+                            className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
                           />
                         ) : (
                           <select
@@ -2411,7 +2428,7 @@ export default function MeasurementBookPage() {
                               }
                             }}
                             required
-                            className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
+                            className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
                           >
                             <optgroup label="Standard Rooms / Work Sections">
                               {STANDARD_ROOMS.map((r) => (
@@ -2428,46 +2445,50 @@ export default function MeasurementBookPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Wall / Entry Name <span className="text-rose-500">*</span>
+                      Entry / Component Name <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Wall 1, North Wall, Floor Plaster"
+                      placeholder="e.g. Wall 1, Beam B1, Floor Plaster"
                       value={formEntryName}
                       onChange={(e) => setFormEntryName(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold"
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-semibold text-slate-900"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Reference Number</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Reference Number
+                    </label>
                     <input
                       type="text"
                       placeholder="e.g. MB-04-W1"
                       value={formRefNumber}
                       onChange={(e) => setFormRefNumber(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono"
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-mono text-slate-800"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Measurement Date</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Measurement Date
+                    </label>
                     <input
                       type="date"
                       value={formDate}
                       onChange={(e) => setFormDate(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-slate-800 font-medium"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Work Description <span className="text-rose-500">*</span>
+                    Work / Item Description <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -2475,11 +2496,11 @@ export default function MeasurementBookPage() {
                     placeholder="e.g. 12mm thick internal cement plaster (1:4) with sponge finish"
                     value={formItemDesc}
                     onChange={(e) => setFormItemDesc(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-slate-800"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Measurement Element / Type
@@ -2487,7 +2508,7 @@ export default function MeasurementBookPage() {
                     <select
                       value={formMeasurementType}
                       onChange={(e) => setFormMeasurementType(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium text-slate-800"
                     >
                       {MEASUREMENT_TYPE_GROUPS.map((grp) => (
                         <optgroup key={grp.category} label={`🔹 ${grp.category}`}>
@@ -2502,11 +2523,13 @@ export default function MeasurementBookPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Formula</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Calculation Formula
+                    </label>
                     <select
                       value={formFormula}
                       onChange={(e) => setFormFormula(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold"
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-semibold text-slate-800"
                     >
                       <option value="AREA">AREA (N × L × H/B)</option>
                       <option value="VOLUME">VOLUME (N × L × B × H)</option>
@@ -2530,7 +2553,7 @@ export default function MeasurementBookPage() {
                         const meta = getUnitMetadata(newUnit);
                         if (meta.formula) setFormFormula(meta.formula);
                       }}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-bold"
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-bold text-slate-900"
                     >
                       {MEASUREMENT_UNIT_GROUPS.map((grp) => (
                         <optgroup
@@ -2549,143 +2572,155 @@ export default function MeasurementBookPage() {
                 </div>
 
                 {/* Quick Unit Selection Bar (Segregated Systems) */}
-                <div className="p-2.5 bg-slate-100/90 rounded-xl border border-slate-200 space-y-2">
+                <div className="p-2.5 bg-gradient-to-b from-slate-50 to-slate-100/70 rounded-xl border border-slate-200/90 space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-1">
-                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                    <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                       <Ruler className="w-3.5 h-3.5 text-amber-600" />
-                      Quick Unit Selection (Separated Systems)
+                      Quick Unit Selection (Segregated Systems)
                     </span>
                     <span className="text-[10px] text-slate-500">
                       Click any unit to auto-apply formula & dimension units
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                     {/* Imperial / FPS (Square Feet, Inch, CFT, RFT) */}
-                    <div className="flex flex-wrap items-center gap-1 bg-amber-50/90 border border-amber-200 rounded-lg p-1">
-                      <span className="text-[10px] font-black text-amber-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                    <div className="flex flex-wrap items-center gap-1 bg-amber-50/90 border border-amber-200/90 rounded-lg p-1.5">
+                      <span className="text-[10px] font-black text-amber-900 uppercase tracking-tight px-1 flex items-center gap-1 w-full sm:w-auto">
                         <span>📐</span> FPS / Imperial:
                       </span>
-                      {MEASUREMENT_UNIT_GROUPS[0].units.map((u) => {
-                        const isSelected = formUnit.toUpperCase() === u.code;
-                        return (
-                          <button
-                            key={u.code}
-                            type="button"
-                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
-                            title={u.description}
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
-                              isSelected
-                                ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-700"
-                                : "bg-white text-amber-950 border border-amber-300 hover:bg-amber-100"
-                            }`}
-                          >
-                            <span>{u.code}</span>
-                            <span className={`text-[9px] ${isSelected ? "text-amber-100" : "text-amber-700"}`}>
-                              ({u.dimUnit})
-                            </span>
-                          </button>
-                        );
-                      })}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {MEASUREMENT_UNIT_GROUPS[0].units.map((u) => {
+                          const isSelected = formUnit.toUpperCase() === u.code;
+                          return (
+                            <button
+                              key={u.code}
+                              type="button"
+                              onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                              title={u.description}
+                              className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-amber-600 text-white shadow-sm ring-2 ring-amber-500/40"
+                                  : "bg-white text-amber-950 border border-amber-200/80 hover:bg-amber-100"
+                              }`}
+                            >
+                              <span>{u.code}</span>
+                              <span className={`text-[9px] ${isSelected ? "text-amber-100" : "text-amber-700"}`}>
+                                ({u.dimUnit})
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Metric System (MKS / SI - MM, SQM, CUM, RMT) */}
-                    <div className="flex flex-wrap items-center gap-1 bg-blue-50/90 border border-blue-200 rounded-lg p-1">
-                      <span className="text-[10px] font-black text-blue-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                    <div className="flex flex-wrap items-center gap-1 bg-blue-50/90 border border-blue-200/90 rounded-lg p-1.5">
+                      <span className="text-[10px] font-black text-blue-900 uppercase tracking-tight px-1 flex items-center gap-1 w-full sm:w-auto">
                         <span>📏</span> Metric (SI):
                       </span>
-                      {MEASUREMENT_UNIT_GROUPS[1].units.map((u) => {
-                        const isSelected = formUnit.toUpperCase() === u.code;
-                        return (
-                          <button
-                            key={u.code}
-                            type="button"
-                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
-                            title={u.description}
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
-                              isSelected
-                                ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-700"
-                                : "bg-white text-blue-950 border border-blue-300 hover:bg-blue-100"
-                            }`}
-                          >
-                            <span>{u.code}</span>
-                            <span className={`text-[9px] ${isSelected ? "text-blue-100" : "text-blue-700"}`}>
-                              ({u.dimUnit})
-                            </span>
-                          </button>
-                        );
-                      })}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {MEASUREMENT_UNIT_GROUPS[1].units.map((u) => {
+                          const isSelected = formUnit.toUpperCase() === u.code;
+                          return (
+                            <button
+                              key={u.code}
+                              type="button"
+                              onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                              title={u.description}
+                              className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40"
+                                  : "bg-white text-blue-950 border border-blue-200/80 hover:bg-blue-100"
+                              }`}
+                            >
+                              <span>{u.code}</span>
+                              <span className={`text-[9px] ${isSelected ? "text-blue-100" : "text-blue-700"}`}>
+                                ({u.dimUnit})
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Counts, Bulk & Site Units */}
-                    <div className="flex flex-wrap items-center gap-1 bg-emerald-50/90 border border-emerald-200 rounded-lg p-1">
-                      <span className="text-[10px] font-black text-emerald-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
+                    <div className="flex flex-wrap items-center gap-1 bg-emerald-50/90 border border-emerald-200/90 rounded-lg p-1.5">
+                      <span className="text-[10px] font-black text-emerald-900 uppercase tracking-tight px-1 flex items-center gap-1 w-full sm:w-auto">
                         <span>📦</span> Counts & Bulk:
                       </span>
-                      {MEASUREMENT_UNIT_GROUPS[2].units.map((u) => {
-                        const isSelected = formUnit.toUpperCase() === u.code;
-                        return (
-                          <button
-                            key={u.code}
-                            type="button"
-                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
-                            title={u.description}
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
-                              isSelected
-                                ? "bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-700"
-                                : "bg-white text-emerald-950 border border-emerald-300 hover:bg-emerald-100"
-                            }`}
-                          >
-                            <span>{u.code}</span>
-                          </button>
-                        );
-                      })}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {MEASUREMENT_UNIT_GROUPS[2].units.map((u) => {
+                          const isSelected = formUnit.toUpperCase() === u.code;
+                          return (
+                            <button
+                              key={u.code}
+                              type="button"
+                              onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                              title={u.description}
+                              className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/40"
+                                  : "bg-white text-emerald-950 border border-emerald-200/80 hover:bg-emerald-100"
+                              }`}
+                            >
+                              <span>{u.code}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Dimension Inputs */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <Calculator className="w-3.5 h-3.5 text-amber-600" />
-                      Dimensions & Quantity Calculation
+                {/* Dimension Inputs & Calculation */}
+                <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-2.5">
+                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-slate-900">
+                      <Calculator className="w-4 h-4 text-amber-600" />
+                      <span>Dimensions & Quantity Calculation</span>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
-                      Active: {activeUnitMeta.code} · {activeUnitMeta.dimUnit} ({activeUnitMeta.systemLabel})
+                      Active Unit: {activeUnitMeta.code} · Dimensions in {activeUnitMeta.dimUnit} ({activeUnitMeta.systemLabel})
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Count (N)</label>
+                      <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                        <label className="text-[11px] font-bold text-slate-700">Count</label>
+                        <span className="text-[10px] text-slate-400 font-medium">Nos</span>
+                      </div>
                       <input
                         type="number"
                         min="1"
                         step="1"
                         value={formCount}
                         onChange={(e) => setFormCount(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono text-center font-bold text-slate-800"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                        Length (L - {activeUnitMeta.dimUnit})
-                      </label>
+                      <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                        <label className="text-[11px] font-bold text-slate-700">Length (L)</label>
+                        <span className="text-[10px] text-slate-500 font-medium">{activeUnitMeta.dimUnit}</span>
+                      </div>
                       <input
                         type="number"
                         min="0"
                         step="0.001"
                         value={formLength}
                         onChange={(e) => setFormLength(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono text-center font-bold text-slate-800"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                        Breadth (B - {activeUnitMeta.dimUnit})
-                      </label>
+                      <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                        <label className="text-[11px] font-bold text-slate-700">Breadth (B)</label>
+                        <span className="text-[10px] text-slate-500 font-medium">{activeUnitMeta.dimUnit}</span>
+                      </div>
                       <input
                         type="number"
                         min="0"
@@ -2693,14 +2728,15 @@ export default function MeasurementBookPage() {
                         placeholder="Optional"
                         value={formBreadth}
                         onChange={(e) => setFormBreadth(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono text-center font-medium text-slate-800"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                        Height/Depth (H - {activeUnitMeta.dimUnit})
-                      </label>
+                      <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                        <label className="text-[11px] font-bold text-slate-700">Height / Depth (H)</label>
+                        <span className="text-[10px] text-slate-500 font-medium">{activeUnitMeta.dimUnit}</span>
+                      </div>
                       <input
                         type="number"
                         min="0"
@@ -2708,95 +2744,136 @@ export default function MeasurementBookPage() {
                         placeholder="Optional"
                         value={formDepth}
                         onChange={(e) => setFormDepth(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono"
+                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono text-center font-medium text-slate-800"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                        Deduction ({activeUnitMeta.code})
-                      </label>
+                      <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                        <label className="text-[11px] font-bold text-rose-700">Deduction (−)</label>
+                        <span className="text-[10px] text-rose-500 font-medium">{activeUnitMeta.code}</span>
+                      </div>
                       <input
                         type="number"
                         min="0"
                         step="0.001"
+                        placeholder="0.00"
                         value={formDeduction}
                         onChange={(e) => setFormDeduction(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded font-mono text-rose-600"
+                        className="w-full px-2 py-1 text-xs bg-white border border-rose-200 rounded-lg focus:ring-2 focus:ring-rose-400 font-mono text-center font-bold text-rose-600"
                       />
                     </div>
                   </div>
 
-                  {/* Realtime Calculated Quantities Badge */}
-                  <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-slate-500">Gross: </span>
-                      <span className="font-mono font-semibold text-slate-700">{formatQuantity(calculatedFormGross)}</span>
-                      <span className="text-slate-400"> - Ded: </span>
-                      <span className="font-mono font-semibold text-rose-600">{formatQuantity(Number(formDeduction) || 0)}</span>
+                  {/* Realtime Formula & Quantity Breakdown */}
+                  <div className="mt-1.5 pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-slate-600 font-medium">
+                      <span>Gross: <strong className="font-mono text-slate-800">{formatQuantity(calculatedFormGross)}</strong></span>
+                      <span className="text-slate-400 font-black">−</span>
+                      <span>Ded: <strong className="font-mono text-rose-600">{formatQuantity(Number(formDeduction) || 0)}</strong></span>
                     </div>
-                    <div>
-                      <span className="text-slate-700 font-bold">Net Quantity: </span>
-                      <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 font-mono font-black text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-700 font-bold text-xs">Net Billable Quantity:</span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-950 font-mono font-black text-sm shadow-xs">
                         {formatQuantity(calculatedFormNet)} {formUnit}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Rate & Total Amount */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+                {/* Rate & Total Amount - Perfectly Aligned */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Agreed Unit Rate (₹ / {formUnit}) <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="0.01"
-                      step="0.01"
-                      placeholder="e.g. 150.00"
-                      value={formRateRupees}
-                      onChange={(e) => setFormRateRupees(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono font-bold"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700">
+                        Agreed Unit Rate <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        ₹ per {formUnit}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs select-none">₹</span>
+                      <input
+                        type="number"
+                        required
+                        min="0.01"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formRateRupees}
+                        onChange={(e) => setFormRateRupees(e.target.value)}
+                        className="w-full pl-7 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono font-bold text-slate-800 h-[36px]"
+                      />
+                    </div>
                   </div>
 
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-900">Computed Work Total:</span>
-                    <span className="text-base font-black text-amber-950 font-mono">
-                      ₹{calculatedFormTotalRupees.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </span>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-amber-950">
+                        Computed Work Total
+                      </label>
+                      <span className="text-[11px] text-amber-800 font-medium">
+                        Net Qty × Agreed Rate
+                      </span>
+                    </div>
+                    <div className="h-[36px] px-3 bg-gradient-to-r from-amber-50 to-amber-100/80 rounded-lg border border-amber-300/80 flex items-center justify-between shadow-xs">
+                      <span className="text-[11px] font-bold text-amber-900 uppercase tracking-tight">Total Amount:</span>
+                      <span className="text-base font-black text-amber-950 font-mono">
+                        ₹{calculatedFormTotalRupees.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Site Notes / Remarks</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">Site Notes / Remarks</label>
+                    <span className="text-[10px] text-slate-400">Optional specifications, location or elevation</span>
+                  </div>
                   <textarea
                     rows={2}
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
-                    placeholder="Wall orientation, elevation or specific specifications..."
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    placeholder="e.g. Specific grid line, 1st floor exterior, 1:4 cement mortar with waterproofing compound..."
+                    className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 resize-none text-slate-800"
                   />
                 </div>
                 </div>
 
-                <div className="flex justify-end gap-2 p-4 bg-slate-50 border-t border-slate-100 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddEntryModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={actionLoading}
-                    className="px-5 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 rounded-lg shadow transition"
-                  >
-                    {actionLoading ? "Saving..." : "Record Measurement"}
-                  </button>
+                {/* Modal Footer */}
+                <div className="px-5 sm:px-6 py-3 bg-slate-50/95 border-t border-slate-200 flex items-center justify-between shrink-0">
+                  <div className="hidden sm:flex items-center gap-2 text-xs">
+                    <span className="text-slate-500">Summary:</span>
+                    <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      {formatQuantity(calculatedFormNet)} {formUnit}
+                    </span>
+                    <span className="text-slate-400">×</span>
+                    <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      ₹{Number(formRateRupees || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-slate-400">=</span>
+                    <span className="font-mono font-black text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-300">
+                      ₹{calculatedFormTotalRupees.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddEntryModal(false)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 rounded-xl transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="px-5 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 rounded-xl shadow-md shadow-amber-500/20 active:scale-95 transition flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4 text-slate-950" />
+                      <span>{actionLoading ? "Saving..." : "Record Measurement"}</span>
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -2806,25 +2883,39 @@ export default function MeasurementBookPage() {
         {/* 4. EDIT MEASUREMENT MODAL (WITH MANDATORY REASON) */}
         {showEditEntryModal && activeEntry && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
-                <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
-                  <Edit2 className="w-5 h-5 text-blue-600 shrink-0" />
-                  <span>Edit Measurement (v{activeEntry.version})</span>
+            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200/90 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                    <Edit2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-slate-900 tracking-tight">Edit Measurement Entry</h2>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                        v{activeEntry.version} · Audit Tracked
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Modify site measurements with strict immutable audit trail logging
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowEditEntryModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                  className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition"
+                  aria-label="Close modal"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
               <form onSubmit={handleEditMeasurementSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                <div className="p-4 sm:px-6 sm:py-3.5 overflow-y-auto space-y-3 flex-1">
                   {/* Notice for Supervisor vs Admin */}
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2">
+                  <div className="p-2.5 bg-blue-50/80 border border-blue-200/90 rounded-xl text-xs text-blue-900 flex items-start gap-2.5">
                     <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold">Strict Audit Requirement:</span> Silently overwriting measurement entries is prohibited. Every modification creates an immutable audit record with previous vs new values.
@@ -2837,338 +2928,412 @@ export default function MeasurementBookPage() {
                   </div>
 
                   {/* MANDATORY REASON FIELD */}
-                <div className="p-3 bg-amber-50/70 border-2 border-amber-300 rounded-xl">
-                  <label className="block text-xs font-bold text-amber-950 mb-1">
-                    Mandatory Reason for Modification <span className="text-rose-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Original wall height entered incorrectly after site remeasurement..."
-                    value={mandatoryReason}
-                    onChange={(e) => setMandatoryReason(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-900"
-                  />
-                  <span className="text-[10px] text-amber-800 mt-1 block">
-                    This reason will be permanently recorded in the audit history.
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Component / Entry Name <span className="text-rose-500">*</span>
+                  <div className="p-3 bg-amber-50/80 border-2 border-amber-300 rounded-xl space-y-1">
+                    <label className="block text-xs font-bold text-amber-950">
+                      Mandatory Reason for Modification <span className="text-rose-600">*</span>
                     </label>
                     <input
                       type="text"
                       required
-                      value={formEntryName}
-                      onChange={(e) => setFormEntryName(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
+                      placeholder="e.g. Wall height adjusted following on-site remeasurement..."
+                      value={mandatoryReason}
+                      onChange={(e) => setMandatoryReason(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-900"
                     />
+                    <span className="text-[10px] text-amber-800 block">
+                      This reason will be permanently recorded in the immutable audit history.
+                    </span>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Measurement Date</label>
-                    <input
-                      type="date"
-                      value={formDate}
-                      onChange={(e) => setFormDate(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Component / Entry Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formEntryName}
+                        onChange={(e) => setFormEntryName(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-semibold text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Measurement Date</label>
+                      <input
+                        type="date"
+                        value={formDate}
+                        onChange={(e) => setFormDate(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-slate-800 font-medium"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Work Description <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formItemDesc}
-                    onChange={(e) => setFormItemDesc(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Measurement Element / Type
-                    </label>
-                    <select
-                      value={formMeasurementType}
-                      onChange={(e) => setFormMeasurementType(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium"
-                    >
-                      {MEASUREMENT_TYPE_GROUPS.map((grp) => (
-                        <optgroup key={grp.category} label={`🔹 ${grp.category}`}>
-                          {grp.types.map((t) => (
-                            <option key={t.code} value={t.code}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Formula</label>
-                    <select
-                      value={formFormula}
-                      onChange={(e) => setFormFormula(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-semibold"
-                    >
-                      <option value="AREA">AREA (N × L × H/B)</option>
-                      <option value="VOLUME">VOLUME (N × L × B × H)</option>
-                      <option value="LENGTH">LENGTH (N × L)</option>
-                      <option value="QUANTITY">QUANTITY (N × Unit Qty)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-semibold text-slate-700">Unit of Measure</label>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
-                        {activeUnitMeta.systemLabel}
-                      </span>
-                    </div>
-                    <select
-                      value={formUnit}
-                      onChange={(e) => {
-                        const newUnit = e.target.value;
-                        setFormUnit(newUnit);
-                        const meta = getUnitMetadata(newUnit);
-                        if (meta.formula) setFormFormula(meta.formula);
-                      }}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-bold"
-                    >
-                      {MEASUREMENT_UNIT_GROUPS.map((grp) => (
-                        <optgroup
-                          key={grp.system}
-                          label={`${grp.system === "IMPERIAL" ? "📐" : grp.system === "METRIC" ? "📏" : "📦"} ${grp.category} (${grp.badge})`}
-                        >
-                          {grp.units.map((u) => (
-                            <option key={u.code} value={u.code}>
-                              {u.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Quick Unit Selection Bar in Edit Modal */}
-                <div className="p-2.5 bg-slate-100/90 rounded-xl border border-slate-200 space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-1">
-                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                      <Ruler className="w-3.5 h-3.5 text-blue-600" />
-                      Quick Unit Selection (Separated Systems)
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Click any unit to auto-apply formula & dimension units
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {/* Imperial / FPS (Square Feet, Inch, CFT, RFT) */}
-                    <div className="flex flex-wrap items-center gap-1 bg-amber-50/90 border border-amber-200 rounded-lg p-1">
-                      <span className="text-[10px] font-black text-amber-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
-                        <span>📐</span> FPS / Imperial:
-                      </span>
-                      {MEASUREMENT_UNIT_GROUPS[0].units.map((u) => {
-                        const isSelected = formUnit.toUpperCase() === u.code;
-                        return (
-                          <button
-                            key={u.code}
-                            type="button"
-                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
-                            title={u.description}
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
-                              isSelected
-                                ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-700"
-                                : "bg-white text-amber-950 border border-amber-300 hover:bg-amber-100"
-                            }`}
-                          >
-                            <span>{u.code}</span>
-                            <span className={`text-[9px] ${isSelected ? "text-amber-100" : "text-amber-700"}`}>
-                              ({u.dimUnit})
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Metric System (MKS / SI - MM, SQM, CUM, RMT) */}
-                    <div className="flex flex-wrap items-center gap-1 bg-blue-50/90 border border-blue-200 rounded-lg p-1">
-                      <span className="text-[10px] font-black text-blue-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
-                        <span>📏</span> Metric (SI):
-                      </span>
-                      {MEASUREMENT_UNIT_GROUPS[1].units.map((u) => {
-                        const isSelected = formUnit.toUpperCase() === u.code;
-                        return (
-                          <button
-                            key={u.code}
-                            type="button"
-                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
-                            title={u.description}
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
-                              isSelected
-                                ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-700"
-                                : "bg-white text-blue-950 border border-blue-300 hover:bg-blue-100"
-                            }`}
-                          >
-                            <span>{u.code}</span>
-                            <span className={`text-[9px] ${isSelected ? "text-blue-100" : "text-blue-700"}`}>
-                              ({u.dimUnit})
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Counts, Bulk & Site Units */}
-                    <div className="flex flex-wrap items-center gap-1 bg-emerald-50/90 border border-emerald-200 rounded-lg p-1">
-                      <span className="text-[10px] font-black text-emerald-900 uppercase tracking-tight px-1 flex items-center gap-0.5">
-                        <span>📦</span> Counts & Bulk:
-                      </span>
-                      {MEASUREMENT_UNIT_GROUPS[2].units.map((u) => {
-                        const isSelected = formUnit.toUpperCase() === u.code;
-                        return (
-                          <button
-                            key={u.code}
-                            type="button"
-                            onClick={() => handleSelectQuickUnit(u.code, u.formula)}
-                            title={u.description}
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
-                              isSelected
-                                ? "bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-700"
-                                : "bg-white text-emerald-950 border border-emerald-300 hover:bg-emerald-100"
-                            }`}
-                          >
-                            <span>{u.code}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dimensions */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <Calculator className="w-3.5 h-3.5 text-blue-600" />
-                      Dimensions & Modification Calculation
-                    </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
-                      Active: {activeUnitMeta.code} · {activeUnitMeta.dimUnit} ({activeUnitMeta.systemLabel})
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Count (N)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={formCount}
-                        onChange={(e) => setFormCount(e.target.value)}
-                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                        Length (L - {activeUnitMeta.dimUnit})
-                      </label>
-                      <input
-                        type="number"
-                        step="0.001"
-                        value={formLength}
-                        onChange={(e) => setFormLength(e.target.value)}
-                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                        Breadth (B - {activeUnitMeta.dimUnit})
-                      </label>
-                      <input
-                        type="number"
-                        step="0.001"
-                        value={formBreadth}
-                        onChange={(e) => setFormBreadth(e.target.value)}
-                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                        Height/Depth (H - {activeUnitMeta.dimUnit})
-                      </label>
-                      <input
-                        type="number"
-                        step="0.001"
-                        value={formDepth}
-                        onChange={(e) => setFormDepth(e.target.value)}
-                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                        Deduction ({activeUnitMeta.code})
-                      </label>
-                      <input
-                        type="number"
-                        step="0.001"
-                        value={formDeduction}
-                        onChange={(e) => setFormDeduction(e.target.value)}
-                        className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded font-mono text-rose-600"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 items-end">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Agreed Rate (₹ / {formUnit})
+                      Work / Item Description <span className="text-rose-500">*</span>
                     </label>
                     <input
-                      type="number"
-                      step="0.01"
-                      value={formRateRupees}
-                      onChange={(e) => setFormRateRupees(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold"
+                      type="text"
+                      required
+                      value={formItemDesc}
+                      onChange={(e) => setFormItemDesc(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-slate-800"
                     />
                   </div>
 
-                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-right">
-                    <span className="text-xs text-emerald-800 font-semibold">New Net: </span>
-                    <span className="font-mono font-bold text-emerald-950 mr-2">{formatQuantity(calculatedFormNet)} {formUnit}</span>
-                    <span className="text-xs text-emerald-800 font-semibold">Total: </span>
-                    <span className="font-mono font-black text-emerald-950">₹{calculatedFormTotalRupees}</span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Measurement Element / Type
+                      </label>
+                      <select
+                        value={formMeasurementType}
+                        onChange={(e) => setFormMeasurementType(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium text-slate-800"
+                      >
+                        {MEASUREMENT_TYPE_GROUPS.map((grp) => (
+                          <optgroup key={grp.category} label={`🔹 ${grp.category}`}>
+                            {grp.types.map((t) => (
+                              <option key={t.code} value={t.code}>
+                                {t.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Calculation Formula</label>
+                      <select
+                        value={formFormula}
+                        onChange={(e) => setFormFormula(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-semibold text-slate-800"
+                      >
+                        <option value="AREA">AREA (N × L × H/B)</option>
+                        <option value="VOLUME">VOLUME (N × L × B × H)</option>
+                        <option value="LENGTH">LENGTH (N × L)</option>
+                        <option value="QUANTITY">QUANTITY (N × Unit Qty)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-slate-700">Unit of Measure</label>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
+                          {activeUnitMeta.systemLabel}
+                        </span>
+                      </div>
+                      <select
+                        value={formUnit}
+                        onChange={(e) => {
+                          const newUnit = e.target.value;
+                          setFormUnit(newUnit);
+                          const meta = getUnitMetadata(newUnit);
+                          if (meta.formula) setFormFormula(meta.formula);
+                        }}
+                        className="w-full px-3 py-1.5 text-xs bg-slate-50/70 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-bold text-slate-900"
+                      >
+                        {MEASUREMENT_UNIT_GROUPS.map((grp) => (
+                          <optgroup
+                            key={grp.system}
+                            label={`${grp.system === "IMPERIAL" ? "📐" : grp.system === "METRIC" ? "📏" : "📦"} ${grp.category} (${grp.badge})`}
+                          >
+                            {grp.units.map((u) => (
+                              <option key={u.code} value={u.code}>
+                                {u.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Quick Unit Selection Bar in Edit Modal */}
+                  <div className="p-2.5 bg-gradient-to-b from-slate-50 to-slate-100/70 rounded-xl border border-slate-200/90 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Ruler className="w-3.5 h-3.5 text-blue-600" />
+                        Quick Unit Selection (Segregated Systems)
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Click any unit to auto-apply formula & dimension units
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+                      {/* Imperial / FPS (Square Feet, Inch, CFT, RFT) */}
+                      <div className="flex flex-wrap items-center gap-1 bg-amber-50/90 border border-amber-200/90 rounded-lg p-1.5">
+                        <span className="text-[10px] font-black text-amber-900 uppercase tracking-tight px-1 flex items-center gap-1 w-full sm:w-auto">
+                          <span>📐</span> FPS / Imperial:
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {MEASUREMENT_UNIT_GROUPS[0].units.map((u) => {
+                            const isSelected = formUnit.toUpperCase() === u.code;
+                            return (
+                              <button
+                                key={u.code}
+                                type="button"
+                                onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                                title={u.description}
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                                  isSelected
+                                    ? "bg-amber-600 text-white shadow-sm ring-2 ring-amber-500/40"
+                                    : "bg-white text-amber-950 border border-amber-200/80 hover:bg-amber-100"
+                                }`}
+                              >
+                                <span>{u.code}</span>
+                                <span className={`text-[9px] ${isSelected ? "text-amber-100" : "text-amber-700"}`}>
+                                  ({u.dimUnit})
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Metric System (MKS / SI - MM, SQM, CUM, RMT) */}
+                      <div className="flex flex-wrap items-center gap-1 bg-blue-50/90 border border-blue-200/90 rounded-lg p-1.5">
+                        <span className="text-[10px] font-black text-blue-900 uppercase tracking-tight px-1 flex items-center gap-1 w-full sm:w-auto">
+                          <span>📏</span> Metric (SI):
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {MEASUREMENT_UNIT_GROUPS[1].units.map((u) => {
+                            const isSelected = formUnit.toUpperCase() === u.code;
+                            return (
+                              <button
+                                key={u.code}
+                                type="button"
+                                onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                                title={u.description}
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                                  isSelected
+                                    ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40"
+                                    : "bg-white text-blue-950 border border-blue-200/80 hover:bg-blue-100"
+                                }`}
+                              >
+                                <span>{u.code}</span>
+                                <span className={`text-[9px] ${isSelected ? "text-blue-100" : "text-blue-700"}`}>
+                                  ({u.dimUnit})
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Counts, Bulk & Site Units */}
+                      <div className="flex flex-wrap items-center gap-1 bg-emerald-50/90 border border-emerald-200/90 rounded-lg p-1.5">
+                        <span className="text-[10px] font-black text-emerald-900 uppercase tracking-tight px-1 flex items-center gap-1 w-full sm:w-auto">
+                          <span>📦</span> Counts & Bulk:
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {MEASUREMENT_UNIT_GROUPS[2].units.map((u) => {
+                            const isSelected = formUnit.toUpperCase() === u.code;
+                            return (
+                              <button
+                                key={u.code}
+                                type="button"
+                                onClick={() => handleSelectQuickUnit(u.code, u.formula)}
+                                title={u.description}
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                                  isSelected
+                                    ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/40"
+                                    : "bg-white text-emerald-950 border border-emerald-200/80 hover:bg-emerald-100"
+                                }`}
+                              >
+                                <span>{u.code}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dimensions & Modification Calculation */}
+                  <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-2.5">
+                    <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-slate-900">
+                        <Calculator className="w-4 h-4 text-blue-600" />
+                        <span>Dimensions & Modification Calculation</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${activeUnitMeta.badgeBg}`}>
+                        Active Unit: {activeUnitMeta.code} · Dimensions in {activeUnitMeta.dimUnit} ({activeUnitMeta.systemLabel})
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      <div>
+                        <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                          <label className="text-[11px] font-bold text-slate-700">Count</label>
+                          <span className="text-[10px] text-slate-400 font-medium">Nos</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={formCount}
+                          onChange={(e) => setFormCount(e.target.value)}
+                          className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-center font-bold text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                          <label className="text-[11px] font-bold text-slate-700">Length (L)</label>
+                          <span className="text-[10px] text-slate-500 font-medium">{activeUnitMeta.dimUnit}</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.001"
+                          value={formLength}
+                          onChange={(e) => setFormLength(e.target.value)}
+                          className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-center font-bold text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                          <label className="text-[11px] font-bold text-slate-700">Breadth (B)</label>
+                          <span className="text-[10px] text-slate-500 font-medium">{activeUnitMeta.dimUnit}</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.001"
+                          placeholder="Optional"
+                          value={formBreadth}
+                          onChange={(e) => setFormBreadth(e.target.value)}
+                          className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-center font-medium text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                          <label className="text-[11px] font-bold text-slate-700">Height / Depth (H)</label>
+                          <span className="text-[10px] text-slate-500 font-medium">{activeUnitMeta.dimUnit}</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.001"
+                          placeholder="Optional"
+                          value={formDepth}
+                          onChange={(e) => setFormDepth(e.target.value)}
+                          className="w-full px-2 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-center font-medium text-slate-800"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1 min-h-[16px]">
+                          <label className="text-[11px] font-bold text-rose-700">Deduction (−)</label>
+                          <span className="text-[10px] text-rose-500 font-medium">{activeUnitMeta.code}</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.001"
+                          placeholder="0.00"
+                          value={formDeduction}
+                          onChange={(e) => setFormDeduction(e.target.value)}
+                          className="w-full px-2 py-1 text-xs bg-white border border-rose-200 rounded-lg focus:ring-2 focus:ring-rose-400 font-mono text-center font-bold text-rose-600"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Realtime Formula & Quantity Breakdown */}
+                    <div className="mt-1.5 pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 text-slate-600 font-medium">
+                        <span>Gross: <strong className="font-mono text-slate-800">{formatQuantity(calculatedFormGross)}</strong></span>
+                        <span className="text-slate-400 font-black">−</span>
+                        <span>Ded: <strong className="font-mono text-rose-600">{formatQuantity(Number(formDeduction) || 0)}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-700 font-bold text-xs">New Net Billable:</span>
+                        <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-950 font-mono font-black text-sm shadow-xs">
+                          {formatQuantity(calculatedFormNet)} {formUnit}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rate & Total Amount - Perfectly Aligned */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Agreed Unit Rate <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          ₹ per {formUnit}
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs select-none">₹</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formRateRupees}
+                          onChange={(e) => setFormRateRupees(e.target.value)}
+                          className="w-full pl-7 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold text-slate-800 h-[36px]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-blue-950">
+                          Computed Work Total
+                        </label>
+                        <span className="text-[11px] text-blue-800 font-medium">
+                          Net Qty × Agreed Rate
+                        </span>
+                      </div>
+                      <div className="h-[36px] px-3 bg-gradient-to-r from-blue-50 to-blue-100/80 rounded-lg border border-blue-300/80 flex items-center justify-between shadow-xs">
+                        <span className="text-[11px] font-bold text-blue-900 uppercase tracking-tight">Total Amount:</span>
+                        <span className="text-base font-black text-blue-950 font-mono">
+                          ₹{calculatedFormTotalRupees.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                </div>
 
-                <div className="flex justify-end gap-2 p-4 bg-slate-50 border-t border-slate-100 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowEditEntryModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={actionLoading}
-                    className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow transition"
-                  >
-                    {actionLoading ? "Saving..." : "Confirm & Update with Audit Reason"}
-                  </button>
+                {/* Modal Footer */}
+                <div className="px-5 sm:px-6 py-3 bg-slate-50/95 border-t border-slate-200 flex items-center justify-between shrink-0">
+                  <div className="hidden sm:flex items-center gap-2 text-xs">
+                    <span className="text-slate-500">New Total:</span>
+                    <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      {formatQuantity(calculatedFormNet)} {formUnit}
+                    </span>
+                    <span className="text-slate-400">×</span>
+                    <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      ₹{Number(formRateRupees || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-slate-400">=</span>
+                    <span className="font-mono font-black text-blue-900 bg-blue-100/80 px-2 py-0.5 rounded border border-blue-300">
+                      ₹{calculatedFormTotalRupees.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditEntryModal(false)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/70 rounded-xl transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-500/20 active:scale-95 transition flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4 text-white" />
+                      <span>{actionLoading ? "Saving..." : "Confirm & Update with Audit Reason"}</span>
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
