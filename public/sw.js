@@ -7,7 +7,7 @@
  * - Alerts pushed by the server show as phone notifications; tapping one
  *   opens its page.
  */
-const VERSION = "bothra-v4";
+const VERSION = "bothra-v5";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const SHELL = ["/offline", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
@@ -51,6 +51,8 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // On localhost / dev server, bypass service worker caching completely
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return;
   // The buyer portal, logging in and out, and file downloads are always live.
   // (/api/auth/me is kept so the app still knows who is logged in with no signal.)
   if ((url.pathname.startsWith("/api/auth") && url.pathname !== "/api/auth/me") || url.pathname.startsWith("/portal") || url.pathname.startsWith("/api/portal") || url.pathname.startsWith("/api/exports")) return;

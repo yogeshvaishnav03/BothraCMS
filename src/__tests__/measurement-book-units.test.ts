@@ -3,7 +3,7 @@ import {
   MEASUREMENT_UNIT_GROUPS,
   MEASUREMENT_TYPE_GROUPS,
   getUnitMetadata,
-} from "@/app/measurement-book/page";
+} from "@/lib/measurement-units";
 import { MeasurementBookService } from "@/services/measurement-book-service";
 
 describe("Measurement Book Units & Elements Model Tests", () => {

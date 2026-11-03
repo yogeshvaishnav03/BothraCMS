@@ -82,6 +82,26 @@ export default function Shell({ children }: ShellProps) {
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  // Evict stale service worker caches on local dev environment so updates load immediately
+  useEffect(() => {
+    if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const reg of registrations) {
+            reg.unregister();
+          }
+        });
+      }
+      if ("caches" in window) {
+        caches.keys().then((keys) => {
+          for (const k of keys) {
+            caches.delete(k);
+          }
+        });
+      }
+    }
+  }, []);
   const todayLabel = now.toLocaleDateString(language === "hi" ? "hi-IN" : "en-IN", {
     weekday: "long",
     day: "numeric",
