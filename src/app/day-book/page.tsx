@@ -1,7 +1,6 @@
 "use client";
 
 import { Alert } from "@/components/ui/Alert";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import React, { useEffect, useState, useMemo } from "react";
@@ -32,7 +31,6 @@ import {
   Users,
   UserCheck,
   Sparkles,
-  CalendarX,
   Info,
   Camera,
   UploadCloud,
@@ -1151,13 +1149,6 @@ export default function DayBookPage() {
 
   const isToday = selectedDate === todayStr;
 
-  const totalActivityCount =
-    (dayData?.payments.length || 0) +
-    (dayData?.bills.length || 0) +
-    (dayData?.headcount?.length || 0) +
-    (dayData?.attendance.length || 0) +
-    (dayData?.dailyReports.length || 0);
-
   return (
     <Shell>
       <div className="screen-only-section space-y-6 print:hidden">
@@ -1374,41 +1365,6 @@ export default function DayBookPage() {
           >
             {statusMessage.replace(/^(❌|✅)\s*/u, "")}
           </Alert>
-        )}
-
-        {/* Empty state: no activity recorded for the selected date */}
-        {!loading && totalActivityCount === 0 && (
-          <EmptyState
-            icon={CalendarX}
-            title={`No Day Book entries found for ${selectedDate === toDate ? formatDate(selectedDate) : `${formatDate(selectedDate)} — ${formatDate(toDate)}`}`}
-            description={
-              canLogDayEntry
-                ? "Nothing has been recorded for this date yet. Use “+ Log Day Entry” to add a payment, bill, stock movement, headcount or site report."
-                : "Nothing has been recorded for this date yet. Pick another date to review earlier activity."
-            }
-          >
-            {canLogDayEntry && (
-              <Button icon={<PlusCircle className="w-4 h-4" />} onClick={() => setShowLogModal(true)}>
-                {t("daybook.addEntry", "+ Log Day Entry")}
-              </Button>
-            )}
-            {dayData?.recentActivityDates && dayData.recentActivityDates.map((dt) => (
-              <Button key={dt} variant="secondary" size="sm" onClick={() => handleDateChange(dt)}>
-                Jump to {formatDate(dt)}
-              </Button>
-            ))}
-            {isSuperAdmin && (
-              <Button
-                variant="ghost"
-                size="sm"
-                loading={actionLoading}
-                icon={<Sparkles className="w-3.5 h-3.5 text-amber-600" />}
-                onClick={handleSeedDemoData}
-              >
-                Populate Demo Records
-              </Button>
-            )}
-          </EmptyState>
         )}
 
         {/* Summary KPI Cards for Selected Date */}
