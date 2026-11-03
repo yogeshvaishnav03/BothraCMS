@@ -783,7 +783,7 @@ export default function MaterialsPage() {
               showSearch={true}
               showExport={true}
             />
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-h-[400px]">
               <table className="w-full text-left text-sm min-w-[700px]">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>

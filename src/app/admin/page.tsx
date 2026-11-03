@@ -642,7 +642,7 @@ export default function SuperAdminDashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm min-h-[400px]">
               <ExcelTableToolbar
                 table={excelOrders}
                 columns={orderColumns}
@@ -650,7 +650,7 @@ export default function SuperAdminDashboardPage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                     <tr>
@@ -897,7 +897,7 @@ export default function SuperAdminDashboardPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm min-h-[400px]">
               <ExcelTableToolbar
                 table={excelAdminPayments}
                 columns={paymentColumns}
@@ -905,7 +905,7 @@ export default function SuperAdminDashboardPage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                     <tr>
@@ -1075,7 +1075,7 @@ export default function SuperAdminDashboardPage() {
             showSearch={true}
             showExport={true}
           />
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto min-h-[400px]">
             <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                 <tr>
