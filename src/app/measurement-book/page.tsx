@@ -159,10 +159,13 @@ const STANDARD_ROOMS = [
 
 function getKpiAmountClass(text: string): string {
   const len = text.length;
-  if (len >= 17) {
-    return "text-sm sm:text-base xl:text-lg";
+  if (len >= 16) {
+    return "text-xs sm:text-sm md:text-base lg:text-xs xl:text-sm 2xl:text-base";
   }
-  return "text-lg sm:text-xl";
+  if (len >= 12) {
+    return "text-sm sm:text-base md:text-lg lg:text-sm xl:text-base";
+  }
+  return "text-base sm:text-lg md:text-xl";
 }
 
 export default function MeasurementBookPage() {
@@ -1403,20 +1406,20 @@ export default function MeasurementBookPage() {
           return (
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
               {/* Card 1: Hierarchy Overview */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 hover:border-slate-300 transition">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Hierarchy Overview</span>
+                  <span className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 font-bold leading-tight">Hierarchy Overview</span>
                   <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 shrink-0">
                     <Layers className="w-3.5 h-3.5" />
                   </div>
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-lg sm:text-xl font-black text-slate-900 tabular-nums tracking-tight truncate leading-tight">
+                  <span className="text-base sm:text-lg md:text-xl font-black text-slate-900 tabular-nums tracking-tight leading-tight whitespace-nowrap">
                     {kpis.totalGroups}
                   </span>
                   <span className="text-xs font-semibold text-slate-500">Groups</span>
                 </div>
-                <div className="text-xs text-slate-500 truncate">
+                <div className="text-[10px] sm:text-[11px] text-slate-500 leading-tight">
                   {kpis.totalEntries} measurement {kpis.totalEntries === 1 ? "entry" : "entries"} recorded
                 </div>
               </div>
@@ -1425,30 +1428,30 @@ export default function MeasurementBookPage() {
               {(() => {
                 const totalMeasuredFormatted = formatCurrency(kpis.totalPaise);
                 return (
-                  <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+                  <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 hover:border-slate-300 transition">
                     <div className="flex items-center justify-between gap-1.5">
-                      <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Total Measured Value</span>
+                      <span className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 font-bold leading-tight">Total Measured Value</span>
                       <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-600 shrink-0">
                         <Receipt className="w-3.5 h-3.5" />
                       </div>
                     </div>
                     <div className="my-1 min-w-0">
                       <div
-                        className={`font-black text-emerald-600 tabular-nums tracking-tight truncate leading-tight ${getKpiAmountClass(totalMeasuredFormatted)}`}
+                        className={`font-black text-emerald-600 tabular-nums tracking-tight leading-tight whitespace-nowrap ${getKpiAmountClass(totalMeasuredFormatted)}`}
                         title={totalMeasuredFormatted}
                       >
                         {totalMeasuredFormatted}
                       </div>
                     </div>
-                    <div className="text-xs text-slate-500 truncate">Approved & Pending Works</div>
+                    <div className="text-[10px] sm:text-[11px] text-slate-500 leading-tight">Approved & Pending Works</div>
                   </div>
                 );
               })()}
 
               {/* Card 3: Quantities by Unit */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 hover:border-slate-300 transition">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Quantities by Unit</span>
+                  <span className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 font-bold leading-tight">Quantities by Unit</span>
                   <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/60 flex items-center justify-center text-indigo-600 shrink-0">
                     <Ruler className="w-3.5 h-3.5" />
                   </div>
@@ -1456,7 +1459,7 @@ export default function MeasurementBookPage() {
                 <div className="my-1 min-w-0">
                   {hasUnits ? (
                     <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-lg sm:text-xl font-black text-slate-900 tabular-nums tracking-tight truncate leading-tight">
+                      <span className="text-base sm:text-lg md:text-xl font-black text-slate-900 tabular-nums tracking-tight leading-tight whitespace-nowrap">
                         {formatQuantity(primaryQty)}
                       </span>
                       <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
@@ -1464,10 +1467,10 @@ export default function MeasurementBookPage() {
                       </span>
                     </div>
                   ) : (
-                    <div className="text-lg sm:text-xl font-black text-slate-400 tabular-nums tracking-tight leading-tight">0.00</div>
+                    <div className="text-base sm:text-lg md:text-xl font-black text-slate-400 tabular-nums tracking-tight leading-tight whitespace-nowrap">0.00</div>
                   )}
                 </div>
-                <div className="text-[11px] text-slate-500 leading-tight truncate">
+                <div className="text-[10px] sm:text-[11px] text-slate-500 leading-tight">
                   {otherUnits.length > 0 ? (
                     <span className="text-indigo-600 font-medium truncate block">
                       + {otherUnits.map(([u, q]) => `${formatQuantity(q)} ${u}`).join(" · ")}
@@ -1481,15 +1484,15 @@ export default function MeasurementBookPage() {
               </div>
 
               {/* Card 4: Verification Pipeline */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 hover:border-slate-300 transition">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Verification Pipeline</span>
+                  <span className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 font-bold leading-tight">Verification Pipeline</span>
                   <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600 shrink-0">
                     <FileCheck className="w-3.5 h-3.5" />
                   </div>
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-lg sm:text-xl font-black text-blue-700 tabular-nums tracking-tight truncate leading-tight">
+                  <span className="text-base sm:text-lg md:text-xl font-black text-blue-700 tabular-nums tracking-tight leading-tight whitespace-nowrap">
                     {verifiedOrAbove}
                   </span>
                   <span className="text-xs font-semibold text-slate-500">
@@ -1515,9 +1518,9 @@ export default function MeasurementBookPage() {
               </div>
 
               {/* Card 5: Supervisor Requests */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 hover:border-slate-300 transition">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Supervisor Requests</span>
+                  <span className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 font-bold leading-tight">Supervisor Requests</span>
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${
                       kpis.pendingChangeRequestsCount > 0
@@ -1530,7 +1533,7 @@ export default function MeasurementBookPage() {
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
                   <span
-                    className={`text-lg sm:text-xl font-black tabular-nums tracking-tight truncate leading-tight ${
+                    className={`text-base sm:text-lg md:text-xl font-black tabular-nums tracking-tight leading-tight whitespace-nowrap ${
                       kpis.pendingChangeRequestsCount > 0 ? "text-amber-600" : "text-slate-900"
                     }`}
                   >
@@ -1538,11 +1541,11 @@ export default function MeasurementBookPage() {
                   </span>
                   <span className="text-xs font-semibold text-slate-500">Pending</span>
                 </div>
-                <div className="text-xs truncate">
+                <div className="text-[10px] sm:text-[11px]">
                   {kpis.pendingChangeRequestsCount > 0 ? (
-                    <span className="text-amber-700 font-semibold truncate block">Requires Admin review</span>
+                    <span className="text-amber-700 font-semibold block">Requires Admin review</span>
                   ) : (
-                    <span className="text-emerald-700 font-medium flex items-center gap-1 truncate">
+                    <span className="text-emerald-700 font-medium flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       All requests cleared
                     </span>
