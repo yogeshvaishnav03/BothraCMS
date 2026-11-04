@@ -551,12 +551,6 @@ export default function DayBookPage() {
         ),
       },
       {
-        key: "site",
-        label: "Site",
-        accessor: (a) => a.site?.name || "Operational Site",
-        render: (a) => <span className="text-slate-600">{a.site?.name || "Operational Site"}</span>,
-      },
-      {
         key: "status",
         label: "Status",
         accessor: (a) => a.status || "PRESENT",
@@ -2427,7 +2421,6 @@ export default function DayBookPage() {
                                 <th className="p-3">Emp Code</th>
                                 <th className="p-3">Worker Name</th>
                                 <th className="p-3">Trade</th>
-                                <th className="p-3">Site</th>
                                 <th className="p-3">Status</th>
                               </tr>
                             </thead>
@@ -2439,7 +2432,6 @@ export default function DayBookPage() {
                                   </td>
                                   <td className="p-3 font-bold text-slate-900">{a.workforceMember?.name || "N/A"}</td>
                                   <td className="p-3 text-slate-600">{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff / Worker"}</td>
-                                  <td className="p-3 text-slate-600">{a.site?.name || "Operational Site"}</td>
                                   <td className="p-3">
                                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
                                       {a.status}
@@ -4977,8 +4969,7 @@ export default function DayBookPage() {
                       <tr>
                         <th style={{ width: "80px" }}>Emp Code</th>
                         <th>Staff / Worker Name</th>
-                        <th style={{ width: "110px" }}>Trade / Designation</th>
-                        <th style={{ width: "110px" }}>Site</th>
+                        <th style={{ width: "130px" }}>Trade / Designation</th>
                         <th style={{ width: "70px", textAlign: "center" }}>Status</th>
                         <th style={{ width: "70px", textAlign: "center" }}>Check-In</th>
                         <th style={{ width: "70px", textAlign: "center" }}>Check-Out</th>
@@ -4988,7 +4979,7 @@ export default function DayBookPage() {
                     <tbody>
                       {printAttendance.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                          <td colSpan={7} className="text-center text-slate-400 italic py-2">
                             No staff attendance records logged for this period.
                           </td>
                         </tr>
@@ -4998,7 +4989,6 @@ export default function DayBookPage() {
                             <td className="font-mono">{a.workforceMember?.employeeCode || "—"}</td>
                             <td className="font-bold text-slate-900">{a.workforceMember?.name || "Staff Member"}</td>
                             <td>{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}</td>
-                            <td>{a.site?.name || "Operational Site"}</td>
                             <td style={{ textAlign: "center", fontWeight: "bold" }}>{a.status || "PRESENT"}</td>
                             <td style={{ textAlign: "center" }}>
                               {a.checkInAt ? new Date(a.checkInAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : "—"}
