@@ -18,6 +18,11 @@ const postMessageSchema = z
     { message: "Message must contain text content or an image" }
   );
 
+const updateMessageSchema = z.object({
+  messageId: z.string().min(1, "Message ID is required"),
+  content: z.string().min(1, "Message content cannot be empty"),
+});
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await getUserContext(req);
@@ -101,6 +106,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         conversationId: m.conversationId,
         content: m.content,
         imageUrl: m.imageUrl,
+        isEdited: Boolean(m.isEdited),
+        updatedAt: m.updatedAt,
         createdAt: m.createdAt,
         senderId: m.senderId,
         isMine: m.senderId === user.userId,
@@ -178,11 +185,164 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         conversationId: message.conversationId,
         content: message.content,
         imageUrl: message.imageUrl,
+        isEdited: Boolean(message.isEdited),
+        updatedAt: message.updatedAt,
         createdAt: message.createdAt,
         senderId: message.senderId,
         isMine: true,
         sender: message.sender,
       },
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const user = await getUserContext(req);
+    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    // Verify current user is a participant of this conversation
+    const participant = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId: params.id,
+          userId: user.userId,
+        },
+      },
+    });
+
+    if (!participant) {
+      return jsonError("You are not a participant of this conversation", "FORBIDDEN", 403);
+    }
+
+    const body = await req.json();
+    const parsed = updateMessageSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError(parsed.error.errors[0]?.message || "Invalid update payload", "BAD_REQUEST", 400);
+    }
+
+    const { messageId, content } = parsed.data;
+
+    // Verify message exists and belongs to this conversation
+    const existing = await prisma.chatMessage.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!existing || existing.conversationId !== params.id) {
+      return jsonError("Message not found in this conversation", "NOT_FOUND", 404);
+    }
+
+    // Only the original sender can edit the message
+    if (existing.senderId !== user.userId) {
+      return jsonError("You can only edit your own messages", "FORBIDDEN", 403);
+    }
+
+    const now = new Date();
+    const updated = await prisma.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        content: content.trim(),
+        isEdited: true,
+        updatedAt: now,
+      },
+      include: {
+        sender: {
+          select: { id: true, name: true, email: true, role: true },
+        },
+      },
+    });
+
+    // Touch conversation updatedAt
+    await prisma.conversation.update({
+      where: { id: params.id },
+      data: { updatedAt: now },
+    });
+
+    return jsonSuccess({
+      message: {
+        id: updated.id,
+        conversationId: updated.conversationId,
+        content: updated.content,
+        imageUrl: updated.imageUrl,
+        isEdited: true,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+        senderId: updated.senderId,
+        isMine: true,
+        sender: updated.sender,
+      },
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const user = await getUserContext(req);
+    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    // Verify current user is a participant of this conversation
+    const participant = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId: params.id,
+          userId: user.userId,
+        },
+      },
+    });
+
+    if (!participant) {
+      return jsonError("You are not a participant of this conversation", "FORBIDDEN", 403);
+    }
+
+    const { searchParams } = new URL(req.url);
+    let messageId = searchParams.get("messageId");
+    if (!messageId) {
+      try {
+        const body = await req.json();
+        messageId = body?.messageId;
+      } catch {
+        // empty body
+      }
+    }
+
+    if (!messageId) {
+      return jsonError("messageId query parameter or body is required", "BAD_REQUEST", 400);
+    }
+
+    const existing = await prisma.chatMessage.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!existing || existing.conversationId !== params.id) {
+      return jsonError("Message not found in this conversation", "NOT_FOUND", 404);
+    }
+
+    const isAuthor = existing.senderId === user.userId;
+    const isAdmin = ["SUPER_ADMIN", "ORG_ADMIN"].includes(user.role);
+
+    if (!isAuthor && !isAdmin) {
+      return jsonError("You are not authorized to delete this message", "FORBIDDEN", 403);
+    }
+
+    await prisma.chatMessage.delete({
+      where: { id: messageId },
+    });
+
+    // Touch conversation updatedAt
+    await prisma.conversation.update({
+      where: { id: params.id },
+      data: { updatedAt: new Date() },
+    });
+
+    return jsonSuccess({
+      success: true,
+      messageId,
+      conversationId: params.id,
     });
   } catch (error) {
     return handleApiError(error);

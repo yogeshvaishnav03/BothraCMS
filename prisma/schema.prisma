@@ -737,6 +737,7 @@ model ChatMessage {
   senderId       String
   content        String
   imageUrl       String?
+  isEdited       Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

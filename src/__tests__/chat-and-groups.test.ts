@@ -9,6 +9,8 @@ import { POST as createGroupChatHandler } from "../app/api/chat/conversations/gr
 import {
   GET as getMessagesHandler,
   POST as postMessageHandler,
+  PATCH as patchMessageHandler,
+  DELETE as deleteMessageHandler,
 } from "../app/api/chat/conversations/[id]/messages/route";
 import { GET as getNotificationsHandler } from "../app/api/notifications/route";
 import { GET as getUnreadCountHandler } from "../app/api/chat/unread-count/route";
@@ -262,6 +264,84 @@ describe("Chat & Employee Messaging Lifecycle Tests", () => {
     expect(getJson.success).toBe(true);
     expect(getJson.data.messages.length).toBe(2);
     expect(getJson.data.messages[1].content).toContain("unloaded at Main Yard");
+  });
+
+  it("should allow employee to update/edit their sent message", async () => {
+    // 1. Supervisor posts a message with a typo
+    const postReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages`,
+      "POST",
+      { content: "Wrong report: only 100 bags received." },
+      supervisorToken
+    );
+    const postRes = await postMessageHandler(postReq, { params: { id: directConversationId } });
+    const postJson = await postRes.json();
+    expect(postJson.success).toBe(true);
+    const messageId = postJson.data.message.id;
+
+    // 2. Super admin cannot edit supervisor's message
+    const unauthorizedReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages`,
+      "PATCH",
+      { messageId, content: "Tampered report" },
+      superAdminToken
+    );
+    const unauthorizedRes = await patchMessageHandler(unauthorizedReq, { params: { id: directConversationId } });
+    expect(unauthorizedRes.status).toBe(403);
+
+    // 3. Supervisor corrects their own message
+    const patchReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages`,
+      "PATCH",
+      { messageId, content: "Corrected report: 200 bags received in good condition." },
+      supervisorToken
+    );
+    const patchRes = await patchMessageHandler(patchReq, { params: { id: directConversationId } });
+    expect(patchRes.status).toBe(200);
+
+    const patchJson = await patchRes.json();
+    expect(patchJson.success).toBe(true);
+    expect(patchJson.data.message.content).toBe("Corrected report: 200 bags received in good condition.");
+    expect(patchJson.data.message.isEdited).toBe(true);
+  });
+
+  it("should allow employee to delete their wrong message", async () => {
+    // 1. Supervisor posts a wrong message by mistake
+    const postReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages`,
+      "POST",
+      { content: "Accidental wrong message to delete." },
+      supervisorToken
+    );
+    const postRes = await postMessageHandler(postReq, { params: { id: directConversationId } });
+    const postJson = await postRes.json();
+    const messageId = postJson.data.message.id;
+
+    // 2. Supervisor deletes their wrong message
+    const deleteReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages?messageId=${messageId}`,
+      "DELETE",
+      undefined,
+      supervisorToken
+    );
+    const deleteRes = await deleteMessageHandler(deleteReq, { params: { id: directConversationId } });
+    expect(deleteRes.status).toBe(200);
+
+    const deleteJson = await deleteRes.json();
+    expect(deleteJson.success).toBe(true);
+    expect(deleteJson.data.messageId).toBe(messageId);
+
+    // 3. Verify message is gone from conversation
+    const getReq = makeJsonRequest(
+      `http://localhost:3000/api/chat/conversations/${directConversationId}/messages`,
+      "GET",
+      undefined,
+      supervisorToken
+    );
+    const getRes = await getMessagesHandler(getReq, { params: { id: directConversationId } });
+    const getJson = await getRes.json();
+    const found = getJson.data.messages.some((m: any) => m.id === messageId);
+    expect(found).toBe(false);
   });
 
   it("should reject non-participant from reading or posting to another conversation", async () => {

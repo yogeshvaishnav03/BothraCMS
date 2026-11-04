@@ -32,6 +32,8 @@ import {
   Download,
   Eye,
   ArrowLeft,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 interface Employee {
@@ -62,6 +64,8 @@ interface ConversationItem {
     id: string;
     content: string;
     imageUrl?: string | null;
+  isEdited?: boolean;
+  updatedAt?: string;
     createdAt: string;
     senderId: string;
     senderName: string;
@@ -74,6 +78,8 @@ interface MessageItem {
   conversationId: string;
   content: string;
   imageUrl?: string | null;
+  isEdited?: boolean;
+  updatedAt?: string;
   createdAt: string;
   senderId: string;
   isMine: boolean;
@@ -186,6 +192,138 @@ export default function ChatPage() {
   const prevActiveConvIdRef = useRef<string | null>(null);
 
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
+
+  // Editing & Deleting Messages State
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [updatingMessage, setUpdatingMessage] = useState(false);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [confirmDeleteMessageId, setConfirmDeleteMessageId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleStartEdit = (message: MessageItem) => {
+    setEditingMessageId(message.id);
+    setEditingContent(message.content === "[Photo]" ? "" : message.content);
+    setActionError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingContent("");
+    setActionError(null);
+  };
+
+  const handleSaveEdit = async (messageId: string) => {
+    if (!activeConversationId) return;
+    const trimmed = editingContent.trim();
+    if (!trimmed) {
+      setActionError("Message content cannot be empty");
+      return;
+    }
+
+    setUpdatingMessage(true);
+    setActionError(null);
+
+    try {
+      const res = await safeFetchJson(
+        `/api/chat/conversations/${activeConversationId}/messages`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messageId,
+            content: trimmed,
+          }),
+        }
+      );
+
+      if (res && res.success && res.data?.message) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  content: res.data.message.content,
+                  isEdited: true,
+                  updatedAt: res.data.message.updatedAt,
+                }
+              : m
+          )
+        );
+        setEditingMessageId(null);
+        setEditingContent("");
+
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === activeConversationId && c.latestMessage?.id === messageId
+              ? {
+                  ...c,
+                  latestMessage: {
+                    ...c.latestMessage,
+                    content: trimmed,
+                  },
+                }
+              : c
+          )
+        );
+      } else {
+        setActionError(res?.error?.message || "Failed to update message");
+      }
+    } catch {
+      setActionError("Network error while updating message");
+    } finally {
+      setUpdatingMessage(false);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!activeConversationId) return;
+    setDeletingMessageId(messageId);
+    setActionError(null);
+
+    try {
+      const res = await safeFetchJson(
+        `/api/chat/conversations/${activeConversationId}/messages?messageId=${encodeURIComponent(messageId)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (res && res.success) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+        setConfirmDeleteMessageId(null);
+
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (c.id === activeConversationId && c.latestMessage?.id === messageId) {
+              const remaining = messages.filter((m) => m.id !== messageId);
+              const nextLatest = remaining[remaining.length - 1];
+              return {
+                ...c,
+                latestMessage: nextLatest
+                  ? {
+                      id: nextLatest.id,
+                      content: nextLatest.content,
+                      imageUrl: nextLatest.imageUrl,
+                      createdAt: nextLatest.createdAt,
+                      senderId: nextLatest.senderId,
+                      senderName: nextLatest.sender?.name || "User",
+                    }
+                  : null,
+              };
+            }
+            return c;
+          })
+        );
+      } else {
+        setActionError(res?.error?.message || "Failed to delete message");
+      }
+    } catch {
+      setActionError("Network error while deleting message");
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
 
   // Dedicated container scroll-to-bottom (does NOT scroll whole page window)
   const scrollToBottom = useCallback((smooth = true) => {
@@ -980,11 +1118,14 @@ export default function ChatPage() {
                           const senderRole = m.sender?.role || "";
                           const hasPhoto = Boolean(m.imageUrl);
                           const hasCaption = m.content && m.content !== "[Photo]";
+                          const isEditing = editingMessageId === m.id;
+                          const canEdit = m.isMine;
+                          const canDelete = m.isMine || isSuperAdmin;
 
                           return (
                             <div
                               key={m.id}
-                              className={`flex flex-col ${m.isMine ? "items-end" : "items-start"}`}
+                              className={`flex flex-col ${m.isMine ? "items-end" : "items-start"} group relative`}
                             >
                               <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-500">
                                 {!m.isMine && (
@@ -1000,51 +1141,136 @@ export default function ChatPage() {
                                       })
                                     : ""}
                                 </span>
+                                {m.isEdited && (
+                                  <span className="text-[9px] text-amber-500 font-semibold italic">
+                                    • edited
+                                  </span>
+                                )}
                               </div>
 
-                              <div
-                                className={`max-w-md p-2.5 rounded-2xl text-xs leading-relaxed shadow-2xs ${
-                                  m.isMine
-                                    ? "bg-slate-900 text-white rounded-tr-none"
-                                    : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
-                                }`}
-                              >
-                                {/* Shared Photo Preview */}
-                                {m.imageUrl && (
-                                  <div className="relative group overflow-hidden rounded-xl bg-slate-950/10 cursor-pointer">
-                                    <img
-                                      src={m.imageUrl}
-                                      alt="Shared in chat"
-                                      onClick={() => setFullscreenImage(m.imageUrl || null)}
-                                      className="max-h-72 w-auto max-w-full rounded-xl object-contain transition duration-200 group-hover:scale-101"
-                                      loading="lazy"
-                                      referrerPolicy="no-referrer"
-                                      onError={(e) => {
-                                        const target = e.currentTarget;
-                                        target.onerror = null;
-                                        target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='120' viewBox='0 0 260 120'%3E%3Crect width='260' height='120' fill='%23f1f5f9' rx='10'/%3E%3Ctext x='130' y='65' text-anchor='middle' font-family='sans-serif' font-size='12' fill='%2364748b'%3E📷 Photo unavailable%3C/text%3E%3C/svg%3E";
-                                      }}
-                                    />
-                                    <div
-                                      onClick={() => setFullscreenImage(m.imageUrl || null)}
-                                      className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                      <span>Click to preview</span>
-                                    </div>
+                              <div className={`flex items-end gap-1.5 max-w-full ${m.isMine ? "flex-row" : "flex-row-reverse"}`}>
+                                {/* Action Buttons Toolbar for Edit & Delete */}
+                                {!isEditing && (canEdit || canDelete) && (
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 bg-white border border-slate-200 shadow-xs rounded-lg p-0.5 shrink-0 mb-1">
+                                    {canEdit && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEdit(m)}
+                                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition cursor-pointer"
+                                        title="Edit message (संपादित करें)"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    {canDelete && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmDeleteMessageId(m.id)}
+                                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                                        title="Delete message (हटाएं)"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                   </div>
                                 )}
 
-                                {/* Caption or text content */}
-                                {hasCaption && (
-                                  <div
-                                    className={`whitespace-pre-wrap break-words ${
-                                      hasPhoto ? "mt-2 pt-1 border-t border-white/10 px-0.5" : "px-1"
-                                    }`}
-                                  >
-                                    {m.content}
-                                  </div>
-                                )}
+                                <div
+                                  className={`max-w-md p-2.5 rounded-2xl text-xs leading-relaxed shadow-2xs ${
+                                    m.isMine
+                                      ? "bg-slate-900 text-white rounded-tr-none"
+                                      : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
+                                  }`}
+                                >
+                                  {/* Shared Photo Preview */}
+                                  {m.imageUrl && (
+                                    <div className="relative group overflow-hidden rounded-xl bg-slate-950/10 cursor-pointer">
+                                      <img
+                                        src={m.imageUrl}
+                                        alt="Shared in chat"
+                                        onClick={() => setFullscreenImage(m.imageUrl || null)}
+                                        className="max-h-72 w-auto max-w-full rounded-xl object-contain transition duration-200 group-hover:scale-101"
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                          const target = e.currentTarget;
+                                          target.onerror = null;
+                                          target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='120' viewBox='0 0 260 120'%3E%3Crect width='260' height='120' fill='%23f1f5f9' rx='10'/%3E%3Ctext x='130' y='65' text-anchor='middle' font-family='sans-serif' font-size='12' fill='%2364748b'%3E📷 Photo unavailable%3C/text%3E%3C/svg%3E";
+                                        }}
+                                      />
+                                      <div
+                                        onClick={() => setFullscreenImage(m.imageUrl || null)}
+                                        className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                        <span>Click to preview</span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Inline Edit Form when isEditing is true */}
+                                  {isEditing ? (
+                                    <div className="min-w-[240px] sm:min-w-[280px] space-y-2 mt-1">
+                                      <div className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                                        <Pencil className="w-3 h-3" />
+                                        <span>Update Message</span>
+                                      </div>
+                                      <textarea
+                                        value={editingContent}
+                                        onChange={(e) => setEditingContent(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter" && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSaveEdit(m.id);
+                                          } else if (e.key === "Escape") {
+                                            handleCancelEdit();
+                                          }
+                                        }}
+                                        rows={2}
+                                        className="w-full p-2 text-xs bg-slate-800 text-white rounded-lg border border-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none font-sans"
+                                        placeholder="Update your message..."
+                                        autoFocus
+                                      />
+                                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                        <span className="hidden sm:inline">Esc to cancel • Enter to save</span>
+                                        <div className="flex items-center gap-1.5 ml-auto">
+                                          <button
+                                            type="button"
+                                            onClick={handleCancelEdit}
+                                            disabled={updatingMessage}
+                                            className="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition cursor-pointer"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveEdit(m.id)}
+                                            disabled={updatingMessage || !editingContent.trim()}
+                                            className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                                          >
+                                            {updatingMessage ? (
+                                              <div className="w-3 h-3 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                              <Check className="w-3 h-3" />
+                                            )}
+                                            <span>Save</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Caption or text content */
+                                    hasCaption && (
+                                      <div
+                                        className={`whitespace-pre-wrap break-words ${
+                                          hasPhoto ? "mt-2 pt-1 border-t border-white/10 px-0.5" : "px-1"
+                                        }`}
+                                      >
+                                        {m.content}
+                                      </div>
+                                    )
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
@@ -1096,6 +1322,23 @@ export default function ChatPage() {
                           title="Remove image"
                         >
                           <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Action Error Banner */}
+                    {actionError && (
+                      <div className="p-2.5 px-3 bg-rose-50 border-t border-rose-200 text-xs text-rose-800 flex items-center justify-between shrink-0">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>{actionError}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setActionError(null)}
+                          className="p-1 text-rose-500 hover:text-rose-700 rounded cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     )}
@@ -1387,6 +1630,63 @@ export default function ChatPage() {
               alt="Shared full photo"
               className="max-h-[80vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
             />
+          </div>
+        </div>
+      )}
+      {/* Confirm Delete Message Modal */}
+      {confirmDeleteMessageId && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in"
+          onClick={() => setConfirmDeleteMessageId(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">Delete Message</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Are you sure you want to delete this message? This will remove it for everyone.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-700 italic max-h-24 overflow-y-auto">
+              &ldquo;{messages.find((m) => m.id === confirmDeleteMessageId)?.content || "[Photo]"}&rdquo;
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteMessageId(null)}
+                disabled={Boolean(deletingMessageId)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteMessage(confirmDeleteMessageId)}
+                disabled={Boolean(deletingMessageId)}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {deletingMessageId ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
