@@ -111,7 +111,7 @@ describe("Vendor and contractor bank details", () => {
       },
     });
 
-    as("PROJECT_MANAGER");
+    as("ACCOUNTANT");
     for (const res of [
       await listParties(new NextRequest(url("/api/parties"))),
       await getParty(new NextRequest(url(`/api/parties/${partyId}`)), { params: { id: partyId } }),
@@ -121,6 +121,11 @@ describe("Vendor and contractor bank details", () => {
       expect(res.status).toBe(200);
       expect(text).not.toContain(ACCOUNT);
     }
+
+    // PROJECT_MANAGER cannot access payments or bills
+    as("PROJECT_MANAGER");
+    const pmPaymentRes = await listPayments(new NextRequest(url("/api/finance/payments")));
+    expect(pmPaymentRes.status).toBe(403);
 
     const list = await (await listParties(new NextRequest(url("/api/parties")))).json();
     expect(list.data[0]).toMatchObject({ bankAccountMasked: "•••• 7891", bankIfsc: "HDFC0001234", hasBankDetails: true });

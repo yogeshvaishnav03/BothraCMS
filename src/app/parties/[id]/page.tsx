@@ -215,6 +215,7 @@ export default function PartyStatementPage() {
   const paidPct = contractVal > 0 ? Math.min(100, Math.round((totalPaid / contractVal) * 100)) : 0;
   const remainingContract = Math.max(0, contractVal - totalBilled);
 
+  const canReadFinance = canUser(currentUser, "finance:read");
   const canWriteFinance = canUser(currentUser, "finance:write");
   const canPlaceOrder =
     canUser(currentUser, "inventory:receipt") ||
@@ -284,7 +285,7 @@ export default function PartyStatementPage() {
         </div>
 
         {/* Contractor Contract Summary (if Contractor) */}
-        {isContractor && contractVal > 0 && (
+        {canReadFinance && isContractor && contractVal > 0 && (
           <div className="bg-gradient-to-r from-purple-900 to-indigo-950 rounded-2xl p-5 text-white shadow-md">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-purple-800/60">
               <div>
@@ -329,6 +330,7 @@ export default function PartyStatementPage() {
         )}
 
         {/* Financial Summary Cards */}
+        {canReadFinance ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -366,6 +368,12 @@ export default function PartyStatementPage() {
             </div>
           </div>
         </div>
+        ) : (
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-slate-400 shrink-0" />
+            <span>Financial figures, invoices, and payment records for this vendor/contractor are restricted to Finance and Admin accounts.</span>
+          </div>
+        )}
 
         {/* Material-wise Purchase Breakdown for Vendors */}
         {materialSummaries.length > 0 && (
@@ -419,6 +427,7 @@ export default function PartyStatementPage() {
         )}
 
         {/* Posted Bills Table */}
+        {canReadFinance && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -499,8 +508,10 @@ export default function PartyStatementPage() {
             </>
           )}
         </div>
+        )}
 
         {/* Payments Register Table */}
+        {canReadFinance && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
@@ -592,6 +603,7 @@ export default function PartyStatementPage() {
             </>
           )}
         </div>
+        )}
 
         {/* Purchase Orders to this Vendor */}
         {isVendor && (

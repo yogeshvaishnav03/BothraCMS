@@ -183,7 +183,8 @@ function SectionCheckboxCard({
 export default function DayBookPage() {
   const { t } = useLanguage();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const canWriteFinance = !currentUser || canUser(currentUser, "finance:write");
+  const canReadFinance = currentUser ? canUser(currentUser, "finance:read") : false;
+  const canWriteFinance = currentUser ? canUser(currentUser, "finance:write") : false;
   const canWriteProjects = !currentUser || canUser(currentUser, "projects:write");
   const canWriteTasks = !currentUser || canUser(currentUser, "tasks:write");
   const canWriteAttendance = !currentUser || canUser(currentUser, "attendance:write");
@@ -596,6 +597,12 @@ export default function DayBookPage() {
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"ALL" | "PAYMENTS" | "REJECTED" | "BILLS" | "ATTENDANCE" | "REPORTS">("ALL");
+
+  useEffect(() => {
+    if (currentUser && !canReadFinance && ["PAYMENTS", "REJECTED", "BILLS"].includes(activeTab)) {
+      setActiveTab("ALL");
+    }
+  }, [currentUser, canReadFinance, activeTab]);
   const [loading, setLoading] = useState(true);
   const [dayData, setDayData] = useState<DayBookData | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -1841,9 +1848,9 @@ export default function DayBookPage() {
         )}
 
         {/* Summary KPI Cards for Selected Date */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className={`grid grid-cols-2 ${canReadFinance ? "md:grid-cols-3 lg:grid-cols-5" : "md:grid-cols-2 lg:grid-cols-2"} gap-3 sm:gap-4`}>
           {/* Payments Out Card (Disbursed only) */}
-          {(() => {
+          {canReadFinance && (() => {
             const disbursedFormatted = dayData ? formatCurrency(disbursedTotal) : "₹0.00";
             return (
               <div
@@ -1879,7 +1886,7 @@ export default function DayBookPage() {
           })()}
 
           {/* Rejected Payments Card (Separate Card on Day Book page) */}
-          {(() => {
+          {canReadFinance && (() => {
             const rejectedFormatted = dayData ? formatCurrency(rejectedTotal) : "₹0.00";
             return (
               <div
@@ -1917,7 +1924,7 @@ export default function DayBookPage() {
           })()}
 
           {/* Bills Card */}
-          {(() => {
+          {canReadFinance && (() => {
             const billsFormatted = dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00";
             return (
               <div
@@ -2027,41 +2034,45 @@ export default function DayBookPage() {
           >
             All Activity
           </button>
-          <button
-            onClick={() => setActiveTab("PAYMENTS")}
-            className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "PAYMENTS" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <span>Payments Out</span>
-            <span className="px-1.5 py-0.2 bg-rose-500 text-white text-[10px] rounded-full">
-              {disbursedPayments.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab("REJECTED")}
-            className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "REJECTED" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <span>Rejected Payments</span>
-            <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${
-              rejectedPayments.length > 0 ? "bg-rose-600 text-white font-bold" : "bg-slate-200 text-slate-700"
-            }`}>
-              {rejectedPayments.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab("BILLS")}
-            className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "BILLS" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <span>Bills Incurred</span>
-            <span className="px-1.5 py-0.2 bg-slate-200 text-slate-800 text-[10px] rounded-full">
-              {dayData?.bills.length || 0}
-            </span>
-          </button>
+          {canReadFinance && (
+            <>
+              <button
+                onClick={() => setActiveTab("PAYMENTS")}
+                className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === "PAYMENTS" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <span>Payments Out</span>
+                <span className="px-1.5 py-0.2 bg-rose-500 text-white text-[10px] rounded-full">
+                  {disbursedPayments.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab("REJECTED")}
+                className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === "REJECTED" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <span>Rejected Payments</span>
+                <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${
+                  rejectedPayments.length > 0 ? "bg-rose-600 text-white font-bold" : "bg-slate-200 text-slate-700"
+                }`}>
+                  {rejectedPayments.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab("BILLS")}
+                className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
+                  activeTab === "BILLS" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <span>Bills Incurred</span>
+                <span className="px-1.5 py-0.2 bg-slate-200 text-slate-800 text-[10px] rounded-full">
+                  {dayData?.bills.length || 0}
+                </span>
+              </button>
+            </>
+          )}
           <button
             onClick={() => setActiveTab("ATTENDANCE")}
             className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
@@ -2096,7 +2107,7 @@ export default function DayBookPage() {
         ) : (
           <div className="space-y-4">
             {/* 0. Money in from buyers (Sales receipts) */}
-            {activeTab === "ALL" && (dayData?.moneyIn?.length || 0) > 0 && (
+            {canReadFinance && activeTab === "ALL" && (dayData?.moneyIn?.length || 0) > 0 && (
               <div className="bg-white rounded-2xl border border-emerald-200 overflow-hidden shadow-xs">
                 <div className="p-4 bg-emerald-50/60 border-b border-emerald-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -2148,7 +2159,7 @@ export default function DayBookPage() {
             )}
 
             {/* 1. Payments Table (Disbursed Only) */}
-            {(activeTab === "ALL" || activeTab === "PAYMENTS") && (
+            {canReadFinance && (activeTab === "ALL" || activeTab === "PAYMENTS") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
                 <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -2215,7 +2226,7 @@ export default function DayBookPage() {
             )}
 
             {/* 1B. Rejected Payments Table */}
-            {(activeTab === "REJECTED" || (activeTab === "ALL" && rejectedPayments.length > 0)) && (
+            {canReadFinance && (activeTab === "REJECTED" || (activeTab === "ALL" && rejectedPayments.length > 0)) && (
               <div className="bg-white rounded-2xl border border-rose-200 overflow-hidden shadow-xs">
                 <div className="p-4 bg-rose-50/60 border-b border-rose-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -2261,7 +2272,7 @@ export default function DayBookPage() {
             )}
 
             {/* 2. Bills Table */}
-            {(activeTab === "ALL" || activeTab === "BILLS") && (
+            {canReadFinance && (activeTab === "ALL" || activeTab === "BILLS") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
                 <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">

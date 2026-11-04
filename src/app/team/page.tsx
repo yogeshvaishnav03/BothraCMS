@@ -40,7 +40,7 @@ interface TeamMember {
 
 const ROLES: { value: string; label: string; hint: string; tone: string }[] = [
   { value: "ORG_ADMIN", label: "Admin", hint: "Everything in the company, including staff and approvals", tone: "bg-amber-50 text-amber-800 ring-amber-200" },
-  { value: "PROJECT_MANAGER", label: "Project Manager", hint: "Projects, tasks, materials and finance view for assigned projects", tone: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
+  { value: "PROJECT_MANAGER", label: "Project Manager", hint: "Projects, tasks, materials, drawings and site execution", tone: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
   { value: "SITE_SUPERVISOR", label: "Site Supervisor", hint: "Site work, attendance, material issue and daily reports", tone: "bg-orange-50 text-orange-700 ring-orange-200" },
   { value: "ACCOUNTANT", label: "Accountant", hint: "Bills, payments and vendor bank details", tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
   { value: "STOREKEEPER", label: "Storekeeper", hint: "Stock receipts, issues and transfers", tone: "bg-sky-50 text-sky-700 ring-sky-200" },

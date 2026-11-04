@@ -205,6 +205,7 @@ function BankDetailsModal({ party, onClose }: { party: any; onClose: () => void 
 
 export default function PartiesPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const canReadFinance = canUser(currentUser, "finance:read");
   const canWriteFinance = canUser(currentUser, "finance:write");
   const [parties, setParties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -481,11 +482,15 @@ export default function PartiesPage() {
         accessor: (p) => (p.hasBankDetails ? `${p.bankName || "UPI"} ${p.bankAccountMasked || p.upiId || ""} ${p.bankIfsc || ""}` : "Missing"),
         type: "text",
       },
-      { key: "totalBilled", label: "Total Billed", accessor: (p) => (Number(p.totalBilled) || 0) / 100, type: "currency", align: "right" },
-      { key: "totalPaid", label: "Total Paid", accessor: (p) => (Number(p.totalPaid) || 0) / 100, type: "currency", align: "right" },
-      { key: "outstandingBalance", label: "Outstanding", accessor: (p) => (Number(p.outstandingBalance) || 0) / 100, type: "currency", align: "right" },
+      ...(canReadFinance
+        ? [
+            { key: "totalBilled", label: "Total Billed", accessor: (p: any) => (Number(p.totalBilled) || 0) / 100, type: "currency" as const, align: "right" as const },
+            { key: "totalPaid", label: "Total Paid", accessor: (p: any) => (Number(p.totalPaid) || 0) / 100, type: "currency" as const, align: "right" as const },
+            { key: "outstandingBalance", label: "Outstanding", accessor: (p: any) => (Number(p.outstandingBalance) || 0) / 100, type: "currency" as const, align: "right" as const },
+          ]
+        : []),
     ],
-    []
+    [canReadFinance]
   );
 
   const excelParties = useExcelTable({ data: filteredParties, columns: partyColumns });
@@ -744,7 +749,7 @@ export default function PartiesPage() {
                   )}
 
                   {/* Money */}
-                  {p.totalBilled !== undefined && (
+                  {canReadFinance && p.totalBilled !== undefined && (
                     <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2.5 text-center">
                       <div>
                         <div className="text-[10px] text-slate-500">Billed</div>
@@ -883,13 +888,17 @@ export default function PartiesPage() {
                               <span className="text-rose-600 font-semibold">Missing</span>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-right font-medium text-slate-700 tabular-nums">{formatCurrency(p.totalBilled)}</td>
-                          <td className="py-3 px-4 text-right font-medium text-emerald-600 tabular-nums">{formatCurrency(p.totalPaid)}</td>
-                          <td className="py-3 px-4 text-right font-bold tabular-nums">
-                            <span className={p.outstandingBalance > 0 ? "text-amber-600" : p.outstandingBalance < 0 ? "text-emerald-600" : "text-slate-400"}>
-                              {formatCurrency(p.outstandingBalance)}
-                            </span>
-                          </td>
+                          {canReadFinance && (
+                            <>
+                              <td className="py-3 px-4 text-right font-medium text-slate-700 tabular-nums">{formatCurrency(p.totalBilled)}</td>
+                              <td className="py-3 px-4 text-right font-medium text-emerald-600 tabular-nums">{formatCurrency(p.totalPaid)}</td>
+                              <td className="py-3 px-4 text-right font-bold tabular-nums">
+                                <span className={p.outstandingBalance > 0 ? "text-amber-600" : p.outstandingBalance < 0 ? "text-emerald-600" : "text-slate-400"}>
+                                  {formatCurrency(p.outstandingBalance)}
+                                </span>
+                              </td>
+                            </>
+                          )}
                           <td className="py-3 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">{rowActions(p)}</div>
                           </td>

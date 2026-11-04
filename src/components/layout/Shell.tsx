@@ -321,7 +321,7 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.money",
       label: "Money",
       items: [
-        { key: "nav.finance", defaultLabel: "Payments & Bills", href: "/finance", icon: DollarSign },
+        ...(canUser(user, "finance:read") ? [{ key: "nav.finance", defaultLabel: "Payments & Bills", href: "/finance", icon: DollarSign }] : []),
         { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
         ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),
         ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Accounts Export", href: "/exports", icon: Landmark }] : []),

@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, formatDate } from "@/lib/formatters";
+import { canUser } from "@/lib/permissions";
 import {
   FileText,
   Download,
@@ -15,9 +16,17 @@ import {
 } from "lucide-react";
 
 export default function ReportsPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const canReadFinance = canUser(currentUser, "finance:read");
   const [reportType, setReportType] = useState<"STOCK" | "PAYABLES" | "ATTENDANCE">("STOCK");
   const [materials, setMaterials] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (currentUser && !canReadFinance && reportType === "PAYABLES") {
+      setReportType("STOCK");
+    }
+  }, [currentUser, canReadFinance, reportType]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -27,6 +36,9 @@ export default function ReportsPage() {
   const fetchReportsData = () => {
     setLoading(true);
     setError(null);
+    fetch("/api/auth/me").then((r) => r.json()).then((res) => {
+      if (res.success && res.data?.user) setCurrentUser(res.data.user);
+    }).catch(() => {});
     Promise.all([
       fetch("/api/materials").then(async (r) => {
         if (!r.ok) throw new Error(`Materials fetch failed (HTTP ${r.status})`);
@@ -274,7 +286,7 @@ export default function ReportsPage() {
               </button>
             )}
 
-            {reportType === "PAYABLES" && (
+            {canReadFinance && reportType === "PAYABLES" && (
               <button
                 onClick={exportPayablesCSV}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
@@ -310,17 +322,19 @@ export default function ReportsPage() {
             <span>Inventory & Stock Valuation</span>
           </button>
 
-          <button
-            onClick={() => setReportType("PAYABLES")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              reportType === "PAYABLES"
-                ? "bg-slate-900 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-200/60"
-            }`}
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>Payables Aging & Statements</span>
-          </button>
+          {canReadFinance && (
+            <button
+              onClick={() => setReportType("PAYABLES")}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                reportType === "PAYABLES"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-200/60"
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>Payables Aging & Statements</span>
+            </button>
+          )}
 
           <button
             onClick={() => setReportType("ATTENDANCE")}
@@ -428,7 +442,7 @@ export default function ReportsPage() {
               </div>
             </div>
           </div>
-        ) : reportType === "PAYABLES" ? (
+        ) : (canReadFinance && reportType === "PAYABLES") ? (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">

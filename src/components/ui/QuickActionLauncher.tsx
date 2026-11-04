@@ -120,7 +120,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeHi: "बिलिंग",
     keywords: ["finance", "bill", "payment", "utr", "gst", "vendor bill", "contractor payment", "bank", "paise"],
     requiredPermission: "finance:read",
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "ACCOUNTANT"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT"],
   },
   {
     id: "workforce",

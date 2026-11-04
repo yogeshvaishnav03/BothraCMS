@@ -41,6 +41,7 @@ import { canUser } from "@/lib/permissions";
 
 export default function FinancePage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const canReadFinance = canUser(currentUser, "finance:read");
   const canWriteFinance = canUser(currentUser, "finance:write");
   const canReverseFinance = canUser(currentUser, "finance:reverse");
   const [bills, setBills] = useState<any[]>([]);
@@ -999,6 +1000,28 @@ export default function FinancePage() {
     data: filteredBills,
     columns: billColumns,
   });
+
+  if (!loading && currentUser && !canReadFinance) {
+    return (
+      <Shell>
+        <div className="max-w-md mx-auto py-20 text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <DollarSign className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg font-black text-slate-900">Access Restricted</h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Payments and bills are restricted to Authorized Finance and Admin accounts. Your role ({currentUser.role}) does not have permission to view or manage financial records.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition shadow-sm"
+          >
+            Return to Dashboard
+          </Link>
+        </div>
+      </Shell>
+    );
+  }
 
   return (
     <Shell>
