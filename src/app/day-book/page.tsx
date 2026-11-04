@@ -103,19 +103,12 @@ const DEFAULT_PRINT_SECTIONS: PrintSectionConfig = {
 
 function getKpiAmountClass(text: string): string {
   const len = text.length;
-  if (len >= 16) {
-    // 16+ chars (e.g. ₹10,00,00,000.00 / 10 Crores and above)
-    return "text-sm sm:text-base lg:text-xs xl:text-sm 2xl:text-base";
+  if (len >= 17) {
+    // 100 Crores+ (17+ chars): scale smoothly
+    return "text-sm sm:text-base xl:text-lg";
   }
-  if (len >= 13) {
-    // 13-15 chars (e.g. ₹10,00,000.00 to ₹9,99,99,999.00)
-    return "text-base sm:text-lg lg:text-sm xl:text-base 2xl:text-lg";
-  }
-  if (len >= 10) {
-    // 10-12 chars (e.g. ₹28,410.00 to ₹9,99,999.00)
-    return "text-lg sm:text-xl lg:text-base xl:text-lg 2xl:text-xl";
-  }
-  return "text-xl sm:text-2xl";
+  // Standard unified size for all numbers up to tens of crores (e.g. ₹10,00,00,000.00):
+  return "text-lg sm:text-xl";
 }
 
 function SectionCheckboxCard({
@@ -1856,7 +1849,7 @@ export default function DayBookPage() {
             return (
               <div
                 onClick={() => setKpiPopupType("PAYMENTS")}
-                className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
+                className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
                 role="button"
                 tabIndex={0}
                 title="Click to view Payments breakdown popup"
@@ -1869,7 +1862,7 @@ export default function DayBookPage() {
                     </div>
                   </div>
                   <div
-                    className={`font-black text-rose-600 font-mono tracking-tight truncate leading-tight ${getKpiAmountClass(disbursedFormatted)}`}
+                    className={`font-black text-rose-600 tabular-nums tracking-tight truncate leading-tight ${getKpiAmountClass(disbursedFormatted)}`}
                     title={disbursedFormatted}
                   >
                     {disbursedFormatted}
@@ -1892,7 +1885,7 @@ export default function DayBookPage() {
             return (
               <div
                 onClick={() => setKpiPopupType("REJECTED_PAYMENTS")}
-                className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
+                className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
                 role="button"
                 tabIndex={0}
                 title="Click to view Rejected Payments popup"
@@ -1905,7 +1898,7 @@ export default function DayBookPage() {
                     </div>
                   </div>
                   <div
-                    className={`font-black font-mono tracking-tight truncate leading-tight ${
+                    className={`font-black tabular-nums tracking-tight truncate leading-tight ${
                       rejectedPayments.length > 0 ? "text-rose-600" : "text-slate-900"
                     } ${getKpiAmountClass(rejectedFormatted)}`}
                     title={rejectedFormatted}
@@ -1930,7 +1923,7 @@ export default function DayBookPage() {
             return (
               <div
                 onClick={() => setKpiPopupType("BILLS")}
-                className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
+                className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
                 role="button"
                 tabIndex={0}
                 title="Click to view Bills breakdown popup"
@@ -1943,7 +1936,7 @@ export default function DayBookPage() {
                     </div>
                   </div>
                   <div
-                    className={`font-black text-slate-900 font-mono tracking-tight truncate leading-tight ${getKpiAmountClass(billsFormatted)}`}
+                    className={`font-black text-slate-900 tabular-nums tracking-tight truncate leading-tight ${getKpiAmountClass(billsFormatted)}`}
                     title={billsFormatted}
                   >
                     {billsFormatted}
@@ -1963,7 +1956,7 @@ export default function DayBookPage() {
           {/* Staff Present (Staff only) */}
           <div
             onClick={() => setKpiPopupType("WORKFORCE")}
-            className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
+            className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
             role="button"
             tabIndex={0}
             title="Click to view Staff attendance breakdown popup"
@@ -1975,7 +1968,10 @@ export default function DayBookPage() {
                   <UserCheck className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate leading-tight">
+              <div
+                className="font-black text-slate-900 tabular-nums tracking-tight truncate leading-tight text-lg sm:text-xl"
+                title={String(dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0))}
+              >
                 {dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0)}
               </div>
               <div className="text-[11px] text-slate-400 mt-1 font-medium truncate">
@@ -1993,7 +1989,7 @@ export default function DayBookPage() {
           {/* Site Logs / DSR */}
           <div
             onClick={() => setKpiPopupType("DSR")}
-            className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
+            className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
             role="button"
             tabIndex={0}
             title="Click to view Site Logs breakdown popup"
@@ -2005,7 +2001,10 @@ export default function DayBookPage() {
                   <Layers className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate leading-tight">
+              <div
+                className="font-black text-slate-900 tabular-nums tracking-tight truncate leading-tight text-lg sm:text-xl"
+                title={String(dayData?.summary.reportsCount || 0)}
+              >
                 {dayData?.summary.reportsCount || 0}
               </div>
               <div className="text-[11px] text-slate-400 mt-1 font-medium truncate">

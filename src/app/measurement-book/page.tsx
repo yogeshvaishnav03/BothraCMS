@@ -159,16 +159,10 @@ const STANDARD_ROOMS = [
 
 function getKpiAmountClass(text: string): string {
   const len = text.length;
-  if (len >= 16) {
-    return "text-sm sm:text-base lg:text-xs xl:text-sm 2xl:text-base";
+  if (len >= 17) {
+    return "text-sm sm:text-base xl:text-lg";
   }
-  if (len >= 13) {
-    return "text-base sm:text-lg lg:text-sm xl:text-base 2xl:text-lg";
-  }
-  if (len >= 10) {
-    return "text-lg sm:text-xl lg:text-base xl:text-lg 2xl:text-xl";
-  }
-  return "text-xl sm:text-2xl";
+  return "text-lg sm:text-xl";
 }
 
 export default function MeasurementBookPage() {
@@ -1417,7 +1411,7 @@ export default function MeasurementBookPage() {
                   </div>
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-2xl font-black text-slate-900 font-mono tracking-tight truncate">
+                  <span className="text-lg sm:text-xl font-black text-slate-900 tabular-nums tracking-tight truncate leading-tight">
                     {kpis.totalGroups}
                   </span>
                   <span className="text-xs font-semibold text-slate-500">Groups</span>
@@ -1440,7 +1434,7 @@ export default function MeasurementBookPage() {
                     </div>
                     <div className="my-1 min-w-0">
                       <div
-                        className={`font-black text-emerald-600 font-mono tracking-tight truncate leading-tight ${getKpiAmountClass(totalMeasuredFormatted)}`}
+                        className={`font-black text-emerald-600 tabular-nums tracking-tight truncate leading-tight ${getKpiAmountClass(totalMeasuredFormatted)}`}
                         title={totalMeasuredFormatted}
                       >
                         {totalMeasuredFormatted}
@@ -1462,7 +1456,7 @@ export default function MeasurementBookPage() {
                 <div className="my-1 min-w-0">
                   {hasUnits ? (
                     <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-2xl font-black text-slate-900 font-mono tracking-tight truncate">
+                      <span className="text-lg sm:text-xl font-black text-slate-900 tabular-nums tracking-tight truncate leading-tight">
                         {formatQuantity(primaryQty)}
                       </span>
                       <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
@@ -1470,7 +1464,7 @@ export default function MeasurementBookPage() {
                       </span>
                     </div>
                   ) : (
-                    <div className="text-2xl font-black text-slate-400 font-mono tracking-tight">0.00</div>
+                    <div className="text-lg sm:text-xl font-black text-slate-400 tabular-nums tracking-tight leading-tight">0.00</div>
                   )}
                 </div>
                 <div className="text-[11px] text-slate-500 leading-tight truncate">
@@ -1495,7 +1489,7 @@ export default function MeasurementBookPage() {
                   </div>
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-2xl font-black text-blue-700 font-mono tracking-tight truncate">
+                  <span className="text-lg sm:text-xl font-black text-blue-700 tabular-nums tracking-tight truncate leading-tight">
                     {verifiedOrAbove}
                   </span>
                   <span className="text-xs font-semibold text-slate-500">
@@ -1536,7 +1530,7 @@ export default function MeasurementBookPage() {
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
                   <span
-                    className={`text-2xl font-black font-mono tracking-tight ${
+                    className={`text-lg sm:text-xl font-black tabular-nums tracking-tight truncate leading-tight ${
                       kpis.pendingChangeRequestsCount > 0 ? "text-amber-600" : "text-slate-900"
                     }`}
                   >
@@ -1544,11 +1538,11 @@ export default function MeasurementBookPage() {
                   </span>
                   <span className="text-xs font-semibold text-slate-500">Pending</span>
                 </div>
-                <div className="text-xs">
+                <div className="text-xs truncate">
                   {kpis.pendingChangeRequestsCount > 0 ? (
-                    <span className="text-amber-700 font-semibold">Requires Admin review</span>
+                    <span className="text-amber-700 font-semibold truncate block">Requires Admin review</span>
                   ) : (
-                    <span className="text-emerald-700 font-medium flex items-center gap-1">
+                    <span className="text-emerald-700 font-medium flex items-center gap-1 truncate">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       All requests cleared
                     </span>
