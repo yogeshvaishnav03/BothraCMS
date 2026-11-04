@@ -12,6 +12,7 @@ const createMaterialSchema = z.object({
   name: z.string().min(2),
   categoryId: z.string().optional(),
   unitCode: z.string().min(1).default("PIECE"),
+  unitPrice: z.number().min(0).optional().default(0),
   minStockQty: z.number().min(0).default(0),
   reorderQty: z.number().min(0).default(0),
 });
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
         name: data.name,
         categoryId: data.categoryId,
         unitCode: data.unitCode,
+        unitPrice: data.unitPrice ?? 0,
         minStockQty: data.minStockQty,
         reorderQty: data.reorderQty,
       },
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
         action: "MATERIAL_CREATED",
         entityType: "MATERIAL",
         entityId: material.id,
-        afterJson: JSON.stringify({ name: material.name, sku: material.sku }),
+        afterJson: JSON.stringify({ name: material.name, sku: material.sku, unitPrice: material.unitPrice }),
         reason: "Material item added to inventory catalog",
       },
     });

@@ -29,6 +29,7 @@ interface MaterialSummary {
   name: string;
   sku: string;
   unitCode: string;
+  unitPrice?: number;
   minStockQty?: number;
   reorderQty?: number;
   currentStock?: number;
@@ -124,9 +125,15 @@ export default function PlaceOrderModal({
               ? initialMaterial.reorderQty
               : 1000;
           setQuantity(suggested.toString());
+          if (initialMaterial.unitPrice && Number(initialMaterial.unitPrice) > 0) {
+            setUnitRate(String(initialMaterial.unitPrice));
+          }
           setApprovalQuery(`Critical site stock shortage for ${initialMaterial.name}. Minimum stock is ${initialMaterial.minStockQty || 0} ${initialMaterial.unitCode}, current stock is ${initialMaterial.currentStock || 0} ${initialMaterial.unitCode}. Requesting PO confirmation.`);
         } else if (mList.length > 0) {
           setSelectedMaterialId(mList[0].id);
+          if (mList[0].unitPrice && Number(mList[0].unitPrice) > 0) {
+            setUnitRate(String(mList[0].unitPrice));
+          }
         }
 
         if (vList.length > 0) {
@@ -508,7 +515,14 @@ export default function PlaceOrderModal({
                   </label>
                   <select
                     value={selectedMaterialId}
-                    onChange={(e) => setSelectedMaterialId(e.target.value)}
+                    onChange={(e) => {
+                      const matId = e.target.value;
+                      setSelectedMaterialId(matId);
+                      const foundMat = materials.find((m) => m.id === matId);
+                      if (foundMat?.unitPrice && Number(foundMat.unitPrice) > 0) {
+                        setUnitRate(String(foundMat.unitPrice));
+                      }
+                    }}
                     required
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   >
@@ -579,7 +593,7 @@ export default function PlaceOrderModal({
                       type="number"
                       step="any"
                       min="0"
-                      placeholder="e.g. 85.00"
+                      placeholder={currentMaterial?.unitPrice ? `Rate: ₹${currentMaterial.unitPrice}` : "e.g. 85.00"}
                       value={unitRate}
                       onChange={(e) => setUnitRate(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-amber-500 focus:outline-none"

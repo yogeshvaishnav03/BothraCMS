@@ -845,6 +845,7 @@ export class InventoryService {
         category: m.category,
         categoryName: m.category?.name || "General",
         unitCode: m.unitCode,
+        unitPrice: m.unitPrice ?? 0,
         totalStock: availableStock,
         actualStock: availableStock,
         authoritativeStock: availableStock,

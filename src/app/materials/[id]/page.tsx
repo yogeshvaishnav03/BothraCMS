@@ -242,11 +242,16 @@ export default function MaterialDetailPage() {
               <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
                 Material Detail & Stock Ledger
               </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
                 <span>{material.name}</span>
                 <span className="font-mono text-xs px-2.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">
                   {material.sku}
                 </span>
+                {material.unitPrice ? (
+                  <span className="font-semibold text-xs px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Rate: ₹{Number(material.unitPrice).toLocaleString("en-IN", { minimumFractionDigits: 2 })} / {material.unitCode}
+                  </span>
+                ) : null}
               </h1>
             </div>
           </div>
@@ -294,7 +299,7 @@ export default function MaterialDetailPage() {
         )}
 
         {/* Metric Cards Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Current Stock on Hand
@@ -325,6 +330,16 @@ export default function MaterialDetailPage() {
               {formatQuantity(totalIssued, material.unitCode)}
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Issued to site projects & tasks</div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Unit Rate (Price)
+            </span>
+            <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
+              {material.unitPrice ? `₹${Number(material.unitPrice).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">Standard rate per {material.unitCode}</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">

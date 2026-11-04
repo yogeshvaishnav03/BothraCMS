@@ -5,6 +5,9 @@
 const { PrismaClient } = require("@prisma/client");
 
 const POSTGRES_COLUMNS = [
+  // Material unit price
+  `ALTER TABLE "Material" ADD COLUMN IF NOT EXISTS "unitPrice" DOUBLE PRECISION DEFAULT 0;`,
+
   // Phase 7: Workforce compliance
   `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "pfApplicable" BOOLEAN DEFAULT false;`,
   `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "esiApplicable" BOOLEAN DEFAULT false;`,

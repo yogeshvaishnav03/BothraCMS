@@ -34,6 +34,7 @@ interface StandardMaterialPreset {
   sku: string;
   min: number;
   reorder: number;
+  unitPrice?: number;
 }
 
 interface StandardMaterialCategory {
@@ -45,88 +46,88 @@ const STANDARD_CONSTRUCTION_MATERIALS: StandardMaterialCategory[] = [
   {
     category: "Cement & Binders",
     items: [
-      { name: "UltraTech Super Cement OPC 53 Grade", unit: "BAG", sku: "CEM-OPC-53", min: 50, reorder: 200 },
-      { name: "UltraTech Cement PPC (50kg)", unit: "BAG", sku: "CEM-PPC-50", min: 100, reorder: 250 },
-      { name: "Ambuja Cement PPC (50kg)", unit: "BAG", sku: "CEM-AMB-50", min: 50, reorder: 200 },
-      { name: "ACC Gold Water Shield Cement", unit: "BAG", sku: "CEM-ACC-50", min: 50, reorder: 200 },
-      { name: "Shree Cement OPC 43 Grade", unit: "BAG", sku: "CEM-SHR-43", min: 50, reorder: 200 },
-      { name: "Birla White Portland Cement (50kg)", unit: "BAG", sku: "CEM-WHT-50", min: 20, reorder: 50 },
-      { name: "JK Super Cement PPC (50kg)", unit: "BAG", sku: "CEM-JKS-50", min: 50, reorder: 200 },
+      { name: "UltraTech Super Cement OPC 53 Grade", unit: "BAG", sku: "CEM-OPC-53", min: 50, reorder: 200, unitPrice: 390 },
+      { name: "UltraTech Cement PPC (50kg)", unit: "BAG", sku: "CEM-PPC-50", min: 100, reorder: 250, unitPrice: 375 },
+      { name: "Ambuja Cement PPC (50kg)", unit: "BAG", sku: "CEM-AMB-50", min: 50, reorder: 200, unitPrice: 380 },
+      { name: "ACC Gold Water Shield Cement", unit: "BAG", sku: "CEM-ACC-50", min: 50, reorder: 200, unitPrice: 420 },
+      { name: "Shree Cement OPC 43 Grade", unit: "BAG", sku: "CEM-SHR-43", min: 50, reorder: 200, unitPrice: 360 },
+      { name: "Birla White Portland Cement (50kg)", unit: "BAG", sku: "CEM-WHT-50", min: 20, reorder: 50, unitPrice: 950 },
+      { name: "JK Super Cement PPC (50kg)", unit: "BAG", sku: "CEM-JKS-50", min: 50, reorder: 200, unitPrice: 370 },
     ],
   },
   {
     category: "Aggregates, Sand & Concrete",
     items: [
-      { name: "Coarse Washed River Sand", unit: "TONNE", sku: "AGG-SND-CRS", min: 20, reorder: 50 },
-      { name: "M-Sand (Manufactured Sand)", unit: "TONNE", sku: "AGG-MSAND", min: 25, reorder: 60 },
-      { name: "Crushed Stone Aggregate 10mm (Gitti)", unit: "TONNE", sku: "AGG-10MM", min: 15, reorder: 40 },
-      { name: "Crushed Stone Aggregate 20mm (Gitti)", unit: "TONNE", sku: "AGG-20MM", min: 20, reorder: 50 },
-      { name: "Crushed Stone Aggregate 40mm", unit: "TONNE", sku: "AGG-40MM", min: 15, reorder: 30 },
-      { name: "Quarry Dust / Stone Dust", unit: "TONNE", sku: "AGG-DUST", min: 10, reorder: 30 },
-      { name: "Ready Mix Concrete (RMC) M25", unit: "TONNE", sku: "RMC-M25", min: 10, reorder: 25 },
-      { name: "Ready Mix Concrete (RMC) M30", unit: "TONNE", sku: "RMC-M30", min: 10, reorder: 25 },
+      { name: "Coarse Washed River Sand", unit: "TONNE", sku: "AGG-SND-CRS", min: 20, reorder: 50, unitPrice: 1600 },
+      { name: "M-Sand (Manufactured Sand)", unit: "TONNE", sku: "AGG-MSAND", min: 25, reorder: 60, unitPrice: 1200 },
+      { name: "Crushed Stone Aggregate 10mm (Gitti)", unit: "TONNE", sku: "AGG-10MM", min: 15, reorder: 40, unitPrice: 950 },
+      { name: "Crushed Stone Aggregate 20mm (Gitti)", unit: "TONNE", sku: "AGG-20MM", min: 20, reorder: 50, unitPrice: 850 },
+      { name: "Crushed Stone Aggregate 40mm", unit: "TONNE", sku: "AGG-40MM", min: 15, reorder: 30, unitPrice: 800 },
+      { name: "Quarry Dust / Stone Dust", unit: "TONNE", sku: "AGG-DUST", min: 10, reorder: 30, unitPrice: 650 },
+      { name: "Ready Mix Concrete (RMC) M25", unit: "TONNE", sku: "RMC-M25", min: 10, reorder: 25, unitPrice: 4200 },
+      { name: "Ready Mix Concrete (RMC) M30", unit: "TONNE", sku: "RMC-M30", min: 10, reorder: 25, unitPrice: 4600 },
     ],
   },
   {
     category: "Steel & Structural Metal",
     items: [
-      { name: "Tata Tiscon Fe550D TMT Rebar 8mm", unit: "TONNE", sku: "STL-TMT-8", min: 5, reorder: 15 },
-      { name: "Tata Tiscon Fe550D TMT Rebar 10mm", unit: "TONNE", sku: "STL-TMT-10", min: 8, reorder: 20 },
-      { name: "Tata Tiscon Fe550D TMT Rebar 12mm", unit: "TONNE", sku: "STL-TMT-12", min: 10, reorder: 25 },
-      { name: "Tata Tiscon Fe550D TMT Rebar 16mm", unit: "TONNE", sku: "STL-TMT-16", min: 10, reorder: 25 },
-      { name: "Tata Tiscon Fe550D TMT Rebar 20mm", unit: "TONNE", sku: "STL-TMT-20", min: 8, reorder: 20 },
-      { name: "Tata Tiscon Fe550D TMT Rebar 25mm", unit: "TONNE", sku: "STL-TMT-25", min: 5, reorder: 15 },
-      { name: "Jindal Panther Fe550D TMT Rebar 12mm", unit: "TONNE", sku: "STL-JND-12", min: 10, reorder: 25 },
-      { name: "Binding Wire (18 Gauge Galvanized)", unit: "KG", sku: "STL-BND-18", min: 50, reorder: 100 },
-      { name: "MS Structural Angle 50x50x6mm", unit: "KG", sku: "STL-ANG-50", min: 100, reorder: 300 },
-      { name: "MS Channel 100x50mm", unit: "KG", sku: "STL-CHN-100", min: 100, reorder: 300 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 8mm", unit: "TONNE", sku: "STL-TMT-8", min: 5, reorder: 15, unitPrice: 68000 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 10mm", unit: "TONNE", sku: "STL-TMT-10", min: 8, reorder: 20, unitPrice: 66000 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 12mm", unit: "TONNE", sku: "STL-TMT-12", min: 10, reorder: 25, unitPrice: 65000 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 16mm", unit: "TONNE", sku: "STL-TMT-16", min: 10, reorder: 25, unitPrice: 65000 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 20mm", unit: "TONNE", sku: "STL-TMT-20", min: 8, reorder: 20, unitPrice: 65000 },
+      { name: "Tata Tiscon Fe550D TMT Rebar 25mm", unit: "TONNE", sku: "STL-TMT-25", min: 5, reorder: 15, unitPrice: 65000 },
+      { name: "Jindal Panther Fe550D TMT Rebar 12mm", unit: "TONNE", sku: "STL-JND-12", min: 10, reorder: 25, unitPrice: 63000 },
+      { name: "Binding Wire (18 Gauge Galvanized)", unit: "KG", sku: "STL-BND-18", min: 50, reorder: 100, unitPrice: 85 },
+      { name: "MS Structural Angle 50x50x6mm", unit: "KG", sku: "STL-ANG-50", min: 100, reorder: 300, unitPrice: 72 },
+      { name: "MS Channel 100x50mm", unit: "KG", sku: "STL-CHN-100", min: 100, reorder: 300, unitPrice: 74 },
     ],
   },
   {
     category: "Bricks, Blocks & Masonry",
     items: [
-      { name: "Red Clay Kiln Bricks (Standard 9x4x3)", unit: "PIECE", sku: "BRK-RED-STD", min: 2000, reorder: 5000 },
-      { name: "Fly Ash Bricks Class 1", unit: "PIECE", sku: "BRK-FLY-ASH", min: 1500, reorder: 4000 },
-      { name: "AAC Lightweight Blocks (600x200x150mm)", unit: "PIECE", sku: "BLK-AAC-150", min: 300, reorder: 800 },
-      { name: "AAC Lightweight Blocks (600x200x200mm)", unit: "PIECE", sku: "BLK-AAC-200", min: 300, reorder: 800 },
-      { name: "Block Jointing Chemical Mortar (40kg)", unit: "BAG", sku: "MOR-AAC-40", min: 25, reorder: 60 },
+      { name: "Red Clay Kiln Bricks (Standard 9x4x3)", unit: "PIECE", sku: "BRK-RED-STD", min: 2000, reorder: 5000, unitPrice: 9 },
+      { name: "Fly Ash Bricks Class 1", unit: "PIECE", sku: "BRK-FLY-ASH", min: 1500, reorder: 4000, unitPrice: 6.5 },
+      { name: "AAC Lightweight Blocks (600x200x150mm)", unit: "PIECE", sku: "BLK-AAC-150", min: 300, reorder: 800, unitPrice: 55 },
+      { name: "AAC Lightweight Blocks (600x200x200mm)", unit: "PIECE", sku: "BLK-AAC-200", min: 300, reorder: 800, unitPrice: 68 },
+      { name: "Block Jointing Chemical Mortar (40kg)", unit: "BAG", sku: "MOR-AAC-40", min: 25, reorder: 60, unitPrice: 420 },
     ],
   },
   {
     category: "Paints, Putty & Waterproofing",
     items: [
-      { name: "Asian Paints Apex Ultima White (20L)", unit: "LITRE", sku: "PNT-APX-WHT", min: 20, reorder: 50 },
-      { name: "Asian Paints Tractor Emulsion (20L)", unit: "LITRE", sku: "PNT-TRC-20L", min: 15, reorder: 40 },
-      { name: "Dr. Fixit 101 LW+ Waterproofing (20L)", unit: "LITRE", sku: "CHM-DFX-101", min: 10, reorder: 30 },
-      { name: "Dr. Fixit Fastflex 2K Waterproofing (12kg)", unit: "KG", sku: "CHM-DFX-FFX", min: 10, reorder: 25 },
-      { name: "Birla White Wall Care Putty (40kg)", unit: "BAG", sku: "PTY-WCR-40", min: 30, reorder: 75 },
-      { name: "Exterior Acrylic Wall Primer (20L)", unit: "LITRE", sku: "PRM-EXT-20L", min: 15, reorder: 30 },
+      { name: "Asian Paints Apex Ultima White (20L)", unit: "LITRE", sku: "PNT-APX-WHT", min: 20, reorder: 50, unitPrice: 5600 },
+      { name: "Asian Paints Tractor Emulsion (20L)", unit: "LITRE", sku: "PNT-TRC-20L", min: 15, reorder: 40, unitPrice: 2800 },
+      { name: "Dr. Fixit 101 LW+ Waterproofing (20L)", unit: "LITRE", sku: "CHM-DFX-101", min: 10, reorder: 30, unitPrice: 2200 },
+      { name: "Dr. Fixit Fastflex 2K Waterproofing (12kg)", unit: "KG", sku: "CHM-DFX-FFX", min: 10, reorder: 25, unitPrice: 3100 },
+      { name: "Birla White Wall Care Putty (40kg)", unit: "BAG", sku: "PTY-WCR-40", min: 30, reorder: 75, unitPrice: 920 },
+      { name: "Exterior Acrylic Wall Primer (20L)", unit: "LITRE", sku: "PRM-EXT-20L", min: 15, reorder: 30, unitPrice: 2400 },
     ],
   },
   {
     category: "Plumbing & Drainage",
     items: [
-      { name: "Astral CPVC Pro Pipe 1 inch (3m SDR 11)", unit: "PIECE", sku: "PLB-CPVC-1IN", min: 30, reorder: 80 },
-      { name: "Astral CPVC Pro Pipe 3/4 inch (3m SDR 11)", unit: "PIECE", sku: "PLB-CPVC-34IN", min: 40, reorder: 100 },
-      { name: "Supreme PVC SWR Drainage Pipe 110mm (4 inch)", unit: "PIECE", sku: "PLB-SWR-110", min: 20, reorder: 50 },
-      { name: "CPVC Heavy Duty Solvent Cement (500ml)", unit: "PIECE", sku: "PLB-SLV-500", min: 10, reorder: 25 },
+      { name: "Astral CPVC Pro Pipe 1 inch (3m SDR 11)", unit: "PIECE", sku: "PLB-CPVC-1IN", min: 30, reorder: 80, unitPrice: 420 },
+      { name: "Astral CPVC Pro Pipe 3/4 inch (3m SDR 11)", unit: "PIECE", sku: "PLB-CPVC-34IN", min: 40, reorder: 100, unitPrice: 290 },
+      { name: "Supreme PVC SWR Drainage Pipe 110mm (4 inch)", unit: "PIECE", sku: "PLB-SWR-110", min: 20, reorder: 50, unitPrice: 650 },
+      { name: "CPVC Heavy Duty Solvent Cement (500ml)", unit: "PIECE", sku: "PLB-SLV-500", min: 10, reorder: 25, unitPrice: 350 },
     ],
   },
   {
     category: "Electrical & Wiring",
     items: [
-      { name: "Finolex 1.5 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-15", min: 10, reorder: 25 },
-      { name: "Finolex 2.5 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-25", min: 15, reorder: 35 },
-      { name: "Finolex 4.0 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-40", min: 10, reorder: 20 },
-      { name: "PVC Electrical Conduit Pipe 25mm (3m)", unit: "PIECE", sku: "ELC-CND-25", min: 50, reorder: 150 },
+      { name: "Finolex 1.5 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-15", min: 10, reorder: 25, unitPrice: 1650 },
+      { name: "Finolex 2.5 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-25", min: 15, reorder: 35, unitPrice: 2450 },
+      { name: "Finolex 4.0 sq mm FR Wire (90m coil)", unit: "BOX", sku: "ELC-FNL-40", min: 10, reorder: 20, unitPrice: 3800 },
+      { name: "PVC Electrical Conduit Pipe 25mm (3m)", unit: "PIECE", sku: "ELC-CND-25", min: 50, reorder: 150, unitPrice: 85 },
     ],
   },
   {
     category: "Tiles, Granite & Adhesive",
     items: [
-      { name: "Vitrified Floor Tiles 600x600mm Double Charged", unit: "BOX", sku: "TLS-VIT-600", min: 40, reorder: 100 },
-      { name: "Granite Slab Black Galaxy (18mm)", unit: "PIECE", sku: "STN-GRN-BLK", min: 10, reorder: 25 },
-      { name: "Polymer Modified Tile Adhesive (20kg)", unit: "BAG", sku: "ADH-TLS-20K", min: 20, reorder: 50 },
+      { name: "Vitrified Floor Tiles 600x600mm Double Charged", unit: "BOX", sku: "TLS-VIT-600", min: 40, reorder: 100, unitPrice: 850 },
+      { name: "Granite Slab Black Galaxy (18mm)", unit: "PIECE", sku: "STN-GRN-BLK", min: 10, reorder: 25, unitPrice: 2200 },
+      { name: "Polymer Modified Tile Adhesive (20kg)", unit: "BAG", sku: "ADH-TLS-20K", min: 20, reorder: 50, unitPrice: 480 },
     ],
   },
 ];
@@ -164,6 +165,7 @@ export default function MaterialsPage() {
   const [newMatUnit, setNewMatUnit] = useState("BAG");
   const [newMatMinStock, setNewMatMinStock] = useState("");
   const [newMatReorder, setNewMatReorder] = useState("");
+  const [newMatUnitPrice, setNewMatUnitPrice] = useState("");
   const [selectedMaterialPreset, setSelectedMaterialPreset] = useState("");
   const [isCustomMaterialName, setIsCustomMaterialName] = useState(false);
   const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
@@ -190,6 +192,7 @@ export default function MaterialsPage() {
     setNewMatUnit(preset.unit);
     setNewMatMinStock(preset.min ? String(preset.min) : "");
     setNewMatReorder(preset.reorder ? String(preset.reorder) : "");
+    setNewMatUnitPrice(preset.unitPrice !== undefined ? String(preset.unitPrice) : "");
     setNewMatSku(`${preset.sku}-${Math.floor(100 + Math.random() * 900)}`);
     setSelectedMaterialPreset(preset.name);
     setIsCustomMaterialName(false);
@@ -235,6 +238,7 @@ export default function MaterialsPage() {
       setNewMatUnit(found.unit);
       setNewMatMinStock(found.min ? String(found.min) : "");
       setNewMatReorder(found.reorder ? String(found.reorder) : "");
+      setNewMatUnitPrice(found.unitPrice !== undefined ? String(found.unitPrice) : "");
       setNewMatSku(`${found.sku}-${Math.floor(100 + Math.random() * 900)}`);
       setSelectedMaterialPreset(found.name);
       setIsCustomMaterialName(false);
@@ -417,6 +421,7 @@ export default function MaterialsPage() {
           sku: newMatSku.trim().toUpperCase(),
           name: newMatName.trim(),
           unitCode: newMatUnit,
+          unitPrice: newMatUnitPrice ? parseFloat(newMatUnitPrice) : 0,
           minStockQty: newMatMinStock ? parseFloat(newMatMinStock) : 0,
           reorderQty: newMatReorder ? parseFloat(newMatReorder) : 0,
         }),
@@ -430,6 +435,7 @@ export default function MaterialsPage() {
         setShowCreateMaterialModal(false);
         setNewMatName("");
         setNewMatSku("");
+        setNewMatUnitPrice("");
         setNewMatMinStock("");
         setNewMatReorder("");
         setSelectedMaterialPreset("");
@@ -633,6 +639,13 @@ export default function MaterialsPage() {
         type: "text",
       },
       {
+        key: "unitPrice",
+        label: "Unit Price",
+        accessor: (m) => Number(m.unitPrice) || 0,
+        type: "currency",
+        align: "right",
+      },
+      {
         key: "totalStock",
         label: "Current Stock",
         accessor: (m) => Number(m.totalStock) || 0,
@@ -686,6 +699,7 @@ export default function MaterialsPage() {
                 onClick={() => {
                   setNewMatName("");
                   setNewMatSku("");
+                  setNewMatUnitPrice("");
                   setNewMatMinStock("");
                   setNewMatReorder("");
                   setSelectedMaterialPreset("");
@@ -838,6 +852,9 @@ export default function MaterialsPage() {
                           {m.unitCode}
                         </span>
                       </td>
+                      <td className="py-3.5 px-4 text-right font-medium text-slate-800 tabular-nums">
+                        {m.unitPrice ? `₹${Number(m.unitPrice).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                      </td>
                       <td className="py-3.5 px-4 text-right font-black text-slate-900 tabular-nums">
                         {formatQuantity(m.totalStock, m.unitCode)}
                       </td>
@@ -875,6 +892,7 @@ export default function MaterialsPage() {
                                   name: m.name,
                                   sku: m.sku,
                                   unitCode: m.unitCode,
+                                  unitPrice: m.unitPrice,
                                   minStockQty: m.minStockQty,
                                   reorderQty: m.reorderQty,
                                   currentStock: m.totalStock,
@@ -1555,7 +1573,7 @@ export default function MaterialsPage() {
                                         {item.name}
                                       </div>
                                       <div className="text-[10px] text-slate-400">
-                                        SKU: {item.sku} • Min: {item.min} • Reorder: {item.reorder} {item.unit}
+                                        SKU: {item.sku} {item.unitPrice ? `• Rate: ₹${item.unitPrice.toLocaleString("en-IN")}` : ""} • Min: {item.min} • Reorder: {item.reorder} {item.unit}
                                       </div>
                                     </div>
                                   </div>
@@ -1624,7 +1642,24 @@ export default function MaterialsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Unit Price (₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-sm pointer-events-none">₹</span>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0.00"
+                        value={newMatUnitPrice}
+                        onChange={(e) => setNewMatUnitPrice(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 pl-7 text-sm font-mono font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Min Stock Threshold

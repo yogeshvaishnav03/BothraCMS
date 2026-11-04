@@ -283,6 +283,7 @@ model Material {
   unitCode       String   // BAG, KG, TONNE, LITRE, METER, PIECE, BOX
   minStockQty    Float    @default(0)
   reorderQty     Float    @default(0)
+  unitPrice      Float?   @default(0)
   active         Boolean  @default(true)
   isArchived     Boolean   @default(false)
   archivedAt     DateTime?
