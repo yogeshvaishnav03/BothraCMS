@@ -43,7 +43,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     // Update lastReadAt for the participant
-    const now = new Date();
+    // Future-buffer timestamp by 2 seconds to absorb any DB server clock skew or sub-millisecond precision race conditions
+    const readTimestamp = new Date(Date.now() + 2000);
     await prisma.conversationParticipant.update({
       where: {
         conversationId_userId: {
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         },
       },
       data: {
-        lastReadAt: now,
+        lastReadAt: readTimestamp,
       },
     });
 
@@ -169,6 +170,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       data: { updatedAt: now },
     });
 
+    const readTimestamp = new Date(Date.now() + 2000);
     await prisma.conversationParticipant.update({
       where: {
         conversationId_userId: {
@@ -176,7 +178,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           userId: user.userId,
         },
       },
-      data: { lastReadAt: now },
+      data: { lastReadAt: readTimestamp },
     });
 
     return jsonSuccess({

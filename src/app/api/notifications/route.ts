@@ -403,9 +403,10 @@ export async function GET(req: NextRequest) {
     for (const record of userParticipantConvs) {
       const conv = record.conversation;
       const lastRead = record.lastReadAt;
-      const unreadMsgs = conv.messages.filter(
-        (m) => !lastRead || m.createdAt > lastRead
-      );
+      const unreadMsgs = conv.messages.filter((m) => {
+        if (!lastRead) return true;
+        return new Date(m.createdAt).getTime() > new Date(lastRead).getTime();
+      });
 
       if (unreadMsgs.length > 0) {
         totalUnreadChatCount += unreadMsgs.length;

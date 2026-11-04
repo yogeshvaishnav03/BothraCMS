@@ -190,6 +190,18 @@ export default function ChatPage() {
   const isScrolledUpRef = useRef<boolean>(false);
   const prevMessagesCountRef = useRef<number>(0);
   const prevActiveConvIdRef = useRef<string | null>(null);
+  const activeConvIdRef = useRef<string | null>(null);
+
+  const handleSelectConversation = useCallback((convId: string) => {
+    setActiveConversationId(convId);
+    activeConvIdRef.current = convId;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convId ? { ...c, unreadCount: 0 } : c))
+    );
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("refreshNotifications"));
+    }
+  }, []);
 
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
 
@@ -392,7 +404,13 @@ export default function ChatPage() {
         setCurrentUser(userRes.data.user);
       }
       if (convRes.success && convRes.data) {
-        setConversations(convRes.data.conversations || []);
+        const currentActive = activeConvIdRef.current;
+        setConversations(
+          (convRes.data.conversations || []).map((c: ConversationItem) => ({
+            ...c,
+            unreadCount: c.id === currentActive ? 0 : (c.unreadCount || 0),
+          }))
+        );
       }
       if (empRes.success && empRes.data) {
         setEmployees(empRes.data.employees || []);
@@ -437,6 +455,36 @@ export default function ChatPage() {
           return incoming;
         });
         setActiveConversation(json.data.conversation || null);
+
+        // Immediately ensure unreadCount is 0 for this viewed conversation in sidebar
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (c.id === convId) {
+              const msgList = json.data.messages || [];
+              const latest = msgList.length > 0 ? msgList[msgList.length - 1] : undefined;
+              return {
+                ...c,
+                unreadCount: 0,
+                ...(latest
+                  ? {
+                      latestMessage: {
+                        id: latest.id,
+                        content: latest.content,
+                        imageUrl: latest.imageUrl,
+                        isEdited: latest.isEdited,
+                        updatedAt: latest.updatedAt,
+                        createdAt: latest.createdAt,
+                        senderId: latest.senderId,
+                        senderName: latest.sender?.name || "User",
+                      },
+                    }
+                  : {}),
+              };
+            }
+            return c;
+          })
+        );
+
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("refreshNotifications"));
         }
@@ -448,9 +496,13 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Set active conversation and fetch its messages
+  // Set active conversation, synchronize ref, clear unreadCount, and fetch its messages
   useEffect(() => {
+    activeConvIdRef.current = activeConversationId;
     if (activeConversationId) {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === activeConversationId ? { ...c, unreadCount: 0 } : c))
+      );
       loadMessages(activeConversationId);
     }
   }, [activeConversationId, loadMessages]);
@@ -481,6 +533,27 @@ export default function ChatPage() {
     return () => clearInterval(interval);
   }, [activeConversationId, loadMessages]);
 
+  // Auto-poll conversations list every 6 seconds to keep previews and unread badges updated
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const convRes = await safeFetchJson("/api/chat/conversations");
+        if (convRes.success && convRes.data?.conversations) {
+          const currentActive = activeConvIdRef.current;
+          setConversations(
+            (convRes.data.conversations || []).map((c: ConversationItem) => ({
+              ...c,
+              unreadCount: c.id === currentActive ? 0 : (c.unreadCount || 0),
+            }))
+          );
+        }
+      } catch {
+        // Silently ignore background polling errors
+      }
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Start or open a direct 1-to-1 conversation with an employee
   const handleStartDirectChat = async (targetUserId: string) => {
     try {
@@ -491,7 +564,7 @@ export default function ChatPage() {
       });
       if (json.success && json.data?.conversation) {
         const convId = json.data.conversation.id;
-        setActiveConversationId(convId);
+        handleSelectConversation(convId);
         setActiveTab("conversations");
         await loadChatData();
       } else {
@@ -633,7 +706,7 @@ export default function ChatPage() {
         setSelectedMemberIds([]);
         await loadChatData();
         if (json.data?.group?.id) {
-          setActiveConversationId(json.data.group.id);
+          handleSelectConversation(json.data.group.id);
         }
       } else {
         setGroupError(json.error?.message || "Failed to create group.");
@@ -830,7 +903,7 @@ export default function ChatPage() {
                           return (
                             <button
                               key={c.id}
-                              onClick={() => setActiveConversationId(c.id)}
+                              onClick={() => handleSelectConversation(c.id)}
                               className={`w-full text-left p-2.5 rounded-xl transition flex items-start gap-2.5 ${
                                 isActive
                                   ? "bg-amber-500/15 border border-amber-400/50 text-slate-950 shadow-2xs"
@@ -865,7 +938,7 @@ export default function ChatPage() {
                                   </p>
                                 </div>
                               </div>
-                              {c.unreadCount > 0 && (
+                              {!isActive && c.unreadCount > 0 && (
                                 <span className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0">
                                   {c.unreadCount}
                                 </span>
@@ -899,7 +972,7 @@ export default function ChatPage() {
                             return (
                               <button
                                 key={g.id}
-                                onClick={() => setActiveConversationId(g.id)}
+                                onClick={() => handleSelectConversation(g.id)}
                                 className={`w-full text-left p-2.5 rounded-xl transition flex items-start gap-2.5 ${
                                   isActive
                                     ? "bg-slate-900 text-white shadow-2xs"
@@ -938,6 +1011,11 @@ export default function ChatPage() {
                                     {g.latestMessage?.content || g.description || "Group channel"}
                                   </p>
                                 </div>
+                                {!isActive && g.unreadCount > 0 && (
+                                  <span className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0">
+                                    {g.unreadCount}
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
