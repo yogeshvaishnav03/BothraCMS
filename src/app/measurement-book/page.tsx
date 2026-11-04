@@ -162,6 +162,8 @@ export default function MeasurementBookPage() {
   const canWriteProjects = canUser(currentUser, "projects:write");
   const canWriteFinance = canUser(currentUser, "finance:write");
   const isSuperAdminOrAdmin = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+  const isSupervisor = currentUser?.role === "SITE_SUPERVISOR" || (currentUser?.role as string) === "SUPERVISOR";
+  const canManageMeasurements = canWriteProjects || isSupervisor;
 
   const [groups, setGroups] = useState<MainGroupItem[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -1319,7 +1321,7 @@ export default function MeasurementBookPage() {
               Export
             </button>
 
-            {canWriteProjects && (
+            {canManageMeasurements && (
               <>
                 <button
                   onClick={() => setShowAddGroupModal(true)}
@@ -1651,7 +1653,7 @@ export default function MeasurementBookPage() {
               <p className="text-sm text-slate-500 max-w-md mx-auto mt-1">
                 Start by creating a Main Group (linking a Project and Contractor/Vendor), or click &quot;Add Measurement&quot; to record site work.
               </p>
-              {canWriteProjects && (
+              {canManageMeasurements && (
                 <button
                   onClick={() => setShowAddGroupModal(true)}
                   className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm shadow transition"
@@ -1735,7 +1737,7 @@ export default function MeasurementBookPage() {
                         </div>
                       </div>
 
-                      {canWriteProjects && (
+                      {canManageMeasurements && (
                         <div className="flex items-center gap-1.5 ml-2">
                           <button
                             onClick={() => {
@@ -1755,13 +1757,15 @@ export default function MeasurementBookPage() {
                           >
                             + Measurement
                           </button>
-                          <button
-                            onClick={() => openDeleteGroupModal(grp)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
-                            title="Delete this Main Group"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canWriteProjects && (
+                            <button
+                              onClick={() => openDeleteGroupModal(grp)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+                              title="Delete this Main Group"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1820,7 +1824,7 @@ export default function MeasurementBookPage() {
                                     </span>
                                   </div>
 
-                                  {canWriteProjects && (
+                                  {canManageMeasurements && (
                                     <div className="flex items-center gap-1.5">
                                       <button
                                         onClick={() => openAddMeasurementModal(grp.id, sg.id)}
@@ -1829,13 +1833,15 @@ export default function MeasurementBookPage() {
                                       >
                                         + Add Wall
                                       </button>
-                                      <button
-                                        onClick={() => openDeleteSubgroupModal(sg, grp)}
-                                        className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
-                                        title="Delete Room / Subgroup"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
+                                      {canWriteProjects && (
+                                        <button
+                                          onClick={() => openDeleteSubgroupModal(sg, grp)}
+                                          className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                                          title="Delete Room / Subgroup"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -1970,7 +1976,7 @@ export default function MeasurementBookPage() {
                                               <td className="py-2.5 px-3 text-right">
                                                 <div className="flex items-center justify-end gap-1">
                                                   {/* Edit with Reason */}
-                                                  {canWriteProjects && entry.status !== "BILLED" && (
+                                                  {canManageMeasurements && entry.status !== "BILLED" && (
                                                     <button
                                                       onClick={() => openEditModal(entry)}
                                                       className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition"
@@ -1981,7 +1987,7 @@ export default function MeasurementBookPage() {
                                                   )}
 
                                                   {/* Duplicate */}
-                                                  {canWriteProjects && (
+                                                  {canManageMeasurements && (
                                                     <button
                                                       onClick={() => openDuplicateMeasurementModal(entry)}
                                                       className="p-1 rounded text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition"
@@ -2001,7 +2007,7 @@ export default function MeasurementBookPage() {
                                                   </button>
 
                                                   {/* Status Verification Actions */}
-                                                  {canWriteProjects && entry.status === "SUBMITTED" && (
+                                                  {canManageMeasurements && entry.status === "SUBMITTED" && (
                                                     <button
                                                       onClick={() => handleStatusChange(entry.id, "VERIFIED")}
                                                       className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition"
@@ -2033,7 +2039,7 @@ export default function MeasurementBookPage() {
                                                   )}
 
                                                   {/* Delete with Reason */}
-                                                  {canWriteProjects && entry.status !== "BILLED" && (
+                                                  {canManageMeasurements && entry.status !== "BILLED" && (
                                                     <button
                                                       onClick={() => openDeleteModal(entry)}
                                                       className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"

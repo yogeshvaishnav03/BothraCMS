@@ -344,7 +344,21 @@ export class MeasurementBookService {
     userId: string;
     role: Role;
   }): Promise<MeasurementGroupItem> {
-    assertPermission(input.role, "projects:write");
+    if (input.role === "SITE_SUPERVISOR") {
+      const assignment = await prisma.projectAssignment.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          userId: input.userId,
+          status: "ACTIVE",
+        },
+      });
+      if (!assignment) {
+        throw new Error("Forbidden: Role SITE_SUPERVISOR lacks required permission 'projects:write' or assignment to this project.");
+      }
+    } else {
+      assertPermission(input.role, "projects:write");
+    }
 
     const project = await prisma.project.findFirst({
       where: { id: input.projectId, organizationId: input.organizationId },
@@ -440,8 +454,6 @@ export class MeasurementBookService {
     userId: string;
     role: Role;
   }): Promise<MeasurementSubgroupItem> {
-    assertPermission(input.role, "projects:write");
-
     if (!input.name || !input.name.trim()) {
       throw new Error("InvalidInput: Subgroup name is required (e.g., Drawing Room, Ground Floor)");
     }
@@ -451,6 +463,22 @@ export class MeasurementBookService {
     });
     if (!group) {
       throw new Error("NotFound: Measurement Main Group not found");
+    }
+
+    if (input.role === "SITE_SUPERVISOR") {
+      const assignment = await prisma.projectAssignment.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          projectId: group.projectId,
+          userId: input.userId,
+          status: "ACTIVE",
+        },
+      });
+      if (!assignment) {
+        throw new Error("Forbidden: Role SITE_SUPERVISOR lacks required permission 'projects:write' or assignment to this project.");
+      }
+    } else {
+      assertPermission(input.role, "projects:write");
     }
 
     const validTypes = ["ROOM", "FLOOR", "AREA", "LOCATION", "WORK_SECTION", "CUSTOM"];
@@ -1524,6 +1552,23 @@ export class MeasurementBookService {
   }): Promise<MeasurementEntry> {
     if (input.status === "APPROVED") {
       assertPermission(input.role, "finance:write");
+    } else if (input.role === "SITE_SUPERVISOR") {
+      const entry = await prisma.measurementBookEntry.findFirst({
+        where: { id: input.entryId, organizationId: input.organizationId },
+        select: { projectId: true },
+      });
+      if (!entry) throw new Error("NotFound: Measurement book entry not found");
+      const assignment = await prisma.projectAssignment.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          projectId: entry.projectId,
+          userId: input.userId,
+          status: "ACTIVE",
+        },
+      });
+      if (!assignment) {
+        throw new Error("Forbidden: Role SITE_SUPERVISOR lacks assignment to this project.");
+      }
     } else {
       assertPermission(input.role, "projects:write");
     }

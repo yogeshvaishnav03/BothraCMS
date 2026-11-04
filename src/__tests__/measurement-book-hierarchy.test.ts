@@ -684,4 +684,105 @@ describe("Measurement Book: Complete Hierarchical Table, Formulas, Images & Audi
       })
     ).rejects.toThrow(/Cannot delete a Main Group containing billed measurements/i);
   });
+
+  it("Phase 15: Supervisor with project assignment can create group, subgroup, and verify entry; unassigned supervisor is rejected", async () => {
+    // 1. Assigned supervisor creates a Main Group
+    const supGroup = await MeasurementBookService.createGroup({
+      organizationId: orgId,
+      projectId,
+      partyId: contractorPartyId,
+      name: "Supervisor Created Group",
+      userId: supervisorUserId,
+      role: "SITE_SUPERVISOR",
+    });
+    expect(supGroup.id).toBeDefined();
+
+    // 2. Assigned supervisor creates a Subgroup
+    const supSubgroup = await MeasurementBookService.createSubgroup({
+      organizationId: orgId,
+      groupId: supGroup.id,
+      name: "Supervisor Room 101",
+      type: "ROOM",
+      userId: supervisorUserId,
+      role: "SITE_SUPERVISOR",
+    });
+    expect(supSubgroup.id).toBeDefined();
+    expect(supSubgroup.name).toBe("Supervisor Room 101");
+
+    // 3. Assigned supervisor creates an entry
+    const supEntry = await MeasurementBookService.createEntry({
+      organizationId: orgId,
+      projectId,
+      partyId: contractorPartyId,
+      groupId: supGroup.id,
+      subgroupId: supSubgroup.id,
+      entryName: "Living Room North Wall",
+      itemDescription: "Base plaster coat",
+      formula: "AREA",
+      unit: "SQM",
+      count: 1,
+      length: 6,
+      breadth: 1,
+      depth: 3.5,
+      agreedRate: 200,
+      userId: supervisorUserId,
+      role: "SITE_SUPERVISOR",
+    });
+    expect(supEntry.id).toBeDefined();
+    expect(supEntry.status).toBe("SUBMITTED");
+
+    // 4. Assigned supervisor marks entry as VERIFIED
+    const verifiedEntry = await MeasurementBookService.updateStatus({
+      organizationId: orgId,
+      entryId: supEntry.id,
+      status: "VERIFIED",
+      notes: "Verified on site by supervisor",
+      userId: supervisorUserId,
+      role: "SITE_SUPERVISOR",
+    });
+    expect(verifiedEntry.status).toBe("VERIFIED");
+
+    // 5. Unassigned supervisor should be rejected
+    const unassignedUserId = "user-unassigned-sup";
+    await prisma.user.create({
+      data: {
+        id: unassignedUserId,
+        organizationId: orgId,
+        name: "Unassigned Supervisor",
+        email: "unassigned@bothra.test",
+        role: "SITE_SUPERVISOR",
+        passwordHash: "hash-456",
+      },
+    });
+
+    await expect(
+      MeasurementBookService.createGroup({
+        organizationId: orgId,
+        projectId,
+        partyId: contractorPartyId,
+        userId: unassignedUserId,
+        role: "SITE_SUPERVISOR",
+      })
+    ).rejects.toThrow(/Forbidden.*SITE_SUPERVISOR/i);
+
+    await expect(
+      MeasurementBookService.createSubgroup({
+        organizationId: orgId,
+        groupId: supGroup.id,
+        name: "Unauthorized Room",
+        userId: unassignedUserId,
+        role: "SITE_SUPERVISOR",
+      })
+    ).rejects.toThrow(/Forbidden.*SITE_SUPERVISOR/i);
+
+    await expect(
+      MeasurementBookService.updateStatus({
+        organizationId: orgId,
+        entryId: supEntry.id,
+        status: "VERIFIED",
+        userId: unassignedUserId,
+        role: "SITE_SUPERVISOR",
+      })
+    ).rejects.toThrow(/Forbidden.*SITE_SUPERVISOR/i);
+  });
 });
