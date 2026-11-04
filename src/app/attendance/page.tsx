@@ -1078,25 +1078,12 @@ export default function AttendancePage() {
                       </span>
                     </div>
                     <div className="text-[11px] text-slate-500 mt-0.5">
-                      Admins must log their daily attendance. Select site and mark check-in, or switch to &quot;My Attendance&quot;.
+                      Admins must log their daily attendance. Mark check-in, or switch to &quot;My Attendance&quot;.
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-                  {sites.length > 0 && (
-                    <select
-                      value={selectedSiteId}
-                      onChange={(e) => setSelectedSiteId(e.target.value)}
-                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      {sites.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
                   <button
                     onClick={handleCheckIn}
                     disabled={submitting}
@@ -1252,27 +1239,8 @@ export default function AttendancePage() {
                 </div>
               </div>
 
-              {/* Right: Site Selector & Action Button */}
-              <div className="flex flex-col sm:flex-row md:flex-col lg:flex-row items-stretch sm:items-center gap-3">
-                {!isCheckedIn && sites.length > 0 && (
-                  <div className="min-w-[180px]">
-                    <label className="text-[10px] text-slate-400 block mb-1 font-semibold uppercase tracking-wider">
-                      Site Location:
-                    </label>
-                    <select
-                      value={selectedSiteId}
-                      onChange={(e) => setSelectedSiteId(e.target.value)}
-                      className="w-full bg-slate-800 text-white border border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    >
-                      {sites.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
+              {/* Right: Action Button */}
+              <div className="flex items-center">
                 {/* Action Button */}
                 <div>
                   {!isCheckedIn ? (
