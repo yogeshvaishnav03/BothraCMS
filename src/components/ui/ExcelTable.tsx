@@ -1444,6 +1444,14 @@ export function MegaFilterModal<T = any>({
   );
 }
 
+export interface DateRangeFilterConfig {
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (val: string) => void;
+  onEndDateChange: (val: string) => void;
+  onReset?: () => void;
+}
+
 /**
  * Inline Mega Filter Drawer matching the Advanced Search & Column Filters card layout
  */
@@ -1452,11 +1460,13 @@ export function ExcelTableMegaDrawer<T = any>({
   columns,
   tableName = "records",
   onOpenDeepModal,
+  dateRangeFilter,
 }: {
   table: ReturnType<typeof useExcelTable<T>>;
   columns: ExcelColumn<T>[];
   tableName?: string;
   onOpenDeepModal?: () => void;
+  dateRangeFilter?: DateRangeFilterConfig;
 }) {
   const filterableColumns = useMemo(
     () => columns.filter((c) => c.filterable !== false),
@@ -1511,31 +1521,75 @@ export function ExcelTableMegaDrawer<T = any>({
   const dateRange = (primaryDateCol && table.rangeFilters[primaryDateCol.key]) || {};
   const numRange = (primaryNumericCol && table.rangeFilters[primaryNumericCol.key]) || {};
 
+  const isCustomDate = Boolean(dateRangeFilter);
+  const showDateFilter = Boolean(primaryDateCol || isCustomDate);
+
+  const effectiveFromDate = isCustomDate ? dateRangeFilter?.startDate : dateRange.fromDate;
+  const effectiveToDate = isCustomDate ? dateRangeFilter?.endDate : dateRange.toDate;
+
+  const handleFromDateChange = (val?: string) => {
+    if (isCustomDate && dateRangeFilter) {
+      dateRangeFilter.onStartDateChange(val || "");
+    } else if (primaryDateCol) {
+      table.setRangeFilter(primaryDateCol.key, { ...dateRange, fromDate: val });
+    }
+  };
+
+  const handleToDateChange = (val?: string) => {
+    if (isCustomDate && dateRangeFilter) {
+      dateRangeFilter.onEndDateChange(val || "");
+    } else if (primaryDateCol) {
+      table.setRangeFilter(primaryDateCol.key, { ...dateRange, toDate: val });
+    }
+  };
+
+  const handleClearFromDate = () => handleFromDateChange(undefined);
+  const handleClearToDate = () => handleToDateChange(undefined);
+
   // Quick Date Handlers
   const handleDatePreset = (preset: "ALL" | "TODAY" | "7DAYS" | "THIS_MONTH" | "30DAYS") => {
-    if (!primaryDateCol) return;
     if (preset === "ALL") {
-      table.clearRangeFilter(primaryDateCol.key);
+      if (isCustomDate && dateRangeFilter) {
+        if (dateRangeFilter.onReset) dateRangeFilter.onReset();
+        else {
+          dateRangeFilter.onStartDateChange("");
+          dateRangeFilter.onEndDateChange("");
+        }
+      } else if (primaryDateCol) {
+        table.clearRangeFilter(primaryDateCol.key);
+      }
       return;
     }
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
+    let from = "";
+    let to = todayStr;
 
     if (preset === "TODAY") {
-      table.setRangeFilter(primaryDateCol.key, { ...dateRange, fromDate: todayStr, toDate: todayStr });
+      from = todayStr;
     } else if (preset === "7DAYS") {
       const past = new Date(today);
       past.setDate(today.getDate() - 7);
-      table.setRangeFilter(primaryDateCol.key, { ...dateRange, fromDate: past.toISOString().split("T")[0], toDate: todayStr });
+      from = past.toISOString().split("T")[0];
     } else if (preset === "THIS_MONTH") {
       const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      table.setRangeFilter(primaryDateCol.key, { ...dateRange, fromDate: firstDay.toISOString().split("T")[0], toDate: todayStr });
+      from = firstDay.toISOString().split("T")[0];
     } else if (preset === "30DAYS") {
       const past = new Date(today);
       past.setDate(today.getDate() - 30);
-      table.setRangeFilter(primaryDateCol.key, { ...dateRange, fromDate: past.toISOString().split("T")[0], toDate: todayStr });
+      from = past.toISOString().split("T")[0];
+    }
+
+    if (isCustomDate && dateRangeFilter) {
+      dateRangeFilter.onStartDateChange(from);
+      dateRangeFilter.onEndDateChange(to);
+    } else if (primaryDateCol) {
+      table.setRangeFilter(primaryDateCol.key, { ...dateRange, fromDate: from, toDate: to });
     }
   };
+
+  const isCustomDateActive = Boolean(isCustomDate && (dateRangeFilter?.startDate || dateRangeFilter?.endDate));
+  const totalActiveFilters = table.activeFiltersCount + (isCustomDateActive ? 1 : 0);
 
   // Quick Amount Handlers
   const handleAmountPreset = (preset: "ALL" | "UNDER_50K" | "50K_2L" | "OVER_2L") => {
@@ -1574,18 +1628,27 @@ export function ExcelTableMegaDrawer<T = any>({
           <h4 className="text-xs sm:text-sm font-bold text-slate-900">
             Advanced Search & Column Filters
           </h4>
-          {table.activeFiltersCount > 0 && (
+          {totalActiveFilters > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-              {table.activeFiltersCount} active
+              {totalActiveFilters} active
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {table.activeFiltersCount > 0 && (
+          {totalActiveFilters > 0 && (
             <button
               type="button"
-              onClick={table.clearAllFilters}
+              onClick={() => {
+                table.clearAllFilters();
+                if (isCustomDate && dateRangeFilter) {
+                  if (dateRangeFilter.onReset) dateRangeFilter.onReset();
+                  else {
+                    dateRangeFilter.onStartDateChange("");
+                    dateRangeFilter.onEndDateChange("");
+                  }
+                }
+              }}
               className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
             >
               Reset All
@@ -1617,19 +1680,17 @@ export function ExcelTableMegaDrawer<T = any>({
       {/* Card Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Date: From Date */}
-        {primaryDateCol && (
+        {showDateFilter && (
           <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
             <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3 h-3 text-slate-400" />
                 <span>From Date</span>
               </span>
-              {dateRange.fromDate && (
+              {effectiveFromDate && (
                 <button
                   type="button"
-                  onClick={() =>
-                    table.setRangeFilter(primaryDateCol.key, { ...dateRange, fromDate: undefined })
-                  }
+                  onClick={handleClearFromDate}
                   className="text-[10px] text-rose-600 hover:underline cursor-pointer"
                 >
                   Clear
@@ -1638,32 +1699,25 @@ export function ExcelTableMegaDrawer<T = any>({
             </label>
             <input
               type="date"
-              value={dateRange.fromDate || ""}
-              onChange={(e) =>
-                table.setRangeFilter(primaryDateCol.key, {
-                  ...dateRange,
-                  fromDate: e.target.value || undefined,
-                })
-              }
+              value={effectiveFromDate || ""}
+              onChange={(e) => handleFromDateChange(e.target.value || undefined)}
               className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
             />
           </div>
         )}
 
         {/* Date: To Date */}
-        {primaryDateCol && (
+        {showDateFilter && (
           <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
             <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3 h-3 text-slate-400" />
                 <span>To Date</span>
               </span>
-              {dateRange.toDate && (
+              {effectiveToDate && (
                 <button
                   type="button"
-                  onClick={() =>
-                    table.setRangeFilter(primaryDateCol.key, { ...dateRange, toDate: undefined })
-                  }
+                  onClick={handleClearToDate}
                   className="text-[10px] text-rose-600 hover:underline cursor-pointer"
                 >
                   Clear
@@ -1672,13 +1726,8 @@ export function ExcelTableMegaDrawer<T = any>({
             </label>
             <input
               type="date"
-              value={dateRange.toDate || ""}
-              onChange={(e) =>
-                table.setRangeFilter(primaryDateCol.key, {
-                  ...dateRange,
-                  toDate: e.target.value || undefined,
-                })
-              }
+              value={effectiveToDate || ""}
+              onChange={(e) => handleToDateChange(e.target.value || undefined)}
               className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
             />
           </div>
@@ -1882,7 +1931,7 @@ export function ExcelTableMegaDrawer<T = any>({
         )}
 
         {/* Quick Date Presets */}
-        {primaryDateCol && (
+        {showDateFilter && (
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-bold text-slate-400">Quick Dates:</span>
             {[
@@ -1891,16 +1940,25 @@ export function ExcelTableMegaDrawer<T = any>({
               { key: "7DAYS", label: "Last 7 Days" },
               { key: "THIS_MONTH", label: "This Month" },
               { key: "30DAYS", label: "Last 30 Days" },
-            ].map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => handleDatePreset(p.key as any)}
-                className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition cursor-pointer"
-              >
-                {p.label}
-              </button>
-            ))}
+            ].map((p) => {
+              const isSelected =
+                (p.key === "ALL" && !effectiveFromDate && !effectiveToDate);
+
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => handleDatePreset(p.key as any)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1917,17 +1975,21 @@ export function ExcelTableToolbar<T = any>({
   tableName = "records",
   showSearch = true,
   showExport = true,
+  dateRangeFilter,
 }: {
   table: ReturnType<typeof useExcelTable<T>>;
   columns: ExcelColumn<T>[];
   tableName?: string;
   showSearch?: boolean;
   showExport?: boolean;
+  dateRangeFilter?: DateRangeFilterConfig;
 }) {
   const [isDeepModalOpen, setIsDeepModalOpen] = useState(false);
   const activeColFilterKeys = Object.keys(table.columnFilters);
   const activeRangeFilterKeys = Object.keys(table.rangeFilters);
   const activeTextFilterKeys = Object.keys(table.textFilters || {});
+  const isCustomDateActive = Boolean(dateRangeFilter && (dateRangeFilter.startDate || dateRangeFilter.endDate));
+  const effectiveActiveCount = table.activeFiltersCount + (isCustomDateActive ? 1 : 0);
   const hasActiveFilters =
     activeColFilterKeys.length > 0 ||
     activeRangeFilterKeys.length > 0 ||
@@ -1966,7 +2028,7 @@ export function ExcelTableToolbar<T = any>({
             type="button"
             onClick={() => table.setIsMegaFilterOpen(!table.isMegaFilterOpen)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer shrink-0 ${
-              table.isMegaFilterOpen || table.activeFiltersCount > 0
+              table.isMegaFilterOpen || effectiveActiveCount > 0
                 ? "bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-500/20"
                 : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
             }`}
@@ -1974,12 +2036,40 @@ export function ExcelTableToolbar<T = any>({
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-slate-950" />
             <span>Mega Filter</span>
-            {table.activeFiltersCount > 0 && (
+            {effectiveActiveCount > 0 && (
               <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-slate-950 text-amber-400">
-                {table.activeFiltersCount}
+                {effectiveActiveCount}
               </span>
             )}
           </button>
+
+          {/* Active Custom Date Filter Chip */}
+          {isCustomDateActive && dateRangeFilter && (
+            <span
+              key="custom-date-range-chip"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs"
+            >
+              <Calendar className="w-3 h-3 text-amber-600" />
+              <span>Date:</span>
+              <strong className="font-bold text-amber-950">
+                {dateRangeFilter.startDate || "Start"} to {dateRangeFilter.endDate || "Present"}
+              </strong>
+              <button
+                type="button"
+                onClick={() => {
+                  if (dateRangeFilter.onReset) dateRangeFilter.onReset();
+                  else {
+                    dateRangeFilter.onStartDateChange("");
+                    dateRangeFilter.onEndDateChange("");
+                  }
+                }}
+                className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition"
+                title="Remove date filter"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
 
           {/* Active Checklist Filter Chips */}
           {activeColFilterKeys.map((colKey) => {
@@ -2068,10 +2158,19 @@ export function ExcelTableToolbar<T = any>({
             );
           })}
 
-          {hasActiveFilters && (
+          {(hasActiveFilters || isCustomDateActive) && (
             <button
               type="button"
-              onClick={table.clearAllFilters}
+              onClick={() => {
+                table.clearAllFilters();
+                if (dateRangeFilter) {
+                  if (dateRangeFilter.onReset) dateRangeFilter.onReset();
+                  else {
+                    dateRangeFilter.onStartDateChange("");
+                    dateRangeFilter.onEndDateChange("");
+                  }
+                }
+              }}
               className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-xs transition shadow-2xs"
             >
               <RotateCcw className="w-3 h-3" />
@@ -2108,6 +2207,7 @@ export function ExcelTableToolbar<T = any>({
           columns={columns}
           tableName={tableName}
           onOpenDeepModal={() => setIsDeepModalOpen(true)}
+          dateRangeFilter={dateRangeFilter}
         />
       )}
 

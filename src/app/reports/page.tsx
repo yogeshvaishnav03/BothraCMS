@@ -12,8 +12,6 @@ import {
   Boxes,
   DollarSign,
   HardHat,
-  Filter,
-  RotateCcw,
 } from "lucide-react";
 
 export default function ReportsPage() {
@@ -59,11 +57,35 @@ export default function ReportsPage() {
     fetchReportsData();
   }, []);
 
-  const filteredAttendance = attendance.filter((a) => {
-    if (startDate && a.workDate < startDate) return false;
-    if (endDate && a.workDate > endDate) return false;
-    return true;
-  });
+  const filteredMaterials = useMemo(() => {
+    return materials.filter((m) => {
+      const d = m.updatedAt || m.createdAt;
+      if (!d) return true;
+      const dateStr = new Date(d).toISOString().split("T")[0];
+      if (startDate && dateStr < startDate) return false;
+      if (endDate && dateStr > endDate) return false;
+      return true;
+    });
+  }, [materials, startDate, endDate]);
+
+  const filteredParties = useMemo(() => {
+    return parties.filter((p) => {
+      const d = p.updatedAt || p.createdAt;
+      if (!d) return true;
+      const dateStr = new Date(d).toISOString().split("T")[0];
+      if (startDate && dateStr < startDate) return false;
+      if (endDate && dateStr > endDate) return false;
+      return true;
+    });
+  }, [parties, startDate, endDate]);
+
+  const filteredAttendance = useMemo(() => {
+    return attendance.filter((a) => {
+      if (startDate && a.workDate < startDate) return false;
+      if (endDate && a.workDate > endDate) return false;
+      return true;
+    });
+  }, [attendance, startDate, endDate]);
 
   const stockColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -78,7 +100,7 @@ export default function ReportsPage() {
   );
 
   const excelStock = useExcelTable({
-    data: materials,
+    data: filteredMaterials,
     columns: stockColumns,
   });
 
@@ -95,7 +117,7 @@ export default function ReportsPage() {
   );
 
   const excelPayables = useExcelTable({
-    data: parties,
+    data: filteredParties,
     columns: payablesColumns,
   });
 
@@ -115,6 +137,20 @@ export default function ReportsPage() {
     data: filteredAttendance,
     columns: attendanceReportColumns,
   });
+
+  const dateRangeConfig = useMemo(
+    () => ({
+      startDate,
+      endDate,
+      onStartDateChange: setStartDate,
+      onEndDateChange: setEndDate,
+      onReset: () => {
+        setStartDate("");
+        setEndDate("");
+      },
+    }),
+    [startDate, endDate]
+  );
 
   const exportStockCSV = () => {
     const headers = ["SKU", "Material Name", "Category", "Unit", "Current Stock", "Min Stock", "Status"];
@@ -260,49 +296,6 @@ export default function ReportsPage() {
           </div>
         </PageHeader>
 
-        {/* Date Filter Bar */}
-        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-            <Filter className="w-4 h-4 text-amber-500" />
-            <span>Date Range Filter:</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5 text-xs text-slate-600">
-              <span className="font-semibold text-slate-500">From:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800"
-              />
-            </div>
-
-            <div className="flex items-center gap-1.5 text-xs text-slate-600">
-              <span className="font-semibold text-slate-500">To:</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800"
-              />
-            </div>
-
-            {(startDate || endDate) && (
-              <button
-                onClick={() => {
-                  setStartDate("");
-                  setEndDate("");
-                }}
-                className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-500 px-2 py-1 rounded bg-rose-50"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset</span>
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* Report Selectors */}
         <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
           <button
@@ -379,6 +372,7 @@ export default function ReportsPage() {
                 tableName="stock inventory"
                 showSearch={true}
                 showExport={true}
+                dateRangeFilter={dateRangeConfig}
               />
               <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-sm">
@@ -458,6 +452,7 @@ export default function ReportsPage() {
                 tableName="payables"
                 showSearch={true}
                 showExport={true}
+                dateRangeFilter={dateRangeConfig}
               />
               <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-sm">
@@ -547,6 +542,7 @@ export default function ReportsPage() {
               tableName="worker attendance"
               showSearch={true}
               showExport={true}
+              dateRangeFilter={dateRangeConfig}
             />
             <div className="overflow-x-auto min-h-[400px]">
               <table className="w-full text-left text-sm">
