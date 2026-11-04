@@ -101,6 +101,23 @@ const DEFAULT_PRINT_SECTIONS: PrintSectionConfig = {
   signatures: true,
 };
 
+function getKpiAmountClass(text: string): string {
+  const len = text.length;
+  if (len >= 16) {
+    // 16+ chars (e.g. ₹10,00,00,000.00 / 10 Crores and above)
+    return "text-sm sm:text-base lg:text-xs xl:text-sm 2xl:text-base";
+  }
+  if (len >= 13) {
+    // 13-15 chars (e.g. ₹10,00,000.00 to ₹9,99,99,999.00)
+    return "text-base sm:text-lg lg:text-sm xl:text-base 2xl:text-lg";
+  }
+  if (len >= 10) {
+    // 10-12 chars (e.g. ₹28,410.00 to ₹9,99,999.00)
+    return "text-lg sm:text-xl lg:text-base xl:text-lg 2xl:text-xl";
+  }
+  return "text-xl sm:text-2xl";
+}
+
 function SectionCheckboxCard({
   checked,
   onChange,
@@ -1832,112 +1849,136 @@ export default function DayBookPage() {
         )}
 
         {/* Summary KPI Cards for Selected Date */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           {/* Payments Out Card (Disbursed only) */}
-          <div
-            onClick={() => setKpiPopupType("PAYMENTS")}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between"
-            role="button"
-            tabIndex={0}
-            title="Click to view Payments breakdown popup"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-rose-600 transition">Payments Out</span>
-                <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition">
-                  <ArrowUpRight className="w-4 h-4" />
+          {(() => {
+            const disbursedFormatted = dayData ? formatCurrency(disbursedTotal) : "₹0.00";
+            return (
+              <div
+                onClick={() => setKpiPopupType("PAYMENTS")}
+                className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
+                role="button"
+                tabIndex={0}
+                title="Click to view Payments breakdown popup"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between mb-2 gap-1.5">
+                    <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-rose-600 transition truncate">Payments Out</span>
+                    <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition shrink-0">
+                      <ArrowUpRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div
+                    className={`font-black text-rose-600 font-mono tracking-tight truncate leading-tight ${getKpiAmountClass(disbursedFormatted)}`}
+                    title={disbursedFormatted}
+                  >
+                    {disbursedFormatted}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1 font-medium truncate">
+                    {disbursedPayments.length} transaction{disbursedPayments.length === 1 ? "" : "s"} disbursed
+                  </div>
+                </div>
+                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
+                  <span>View details popup</span>
+                  <span>&rarr;</span>
                 </div>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-rose-600 font-mono">
-                {dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1 font-medium">
-                {disbursedPayments.length} transaction{disbursedPayments.length === 1 ? "" : "s"} disbursed
-              </div>
-            </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
-              <span>View details popup</span>
-              <span>&rarr;</span>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Rejected Payments Card (Separate Card on Day Book page) */}
-          <div
-            onClick={() => setKpiPopupType("REJECTED_PAYMENTS")}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between"
-            role="button"
-            tabIndex={0}
-            title="Click to view Rejected Payments popup"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-rose-600 transition">Rejected Payments</span>
-                <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition">
-                  <XCircle className="w-4 h-4" />
+          {(() => {
+            const rejectedFormatted = dayData ? formatCurrency(rejectedTotal) : "₹0.00";
+            return (
+              <div
+                onClick={() => setKpiPopupType("REJECTED_PAYMENTS")}
+                className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
+                role="button"
+                tabIndex={0}
+                title="Click to view Rejected Payments popup"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between mb-2 gap-1.5">
+                    <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-rose-600 transition truncate">Rejected Payments</span>
+                    <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition shrink-0">
+                      <XCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div
+                    className={`font-black font-mono tracking-tight truncate leading-tight ${
+                      rejectedPayments.length > 0 ? "text-rose-600" : "text-slate-900"
+                    } ${getKpiAmountClass(rejectedFormatted)}`}
+                    title={rejectedFormatted}
+                  >
+                    {rejectedFormatted}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1 font-medium truncate">
+                    {rejectedPayments.length} rejected request{rejectedPayments.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
+                  <span>View details popup</span>
+                  <span>&rarr;</span>
                 </div>
               </div>
-              <div className={`text-xl sm:text-2xl font-black font-mono ${
-                rejectedPayments.length > 0 ? "text-rose-600" : "text-slate-900"
-              }`}>
-                {dayData ? formatCurrency(rejectedTotal) : "₹0.00"}
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1 font-medium">
-                {rejectedPayments.length} rejected request{rejectedPayments.length === 1 ? "" : "s"}
-              </div>
-            </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
-              <span>View details popup</span>
-              <span>&rarr;</span>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Bills Card */}
-          <div
-            onClick={() => setKpiPopupType("BILLS")}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between"
-            role="button"
-            tabIndex={0}
-            title="Click to view Bills breakdown popup"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-amber-600 transition">Bills Incurred</span>
-                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition">
-                  <FileText className="w-4 h-4" />
+          {(() => {
+            const billsFormatted = dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00";
+            return (
+              <div
+                onClick={() => setKpiPopupType("BILLS")}
+                className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
+                role="button"
+                tabIndex={0}
+                title="Click to view Bills breakdown popup"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between mb-2 gap-1.5">
+                    <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-amber-600 transition truncate">Bills Incurred</span>
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div
+                    className={`font-black text-slate-900 font-mono tracking-tight truncate leading-tight ${getKpiAmountClass(billsFormatted)}`}
+                    title={billsFormatted}
+                  >
+                    {billsFormatted}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-1 font-medium truncate">
+                    {dayData?.summary.billsCount || 0} vendor/contractor bills
+                  </div>
+                </div>
+                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-amber-600 transition">
+                  <span>View details popup</span>
+                  <span>&rarr;</span>
                 </div>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900">
-                {dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1 font-medium">
-                {dayData?.summary.billsCount || 0} vendor/contractor bills
-              </div>
-            </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-amber-600 transition">
-              <span>View details popup</span>
-              <span>&rarr;</span>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Staff Present (Staff only) */}
           <div
             onClick={() => setKpiPopupType("WORKFORCE")}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between"
+            className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
             role="button"
             tabIndex={0}
             title="Click to view Staff attendance breakdown popup"
           >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-emerald-600 transition">Staff Present</span>
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition">
+            <div className="min-w-0">
+              <div className="flex items-center justify-between mb-2 gap-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-emerald-600 transition truncate">Staff Present</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition shrink-0">
                   <UserCheck className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900">
+              <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate leading-tight">
                 {dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0)}
               </div>
-              <div className="text-[11px] text-slate-400 mt-1 font-medium">
+              <div className="text-[11px] text-slate-400 mt-1 font-medium truncate">
                 {(dayData?.summary?.staffPresentCount || dayData?.attendance?.length || 0) > 0
                   ? `${dayData?.summary?.staffPresentCount || dayData?.attendance?.length} Staff checked in`
                   : "No staff logged today"}
@@ -1952,22 +1993,22 @@ export default function DayBookPage() {
           {/* Site Logs / DSR */}
           <div
             onClick={() => setKpiPopupType("DSR")}
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between"
+            className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0 overflow-hidden"
             role="button"
             tabIndex={0}
             title="Click to view Site Logs breakdown popup"
           >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-blue-600 transition">Site Logs (DSR)</span>
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition">
+            <div className="min-w-0">
+              <div className="flex items-center justify-between mb-2 gap-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-blue-600 transition truncate">Site Logs (DSR)</span>
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition shrink-0">
                   <Layers className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900">
+              <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate leading-tight">
                 {dayData?.summary.reportsCount || 0}
               </div>
-              <div className="text-[11px] text-slate-400 mt-1 font-medium">
+              <div className="text-[11px] text-slate-400 mt-1 font-medium truncate">
                 Progress & safety updates
               </div>
             </div>
@@ -3467,13 +3508,13 @@ export default function DayBookPage() {
                   </button>
                 </div>
 
-                <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between">
-                  <div>
+                <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Payments Disbursed</span>
-                    <div className="text-2xl font-black text-rose-600 font-mono">
+                    <div className="text-2xl font-black text-rose-600 font-mono tracking-tight truncate" title={formatCurrency(disbursedTotal)}>
                       {formatCurrency(disbursedTotal)}
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                       Net cash & bank disbursements debited
                     </p>
                   </div>
@@ -3597,13 +3638,13 @@ export default function DayBookPage() {
                   </button>
                 </div>
 
-                <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between">
-                  <div>
+                <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Rejected Amount</span>
-                    <div className="text-2xl font-black text-rose-600 font-mono">
+                    <div className="text-2xl font-black text-rose-600 font-mono tracking-tight truncate" title={formatCurrency(rejectedTotal)}>
                       {formatCurrency(rejectedTotal)}
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                       Declined requests (excluded from balance & cash outflow)
                     </p>
                   </div>

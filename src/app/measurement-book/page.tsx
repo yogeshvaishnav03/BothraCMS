@@ -157,6 +157,20 @@ const STANDARD_ROOMS = [
   "Basement / Parking",
 ];
 
+function getKpiAmountClass(text: string): string {
+  const len = text.length;
+  if (len >= 16) {
+    return "text-sm sm:text-base lg:text-xs xl:text-sm 2xl:text-base";
+  }
+  if (len >= 13) {
+    return "text-base sm:text-lg lg:text-sm xl:text-base 2xl:text-lg";
+  }
+  if (len >= 10) {
+    return "text-lg sm:text-xl lg:text-base xl:text-lg 2xl:text-xl";
+  }
+  return "text-xl sm:text-2xl";
+}
+
 export default function MeasurementBookPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canWriteProjects = canUser(currentUser, "projects:write");
@@ -1395,52 +1409,60 @@ export default function MeasurementBookPage() {
           return (
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
               {/* Card 1: Hierarchy Overview */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] hover:border-slate-300 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Hierarchy Overview</span>
-                  <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600">
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Hierarchy Overview</span>
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 shrink-0">
                     <Layers className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="my-1 flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-slate-900 font-mono tracking-tight">
+                <div className="my-1 flex items-baseline gap-1.5 min-w-0">
+                  <span className="text-2xl font-black text-slate-900 font-mono tracking-tight truncate">
                     {kpis.totalGroups}
                   </span>
                   <span className="text-xs font-semibold text-slate-500">Groups</span>
                 </div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-500 truncate">
                   {kpis.totalEntries} measurement {kpis.totalEntries === 1 ? "entry" : "entries"} recorded
                 </div>
               </div>
 
               {/* Card 2: Total Measured Value */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] hover:border-slate-300 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Total Measured Value</span>
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-600">
-                    <Receipt className="w-3.5 h-3.5" />
+              {(() => {
+                const totalMeasuredFormatted = formatCurrency(kpis.totalPaise);
+                return (
+                  <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Total Measured Value</span>
+                      <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-600 shrink-0">
+                        <Receipt className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                    <div className="my-1 min-w-0">
+                      <div
+                        className={`font-black text-emerald-600 font-mono tracking-tight truncate leading-tight ${getKpiAmountClass(totalMeasuredFormatted)}`}
+                        title={totalMeasuredFormatted}
+                      >
+                        {totalMeasuredFormatted}
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">Approved & Pending Works</div>
                   </div>
-                </div>
-                <div className="my-1">
-                  <div className="text-2xl font-black text-emerald-600 font-mono tracking-tight">
-                    {formatCurrency(kpis.totalPaise)}
-                  </div>
-                </div>
-                <div className="text-xs text-slate-500">Approved & Pending Works</div>
-              </div>
+                );
+              })()}
 
               {/* Card 3: Quantities by Unit */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] hover:border-slate-300 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Quantities by Unit</span>
-                  <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/60 flex items-center justify-center text-indigo-600">
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Quantities by Unit</span>
+                  <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/60 flex items-center justify-center text-indigo-600 shrink-0">
                     <Ruler className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="my-1">
+                <div className="my-1 min-w-0">
                   {hasUnits ? (
                     <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-2xl font-black text-slate-900 font-mono tracking-tight">
+                      <span className="text-2xl font-black text-slate-900 font-mono tracking-tight truncate">
                         {formatQuantity(primaryQty)}
                       </span>
                       <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
@@ -1451,7 +1473,7 @@ export default function MeasurementBookPage() {
                     <div className="text-2xl font-black text-slate-400 font-mono tracking-tight">0.00</div>
                   )}
                 </div>
-                <div className="text-[11px] text-slate-500 leading-tight">
+                <div className="text-[11px] text-slate-500 leading-tight truncate">
                   {otherUnits.length > 0 ? (
                     <span className="text-indigo-600 font-medium truncate block">
                       + {otherUnits.map(([u, q]) => `${formatQuantity(q)} ${u}`).join(" · ")}
@@ -1465,15 +1487,15 @@ export default function MeasurementBookPage() {
               </div>
 
               {/* Card 4: Verification Pipeline */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] hover:border-slate-300 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Verification Pipeline</span>
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600">
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Verification Pipeline</span>
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600 shrink-0">
                     <FileCheck className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="my-1 flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-blue-700 font-mono tracking-tight">
+                <div className="my-1 flex items-baseline gap-1.5 min-w-0">
+                  <span className="text-2xl font-black text-blue-700 font-mono tracking-tight truncate">
                     {verifiedOrAbove}
                   </span>
                   <span className="text-xs font-semibold text-slate-500">
@@ -1499,11 +1521,11 @@ export default function MeasurementBookPage() {
               </div>
 
               {/* Card 5: Supervisor Requests */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] hover:border-slate-300 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">Supervisor Requests</span>
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between min-h-[116px] min-w-0 overflow-hidden hover:border-slate-300 transition">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold truncate">Supervisor Requests</span>
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center border ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${
                       kpis.pendingChangeRequestsCount > 0
                         ? "bg-amber-50 border-amber-200 text-amber-600"
                         : "bg-emerald-50 border-emerald-200/60 text-emerald-600"
@@ -1512,7 +1534,7 @@ export default function MeasurementBookPage() {
                     <Clock className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="my-1 flex items-baseline gap-1.5">
+                <div className="my-1 flex items-baseline gap-1.5 min-w-0">
                   <span
                     className={`text-2xl font-black font-mono tracking-tight ${
                       kpis.pendingChangeRequestsCount > 0 ? "text-amber-600" : "text-slate-900"
