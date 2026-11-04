@@ -541,13 +541,13 @@ export default function DayBookPage() {
       },
       {
         key: "workerName",
-        label: "Worker Name",
-        accessor: (a) => a.workforceMember?.name || "Worker",
-        render: (a) => <span className="font-bold text-slate-900">{a.workforceMember?.name || "Worker"}</span>,
+        label: "Staff Name",
+        accessor: (a) => a.workforceMember?.name || "Staff",
+        render: (a) => <span className="font-bold text-slate-900">{a.workforceMember?.name || "Staff"}</span>,
       },
       {
         key: "trade",
-        label: "Trade",
+        label: "Role / Designation",
         accessor: (a) => a.workforceMember?.workerType || a.workforceMember?.trade || "Staff",
         render: (a) => (
           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
@@ -764,7 +764,7 @@ export default function DayBookPage() {
         rejected: false,
         moneyIn: false,
         bills: false,
-        headcount: true,
+        headcount: false,
         attendance: true,
         materials: false,
         reports: false,
@@ -893,7 +893,7 @@ export default function DayBookPage() {
       case "PAYMENTS": return "Payments Out";
       case "REJECTED": return "Rejected Payments";
       case "BILLS": return "Bills Incurred";
-      case "ATTENDANCE": return "Workers Master";
+      case "ATTENDANCE": return "Staff Present";
       case "REPORTS": return "Site Reports (DSR)";
       default: return "All Activity";
     }
@@ -904,7 +904,7 @@ export default function DayBookPage() {
       case "PAYMENTS": return "Payments";
       case "REJECTED": return "Rejected";
       case "BILLS": return "Bills";
-      case "ATTENDANCE": return "Workers";
+      case "ATTENDANCE": return "Staff";
       case "REPORTS": return "DSR";
       default: return "All";
     }
@@ -1602,7 +1602,7 @@ export default function DayBookPage() {
       ]),
       [],
       ["--- STAFF ATTENDANCE SESSIONS ---"],
-      ["Employee Code", "Worker Name", "Trade", "Status", "Site"],
+      ["Employee Code", "Staff Name", "Role / Designation", "Status", "Site"],
       ...dayData.attendance.map((a) => [
         a.workforceMember?.employeeCode || "",
         `"${a.workforceMember?.name || ""}"`,
@@ -2067,11 +2067,11 @@ export default function DayBookPage() {
             className={`px-3 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "ATTENDANCE" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
             }`}
-            title={`Total Workers: ${dayData?.summary.workersPresentCount || 0} workers (${(dayData?.headcount?.length || 0) + (dayData?.attendance?.length || 0)} master records)`}
+            title={`Staff Present: ${dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || dayData?.attendance?.length || 0)} staff checked in`}
           >
-            <span>Workers Master</span>
+            <span>Staff Present</span>
             <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[10px] font-bold rounded-full">
-              {dayData?.summary.workersPresentCount || ((dayData?.headcount?.length || 0) + (dayData?.attendance?.length || 0))}
+              {dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || dayData?.attendance?.length || 0)}
             </span>
           </button>
           <button
@@ -2327,128 +2327,71 @@ export default function DayBookPage() {
               </div>
             )}
 
-            {/* 3. Workforce Attendance Master (Site Headcounts + Staff Sessions) */}
+            {/* 3. Staff Present (Staff Attendance Sessions) */}
             {(activeTab === "ALL" || activeTab === "ATTENDANCE") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
                 <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <HardHat className="w-4 h-4 text-emerald-500" />
-                    <h3 className="text-sm font-black text-slate-900">Workers Attendance Master</h3>
+                    <UserCheck className="w-4 h-4 text-emerald-600" />
+                    <h3 className="text-sm font-black text-slate-900">Staff Present</h3>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-emerald-700">
-                      {dayData?.summary.workersPresentCount || 0} Present
+                      {dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || dayData?.attendance?.length || 0)} Present
                     </span>
                     <button
-                      onClick={() => openPrintModalForSection("ATTENDANCE_ALL")}
+                      onClick={() => openPrintModalForSection("attendance")}
                       className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                      title="Print Workforce Headcount & Attendance only"
+                      title="Print Staff Attendance only"
                     >
                       <Printer className="w-3.5 h-3.5" />
                     </button>
-                    {canWriteAttendance && (
-                      <button
-                        onClick={() => {
-                          if (selectedSiteId) setWfSiteId(selectedSiteId);
-                          setModalMode("WORKFORCE");
-                          setShowLogModal(true);
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-lg text-xs font-bold transition"
-                      >
-                        <PlusCircle className="w-3.5 h-3.5" />
-                        <span>Log Worker Count</span>
-                      </button>
-                    )}
                   </div>
                 </div>
 
-                {(!dayData?.headcount || dayData.headcount.length === 0) &&
-                (!dayData?.attendance || dayData.attendance.length === 0) ? (
+                {(!dayData?.attendance || dayData.attendance.length === 0) ? (
                   <div className="p-8 text-center bg-slate-50/40 flex flex-col items-center justify-center">
                     <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 mb-2">
-                      <HardHat className="w-5 h-5" />
+                      <UserCheck className="w-5 h-5" />
                     </div>
-                    <p className="text-xs font-bold text-slate-700">No worker shifts or count logged for this date.</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Log daily artisans, craftsmen, and laborers master counts for your active sites.</p>
-                    {canWriteAttendance && (
-                      <button
-                        onClick={() => {
-                          if (selectedSiteId) setWfSiteId(selectedSiteId);
-                          setModalMode("WORKFORCE");
-                          setShowLogModal(true);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow-xs"
-                      >
-                        <PlusCircle className="w-4 h-4" />
-                        <span>+ Log Worker Count</span>
-                      </button>
-                    )}
+                    <p className="text-xs font-bold text-slate-700">No staff attendance logged for this date.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Staff check-ins recorded via attendance banner or mobile check-in will appear here.</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
-                    {/* 3A. Site Headcount Records */}
-                    {dayData?.headcount && dayData.headcount.length > 0 && (
-                      <div>
-                        <div className="p-3 bg-emerald-50/50 border-b border-slate-100 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-emerald-600" />
-                            <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                              Site Labor Master Records ({dayData.headcount.length})
-                            </span>
-                          </div>
-                          <span className="text-xs font-black text-emerald-700">
-                            Total {dayData.headcount.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0)} Workers
-                          </span>
-                        </div>
-                        <ExcelTable
-                          data={dayData.headcount}
-                          columns={headcountColumns}
-                          tableName="Headcount"
-                          showGlobalSearch={true}
-                          showExport={true}
-                          showToolbar={true}
-                        />
-                      </div>
-                    )}
-
-                    {/* 3B. Staff Attendance Sessions */}
-                    {dayData?.attendance && dayData.attendance.length > 0 && (
-                      <div>
-                        <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                            Staff & Individual Worker Sessions ({dayData.attendance.length})
-                          </span>
-                        </div>
-                        <div className="overflow-x-auto min-h-[400px]">
-                          <table className="w-full text-left text-xs">
-                            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
-                              <tr>
-                                <th className="p-3">Emp Code</th>
-                                <th className="p-3">Worker Name</th>
-                                <th className="p-3">Trade</th>
-                                <th className="p-3">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {dayData.attendance.map((a) => (
-                                <tr key={a.id} className="hover:bg-slate-50/70 transition">
-                                  <td className="p-3 font-mono font-bold text-slate-800">
-                                    {a.workforceMember?.employeeCode || "—"}
-                                  </td>
-                                  <td className="p-3 font-bold text-slate-900">{a.workforceMember?.name || "N/A"}</td>
-                                  <td className="p-3 text-slate-600">{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff / Worker"}</td>
-                                  <td className="p-3">
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                      {a.status}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
+                  <div>
+                    <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                        Staff Attendance Sessions ({dayData.attendance.length})
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto min-h-[400px]">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
+                          <tr>
+                            <th className="p-3">Emp Code</th>
+                            <th className="p-3">Staff Name</th>
+                            <th className="p-3">Role / Designation</th>
+                            <th className="p-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {dayData.attendance.map((a) => (
+                            <tr key={a.id} className="hover:bg-slate-50/70 transition">
+                              <td className="p-3 font-mono font-bold text-slate-800">
+                                {a.workforceMember?.employeeCode || "—"}
+                              </td>
+                              <td className="p-3 font-bold text-slate-900">{a.workforceMember?.name || "N/A"}</td>
+                              <td className="p-3 text-slate-600">{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}</td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                  {a.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
