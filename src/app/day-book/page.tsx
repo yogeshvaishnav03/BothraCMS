@@ -37,6 +37,7 @@ import {
   Eye,
   Trash2,
   Image as ImageIcon,
+  BarChart2,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -72,6 +73,96 @@ interface DayBookData {
   headcount?: any[];
   dailyReports: any[];
   recentActivityDates?: string[];
+}
+
+interface PrintSectionConfig {
+  summary: boolean;
+  payments: boolean;
+  rejected: boolean;
+  moneyIn: boolean;
+  bills: boolean;
+  headcount: boolean;
+  attendance: boolean;
+  materials: boolean;
+  reports: boolean;
+  signatures: boolean;
+}
+
+const DEFAULT_PRINT_SECTIONS: PrintSectionConfig = {
+  summary: true,
+  payments: true,
+  rejected: true,
+  moneyIn: true,
+  bills: true,
+  headcount: true,
+  attendance: true,
+  materials: true,
+  reports: true,
+  signatures: true,
+};
+
+function SectionCheckboxCard({
+  checked,
+  onChange,
+  icon,
+  title,
+  badge,
+  highlight,
+  description,
+  isWarning,
+}: {
+  checked: boolean;
+  onChange: (val: boolean) => void;
+  icon: React.ReactNode;
+  title: string;
+  badge?: string;
+  highlight?: string;
+  description?: string;
+  isWarning?: boolean;
+}) {
+  return (
+    <label
+      className={`p-3 rounded-xl border transition flex items-start gap-2.5 cursor-pointer select-none ${
+        checked
+          ? "border-amber-400 bg-amber-50/40 shadow-xs ring-1 ring-amber-300/60"
+          : "border-slate-200 bg-white hover:bg-slate-50 opacity-75"
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="shrink-0">{icon}</span>
+          <span className="font-bold text-slate-900 text-xs truncate">{title}</span>
+          {badge && (
+            <span
+              className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${
+                isWarning
+                  ? "bg-rose-100 text-rose-800"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        {highlight && (
+          <div className="text-[11px] font-bold text-slate-700 mt-0.5">
+            {highlight}
+          </div>
+        )}
+        {description && (
+          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+            {description}
+          </div>
+        )}
+      </div>
+    </label>
+  );
 }
 
 export default function DayBookPage() {
@@ -529,6 +620,286 @@ export default function DayBookPage() {
       rejectedTotal: rTotal,
     };
   }, [dayData]);
+
+  // Print & Filter states
+  const [showPrintFilterModal, setShowPrintFilterModal] = useState(false);
+  const [printSections, setPrintSections] = useState<PrintSectionConfig>(DEFAULT_PRINT_SECTIONS);
+  const [hideEmptySectionsInPrint, setHideEmptySectionsInPrint] = useState(false);
+  const [printProjectFilter, setPrintProjectFilter] = useState("ALL");
+
+  // Filtered print datasets based on printProjectFilter
+  const printDisbursedPayments = useMemo(() => {
+    return disbursedPayments.filter((p: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return p.projectId === printProjectFilter || p.project?.id === printProjectFilter;
+    });
+  }, [disbursedPayments, printProjectFilter]);
+
+  const printRejectedPayments = useMemo(() => {
+    return rejectedPayments.filter((p: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return p.projectId === printProjectFilter || p.project?.id === printProjectFilter;
+    });
+  }, [rejectedPayments, printProjectFilter]);
+
+  const printMoneyIn = useMemo(() => {
+    return (dayData?.moneyIn || []).filter((r: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return r.projectId === printProjectFilter || r.booking?.unit?.project?.id === printProjectFilter;
+    });
+  }, [dayData?.moneyIn, printProjectFilter]);
+
+  const printBills = useMemo(() => {
+    return (dayData?.bills || []).filter((b: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return b.projectId === printProjectFilter || b.project?.id === printProjectFilter;
+    });
+  }, [dayData?.bills, printProjectFilter]);
+
+  const printHeadcount = useMemo(() => {
+    return (dayData?.headcount || []).filter((h: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return h.projectId === printProjectFilter;
+    });
+  }, [dayData?.headcount, printProjectFilter]);
+
+  const printAttendance = useMemo(() => {
+    return (dayData?.attendance || []).filter((a: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return a.projectId === printProjectFilter;
+    });
+  }, [dayData?.attendance, printProjectFilter]);
+
+  const printReceipts = useMemo(() => {
+    return (dayData?.receipts || []).filter((m: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return m.projectId === printProjectFilter;
+    });
+  }, [dayData?.receipts, printProjectFilter]);
+
+  const printIssues = useMemo(() => {
+    return (dayData?.issues || []).filter((m: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return m.projectId === printProjectFilter;
+    });
+  }, [dayData?.issues, printProjectFilter]);
+
+  const printDailyReports = useMemo(() => {
+    return (dayData?.dailyReports || []).filter((dr: any) => {
+      if (!printProjectFilter || printProjectFilter === "ALL") return true;
+      return dr.projectId === printProjectFilter || dr.project?.id === printProjectFilter;
+    });
+  }, [dayData?.dailyReports, printProjectFilter]);
+
+  const printDisbursedTotal = useMemo(() => {
+    return printDisbursedPayments.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
+  }, [printDisbursedPayments]);
+
+  const printRejectedTotal = useMemo(() => {
+    return printRejectedPayments.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
+  }, [printRejectedPayments]);
+
+  const printMoneyInTotal = useMemo(() => {
+    return printMoneyIn.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+  }, [printMoneyIn]);
+
+  const printBillsTotal = useMemo(() => {
+    return printBills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
+  }, [printBills]);
+
+  // Presets and print modal handlers
+  const openPrintModal = () => {
+    if (activeTab === "PAYMENTS") {
+      setPrintSections({
+        summary: true,
+        payments: true,
+        rejected: false,
+        moneyIn: false,
+        bills: false,
+        headcount: false,
+        attendance: false,
+        materials: false,
+        reports: false,
+        signatures: true,
+      });
+    } else if (activeTab === "REJECTED") {
+      setPrintSections({
+        summary: true,
+        payments: false,
+        rejected: true,
+        moneyIn: false,
+        bills: false,
+        headcount: false,
+        attendance: false,
+        materials: false,
+        reports: false,
+        signatures: true,
+      });
+    } else if (activeTab === "BILLS") {
+      setPrintSections({
+        summary: true,
+        payments: false,
+        rejected: false,
+        moneyIn: false,
+        bills: true,
+        headcount: false,
+        attendance: false,
+        materials: false,
+        reports: false,
+        signatures: true,
+      });
+    } else if (activeTab === "ATTENDANCE") {
+      setPrintSections({
+        summary: false,
+        payments: false,
+        rejected: false,
+        moneyIn: false,
+        bills: false,
+        headcount: true,
+        attendance: true,
+        materials: false,
+        reports: false,
+        signatures: true,
+      });
+    } else if (activeTab === "REPORTS") {
+      setPrintSections({
+        summary: false,
+        payments: false,
+        rejected: false,
+        moneyIn: false,
+        bills: false,
+        headcount: false,
+        attendance: false,
+        materials: false,
+        reports: true,
+        signatures: true,
+      });
+    }
+    setShowPrintFilterModal(true);
+  };
+
+  const openPrintModalForSection = (section: keyof PrintSectionConfig | "ATTENDANCE_ALL") => {
+    if (section === "ATTENDANCE_ALL") {
+      setPrintSections({
+        summary: false,
+        payments: false,
+        rejected: false,
+        moneyIn: false,
+        bills: false,
+        headcount: true,
+        attendance: true,
+        materials: false,
+        reports: false,
+        signatures: true,
+      });
+    } else {
+      setPrintSections({
+        summary: section !== "reports",
+        payments: section === "payments",
+        rejected: section === "rejected",
+        moneyIn: section === "moneyIn",
+        bills: section === "bills",
+        headcount: section === "headcount",
+        attendance: section === "attendance",
+        materials: section === "materials",
+        reports: section === "reports",
+        signatures: true,
+      });
+    }
+    setShowPrintFilterModal(true);
+  };
+
+  const applyPresetAll = () => {
+    setPrintSections(DEFAULT_PRINT_SECTIONS);
+    setHideEmptySectionsInPrint(false);
+  };
+
+  const applyPresetActiveTab = () => {
+    openPrintModal();
+  };
+
+  const applyPresetNonEmpty = () => {
+    setHideEmptySectionsInPrint(true);
+    setPrintSections({
+      summary: true,
+      payments: disbursedPayments.length > 0,
+      rejected: rejectedPayments.length > 0,
+      moneyIn: (dayData?.moneyIn?.length || 0) > 0,
+      bills: (dayData?.bills?.length || 0) > 0,
+      headcount: (dayData?.headcount?.length || 0) > 0,
+      attendance: (dayData?.attendance?.length || 0) > 0,
+      materials: ((dayData?.receipts?.length || 0) + (dayData?.issues?.length || 0)) > 0,
+      reports: (dayData?.dailyReports?.length || 0) > 0,
+      signatures: true,
+    });
+  };
+
+  const applyPresetFinancial = () => {
+    setPrintSections({
+      summary: true,
+      payments: true,
+      rejected: true,
+      moneyIn: true,
+      bills: true,
+      headcount: false,
+      attendance: false,
+      materials: false,
+      reports: false,
+      signatures: true,
+    });
+  };
+
+  const selectAllSections = () => {
+    setPrintSections(DEFAULT_PRINT_SECTIONS);
+  };
+
+  const deselectAllSections = () => {
+    setPrintSections({
+      summary: false,
+      payments: false,
+      rejected: false,
+      moneyIn: false,
+      bills: false,
+      headcount: false,
+      attendance: false,
+      materials: false,
+      reports: false,
+      signatures: false,
+    });
+  };
+
+  const selectedSectionsCount = useMemo(() => {
+    return Object.values(printSections).filter(Boolean).length;
+  }, [printSections]);
+
+  const handleExecutePrint = () => {
+    setShowPrintFilterModal(false);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
+  const getActiveTabLabel = () => {
+    switch (activeTab) {
+      case "PAYMENTS": return "Payments Out";
+      case "REJECTED": return "Rejected Payments";
+      case "BILLS": return "Bills Incurred";
+      case "ATTENDANCE": return "Workers Master";
+      case "REPORTS": return "Site Reports (DSR)";
+      default: return "All Activity";
+    }
+  };
+
+  const getActiveTabShortLabel = () => {
+    switch (activeTab) {
+      case "PAYMENTS": return "Payments";
+      case "REJECTED": return "Rejected";
+      case "BILLS": return "Bills";
+      case "ATTENDANCE": return "Workers";
+      case "REPORTS": return "DSR";
+      default: return "All";
+    }
+  };
 
   const modalModeGuidance = {
     PAYMENT: {
@@ -1301,13 +1672,14 @@ export default function DayBookPage() {
 
             {/* Print */}
             <button
-              onClick={() => window.print()}
+              onClick={() => openPrintModal()}
               disabled={loading || !dayData}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Print Official Day Book Statement"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed group"
+              title="Filter sections and print official Day Book statement"
             >
-              <Printer className="w-4 h-4 text-slate-500" />
+              <Printer className="w-4 h-4 text-slate-500 group-hover:text-amber-600 transition" />
               <span>{loading ? "Loading..." : "Print Day Book"}</span>
+              <Filter className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition" />
             </button>
           </div>
         </div>
@@ -1748,6 +2120,13 @@ export default function DayBookPage() {
                     <span className="text-xs font-bold text-rose-600 font-mono">
                       {dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
                     </span>
+                    <button
+                      onClick={() => openPrintModalForSection("payments")}
+                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      title="Print Disbursed Payments only"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
                     {canWriteFinance && (
                       <button
                         onClick={() => {
@@ -1811,6 +2190,13 @@ export default function DayBookPage() {
                     <span className="text-xs font-bold text-rose-600 font-mono">
                       Total Rejected: {formatCurrency(rejectedTotal)}
                     </span>
+                    <button
+                      onClick={() => openPrintModalForSection("rejected")}
+                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      title="Print Rejected Claims only"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
@@ -1847,6 +2233,13 @@ export default function DayBookPage() {
                     <span className="text-xs font-bold text-slate-900">
                       {dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}
                     </span>
+                    <button
+                      onClick={() => openPrintModalForSection("bills")}
+                      className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                      title="Print Vendor Bills only"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
                     {canWriteFinance && (
                       <button
                         onClick={() => {
@@ -1907,6 +2300,13 @@ export default function DayBookPage() {
                     <span className="text-xs font-bold text-emerald-700">
                       {dayData?.summary.workersPresentCount || 0} Present
                     </span>
+                    <button
+                      onClick={() => openPrintModalForSection("ATTENDANCE_ALL")}
+                      className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                      title="Print Workforce Headcount & Attendance only"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
                     {canWriteAttendance && (
                       <button
                         onClick={() => {
@@ -2029,6 +2429,13 @@ export default function DayBookPage() {
                     <span className="text-xs font-bold text-blue-700">
                       {dayData?.dailyReports.length || 0} Reports
                     </span>
+                    <button
+                      onClick={() => openPrintModalForSection("reports")}
+                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      title="Print Daily Site Reports only"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
                     {canWriteDsr && (
                       <button
                         onClick={() => {
@@ -3705,6 +4112,270 @@ export default function DayBookPage() {
             )}
           </div>
         )}
+
+        {/* Print Filter & Configuration Modal */}
+        {showPrintFilterModal && (
+          <div
+            className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowPrintFilterModal(false);
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              {/* Modal Header */}
+              <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                    <Printer className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                      <span>Print & Filter Day Book</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                        Official Statement
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Select specific sections and filters to customize your printed report.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPrintFilterModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
+                {/* Presets */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Quick Presets
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      1-click report filters
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={applyPresetAll}
+                      className="px-2.5 py-2 rounded-xl text-xs font-bold border border-slate-200 hover:border-amber-500 hover:bg-amber-50 text-slate-700 transition text-center shadow-2xs"
+                    >
+                      📄 Full Day Book
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyPresetActiveTab}
+                      className="px-2.5 py-2 rounded-xl text-xs font-bold border border-blue-200 bg-blue-50/60 hover:bg-blue-100 text-blue-900 transition text-center shadow-2xs"
+                      title={`Pre-selects active screen tab: ${getActiveTabLabel()}`}
+                    >
+                      🎯 {getActiveTabShortLabel()} Only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyPresetNonEmpty}
+                      className="px-2.5 py-2 rounded-xl text-xs font-bold border border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 text-emerald-800 transition text-center shadow-2xs"
+                    >
+                      ✨ Non-Empty Only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyPresetFinancial}
+                      className="px-2.5 py-2 rounded-xl text-xs font-bold border border-slate-200 hover:border-amber-500 hover:bg-amber-50 text-slate-700 transition text-center shadow-2xs"
+                    >
+                      💰 Financial Only
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scope Filters */}
+                <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Filter by Project Scope
+                    </label>
+                    <select
+                      value={printProjectFilter}
+                      onChange={(e) => setPrintProjectFilter(e.target.value)}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    >
+                      <option value="ALL">All Projects (Company-wide)</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} {p.code ? `(${p.code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="sm:pt-3">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={hideEmptySectionsInPrint}
+                        onChange={(e) => setHideEmptySectionsInPrint(e.target.checked)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-slate-800">
+                        Omit Empty Sections
+                      </span>
+                    </label>
+                    <p className="text-[11px] text-slate-500 pl-6 mt-0.5">
+                      Omits tables that have 0 records to eliminate blank paper sections.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Section Checkboxes */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Sections to Print ({selectedSectionsCount} of 10)
+                    </label>
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={selectAllSections}
+                        className="text-amber-600 hover:text-amber-700 font-bold"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={deselectAllSections}
+                        className="text-slate-400 hover:text-slate-600 font-bold"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <SectionCheckboxCard
+                      checked={printSections.summary}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, summary: val }))}
+                      icon={<BarChart2 className="w-4 h-4 text-slate-600" />}
+                      title="Executive Summary & KPIs"
+                      description="5 top-level financial & workforce cards"
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.payments}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, payments: val }))}
+                      icon={<ArrowUpRight className="w-4 h-4 text-rose-500" />}
+                      title="1. Disbursed Payments"
+                      badge={`${printDisbursedPayments.length} paid`}
+                      highlight={printDisbursedPayments.length > 0 ? formatCurrency(printDisbursedTotal) : undefined}
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.rejected}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, rejected: val }))}
+                      icon={<XCircle className="w-4 h-4 text-rose-600" />}
+                      title="2. Rejected Claims"
+                      badge={`${printRejectedPayments.length} rejected`}
+                      highlight={printRejectedPayments.length > 0 ? formatCurrency(printRejectedTotal) : undefined}
+                      isWarning={printRejectedPayments.length > 0}
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.moneyIn}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, moneyIn: val }))}
+                      icon={<ArrowDownLeft className="w-4 h-4 text-emerald-600" />}
+                      title="3. Customer Collections"
+                      badge={`${printMoneyIn.length} receipts`}
+                      highlight={printMoneyIn.length > 0 ? formatCurrency(printMoneyInTotal) : undefined}
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.bills}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, bills: val }))}
+                      icon={<FileText className="w-4 h-4 text-amber-500" />}
+                      title="4. Vendor & Contractor Bills"
+                      badge={`${printBills.length} bills`}
+                      highlight={printBills.length > 0 ? formatCurrency(printBillsTotal) : undefined}
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.headcount}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, headcount: val }))}
+                      icon={<HardHat className="w-4 h-4 text-blue-600" />}
+                      title="5. Workforce Headcount"
+                      badge={`${printHeadcount.length} shifts`}
+                      highlight={printHeadcount.length > 0 ? `${dayData?.summary.headcountTotal || 0} workers` : undefined}
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.attendance}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, attendance: val }))}
+                      icon={<Clock className="w-4 h-4 text-emerald-600" />}
+                      title="6. Staff Site Attendance"
+                      badge={`${printAttendance.length} sessions`}
+                      highlight={printAttendance.length > 0 ? `${dayData?.summary.staffPresentCount || 0} present` : undefined}
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.materials}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, materials: val }))}
+                      icon={<Boxes className="w-4 h-4 text-slate-600" />}
+                      title="7. Material Movements"
+                      badge={`${printReceipts.length + printIssues.length} logs`}
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.reports}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, reports: val }))}
+                      icon={<Layers className="w-4 h-4 text-blue-500" />}
+                      title="8. Site Reports (DSR)"
+                      badge={`${printDailyReports.length} logs`}
+                    />
+
+                    <SectionCheckboxCard
+                      checked={printSections.signatures}
+                      onChange={(val) => setPrintSections((prev) => ({ ...prev, signatures: val }))}
+                      icon={<CheckCircle2 className="w-4 h-4 text-slate-700" />}
+                      title="Corporate Sign-Off Block"
+                      description="Prepared, Verified & Approved signatures"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 sm:p-5 border-t border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0">
+                <div className="text-xs text-slate-500 hidden sm:block">
+                  <span className="font-bold text-slate-800">{selectedSectionsCount}</span> of 10 sections selected
+                  {hideEmptySectionsInPrint && " • empty sections omitted"}
+                  {printProjectFilter !== "ALL" && " • filtered by project"}
+                </div>
+                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowPrintFilterModal(false)}
+                    className="px-4 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:bg-slate-200 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecutePrint}
+                    disabled={selectedSectionsCount === 0}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs sm:text-sm font-bold rounded-xl shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Print Statement</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -3854,6 +4525,12 @@ export default function DayBookPage() {
                 <strong className="text-slate-900">Site:</strong>{" "}
                 {sites.find((s) => s.id === selectedSiteId)?.name || "All Operational Sites (Company-wide)"}
               </div>
+              {printProjectFilter !== "ALL" && (
+                <div>
+                  <strong className="text-slate-900">Project:</strong>{" "}
+                  {projects.find((p) => p.id === printProjectFilter)?.name || printProjectFilter}
+                </div>
+              )}
               <div>
                 <strong className="text-slate-900">Period:</strong>{" "}
                 {selectedDate === toDate ? formatDate(selectedDate) : `${formatDate(selectedDate)} — ${formatDate(toDate)}`}
@@ -3866,454 +4543,571 @@ export default function DayBookPage() {
                 <strong className="text-slate-900">Operator:</strong>{" "}
                 {currentUser?.name || "System User"} ({currentUser?.role || "Staff"})
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Executive Summary Financial & Workforce KPIs */}
-        <div className="grid grid-cols-5 gap-2 mb-4 border border-slate-300 rounded p-2 bg-slate-50 text-slate-900">
-          <div className="border-r border-slate-200 pr-2">
-            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Total Money In</div>
-            <div className="text-xs font-black text-emerald-700">
-              {formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}
-            </div>
-            <div className="text-[8px] text-slate-500">{dayData?.summary.moneyInCount || 0} customer receipts</div>
-          </div>
-          <div className="border-r border-slate-200 pr-2">
-            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Total Disbursed</div>
-            <div className="text-xs font-black text-rose-700">
-              {formatCurrency(dayData?.summary.totalPaymentsAmount || 0)}
-            </div>
-            <div className="text-[8px] text-slate-500">{dayData?.summary.paymentsCount || 0} vouchers paid</div>
-          </div>
-          <div className="border-r border-slate-200 pr-2">
-            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Net Daily Cash Flow</div>
-            <div className={`text-xs font-black ${
-              ((dayData?.summary.totalMoneyInAmount || 0) - (dayData?.summary.totalPaymentsAmount || 0)) >= 0
-                ? "text-emerald-700"
-                : "text-rose-700"
-            }`}>
-              {formatCurrency((dayData?.summary.totalMoneyInAmount || 0) - (dayData?.summary.totalPaymentsAmount || 0))}
-            </div>
-            <div className="text-[8px] text-slate-500">Collections vs Outflows</div>
-          </div>
-          <div className="border-r border-slate-200 pr-2">
-            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Workforce Deployed</div>
-            <div className="text-xs font-black text-blue-800">
-              {dayData?.summary.workersPresentCount || 0} Workers
-            </div>
-            <div className="text-[8px] text-slate-500">
-              {dayData?.summary.headcountArtisans || 0} Art / {dayData?.summary.headcountCraftsmen || 0} Crf / {dayData?.summary.headcountLaborers || 0} Lab
-            </div>
-          </div>
-          <div>
-            <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Vendor Bills</div>
-            <div className="text-xs font-black text-amber-800">
-              {formatCurrency(dayData?.summary.totalBillsAmount || 0)}
-            </div>
-            <div className="text-[8px] text-slate-500">{dayData?.summary.billsCount || 0} vendor invoices</div>
-          </div>
-        </div>
-
-        {/* Section 1: Disbursed Payments & Vouchers Table */}
-        <div className="print-section">
-          <div className="print-section-header">
-            <span>1. Disbursed Payments & Expense Vouchers ({dayData?.payments.length || 0})</span>
-            <span className="text-[9pt] font-black text-slate-900">
-              Total: {formatCurrency(dayData?.summary.totalPaymentsAmount || 0)}
-            </span>
-          </div>
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th style={{ width: "70px" }}>Date</th>
-                <th style={{ width: "85px" }}>Voucher #</th>
-                <th>Recipient / Vendor</th>
-                <th style={{ width: "85px" }}>Mode / A/C</th>
-                <th style={{ width: "110px" }}>Project / Site</th>
-                <th>Description / Bill Ref</th>
-                <th style={{ width: "65px", textAlign: "center" }}>Status</th>
-                <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(!dayData?.payments || dayData.payments.length === 0) ? (
-                <tr>
-                  <td colSpan={8} className="text-center text-slate-400 italic py-2">
-                    No disbursed payments or vouchers recorded for this period.
-                  </td>
-                </tr>
-              ) : (
-                dayData.payments.map((p, idx) => (
-                  <tr key={p.id || idx}>
-                    <td className="whitespace-nowrap">{formatDate(p.paymentDate || p.createdAt)}</td>
-                    <td className="font-mono font-bold text-slate-900">{p.referenceNumber || "—"}</td>
-                    <td>
-                      <div className="font-bold text-slate-900">{p.party?.name || p.recipientName || "Direct Site Expense"}</div>
-                      {p.recipientType && <span className="text-[7.5pt] text-slate-500 uppercase">{p.recipientType}</span>}
-                    </td>
-                    <td>
-                      <div className="font-semibold">{p.paymentMethod || p.method || "CASH"}</div>
-                      {p.payingAccount && <div className="text-[7.5pt] text-slate-500 truncate">{p.payingAccount}</div>}
-                    </td>
-                    <td>{p.project?.name || "General / HQ"}</td>
-                    <td>
-                      <div className="text-slate-800">{p.notes || "—"}</div>
-                      {p.allocations?.[0]?.bill?.billNumber && (
-                        <div className="text-[7.5pt] text-amber-700 font-medium">Against Bill #{p.allocations[0].bill.billNumber}</div>
-                      )}
-                    </td>
-                    <td style={{ textAlign: "center" }}>
-                      <span className="font-semibold text-[7.5pt]">{p.status || "POSTED"}</span>
-                    </td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>
-                      {formatCurrency(p.amount)}
-                    </td>
-                  </tr>
-                ))
+              {selectedSectionsCount < 10 && (
+                <div className="text-amber-800 font-semibold pt-0.5 text-[9px]">
+                  Filtered Statement: {selectedSectionsCount} of 10 sections included
+                </div>
               )}
-            </tbody>
-            {dayData?.payments && dayData.payments.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={7} style={{ textAlign: "right" }}>Total Disbursed:</td>
-                  <td style={{ textAlign: "right" }}>{formatCurrency(dayData.summary.totalPaymentsAmount)}</td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-
-        {/* Section 2: Money In / Customer Collections Table */}
-        <div className="print-section">
-          <div className="print-section-header">
-            <span>2. Customer Collections & Money In ({dayData?.moneyIn?.length || 0})</span>
-            <span className="text-[9pt] font-black text-emerald-800">
-              Total: {formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}
-            </span>
-          </div>
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th style={{ width: "70px" }}>Date</th>
-                <th style={{ width: "85px" }}>Receipt #</th>
-                <th>Customer / Booking Name</th>
-                <th style={{ width: "130px" }}>Unit / Project</th>
-                <th style={{ width: "80px" }}>Method</th>
-                <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(!dayData?.moneyIn || dayData.moneyIn.length === 0) ? (
-                <tr>
-                  <td colSpan={6} className="text-center text-slate-400 italic py-2">
-                    No customer collections or money in recorded for this period.
-                  </td>
-                </tr>
-              ) : (
-                dayData.moneyIn.map((r, idx) => (
-                  <tr key={r.id || idx}>
-                    <td className="whitespace-nowrap">{formatDate(r.date)}</td>
-                    <td className="font-mono font-bold">{r.receiptNumber || `REC-${idx + 1}`}</td>
-                    <td className="font-semibold text-slate-900">{r.booking?.customerName || "Customer"}</td>
-                    <td>{r.booking?.unit?.project?.name ? `${r.booking.unit.project.name} - Unit ${r.booking.unit.unitNumber || ""}` : "Direct Sale"}</td>
-                    <td>{r.paymentMethod || r.mode || "BANK"}</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold", color: "#065f46" }}>
-                      {formatCurrency(r.amount)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-            {dayData?.moneyIn && dayData.moneyIn.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={5} style={{ textAlign: "right" }}>Total Collected:</td>
-                  <td style={{ textAlign: "right" }}>{formatCurrency(dayData.summary.totalMoneyInAmount || 0)}</td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-
-        {/* Section 3: Vendor Bills Recorded */}
-        <div className="print-section">
-          <div className="print-section-header">
-            <span>3. Vendor & Contractor Invoices Recorded ({dayData?.bills?.length || 0})</span>
-            <span className="text-[9pt] font-black text-amber-900">
-              Total: {formatCurrency(dayData?.summary.totalBillsAmount || 0)}
-            </span>
-          </div>
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th style={{ width: "70px" }}>Date</th>
-                <th style={{ width: "85px" }}>Bill #</th>
-                <th>Vendor / Party</th>
-                <th style={{ width: "110px" }}>Project / Site</th>
-                <th style={{ width: "75px" }}>Due Date</th>
-                <th>Description / Cost Head</th>
-                <th style={{ width: "65px", textAlign: "center" }}>Status</th>
-                <th style={{ width: "90px", textAlign: "right" }}>Total (₹)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(!dayData?.bills || dayData.bills.length === 0) ? (
-                <tr>
-                  <td colSpan={8} className="text-center text-slate-400 italic py-2">
-                    No vendor or contractor bills recorded for this period.
-                  </td>
-                </tr>
-              ) : (
-                dayData.bills.map((b, idx) => (
-                  <tr key={b.id || idx}>
-                    <td className="whitespace-nowrap">{formatDate(b.billDate || b.createdAt)}</td>
-                    <td className="font-mono font-bold text-amber-800">{b.billNumber || "—"}</td>
-                    <td className="font-semibold text-slate-900">{b.party?.name || "Vendor"}</td>
-                    <td>{b.project?.name || "General"}</td>
-                    <td>{b.dueDate ? formatDate(b.dueDate) : "—"}</td>
-                    <td>{b.notes || b.costHead || "Materials / Contracting"}</td>
-                    <td style={{ textAlign: "center" }}>{b.status || "POSTED"}</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency(b.totalAmount || 0)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-            {dayData?.bills && dayData.bills.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={7} style={{ textAlign: "right" }}>Total Invoiced:</td>
-                  <td style={{ textAlign: "right" }}>{formatCurrency(dayData.summary.totalBillsAmount || 0)}</td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-
-        {/* Section 4: Workforce Headcount & Labour Deployments */}
-        <div className="print-section">
-          <div className="print-section-header">
-            <span>4. Workforce Headcount & Labour Deployments ({dayData?.headcount?.length || 0} Shift Logs)</span>
-            <span className="text-[9pt] font-black text-blue-900">
-              Total: {dayData?.summary.headcountTotal || dayData?.summary.workersPresentCount || 0} Workers
-            </span>
-          </div>
-          <table className="print-table">
-            <thead>
-              <tr>
-                <th style={{ width: "120px" }}>Site Location</th>
-                <th style={{ width: "75px", textAlign: "center" }}>Shift</th>
-                <th>Contractor / Gang Name</th>
-                <th style={{ width: "65px", textAlign: "center" }}>Artisans</th>
-                <th style={{ width: "70px", textAlign: "center" }}>Craftsmen</th>
-                <th style={{ width: "95px", textAlign: "center" }}>Laborers (M/F)</th>
-                <th style={{ width: "75px", textAlign: "center" }}>Total</th>
-                <th>Remarks / Work Area</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(!dayData?.headcount || dayData.headcount.length === 0) ? (
-                <tr>
-                  <td colSpan={8} className="text-center text-slate-400 italic py-2">
-                    No workforce headcount logs recorded for this period.
-                  </td>
-                </tr>
-              ) : (
-                dayData.headcount.map((h, idx) => (
-                  <tr key={h.id || idx}>
-                    <td className="font-semibold text-slate-900">{h.siteName || "Operational Site"}</td>
-                    <td style={{ textAlign: "center" }}>
-                      <span className="font-bold text-[7.5pt]">{h.shift || "GENERAL"}</span>
-                    </td>
-                    <td className="font-bold text-slate-800">{h.contractorName || "Direct Site Gang"}</td>
-                    <td style={{ textAlign: "center" }}>{h.artisanCount ?? h.artisanTotal ?? 0}</td>
-                    <td style={{ textAlign: "center" }}>{h.craftsmanCount ?? h.craftsmanTotal ?? 0}</td>
-                    <td style={{ textAlign: "center" }}>
-                      <strong>{h.laborerTotal || ((h.laborerMale || 0) + (h.laborerFemale || 0)) || 0}</strong>
-                      {((h.laborerMale || 0) > 0 || (h.laborerFemale || 0) > 0) && (
-                        <span className="text-[7pt] text-slate-500 ml-1">
-                          ({h.laborerMale || 0}M/{h.laborerFemale || 0}F)
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: "center", fontWeight: "bold", color: "#1e3a8a" }}>
-                      {h.grandTotal || 0}
-                    </td>
-                    <td>{h.notes || "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-            {dayData?.headcount && dayData.headcount.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={6} style={{ textAlign: "right" }}>Total Labour Headcount:</td>
-                  <td style={{ textAlign: "center" }}>
-                    {dayData.headcount.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0)}
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-
-        {/* Section 5: Staff & Supervisor Site Attendance */}
-        {dayData?.attendance && dayData.attendance.length > 0 && (
-          <div className="print-section">
-            <div className="print-section-header">
-              <span>5. Staff & Supervisor Site Attendance ({dayData.attendance.length} Sessions)</span>
-              <span className="text-[9pt] font-black text-slate-900">
-                Present: {dayData.summary.staffPresentCount || dayData.attendance.filter((a) => a.status === "PRESENT").length}
-              </span>
             </div>
-            <table className="print-table">
-              <thead>
-                <tr>
-                  <th style={{ width: "80px" }}>Emp Code</th>
-                  <th>Staff / Worker Name</th>
-                  <th style={{ width: "110px" }}>Trade / Designation</th>
-                  <th style={{ width: "110px" }}>Site</th>
-                  <th style={{ width: "70px", textAlign: "center" }}>Status</th>
-                  <th style={{ width: "70px", textAlign: "center" }}>Check-In</th>
-                  <th style={{ width: "70px", textAlign: "center" }}>Check-Out</th>
-                  <th style={{ width: "60px", textAlign: "center" }}>Hours</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dayData.attendance.map((a, idx) => (
-                  <tr key={a.id || idx}>
-                    <td className="font-mono">{a.workforceMember?.employeeCode || "—"}</td>
-                    <td className="font-bold text-slate-900">{a.workforceMember?.name || "Staff Member"}</td>
-                    <td>{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}</td>
-                    <td>{a.site?.name || "Operational Site"}</td>
-                    <td style={{ textAlign: "center", fontWeight: "bold" }}>{a.status || "PRESENT"}</td>
-                    <td style={{ textAlign: "center" }}>
-                      {a.checkInAt ? new Date(a.checkInAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : "—"}
-                    </td>
-                    <td style={{ textAlign: "center" }}>
-                      {a.checkOutAt ? new Date(a.checkOutAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : (a.status === "PRESENT" ? "Active" : "—")}
-                    </td>
-                    <td style={{ textAlign: "center" }}>
-                      {a.totalHours ? `${a.totalHours}h` : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
-        )}
+        </div>
 
-        {/* Section 6: Material Stock Movements (Receipts & Issues) */}
-        {((dayData?.receipts && dayData.receipts.length > 0) || (dayData?.issues && dayData.issues.length > 0)) && (
-          <div className="print-section">
-            <div className="print-section-header">
-              <span>6. Site Material Stock Movements ({((dayData?.receipts?.length || 0) + (dayData?.issues?.length || 0))} Movements)</span>
-              <span className="text-[9pt] font-black text-slate-700">
-                {dayData?.receipts?.length || 0} Inward / {dayData?.issues?.length || 0} Outward
-              </span>
-            </div>
-            <table className="print-table">
-              <thead>
-                <tr>
-                  <th style={{ width: "75px", textAlign: "center" }}>Type</th>
-                  <th style={{ width: "75px" }}>Date</th>
-                  <th>Material Name (SKU)</th>
-                  <th style={{ width: "80px", textAlign: "right" }}>Quantity</th>
-                  <th style={{ width: "110px" }}>Store Location</th>
-                  <th>Notes / Reference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dayData.receipts || []).map((m: any, idx: number) => (
-                  <tr key={`rec-${m.id || idx}`}>
-                    <td style={{ textAlign: "center", fontWeight: "bold", color: "#047857" }}>RECEIPT (IN)</td>
-                    <td>{formatDate(m.movementAt || m.createdAt)}</td>
-                    <td className="font-semibold text-slate-900">{m.material?.name} ({m.material?.sku || "—"})</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{m.quantity} {m.material?.unitCode || ""}</td>
-                    <td>{m.store?.name || "Central Store"}</td>
-                    <td>{m.notes || m.creator?.name || "Stock Receipt"}</td>
-                  </tr>
-                ))}
-                {(dayData.issues || []).map((m: any, idx: number) => (
-                  <tr key={`iss-${m.id || idx}`}>
-                    <td style={{ textAlign: "center", fontWeight: "bold", color: "#b91c1c" }}>ISSUE (OUT)</td>
-                    <td>{formatDate(m.movementAt || m.createdAt)}</td>
-                    <td className="font-semibold text-slate-900">{m.material?.name} ({m.material?.sku || "—"})</td>
-                    <td style={{ textAlign: "right", fontWeight: "bold" }}>{m.quantity} {m.material?.unitCode || ""}</td>
-                    <td>{m.store?.name || "Site Store"}</td>
-                    <td>{m.notes || m.creator?.name || "Material Issue"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {(() => {
+          let sectionIndex = 1;
 
-        {/* Section 7: Daily Site Reports & Observations */}
-        {dayData?.dailyReports && dayData.dailyReports.length > 0 && (
-          <div className="print-section print-avoid-break">
-            <div className="print-section-header">
-              <span>7. Daily Site Progress Reports & Field Logs ({dayData.dailyReports.length})</span>
-            </div>
-            <div className="space-y-2 text-[8.5pt]">
-              {dayData.dailyReports.map((dr, idx) => (
-                <div key={dr.id || idx} className="border border-slate-300 rounded p-2 bg-slate-50">
-                  <div className="font-bold text-slate-900 flex justify-between border-b border-slate-200 pb-1 mb-1">
-                    <span>
-                      {dr.project?.name} {dr.project?.site?.name ? `(${dr.project.site.name})` : ""}
-                    </span>
-                    <span className="text-[7.5pt] text-slate-600 font-normal">
-                      Logged By: <strong>{dr.creator?.name || "Site Supervisor"}</strong> ({dr.creator?.role || "Field Officer"})
+          return (
+            <>
+              {/* Executive Summary Financial & Workforce KPIs */}
+              {printSections.summary && (
+                <div className="grid grid-cols-5 gap-2 mb-4 border border-slate-300 rounded p-2 bg-slate-50 text-slate-900">
+                  <div className="border-r border-slate-200 pr-2">
+                    <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Total Money In</div>
+                    <div className="text-xs font-black text-emerald-700">
+                      {formatCurrency(printMoneyInTotal)}
+                    </div>
+                    <div className="text-[8px] text-slate-500">{printMoneyIn.length} customer receipts</div>
+                  </div>
+                  <div className="border-r border-slate-200 pr-2">
+                    <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Total Disbursed</div>
+                    <div className="text-xs font-black text-rose-700">
+                      {formatCurrency(printDisbursedTotal)}
+                    </div>
+                    <div className="text-[8px] text-slate-500">{printDisbursedPayments.length} vouchers paid</div>
+                  </div>
+                  <div className="border-r border-slate-200 pr-2">
+                    <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Net Daily Cash Flow</div>
+                    <div className={`text-xs font-black ${
+                      (printMoneyInTotal - printDisbursedTotal) >= 0
+                        ? "text-emerald-700"
+                        : "text-rose-700"
+                    }`}>
+                      {formatCurrency(printMoneyInTotal - printDisbursedTotal)}
+                    </div>
+                    <div className="text-[8px] text-slate-500">Collections vs Outflows</div>
+                  </div>
+                  <div className="border-r border-slate-200 pr-2">
+                    <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Workforce Deployed</div>
+                    <div className="text-xs font-black text-blue-800">
+                      {dayData?.summary.workersPresentCount || 0} Workers
+                    </div>
+                    <div className="text-[8px] text-slate-500">
+                      {dayData?.summary.headcountArtisans || 0} Art / {dayData?.summary.headcountCraftsmen || 0} Crf / {dayData?.summary.headcountLaborers || 0} Lab
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Vendor Bills</div>
+                    <div className="text-xs font-black text-amber-800">
+                      {formatCurrency(printBillsTotal)}
+                    </div>
+                    <div className="text-[8px] text-slate-500">{printBills.length} vendor invoices</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Section 1: Disbursed Payments & Vouchers Table (Disbursed Only) */}
+              {printSections.payments && (!hideEmptySectionsInPrint || printDisbursedPayments.length > 0) && (
+                <div className="print-section">
+                  <div className="print-section-header">
+                    <span>{sectionIndex++}. Disbursed Payments & Expense Vouchers ({printDisbursedPayments.length})</span>
+                    <span className="text-[9pt] font-black text-slate-900">
+                      Total Disbursed: {formatCurrency(printDisbursedTotal)}
                     </span>
                   </div>
-                  {dr.progressSummary && (
-                    <div className="text-slate-800">
-                      <strong>Work Progress Executed:</strong> {dr.progressSummary}
-                    </div>
-                  )}
-                  {dr.blockers && (
-                    <div className="mt-1 text-rose-800">
-                      <strong>Site Blockers / Issues:</strong> {dr.blockers}
-                    </div>
-                  )}
-                  {dr.safetyNotes && (
-                    <div className="mt-1 text-slate-700">
-                      <strong>Safety & Quality Observations:</strong> {dr.safetyNotes}
-                    </div>
-                  )}
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "70px" }}>Date</th>
+                        <th style={{ width: "85px" }}>Voucher #</th>
+                        <th>Recipient / Vendor</th>
+                        <th style={{ width: "85px" }}>Mode / A/C</th>
+                        <th style={{ width: "110px" }}>Project / Site</th>
+                        <th>Description / Bill Ref</th>
+                        <th style={{ width: "65px", textAlign: "center" }}>Status</th>
+                        <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printDisbursedPayments.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                            No disbursed payments or vouchers recorded for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        printDisbursedPayments.map((p: any, idx: number) => (
+                          <tr key={p.id || idx}>
+                            <td className="whitespace-nowrap">{formatDate(p.paymentDate || p.createdAt)}</td>
+                            <td className="font-mono font-bold text-slate-900">{p.referenceNumber || "—"}</td>
+                            <td>
+                              <div className="font-bold text-slate-900">{p.party?.name || p.recipientName || "Direct Site Expense"}</div>
+                              {p.recipientType && <span className="text-[7.5pt] text-slate-500 uppercase">{p.recipientType}</span>}
+                            </td>
+                            <td>
+                              <div className="font-semibold">{p.paymentMethod || p.method || "CASH"}</div>
+                              {p.payingAccount && <div className="text-[7.5pt] text-slate-500 truncate">{p.payingAccount}</div>}
+                            </td>
+                            <td>{p.project?.name || "General / HQ"}</td>
+                            <td>
+                              <div className="text-slate-800">{p.notes || "—"}</div>
+                              {p.allocations?.[0]?.bill?.billNumber && (
+                                <div className="text-[7.5pt] text-amber-700 font-medium">Against Bill #{p.allocations[0].bill.billNumber}</div>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <span className="font-semibold text-[7.5pt]">{p.status || "POSTED"}</span>
+                            </td>
+                            <td style={{ textAlign: "right", fontWeight: "bold" }}>
+                              {formatCurrency(p.amount)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    {printDisbursedPayments.length > 0 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "right" }}>Total Disbursed:</td>
+                          <td style={{ textAlign: "right" }}>{formatCurrency(printDisbursedTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              )}
 
-        {/* Section 8: Formal Verification & Signatures Block */}
-        <div className="print-avoid-break mt-6 pt-3 border-t-2 border-slate-900">
-          <div className="text-[8pt] uppercase font-extrabold text-slate-700 tracking-wider mb-8 text-center">
-            Official Corporate Verification & Authorization Sign-Off
-          </div>
-          <div className="grid grid-cols-3 gap-6 text-center text-[8.5pt]">
-            <div className="border-t border-slate-400 pt-2">
-              <div className="font-bold text-slate-900">Prepared By</div>
-              <div className="text-slate-500 text-[7.5pt]">Site Supervisor / Site Accountant</div>
-              <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
-            </div>
-            <div className="border-t border-slate-400 pt-2">
-              <div className="font-bold text-slate-900">Verified By</div>
-              <div className="text-slate-500 text-[7.5pt]">Project Manager / Resident Engineer</div>
-              <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
-            </div>
-            <div className="border-t border-slate-400 pt-2">
-              <div className="font-bold text-slate-900">Approved By</div>
-              <div className="text-slate-500 text-[7.5pt]">Finance Controller / Authorized Signatory</div>
-              <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
-            </div>
-          </div>
-          <div className="text-center text-[7pt] text-slate-400 mt-4">
-            System generated document from Bothra CMS. Certified valid for audit and accounting reconciliation.
-          </div>
-        </div>
+              {/* Section 2: Rejected Payments & Claims Table (Dedicated Section) */}
+              {printSections.rejected && (!hideEmptySectionsInPrint || printRejectedPayments.length > 0) && (
+                <div className="print-section">
+                  <div className="print-section-header">
+                    <span className="text-rose-900">{sectionIndex++}. Rejected Payments & Claims ({printRejectedPayments.length})</span>
+                    <span className="text-[9pt] font-black text-rose-700">
+                      Total Rejected: {formatCurrency(printRejectedTotal)}
+                    </span>
+                  </div>
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "70px" }}>Date</th>
+                        <th style={{ width: "85px" }}>Voucher #</th>
+                        <th>Recipient / Vendor</th>
+                        <th style={{ width: "85px" }}>Mode / A/C</th>
+                        <th style={{ width: "110px" }}>Project / Site</th>
+                        <th>Declined Reason / Remarks</th>
+                        <th style={{ width: "65px", textAlign: "center" }}>Status</th>
+                        <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printRejectedPayments.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                            No rejected payments or claims for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        printRejectedPayments.map((p: any, idx: number) => (
+                          <tr key={p.id || idx}>
+                            <td className="whitespace-nowrap">{formatDate(p.paymentDate || p.createdAt)}</td>
+                            <td className="font-mono font-bold text-slate-900">{p.referenceNumber || "—"}</td>
+                            <td>
+                              <div className="font-bold text-slate-900">{p.party?.name || p.recipientName || "Vendor"}</div>
+                              {p.recipientType && <span className="text-[7.5pt] text-slate-500 uppercase">{p.recipientType}</span>}
+                            </td>
+                            <td>
+                              <div className="font-semibold">{p.paymentMethod || p.method || "CASH"}</div>
+                              {p.payingAccount && <div className="text-[7.5pt] text-slate-500 truncate">{p.payingAccount}</div>}
+                            </td>
+                            <td>{p.project?.name || "General / HQ"}</td>
+                            <td>
+                              <div className="text-rose-800 font-medium">{p.declineReason || p.notes || "Payment request declined"}</div>
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <span className="font-bold text-[7.5pt] text-rose-700 uppercase">{p.status || "REJECTED"}</span>
+                            </td>
+                            <td style={{ textAlign: "right", fontWeight: "bold", color: "#b91c1c" }}>
+                              {formatCurrency(p.amount)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    {printRejectedPayments.length > 0 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "right" }}>Total Rejected:</td>
+                          <td style={{ textAlign: "right", color: "#b91c1c" }}>{formatCurrency(printRejectedTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              )}
+
+              {/* Section 3: Money In / Customer Collections Table */}
+              {printSections.moneyIn && (!hideEmptySectionsInPrint || printMoneyIn.length > 0) && (
+                <div className="print-section">
+                  <div className="print-section-header">
+                    <span>{sectionIndex++}. Customer Collections & Money In ({printMoneyIn.length})</span>
+                    <span className="text-[9pt] font-black text-emerald-800">
+                      Total Collected: {formatCurrency(printMoneyInTotal)}
+                    </span>
+                  </div>
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "70px" }}>Date</th>
+                        <th style={{ width: "85px" }}>Receipt #</th>
+                        <th>Customer / Booking Name</th>
+                        <th style={{ width: "130px" }}>Unit / Project</th>
+                        <th style={{ width: "80px" }}>Method</th>
+                        <th style={{ width: "90px", textAlign: "right" }}>Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printMoneyIn.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center text-slate-400 italic py-2">
+                            No customer collections or money in recorded for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        printMoneyIn.map((r: any, idx: number) => (
+                          <tr key={r.id || idx}>
+                            <td className="whitespace-nowrap">{formatDate(r.date)}</td>
+                            <td className="font-mono font-bold">{r.receiptNumber || `REC-${idx + 1}`}</td>
+                            <td className="font-semibold text-slate-900">{r.booking?.customerName || "Customer"}</td>
+                            <td>{r.booking?.unit?.project?.name ? `${r.booking.unit.project.name} - Unit ${r.booking.unit.unitNumber || ""}` : "Direct Sale"}</td>
+                            <td>{r.paymentMethod || r.mode || "BANK"}</td>
+                            <td style={{ textAlign: "right", fontWeight: "bold", color: "#065f46" }}>
+                              {formatCurrency(r.amount)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    {printMoneyIn.length > 0 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: "right" }}>Total Collected:</td>
+                          <td style={{ textAlign: "right" }}>{formatCurrency(printMoneyInTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              )}
+
+              {/* Section 4: Vendor Bills Recorded */}
+              {printSections.bills && (!hideEmptySectionsInPrint || printBills.length > 0) && (
+                <div className="print-section">
+                  <div className="print-section-header">
+                    <span>{sectionIndex++}. Vendor & Contractor Invoices Recorded ({printBills.length})</span>
+                    <span className="text-[9pt] font-black text-amber-900">
+                      Total Invoiced: {formatCurrency(printBillsTotal)}
+                    </span>
+                  </div>
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "70px" }}>Date</th>
+                        <th style={{ width: "85px" }}>Bill #</th>
+                        <th>Vendor / Party</th>
+                        <th style={{ width: "110px" }}>Project / Site</th>
+                        <th style={{ width: "75px" }}>Due Date</th>
+                        <th>Description / Cost Head</th>
+                        <th style={{ width: "65px", textAlign: "center" }}>Status</th>
+                        <th style={{ width: "90px", textAlign: "right" }}>Total (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printBills.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                            No vendor or contractor bills recorded for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        printBills.map((b: any, idx: number) => (
+                          <tr key={b.id || idx}>
+                            <td className="whitespace-nowrap">{formatDate(b.billDate || b.createdAt)}</td>
+                            <td className="font-mono font-bold text-amber-800">{b.billNumber || "—"}</td>
+                            <td className="font-semibold text-slate-900">{b.party?.name || "Vendor"}</td>
+                            <td>{b.project?.name || "General"}</td>
+                            <td>{b.dueDate ? formatDate(b.dueDate) : "—"}</td>
+                            <td>{b.notes || b.costHead || "Materials / Contracting"}</td>
+                            <td style={{ textAlign: "center" }}>{b.status || "POSTED"}</td>
+                            <td style={{ textAlign: "right", fontWeight: "bold" }}>{formatCurrency(b.totalAmount || 0)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    {printBills.length > 0 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "right" }}>Total Invoiced:</td>
+                          <td style={{ textAlign: "right" }}>{formatCurrency(printBillsTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              )}
+
+              {/* Section 5: Workforce Headcount & Labour Deployments */}
+              {printSections.headcount && (!hideEmptySectionsInPrint || printHeadcount.length > 0) && (
+                <div className="print-section">
+                  <div className="print-section-header">
+                    <span>{sectionIndex++}. Workforce Headcount & Labour Deployments ({printHeadcount.length} Shift Logs)</span>
+                    <span className="text-[9pt] font-black text-blue-900">
+                      Total: {dayData?.summary.headcountTotal || dayData?.summary.workersPresentCount || 0} Workers
+                    </span>
+                  </div>
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "120px" }}>Site Location</th>
+                        <th style={{ width: "75px", textAlign: "center" }}>Shift</th>
+                        <th>Contractor / Gang Name</th>
+                        <th style={{ width: "65px", textAlign: "center" }}>Artisans</th>
+                        <th style={{ width: "70px", textAlign: "center" }}>Craftsmen</th>
+                        <th style={{ width: "95px", textAlign: "center" }}>Laborers (M/F)</th>
+                        <th style={{ width: "75px", textAlign: "center" }}>Total</th>
+                        <th>Remarks / Work Area</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printHeadcount.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                            No workforce headcount logs recorded for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        printHeadcount.map((h: any, idx: number) => (
+                          <tr key={h.id || idx}>
+                            <td className="font-semibold text-slate-900">{h.siteName || "Operational Site"}</td>
+                            <td style={{ textAlign: "center" }}>
+                              <span className="font-bold text-[7.5pt]">{h.shift || "GENERAL"}</span>
+                            </td>
+                            <td className="font-bold text-slate-800">{h.contractorName || "Direct Site Gang"}</td>
+                            <td style={{ textAlign: "center" }}>{h.artisanCount ?? h.artisanTotal ?? 0}</td>
+                            <td style={{ textAlign: "center" }}>{h.craftsmanCount ?? h.craftsmanTotal ?? 0}</td>
+                            <td style={{ textAlign: "center" }}>
+                              <strong>{h.laborerTotal || ((h.laborerMale || 0) + (h.laborerFemale || 0)) || 0}</strong>
+                              {((h.laborerMale || 0) > 0 || (h.laborerFemale || 0) > 0) && (
+                                <span className="text-[7pt] text-slate-500 ml-1">
+                                  ({h.laborerMale || 0}M/{h.laborerFemale || 0}F)
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "center", fontWeight: "bold", color: "#1e3a8a" }}>
+                              {h.grandTotal || 0}
+                            </td>
+                            <td>{h.notes || "—"}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    {printHeadcount.length > 0 && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: "right" }}>Total Labour Headcount:</td>
+                          <td style={{ textAlign: "center" }}>
+                            {printHeadcount.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              )}
+
+              {/* Section 6: Staff & Supervisor Site Attendance */}
+              {printSections.attendance && (!hideEmptySectionsInPrint || printAttendance.length > 0) && (
+                <div className="print-section">
+                  <div className="print-section-header">
+                    <span>{sectionIndex++}. Staff & Supervisor Site Attendance ({printAttendance.length} Sessions)</span>
+                    <span className="text-[9pt] font-black text-slate-900">
+                      Present: {dayData?.summary.staffPresentCount || printAttendance.filter((a: any) => a.status === "PRESENT").length}
+                    </span>
+                  </div>
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "80px" }}>Emp Code</th>
+                        <th>Staff / Worker Name</th>
+                        <th style={{ width: "110px" }}>Trade / Designation</th>
+                        <th style={{ width: "110px" }}>Site</th>
+                        <th style={{ width: "70px", textAlign: "center" }}>Status</th>
+                        <th style={{ width: "70px", textAlign: "center" }}>Check-In</th>
+                        <th style={{ width: "70px", textAlign: "center" }}>Check-Out</th>
+                        <th style={{ width: "60px", textAlign: "center" }}>Hours</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printAttendance.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center text-slate-400 italic py-2">
+                            No staff attendance records logged for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        printAttendance.map((a: any, idx: number) => (
+                          <tr key={a.id || idx}>
+                            <td className="font-mono">{a.workforceMember?.employeeCode || "—"}</td>
+                            <td className="font-bold text-slate-900">{a.workforceMember?.name || "Staff Member"}</td>
+                            <td>{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}</td>
+                            <td>{a.site?.name || "Operational Site"}</td>
+                            <td style={{ textAlign: "center", fontWeight: "bold" }}>{a.status || "PRESENT"}</td>
+                            <td style={{ textAlign: "center" }}>
+                              {a.checkInAt ? new Date(a.checkInAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : "—"}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              {a.checkOutAt ? new Date(a.checkOutAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : (a.status === "PRESENT" ? "Active" : "—")}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              {a.totalHours ? `${a.totalHours}h` : "—"}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Section 7: Material Stock Movements (Receipts & Issues) */}
+              {printSections.materials && (!hideEmptySectionsInPrint || (printReceipts.length + printIssues.length) > 0) && (
+                <div className="print-section">
+                  <div className="print-section-header">
+                    <span>{sectionIndex++}. Site Material Stock Movements ({printReceipts.length + printIssues.length} Movements)</span>
+                    <span className="text-[9pt] font-black text-slate-700">
+                      {printReceipts.length} Inward / {printIssues.length} Outward
+                    </span>
+                  </div>
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "75px", textAlign: "center" }}>Type</th>
+                        <th style={{ width: "75px" }}>Date</th>
+                        <th>Material Name (SKU)</th>
+                        <th style={{ width: "80px", textAlign: "right" }}>Quantity</th>
+                        <th style={{ width: "110px" }}>Store Location</th>
+                        <th>Notes / Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printReceipts.length === 0 && printIssues.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center text-slate-400 italic py-2">
+                            No material stock movements logged for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        <>
+                          {printReceipts.map((m: any, idx: number) => (
+                            <tr key={`rec-${m.id || idx}`}>
+                              <td style={{ textAlign: "center", fontWeight: "bold", color: "#047857" }}>RECEIPT (IN)</td>
+                              <td>{formatDate(m.movementAt || m.createdAt)}</td>
+                              <td className="font-semibold text-slate-900">{m.material?.name} ({m.material?.sku || "—"})</td>
+                              <td style={{ textAlign: "right", fontWeight: "bold" }}>{m.quantity} {m.material?.unitCode || ""}</td>
+                              <td>{m.store?.name || "Central Store"}</td>
+                              <td>{m.notes || m.creator?.name || "Stock Receipt"}</td>
+                            </tr>
+                          ))}
+                          {printIssues.map((m: any, idx: number) => (
+                            <tr key={`iss-${m.id || idx}`}>
+                              <td style={{ textAlign: "center", fontWeight: "bold", color: "#b91c1c" }}>ISSUE (OUT)</td>
+                              <td>{formatDate(m.movementAt || m.createdAt)}</td>
+                              <td className="font-semibold text-slate-900">{m.material?.name} ({m.material?.sku || "—"})</td>
+                              <td style={{ textAlign: "right", fontWeight: "bold" }}>{m.quantity} {m.material?.unitCode || ""}</td>
+                              <td>{m.store?.name || "Site Store"}</td>
+                              <td>{m.notes || m.creator?.name || "Material Issue"}</td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Section 8: Daily Site Progress Reports & Observations */}
+              {printSections.reports && (!hideEmptySectionsInPrint || printDailyReports.length > 0) && (
+                <div className="print-section print-avoid-break">
+                  <div className="print-section-header">
+                    <span>{sectionIndex++}. Daily Site Progress Reports & Field Logs ({printDailyReports.length})</span>
+                  </div>
+                  <div className="space-y-2 text-[8.5pt]">
+                    {printDailyReports.length === 0 ? (
+                      <div className="border border-slate-300 rounded p-2 bg-slate-50 text-slate-400 italic text-center">
+                        No daily site progress reports logged for this period.
+                      </div>
+                    ) : (
+                      printDailyReports.map((dr: any, idx: number) => (
+                        <div key={dr.id || idx} className="border border-slate-300 rounded p-2 bg-slate-50">
+                          <div className="font-bold text-slate-900 flex justify-between border-b border-slate-200 pb-1 mb-1">
+                            <span>
+                              {dr.project?.name} {dr.project?.site?.name ? `(${dr.project.site.name})` : ""}
+                            </span>
+                            <span className="text-[7.5pt] text-slate-600 font-normal">
+                              Logged By: <strong>{dr.creator?.name || "Site Supervisor"}</strong> ({dr.creator?.role || "Field Officer"})
+                            </span>
+                          </div>
+                          {dr.progressSummary && (
+                            <div className="text-slate-800">
+                              <strong>Work Progress Executed:</strong> {dr.progressSummary}
+                            </div>
+                          )}
+                          {dr.blockers && (
+                            <div className="mt-1 text-rose-800">
+                              <strong>Site Blockers / Issues:</strong> {dr.blockers}
+                            </div>
+                          )}
+                          {dr.safetyNotes && (
+                            <div className="mt-1 text-slate-700">
+                              <strong>Safety & Quality Observations:</strong> {dr.safetyNotes}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Section 9: Formal Verification & Signatures Block */}
+              {printSections.signatures && (
+                <div className="print-avoid-break mt-6 pt-3 border-t-2 border-slate-900">
+                  <div className="text-[8pt] uppercase font-extrabold text-slate-700 tracking-wider mb-8 text-center">
+                    Official Corporate Verification & Authorization Sign-Off
+                  </div>
+                  <div className="grid grid-cols-3 gap-6 text-center text-[8.5pt]">
+                    <div className="border-t border-slate-400 pt-2">
+                      <div className="font-bold text-slate-900">Prepared By</div>
+                      <div className="text-slate-500 text-[7.5pt]">Site Supervisor / Site Accountant</div>
+                      <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
+                    </div>
+                    <div className="border-t border-slate-400 pt-2">
+                      <div className="font-bold text-slate-900">Verified By</div>
+                      <div className="text-slate-500 text-[7.5pt]">Project Manager / Resident Engineer</div>
+                      <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
+                    </div>
+                    <div className="border-t border-slate-400 pt-2">
+                      <div className="font-bold text-slate-900">Approved By</div>
+                      <div className="text-slate-500 text-[7.5pt]">Finance Controller / Authorized Signatory</div>
+                      <div className="text-slate-400 text-[7.5pt] mt-6">Signature & Date: ____________________</div>
+                    </div>
+                  </div>
+                  <div className="text-center text-[7pt] text-slate-400 mt-4">
+                    System generated document from Bothra CMS. Certified valid for audit and accounting reconciliation.
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>,
       document.body
     )}
