@@ -716,16 +716,25 @@ const POSTGRES_TABLES = [
 ];
 
 async function applyMigration() {
-  const dbUrl =
+  const rawDbUrl =
     process.env.DATABASE_URL ||
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL ||
     process.env.POSTGRES_URL_NON_POOLING ||
     "";
 
-  if (!dbUrl.startsWith("postgres://") && !dbUrl.startsWith("postgresql://")) {
+  if (!rawDbUrl.startsWith("postgres://") && !rawDbUrl.startsWith("postgresql://")) {
     console.log("ℹ️ [POSTGRES_MIGRATOR] Skipping non-Postgres database.");
     return;
+  }
+
+  let dbUrl = rawDbUrl;
+  try {
+    const u = new URL(rawDbUrl);
+    u.searchParams.delete("channel_binding");
+    dbUrl = u.toString();
+  } catch {
+    dbUrl = rawDbUrl.replace(/[?&]channel_binding=[^&]+/g, "");
   }
 
   const prisma = new PrismaClient({

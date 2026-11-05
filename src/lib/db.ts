@@ -13,30 +13,32 @@ export function optimizeDbUrl(rawUrl?: string): string | undefined {
     const isNeon = url.hostname.includes("neon.tech");
     const isPooler = url.hostname.includes("-pooler");
 
+    // CRITICAL FIX: Neon recent connection strings include channel_binding=require.
+    // Prisma's Rust query engine DOES NOT support SCRAM channel binding (SCRAM-SHA-256-PLUS)
+    // and immediately drops/aborts the connection with "Can't reach database server".
+    // Stripping channel_binding allows Prisma to authenticate smoothly via standard TLS SCRAM-SHA-256.
+    url.searchParams.delete("channel_binding");
+
     // Remote databases require SSL
     if (!url.searchParams.has("sslmode") && (isNeon || !url.hostname.includes("localhost"))) {
       url.searchParams.set("sslmode", "require");
     }
 
     // Set connection timeout to 30s to allow serverless / Neon cold start compute wake-up
-    const currentTimeout = parseInt(url.searchParams.get("connect_timeout") || "0", 10);
-    if (!currentTimeout || currentTimeout < 30) {
-      url.searchParams.set("connect_timeout", "30");
-    }
+    url.searchParams.set("connect_timeout", "30");
 
     // Set pool timeout to 30s
-    if (!url.searchParams.has("pool_timeout")) {
-      url.searchParams.set("pool_timeout", "30");
-    }
+    url.searchParams.set("pool_timeout", "30");
 
     // If using a pooled host (e.g. Neon connection pooler), pgbouncer=true is required by Prisma
-    if (isPooler && !url.searchParams.has("pgbouncer")) {
+    if (isPooler) {
       url.searchParams.set("pgbouncer", "true");
     }
 
     return url.toString();
   } catch {
-    return rawUrl;
+    // If URL parsing fails, remove channel_binding via regex fallback
+    return rawUrl.replace(/[?&]channel_binding=[^&]+/g, "");
   }
 }
 
@@ -60,7 +62,7 @@ export function getDirectDbUrl(): string | undefined {
   return undefined;
 }
 
-// Select best connection string: prefer Prisma-tailored URL, then general DATABASE_URL, etc.
+// Select best connection string
 const rawUrl =
   process.env.POSTGRES_PRISMA_URL ||
   process.env.DATABASE_URL ||
@@ -69,8 +71,10 @@ const rawUrl =
 
 const dbUrl = optimizeDbUrl(rawUrl);
 
-if (!process.env.DATABASE_URL && dbUrl) {
+// Unconditionally update process.env so Prisma's Rust engine env("DATABASE_URL") gets the cleaned string
+if (dbUrl) {
   process.env.DATABASE_URL = dbUrl;
+  if (process.env.POSTGRES_PRISMA_URL) process.env.POSTGRES_PRISMA_URL = dbUrl;
 }
 
 export const prisma =

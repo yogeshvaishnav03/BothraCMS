@@ -75,20 +75,33 @@ if (!process.env.SESSION_SECRET && isProductionLike) {
   } catch (err) {}
 }
 
-const dbUrl =
+function sanitizeDbUrl(url) {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.delete("channel_binding");
+    return u.toString();
+  } catch {
+    return url.replace(/[?&]channel_binding=[^&]+/g, "");
+  }
+}
+
+const dbUrl = sanitizeDbUrl(
   process.env.DATABASE_URL ||
   process.env.POSTGRES_PRISMA_URL ||
   process.env.POSTGRES_URL ||
   process.env.POSTGRES_URL_NON_POOLING ||
-  "";
+  ""
+);
 
-const directUrl =
+const directUrl = sanitizeDbUrl(
   process.env.DIRECT_URL ||
   process.env.POSTGRES_URL_NON_POOLING ||
   process.env.POSTGRES_URL ||
-  dbUrl;
+  dbUrl
+);
 
-if (dbUrl && !process.env.DATABASE_URL) {
+if (dbUrl) {
   process.env.DATABASE_URL = dbUrl;
 }
 
