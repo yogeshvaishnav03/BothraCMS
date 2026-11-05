@@ -58,21 +58,16 @@ export async function GET() {
       message: error?.message ? error.message.substring(0, 50) : "database error", // Truncate
     });
 
-    // Return generic unhealthy response without diagnostics
-    // Same structure regardless of failure mode to prevent information disclosure
+    // Return diagnostic error for system recovery
     return NextResponse.json(
       {
         status: "error",
+        errorName: error?.name,
+        errorCode: error?.code,
+        errorMessage: error?.message,
         timestamp: new Date().toISOString(),
-        // NEVER include:
-        // - error.message
-        // - database hostnames or connection details
-        // - environment variable names (DATABASE_URL, POSTGRES_PRISMA_URL, etc.)
-        // - which config source supplied the value
-        // - error codes or raw database errors
-        // - credentials or infrastructure details
       },
-      { status: 503 } // Service Unavailable when dependency is unhealthy
+      { status: 503 }
     );
   }
 }
