@@ -5,19 +5,15 @@ import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
-// SCRAM helper functions
 function Hi(password: string, salt: Buffer, iterations: number): Buffer {
   return crypto.pbkdf2Sync(password, salt, iterations, 32, "sha256");
 }
-
 function HMAC(key: Buffer | string, data: Buffer | string): Buffer {
   return crypto.createHmac("sha256", key).update(data).digest();
 }
-
 function H(data: Buffer | string): Buffer {
   return crypto.createHash("sha256").update(data).digest();
 }
-
 function xor(a: Buffer, b: Buffer): Buffer {
   const res = Buffer.alloc(a.length);
   for (let i = 0; i < a.length; i++) res[i] = a[i] ^ b[i];
@@ -26,7 +22,8 @@ function xor(a: Buffer, b: Buffer): Buffer {
 
 function testPostgresAuth(host: string, port: number, user: string, database: string, password: string): Promise<any> {
   return new Promise((resolve) => {
-    const report: any = { host, port, user, database, tcp: false, tls: false };
+    const report: any = { host, port, user, database, tcp: false, tls: false, packets: [] };
+    const startTime = Date.now();
     const socket = net.createConnection(port, host, () => {
       report.tcp = true;
       const sslReq = Buffer.alloc(8);
@@ -57,83 +54,72 @@ function testPostgresAuth(host: string, port: number, user: string, database: st
       let clientFirstBare = `n=${user},r=${clientNonce}`;
 
       tlsSocket.on("data", (d) => {
-        const type = String.fromCharCode(d[0]);
-        if (type === "R") {
-          const authCode = d.readInt32BE(5);
-          if (authCode === 10) {
-            // AuthenticationSASL
-            const mech = "SCRAM-SHA-256\0";
-            const clientFirst = `n,,${clientFirstBare}`;
-            const dataLen = Buffer.byteLength(clientFirst, "utf-8");
-            const payload = Buffer.concat([
-              Buffer.from(mech, "utf-8"),
-              Buffer.alloc(4),
-              Buffer.from(clientFirst, "utf-8"),
-            ]);
-            payload.writeInt32BE(dataLen, Buffer.byteLength(mech, "utf-8"));
+        let offset = 0;
+        while (offset < d.length) {
+          const type = String.fromCharCode(d[offset]);
+          const len = d.readInt32BE(offset + 1);
+          report.packets.push({ type, len, elapsedMs: Date.now() - startTime });
 
-            const pMsg = Buffer.alloc(5 + payload.length);
-            pMsg.write("p", 0);
-            pMsg.writeInt32BE(4 + payload.length, 1);
-            payload.copy(pMsg, 5);
-            tlsSocket.write(pMsg);
-          } else if (authCode === 11) {
-            // AuthenticationSASLContinue
-            const serverFirst = d.slice(9).toString("utf-8");
-            report.serverFirst = serverFirst;
-            
-            // Parse r, s, i
-            const parts = serverFirst.split(",");
-            let serverNonce = "", saltB64 = "", iter = 4096;
-            for (const p of parts) {
-              if (p.startsWith("r=")) serverNonce = p.slice(2);
-              if (p.startsWith("s=")) saltB64 = p.slice(2);
-              if (p.startsWith("i=")) iter = parseInt(p.slice(2), 10);
+          if (type === "R") {
+            const authCode = d.readInt32BE(offset + 5);
+            report.lastAuthCode = authCode;
+            if (authCode === 10) {
+              const mech = "SCRAM-SHA-256\0";
+              const clientFirst = `n,,${clientFirstBare}`;
+              const dataLen = Buffer.byteLength(clientFirst, "utf-8");
+              const payload = Buffer.concat([
+                Buffer.from(mech, "utf-8"),
+                Buffer.alloc(4),
+                Buffer.from(clientFirst, "utf-8"),
+              ]);
+              payload.writeInt32BE(dataLen, Buffer.byteLength(mech, "utf-8"));
+
+              const pMsg = Buffer.alloc(5 + payload.length);
+              pMsg.write("p", 0);
+              pMsg.writeInt32BE(4 + payload.length, 1);
+              payload.copy(pMsg, 5);
+              tlsSocket.write(pMsg);
+            } else if (authCode === 11) {
+              const serverFirst = d.slice(offset + 9, offset + 1 + len).toString("utf-8");
+              const parts = serverFirst.split(",");
+              let serverNonce = "", saltB64 = "", iter = 4096;
+              for (const p of parts) {
+                if (p.startsWith("r=")) serverNonce = p.slice(2);
+                if (p.startsWith("s=")) saltB64 = p.slice(2);
+                if (p.startsWith("i=")) iter = parseInt(p.slice(2), 10);
+              }
+
+              const salt = Buffer.from(saltB64, "base64");
+              const saltedPassword = Hi(password, salt, iter);
+              const clientKey = HMAC(saltedPassword, "Client Key");
+              const storedKey = H(clientKey);
+              const authMessage = `${clientFirstBare},${serverFirst},c=biws,r=${serverNonce}`;
+              const clientSignature = HMAC(storedKey, authMessage);
+              const clientProof = xor(clientKey, clientSignature).toString("base64");
+              const clientFinal = `c=biws,r=${serverNonce},p=${clientProof}`;
+
+              const pMsg = Buffer.alloc(5 + Buffer.byteLength(clientFinal, "utf-8"));
+              pMsg.write("p", 0);
+              pMsg.writeInt32BE(4 + Buffer.byteLength(clientFinal, "utf-8"), 1);
+              pMsg.write(clientFinal, 5, "utf-8");
+              tlsSocket.write(pMsg);
+            } else if (authCode === 12) {
+              report.authSuccess = true;
+            } else if (authCode === 0) {
+              report.authOk = true;
             }
-
-            const salt = Buffer.from(saltB64, "base64");
-            const saltedPassword = Hi(password, salt, iter);
-            const clientKey = HMAC(saltedPassword, "Client Key");
-            const storedKey = H(clientKey);
-            const authMessage = `${clientFirstBare},${serverFirst},c=biws,r=${serverNonce}`;
-            const clientSignature = HMAC(storedKey, authMessage);
-            const clientProof = xor(clientKey, clientSignature).toString("base64");
-            const clientFinal = `c=biws,r=${serverNonce},p=${clientProof}`;
-
-            const pMsg = Buffer.alloc(5 + Buffer.byteLength(clientFinal, "utf-8"));
-            pMsg.write("p", 0);
-            pMsg.writeInt32BE(4 + Buffer.byteLength(clientFinal, "utf-8"), 1);
-            pMsg.write(clientFinal, 5, "utf-8");
-            tlsSocket.write(pMsg);
-          } else if (authCode === 12) {
-            // AuthenticationSASLFinal
-            report.authSuccess = true;
-          } else if (authCode === 0) {
-            // AuthenticationOk
-            report.authOk = true;
+          } else if (type === "Z") {
+            // ReadyForQuery!
+            report.ready = true;
+            report.totalTimeMs = Date.now() - startTime;
             tlsSocket.end();
-            resolve(report);
+            return resolve(report);
+          } else if (type === "E") {
+            report.errorPacket = d.slice(offset, offset + 1 + len).toString("utf-8");
+            tlsSocket.end();
+            return resolve(report);
           }
-        } else if (type === "E") {
-          // ErrorResponse
-          const fields: Record<string, string> = {};
-          let offset = 5;
-          while (offset < d.length) {
-            const code = String.fromCharCode(d[offset++]);
-            if (code === "\0") break;
-            let end = offset;
-            while (end < d.length && d[end] !== 0) end++;
-            fields[code] = d.slice(offset, end).toString("utf-8");
-            offset = end + 1;
-          }
-          report.postgresError = fields;
-          tlsSocket.end();
-          resolve(report);
-        } else if (type === "Z") {
-          // ReadyForQuery
-          report.ready = true;
-          tlsSocket.end();
-          resolve(report);
+          offset += 1 + len;
         }
       });
 
@@ -148,11 +134,13 @@ function testPostgresAuth(host: string, port: number, user: string, database: st
       resolve(report);
     });
 
+    // 25 second timeout for cold start wake-up
     setTimeout(() => {
       report.timedOut = true;
+      report.totalTimeMs = Date.now() - startTime;
       socket.destroy();
       resolve(report);
-    }, 6000);
+    }, 25000);
   });
 }
 
