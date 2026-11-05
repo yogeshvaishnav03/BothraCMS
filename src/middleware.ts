@@ -19,8 +19,15 @@ const PUBLIC_PATHS = [
   // Installable site app: the service worker, its manifest and icons, and the no-signal page.
   "/sw.js",
   "/manifest.webmanifest",
+  "/manifest.json",
   "/icons",
   "/offline",
+  // Android TWA / PWA Digital Asset Links verification & APK install portal
+  "/.well-known",
+  "/api/assetlinks",
+  "/install",
+  "/bothra-cms.apk",
+  "/api/download/apk",
 ];
 
 // Trusted origins for CORS and CSRF (configure in environment)
@@ -87,7 +94,7 @@ export async function middleware(req: NextRequest) {
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
-    pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/)
+    pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|webp|apk|webmanifest|json)$/)
   ) {
     // If user is already authenticated and visits /login, redirect to dashboard
     if (pathname === "/login") {
