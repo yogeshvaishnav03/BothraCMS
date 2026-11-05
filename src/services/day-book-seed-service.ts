@@ -399,7 +399,7 @@ export class DayBookSeedService {
         });
       }
 
-      // E. ATTENDANCE SESSIONS
+      // E. ATTENDANCE SESSIONS (Site Workers & Trade Labour)
       for (const w of workers) {
         const existingAtt = await prisma.attendanceSession.findFirst({
           where: { organizationId, workforceMemberId: w.id, workDate: dateStr },
@@ -419,6 +419,30 @@ export class DayBookSeedService {
               status: "PRESENT",
               notes: `Checked in on site - assigned to ${project1.name}`,
               createdBy: user.id,
+            },
+          });
+        }
+      }
+
+      // E2. STAFF ATTENDANCE (Company Staff: Admins, Project Managers, Engineers, Supervisors)
+      const staffMembers = await prisma.user.findMany({
+        where: { organizationId, status: "ACTIVE" },
+        take: 5,
+      });
+      for (const sm of staffMembers) {
+        const existingStaffAtt = await prisma.staffAttendance.findUnique({
+          where: { organizationId_userId_workDate: { organizationId, userId: sm.id, workDate: dateStr } },
+        });
+        if (!existingStaffAtt) {
+          await prisma.staffAttendance.create({
+            data: {
+              organizationId,
+              userId: sm.id,
+              workDate: dateStr,
+              checkInAt: new Date(morningUtc),
+              status: "PRESENT",
+              checkInSiteId: site1.id,
+              checkInNote: "On site - management & supervision",
             },
           });
         }

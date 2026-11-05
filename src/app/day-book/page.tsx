@@ -70,6 +70,8 @@ interface DayBookData {
   receipts: any[];
   issues: any[];
   attendance: any[];
+  staffAttendance?: any[];
+  workerAttendance?: any[];
   headcount?: any[];
   dailyReports: any[];
   recentActivityDates?: string[];
@@ -2389,10 +2391,10 @@ export default function DayBookPage() {
                           {dayData.attendance.map((a) => (
                             <tr key={a.id} className="hover:bg-slate-50/70 transition">
                               <td className="p-3 font-mono font-bold text-slate-800">
-                                {a.workforceMember?.employeeCode || "—"}
+                                {a.employeeCode || a.workforceMember?.employeeCode || "—"}
                               </td>
-                              <td className="p-3 font-bold text-slate-900">{a.workforceMember?.name || "N/A"}</td>
-                              <td className="p-3 text-slate-600">{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}</td>
+                              <td className="p-3 font-bold text-slate-900">{a.name || a.workforceMember?.name || "N/A"}</td>
+                              <td className="p-3 text-slate-600 font-medium">{a.role || a.workforceMember?.workerType || "Staff"}</td>
                               <td className="p-3">
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
                                   {a.status}
@@ -2402,6 +2404,97 @@ export default function DayBookPage() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 3b. Site Workers & Contractor Labour (Trade workers & contractor deployment) */}
+            {(activeTab === "ALL" || activeTab === "ATTENDANCE") && ((dayData?.workerAttendance?.length || 0) > 0 || (dayData?.headcount?.length || 0) > 0) && (
+              <div className="bg-white rounded-2xl border border-amber-200/80 overflow-hidden shadow-xs">
+                <div className="p-4 bg-amber-50/50 border-b border-amber-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-600" />
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">Site Workers & Contractor Labour</h3>
+                      <p className="text-[11px] text-slate-500">Daily trade workers (Masons, Carpenters, Helpers, Electricians) & contractor headcount</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-amber-700 bg-amber-100/70 px-2.5 py-1 rounded-lg">
+                      {dayData?.summary?.workersPresentCount || 0} Total Workers
+                    </span>
+                  </div>
+                </div>
+
+                {/* Sub-section 1: Trade Workers Attendance Sessions */}
+                {(dayData?.workerAttendance?.length || 0) > 0 && (
+                  <div className="border-b border-slate-100">
+                    <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <HardHat className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Daily Trade Workers ({dayData?.workerAttendance?.length || 0})</span>
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
+                          <tr>
+                            <th className="p-3">Worker Code</th>
+                            <th className="p-3">Worker Name</th>
+                            <th className="p-3">Trade / Skill</th>
+                            <th className="p-3">Site / Project</th>
+                            <th className="p-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(dayData?.workerAttendance || []).map((w: any) => (
+                            <tr key={w.id} className="hover:bg-slate-50/70 transition">
+                              <td className="p-3 font-mono font-bold text-slate-800">
+                                {w.workforceMember?.employeeCode || "—"}
+                              </td>
+                              <td className="p-3 font-bold text-slate-900">{w.workforceMember?.name || "Worker"}</td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                                  {w.workforceMember?.workerType || "Labour"}
+                                </span>
+                              </td>
+                              <td className="p-3 text-slate-600">{w.site?.name || w.project?.name || "Operational Site"}</td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                  {w.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-section 2: Contractor Labour Headcount */}
+                {(dayData?.headcount?.length || 0) > 0 && (
+                  <div className="p-3 space-y-2">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Contractor Deployment Headcounts ({dayData?.headcount?.length || 0})</span>
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(dayData?.headcount || []).map((h: any, idx: number) => (
+                        <div key={h.id || idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="font-bold text-xs text-slate-900">{h.contractorName || h.siteName || "Contractor"}</span>
+                            <span className="text-xs font-black text-amber-700">{h.grandTotal} Workers</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 text-[11px] text-slate-600">
+                            <span className="px-1.5 py-0.5 bg-white rounded border border-slate-200">Artisans: {h.artisanCount ?? 0}</span>
+                            <span className="px-1.5 py-0.5 bg-white rounded border border-slate-200">Craftsmen: {h.craftsmanCount ?? 0}</span>
+                            <span className="px-1.5 py-0.5 bg-white rounded border border-slate-200">Labourers: {(h.laborerMale || 0) + (h.laborerFemale || 0)}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -3873,10 +3966,10 @@ export default function DayBookPage() {
                         {dayData.attendance.map((a: any, idx: number) => (
                           <div key={a.id || idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                             <div>
-                              <div className="font-bold text-xs text-slate-900">{a.workforceMember?.name || "Staff Member"}</div>
+                              <div className="font-bold text-xs text-slate-900">{a.name || a.workforceMember?.name || "Staff Member"}</div>
                               <div className="text-[11px] text-slate-500">
-                                {a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}
-                                {a.workforceMember?.employeeCode ? ` · ${a.workforceMember.employeeCode}` : ""}
+                                {a.role || a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}
+                                {(a.employeeCode || a.workforceMember?.employeeCode) ? ` · ${a.employeeCode || a.workforceMember.employeeCode}` : ""}
                               </div>
                             </div>
                             <span
@@ -4945,9 +5038,9 @@ export default function DayBookPage() {
                       ) : (
                         printAttendance.map((a: any, idx: number) => (
                           <tr key={a.id || idx}>
-                            <td className="font-mono">{a.workforceMember?.employeeCode || "—"}</td>
-                            <td className="font-bold text-slate-900">{a.workforceMember?.name || "Staff Member"}</td>
-                            <td>{a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}</td>
+                            <td className="font-mono">{a.employeeCode || a.workforceMember?.employeeCode || "—"}</td>
+                            <td className="font-bold text-slate-900">{a.name || a.workforceMember?.name || "Staff Member"}</td>
+                            <td>{a.role || a.workforceMember?.workerType || a.workforceMember?.trade || "Staff"}</td>
                             <td style={{ textAlign: "center", fontWeight: "bold" }}>{a.status || "PRESENT"}</td>
                             <td style={{ textAlign: "center" }}>
                               {a.checkInAt ? new Date(a.checkInAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }) : "—"}

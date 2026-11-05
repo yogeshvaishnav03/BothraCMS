@@ -157,18 +157,176 @@ export async function fetchDayBookData(
     attendanceWhere.siteId = siteId;
   }
 
-  const [attendance, allHeadcountRecords, allRecentHeadcount] = await Promise.all([
+  const staffAttendanceWhere: any = {
+    organizationId: orgId,
+    workDate: fromDate === toDate ? fromDate : { gte: fromDate, lte: toDate },
+  };
+  if (siteId) {
+    staffAttendanceWhere.checkInSiteId = siteId;
+  }
+
+  const [staffAttendanceRaw, attendanceSessionsRaw, allHeadcountRecords, allRecentHeadcount, orgSites] = await Promise.all([
+    prisma.staffAttendance.findMany({
+      where: staffAttendanceWhere,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            jobTitle: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: { checkInAt: "desc" },
+    }).catch(() => []),
     prisma.attendanceSession.findMany({
       where: attendanceWhere,
       include: {
         workforceMember: { select: { id: true, employeeCode: true, name: true, workerType: true } },
         site: { select: { id: true, name: true, code: true } },
+        creator: { select: { id: true, name: true, role: true } },
       },
       orderBy: { checkInAt: "desc" },
     }).catch(() => []),
     WorkforceHeadcountService.listRecords(orgId, { siteId }).catch(() => []),
     WorkforceHeadcountService.listRecords(orgId, { siteId }).catch(() => []),
+    prisma.site.findMany({
+      where: { organizationId: orgId },
+      select: { id: true, name: true, code: true },
+    }).catch(() => []),
   ]);
+
+  const siteMap = new Map(orgSites.map((s) => [s.id, s.name]));
+
+  // Helper to cleanly format staff role for presentation
+  const formatStaffRole = (role?: string | null): string => {
+    if (!role) return "Staff";
+    switch (role) {
+      case "SUPER_ADMIN": return "Super Admin";
+      case "ORG_ADMIN": return "Admin";
+      case "PROJECT_MANAGER": return "Project Manager";
+      case "SITE_SUPERVISOR": return "Site Supervisor";
+      case "SITE_ENGINEER": return "Site Engineer";
+      case "ACCOUNTANT": return "Site Accountant";
+      case "STOREKEEPER": return "Storekeeper";
+      case "HR_VIEWER": return "HR Manager";
+      case "AUDITOR": return "Auditor";
+      default: return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+  };
+
+  // Trade worker / labour types that belong to Site Workers & Contractors (NOT Staff)
+  const WORKER_TRADE_TYPES = new Set([
+    "MASON",
+    "CARPENTER",
+    "HELPER",
+    "ELECTRICIAN",
+    "PLUMBER",
+    "PAINTER",
+    "WELDER",
+    "BAR_BENDER",
+    "LABOUR",
+    "LABOR",
+    "FITTER",
+    "OPERATOR",
+    "DRIVER",
+    "BLACKSMITH",
+    "STEEL_FIXER",
+    "SCAFFOLDER",
+    "SHUTTERING",
+    "TILES_MASON",
+    "FOREMAN",
+  ]);
+
+  // Separate Staff Attendance from Worker & Contractor Labour Attendance
+  const staffRecords: any[] = [];
+  const seenStaffIds = new Set<string>();
+
+  // 4a. Add registered staff members from StaffAttendance
+  for (const sa of staffAttendanceRaw) {
+    if (!sa.user) continue;
+    seenStaffIds.add(sa.userId);
+    const roleLabel = sa.user.jobTitle || formatStaffRole(sa.user.role);
+    const code = `USR-${sa.user.id.slice(-6).toUpperCase()}`;
+    staffRecords.push({
+      id: sa.id,
+      userId: sa.userId,
+      workDate: sa.workDate,
+      employeeCode: code,
+      name: sa.user.name || "Staff Member",
+      email: sa.user.email,
+      role: roleLabel,
+      rawRole: sa.user.role,
+      status: sa.status,
+      checkInAt: sa.checkInAt ? sa.checkInAt.toISOString() : null,
+      checkOutAt: sa.checkOutAt ? sa.checkOutAt.toISOString() : null,
+      siteId: sa.checkInSiteId,
+      siteName: sa.checkInSiteId ? siteMap.get(sa.checkInSiteId) || null : null,
+      isStaff: true,
+      workforceMember: {
+        id: sa.userId,
+        employeeCode: code,
+        name: sa.user.name || "Staff Member",
+        workerType: roleLabel,
+      },
+    });
+  }
+
+  // 4b. Separate AttendanceSessions: only include in staff if actually a staff designation/creator
+  const workerRecords: any[] = [];
+
+  for (const a of attendanceSessionsRaw) {
+    const workerType = (a.workforceMember?.workerType || "").toUpperCase();
+    const isWorkerTrade = WORKER_TRADE_TYPES.has(workerType);
+    const isExplicitStaff =
+      Boolean(a.workforceMember?.employeeCode?.startsWith("USR-")) ||
+      Boolean(a.workforceMember?.employeeCode?.startsWith("STF-")) ||
+      ["SITE_ENGINEER", "SITE_SUPERVISOR", "SUPERVISOR", "PROJECT_MANAGER", "STAFF", "OFFICE_STAFF", "ACCOUNTANT", "ADMIN", "HR_VIEWER", "AUDITOR"].includes(workerType);
+
+    if (!isWorkerTrade && isExplicitStaff) {
+      const creatorId = a.creator?.id;
+      if (!creatorId || !seenStaffIds.has(creatorId)) {
+        if (creatorId) seenStaffIds.add(creatorId);
+        const roleLabel = a.workforceMember?.workerType
+          ? formatStaffRole(a.workforceMember.workerType)
+          : (a.creator?.role ? formatStaffRole(a.creator.role) : "Staff");
+        const code = a.workforceMember?.employeeCode || `USR-${a.id.slice(-6).toUpperCase()}`;
+        staffRecords.push({
+          id: a.id,
+          userId: creatorId || a.id,
+          workDate: a.workDate,
+          employeeCode: code,
+          name: a.workforceMember?.name || a.creator?.name || "Staff Member",
+          email: null,
+          role: roleLabel,
+          rawRole: a.workforceMember?.workerType || a.creator?.role || "STAFF",
+          status: a.status,
+          checkInAt: a.checkInAt ? (typeof a.checkInAt === "string" ? a.checkInAt : a.checkInAt.toISOString()) : null,
+          checkOutAt: a.checkOutAt ? (typeof a.checkOutAt === "string" ? a.checkOutAt : a.checkOutAt.toISOString()) : null,
+          siteId: a.siteId,
+          siteName: a.site?.name || null,
+          isStaff: true,
+          workforceMember: {
+            id: a.workforceMember?.id || a.id,
+            employeeCode: code,
+            name: a.workforceMember?.name || a.creator?.name || "Staff Member",
+            workerType: roleLabel,
+          },
+        });
+      }
+    } else {
+      // Worker / Contractor Trade Labour
+      workerRecords.push({
+        ...a,
+        isStaff: false,
+      });
+    }
+  }
+
+  const attendance = staffRecords;
 
   const headcountRecords = allHeadcountRecords.filter((r) => r.date >= fromDate && r.date <= toDate);
 
@@ -321,11 +479,15 @@ export async function fetchDayBookData(
   const totalCraftsmen = headcountRecords.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
   const totalLaborers = headcountRecords.reduce((s, r) => s + (r.laborerTotal || 0), 0);
 
-  const staffPresentCount = attendance.filter((a) =>
+  const staffPresentCount = staffRecords.filter((a) =>
     ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)
   ).length;
 
-  const workersPresentCount = totalHeadcount > 0 ? totalHeadcount : staffPresentCount;
+  const totalWorkerSessions = workerRecords.filter((w) =>
+    ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(w.status)
+  ).length;
+
+  const workersPresentCount = totalHeadcount > 0 ? totalHeadcount + totalWorkerSessions : totalWorkerSessions;
 
   const displayDate = fromDate === toDate ? fromDate : `${fromDate} to ${toDate}`;
 
@@ -365,7 +527,9 @@ export async function fetchDayBookData(
     bills: enrichedBills,
     receipts,
     issues,
-    attendance,
+    staffAttendance: staffRecords,
+    workerAttendance: workerRecords,
+    attendance: staffRecords,
     headcount: headcountRecords,
     dailyReports,
     recentActivityDates,
