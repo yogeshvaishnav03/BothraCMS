@@ -1,70 +1,83 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma, getDirectDbUrl } from "@/lib/db";
+import { PrismaClient } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Public health endpoint for monitoring.
- *
- * SECURITY INVARIANTS:
- * - Returns minimal, stable response
- * - Never exposes: database hostnames, error messages, env var names, credentials
- * - Detailed diagnostics only in protected operational logs
- * - Consistent response format regardless of failure mode
- */
-
-// Redacted log for internal use only (never exposed to client)
-async function logDetailedHealthCheck(status: "ok" | "error", details?: any) {
-  try {
-    // This would integrate with your actual logging service
-    // Never send this to the HTTP response
-    if (process.env.NODE_ENV === "production") {
-      // In production, send to secure logging service (CloudWatch, Datadog, etc.)
-      // with sensitive fields redacted
-      console.error("[HEALTH_CHECK_INTERNAL]", {
-        status,
-        timestamp: new Date().toISOString(),
-        // Redacted details - never include raw error messages or hostnames
-        error: details?.errorType || "unknown",
-        code: details?.code,
-      });
-    } else {
-      // Development: more verbose internal logging
-      console.log("[HEALTH_CHECK_DEV]", { status, details });
-    }
-  } catch (logErr) {
-    // Ignore logging failures to prevent cascading errors
-    console.error("[HEALTH_CHECK_LOG_ERROR]", logErr);
-  }
-}
-
 export async function GET() {
-  try {
-    // Perform health check against database
-    await prisma.$queryRaw`SELECT 1`;
+  const envSummary = {
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    hasPostgresPrismaUrl: !!process.env.POSTGRES_PRISMA_URL,
+    hasPostgresUrl: !!process.env.POSTGRES_URL,
+    hasPostgresNonPooling: !!process.env.POSTGRES_URL_NON_POOLING,
+  };
 
-    // Return healthy response
+  // Step 1: Test primary prisma client
+  try {
+    const start = Date.now();
+    await prisma.$queryRaw`SELECT 1 as result`;
+    const latencyMs = Date.now() - start;
+
     return NextResponse.json({
       status: "ok",
       database: "connected",
+      mode: "primary",
+      latencyMs,
+      env: envSummary,
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     });
-  } catch (error: any) {
-    // Log detailed error internally for debugging (never expose to client)
-    await logDetailedHealthCheck("error", {
-      errorType: error?.name || "unknown",
-      code: error?.code,
-      message: error?.message ? error.message.substring(0, 50) : "database error", // Truncate
-    });
+  } catch (primaryErr: any) {
+    const primaryErrorInfo = {
+      name: primaryErr?.name,
+      code: primaryErr?.code,
+      message: primaryErr?.message,
+    };
 
-    // Return diagnostic error for system recovery
+    // Step 2: Attempt fallback with direct unpooled PostgreSQL URL
+    const directUrl = getDirectDbUrl();
+    if (directUrl) {
+      try {
+        const directClient = new PrismaClient({
+          datasources: { db: { url: directUrl } },
+          log: ["error"],
+        });
+        const start = Date.now();
+        await directClient.$queryRaw`SELECT 1 as result`;
+        const latencyMs = Date.now() - start;
+        await directClient.$disconnect();
+
+        return NextResponse.json({
+          status: "degraded",
+          database: "direct_fallback_available",
+          notice: "Primary pooled connection failed, but direct unpooled connection succeeded.",
+          directLatencyMs: latencyMs,
+          primaryError: primaryErrorInfo,
+          env: envSummary,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (directErr: any) {
+        return NextResponse.json(
+          {
+            status: "error",
+            errorName: primaryErr?.name,
+            errorMessage: primaryErr?.message,
+            directErrorName: directErr?.name,
+            directErrorMessage: directErr?.message,
+            env: envSummary,
+            timestamp: new Date().toISOString(),
+          },
+          { status: 503 }
+        );
+      }
+    }
+
     return NextResponse.json(
       {
         status: "error",
-        errorName: error?.name,
-        errorCode: error?.code,
-        errorMessage: error?.message,
+        errorName: primaryErr?.name,
+        errorMessage: primaryErr?.message,
+        env: envSummary,
         timestamp: new Date().toISOString(),
       },
       { status: 503 }
