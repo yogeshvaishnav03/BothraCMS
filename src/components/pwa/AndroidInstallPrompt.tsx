@@ -39,10 +39,16 @@ export function AndroidInstallPrompt() {
     }
 
     const ua = navigator.userAgent || "";
+    const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(ua);
     setIsAndroid(/Android/i.test(ua));
 
-    // 2. Check session dismissal
-    const dismissed = sessionStorage.getItem("bothra_install_prompt_dismissed");
+    // 2. Check persistent dismissal from localStorage (survives page changes & reloads)
+    let isDismissed = false;
+    try {
+      isDismissed =
+        localStorage.getItem("bothra_install_prompt_dismissed") === "true" ||
+        sessionStorage.getItem("bothra_install_prompt_dismissed") === "true";
+    } catch {}
 
     // 3. Listen for browser install prompt (Chrome / Android / Edge)
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -50,7 +56,9 @@ export function AndroidInstallPrompt() {
       const promptEvent = e as BeforeInstallPromptEvent;
       deferredPromptRef.current = promptEvent;
       setDeferredPrompt(promptEvent);
-      if (!dismissed) {
+
+      // Only show banner on mobile devices if never dismissed; never auto-nag on desktop
+      if (!isDismissed && isMobileDevice) {
         setShowBanner(true);
       }
     };
@@ -59,6 +67,7 @@ export function AndroidInstallPrompt() {
     const handleAppInstalled = () => {
       try {
         localStorage.setItem("bothra_app_installed", "true");
+        localStorage.setItem("bothra_install_prompt_dismissed", "true");
       } catch {}
       setIsStandalone(true);
       setInstalledSuccess(true);
@@ -75,6 +84,10 @@ export function AndroidInstallPrompt() {
         prompt.prompt().then(() => {
           prompt.userChoice.then((choice) => {
             if (choice.outcome === "accepted") {
+              try {
+                localStorage.setItem("bothra_app_installed", "true");
+                localStorage.setItem("bothra_install_prompt_dismissed", "true");
+              } catch {}
               deferredPromptRef.current = null;
               setDeferredPrompt(null);
               setShowBanner(false);
@@ -90,22 +103,15 @@ export function AndroidInstallPrompt() {
     window.addEventListener("appinstalled", handleAppInstalled);
     window.addEventListener("open-android-install-prompt", handleManualTrigger);
 
-    // Show banner after brief delay on initial visit if not dismissed
-    const timer = setTimeout(() => {
-      if (!standaloneMode && !dismissed) {
-        setShowBanner(true);
-      }
-    }, 1500);
-
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
       window.removeEventListener("open-android-install-prompt", handleManualTrigger);
-      clearTimeout(timer);
     };
   }, []);
 
   const handleInstallClick = async () => {
+    handleDismiss();
     if (deferredPrompt) {
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
@@ -124,7 +130,10 @@ export function AndroidInstallPrompt() {
 
   const handleDismiss = () => {
     setShowBanner(false);
-    sessionStorage.setItem("bothra_install_prompt_dismissed", "true");
+    try {
+      localStorage.setItem("bothra_install_prompt_dismissed", "true");
+      sessionStorage.setItem("bothra_install_prompt_dismissed", "true");
+    } catch {}
   };
 
   if (isStandalone) return null;
@@ -178,7 +187,7 @@ export function AndroidInstallPrompt() {
                 </button>
                 <Link
                   href="/install"
-                  onClick={() => setShowBanner(false)}
+                  onClick={handleDismiss}
                   className="text-xs font-medium text-amber-300 hover:text-white px-2.5 py-2 rounded-xl hover:bg-white/5 transition-colors flex items-center gap-1"
                 >
                   <span>Details</span>
