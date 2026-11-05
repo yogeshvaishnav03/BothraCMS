@@ -49,12 +49,14 @@ import QuickActionLauncher from "@/components/ui/QuickActionLauncher";
 import OfflineBar from "@/components/layout/OfflineBar";
 import { clearQueue, listQueued } from "@/lib/offline-queue";
 import { triggerAndroidInstall } from "@/components/pwa/AndroidInstallPrompt";
+import { useIsAppInstalled } from "@/components/pwa/useIsAppInstalled";
 
 interface ShellProps {
   children: React.ReactNode;
 }
 
 export default function Shell({ children }: ShellProps) {
+  const isAppInstalled = useIsAppInstalled();
   const pathname = usePathname();
   const router = useRouter();
   const { language, setLanguage, t, languages } = useLanguage();
@@ -509,15 +511,17 @@ export default function Shell({ children }: ShellProps) {
           ))}
         </nav>
 
-        <div className="px-3 pb-1">
-          <button
-            onClick={triggerAndroidInstall}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-white/[0.04] text-slate-300 text-xs font-medium hover:bg-white/[0.08] hover:text-amber-300 ring-1 ring-white/10 transition-colors"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-            <span>Install Android App</span>
-          </button>
-        </div>
+        {!isAppInstalled && (
+          <div className="px-3 pb-1">
+            <button
+              onClick={triggerAndroidInstall}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-white/[0.04] text-slate-300 text-xs font-medium hover:bg-white/[0.08] hover:text-amber-300 ring-1 ring-white/10 transition-colors"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+              <span>Install Android App</span>
+            </button>
+          </div>
+        )}
 
         <div className="m-3 p-3 rounded-2xl bg-white/[0.04] ring-1 ring-white/10 flex items-center justify-between gap-2">
           <Link href="/settings" className="flex items-center gap-2.5 min-w-0 group">
@@ -557,14 +561,16 @@ export default function Shell({ children }: ShellProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button
-            onClick={triggerAndroidInstall}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 text-xs font-bold transition-all shrink-0 active:scale-95 shadow-xs"
-            title="Install Android App"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-            <span>Install App</span>
-          </button>
+          {!isAppInstalled && (
+            <button
+              onClick={triggerAndroidInstall}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 text-xs font-bold transition-all shrink-0 active:scale-95 shadow-xs"
+              title="Install Android App"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+              <span>Install App</span>
+            </button>
+          )}
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className="relative p-2 text-slate-300 hover:text-amber-400 hover:bg-white/10 rounded-xl transition"
@@ -644,16 +650,18 @@ export default function Shell({ children }: ShellProps) {
               ))}
             </nav>
             <div className="pt-3 border-t border-white/10 space-y-2">
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  triggerAndroidInstall();
-                }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500/10 text-amber-300 text-sm font-semibold hover:bg-amber-500/20 border border-amber-500/20 active:scale-98 transition-all"
-              >
-                <Smartphone className="w-4 h-4 text-amber-400" />
-                <span>Install Android App</span>
-              </button>
+              {!isAppInstalled && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    triggerAndroidInstall();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500/10 text-amber-300 text-sm font-semibold hover:bg-amber-500/20 border border-amber-500/20 active:scale-98 transition-all"
+                >
+                  <Smartphone className="w-4 h-4 text-amber-400" />
+                  <span>Install Android App</span>
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-500/10 text-rose-300 text-sm font-semibold hover:bg-rose-500/20"
@@ -706,15 +714,17 @@ export default function Shell({ children }: ShellProps) {
               >
                 <Zap className="w-4 h-4" />
               </button>
-              <button
-                type="button"
-                onClick={triggerAndroidInstall}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 text-amber-900 text-[11px] font-bold transition shadow-xs active:scale-95 shrink-0"
-                title="Install Android App"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-                <span>Install</span>
-              </button>
+              {!isAppInstalled && (
+                <button
+                  type="button"
+                  onClick={triggerAndroidInstall}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 text-amber-900 text-[11px] font-bold transition shadow-xs active:scale-95 shrink-0"
+                  title="Install Android App"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Install</span>
+                </button>
+              )}
               <InteractiveGuideModal />
               {languageToggle("md")}
               <Link
@@ -761,15 +771,17 @@ export default function Shell({ children }: ShellProps) {
             </span>
             <div className="flex items-center gap-2 shrink-0">
               {languageToggle("sm")}
-              <button
-                type="button"
-                onClick={triggerAndroidInstall}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 text-amber-900 text-[11px] font-bold transition shadow-xs active:scale-95 shrink-0"
-                title="Install Android App"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-                <span>Install</span>
-              </button>
+              {!isAppInstalled && (
+                <button
+                  type="button"
+                  onClick={triggerAndroidInstall}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 text-amber-900 text-[11px] font-bold transition shadow-xs active:scale-95 shrink-0"
+                  title="Install Android App"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Install</span>
+                </button>
+              )}
               <InteractiveGuideModal />
             </div>
           </div>

@@ -21,14 +21,22 @@ export function AndroidInstallPrompt() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // 1. Check if already running in standalone PWA / WebAPK mode
+    // 1. Check if already running in standalone PWA / WebAPK mode or already installed
     const standaloneMode =
       window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: fullscreen)").matches ||
+      window.matchMedia("(display-mode: minimal-ui)").matches ||
+      window.matchMedia("(display-mode: window-controls-overlay)").matches ||
       (window.navigator as any).standalone === true ||
-      document.referrer.includes("android-app://");
+      document.referrer.includes("android-app://") ||
+      window.location.search.includes("source=pwa") ||
+      localStorage.getItem("bothra_app_installed") === "true";
 
     setIsStandalone(standaloneMode);
-    if (standaloneMode) return;
+    if (standaloneMode) {
+      setShowBanner(false);
+      return;
+    }
 
     const ua = navigator.userAgent || "";
     setIsAndroid(/Android/i.test(ua));
@@ -49,6 +57,10 @@ export function AndroidInstallPrompt() {
 
     // 4. Listen for successful install
     const handleAppInstalled = () => {
+      try {
+        localStorage.setItem("bothra_app_installed", "true");
+      } catch {}
+      setIsStandalone(true);
       setInstalledSuccess(true);
       setShowBanner(false);
       deferredPromptRef.current = null;
@@ -98,6 +110,10 @@ export function AndroidInstallPrompt() {
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === "accepted") {
+        try {
+          localStorage.setItem("bothra_app_installed", "true");
+        } catch {}
+        setIsStandalone(true);
         setShowBanner(false);
         setDeferredPrompt(null);
       }
