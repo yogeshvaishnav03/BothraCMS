@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Download, X, Smartphone, CheckCircle, ExternalLink, Sparkles } from "lucide-react";
+import { Download, X, Smartphone, CheckCircle, ArrowRight, ExternalLink } from "lucide-react";
+import Link from "next/link";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -11,15 +12,15 @@ interface BeforeInstallPromptEvent extends Event {
 export function AndroidInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
-  const [isAndroidDevice, setIsAndroidDevice] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [installedSuccess, setInstalledSuccess] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // 1. Check if already installed & running in standalone PWA / WebAPK mode
+    // 1. Check if already running in standalone PWA / WebAPK mode
     const standaloneMode =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as any).standalone === true ||
@@ -28,28 +29,22 @@ export function AndroidInstallPrompt() {
     setIsStandalone(standaloneMode);
     if (standaloneMode) return;
 
-    // 2. Detect Android or mobile user agent
     const ua = navigator.userAgent || "";
-    const isAndroid = /Android/i.test(ua);
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-    setIsAndroidDevice(isAndroid || isMobile);
+    setIsAndroid(/Android/i.test(ua));
 
-    // 3. Check dismissal memory (24h cooldown)
-    const dismissedTime = localStorage.getItem("bothra_android_prompt_dismissed");
-    const isDismissedRecently =
-      dismissedTime && Date.now() - parseInt(dismissedTime, 10) < 24 * 60 * 60 * 1000;
+    // 2. Check session dismissal
+    const dismissed = sessionStorage.getItem("bothra_install_prompt_dismissed");
 
-    // 4. Listen for browser install prompt
+    // 3. Listen for browser install prompt (Chrome / Android / Edge)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      if (!isDismissedRecently) {
-        // Show banner after brief delay so initial load is smooth
-        setTimeout(() => setShowBanner(true), 2500);
+      if (!dismissed) {
+        setShowBanner(true);
       }
     };
 
-    // 5. Listen for successful install
+    // 4. Listen for successful install
     const handleAppInstalled = () => {
       setInstalledSuccess(true);
       setShowBanner(false);
@@ -57,7 +52,7 @@ export function AndroidInstallPrompt() {
       setTimeout(() => setInstalledSuccess(false), 4000);
     };
 
-    // 6. Listen for manual trigger from menu/settings
+    // 5. Global trigger event (from top bar, sidebar, menu buttons)
     const handleManualTrigger = () => {
       if (deferredPrompt) {
         deferredPrompt.prompt().then(() => {
@@ -77,12 +72,12 @@ export function AndroidInstallPrompt() {
     window.addEventListener("appinstalled", handleAppInstalled);
     window.addEventListener("open-android-install-prompt", handleManualTrigger);
 
-    // If on Android and prompt didn't fire within 4s, but user hasn't dismissed, show banner
+    // Show banner after brief delay on initial visit if not dismissed
     const timer = setTimeout(() => {
-      if (!standaloneMode && (isAndroid || isMobile) && !isDismissedRecently) {
+      if (!standaloneMode && !dismissed) {
         setShowBanner(true);
       }
-    }, 4000);
+    }, 1500);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -101,69 +96,77 @@ export function AndroidInstallPrompt() {
         setDeferredPrompt(null);
       }
     } else {
-      // Show Android step-by-step instructions
       setShowInstructionsModal(true);
     }
   };
 
   const handleDismiss = () => {
     setShowBanner(false);
-    localStorage.setItem("bothra_android_prompt_dismissed", Date.now().toString());
+    sessionStorage.setItem("bothra_install_prompt_dismissed", "true");
   };
 
-  // If running standalone, no install banner needed
   if (isStandalone) return null;
 
   return (
     <>
       {/* Success Notification */}
       {installedSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
-          <CheckCircle className="w-5 h-5 text-emerald-200" />
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+          <CheckCircle className="w-5 h-5 text-emerald-200 shrink-0" />
           <div>
-            <div className="text-xs font-bold">Bothra CMS Installed!</div>
-            <div className="text-[11px] text-emerald-100">App added to your Android home screen.</div>
+            <div className="text-xs font-bold">Bothra CMS Installed Successfully!</div>
+            <div className="text-[11px] text-emerald-100">App has been added to your device home screen.</div>
           </div>
         </div>
       )}
 
-      {/* Floating Bottom Android Install Banner */}
-      {showBanner && !isStandalone && (
+      {/* Primary Floating Install Banner */}
+      {showBanner && (
         <aside
           role="region"
-          aria-label="Android App Installation"
-          className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-96 z-50 bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl border border-amber-500/30 animate-in fade-in slide-in-from-bottom-6 duration-300"
+          aria-label="App Installation"
+          className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-[420px] z-50 bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl border border-amber-500/40 animate-in fade-in slide-in-from-bottom-6 duration-300"
         >
           <div className="flex items-start justify-between gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white shrink-0 shadow-md ring-2 ring-amber-400/20">
-              <Smartphone className="w-5 h-5" />
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-slate-950 shrink-0 shadow-lg ring-2 ring-amber-400/30">
+              <Smartphone className="w-6 h-6 text-slate-950" />
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black tracking-wide text-amber-400 uppercase">Android App Available</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-black tracking-wider text-amber-400 uppercase">
+                  {isAndroid ? "Android Web App" : "Official Web App"}
+                </span>
                 <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/30">
-                  Fast & Offline
+                  Works Offline
                 </span>
               </div>
               <h4 className="text-sm font-bold text-white mt-0.5">Install Bothra CMS</h4>
               <p className="text-[11px] text-slate-300 mt-1 leading-snug">
-                Install as a native Android app for 1-tap launcher access, instant site updates, and offline support.
+                Install as a native application for full-screen view, faster performance, and 1-tap launcher access.
               </p>
 
               <div className="mt-3 flex items-center gap-2">
                 <button
                   onClick={handleInstallClick}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-4 h-4" />
                   <span>Install App</span>
                 </button>
+                <Link
+                  href="/install"
+                  onClick={() => setShowBanner(false)}
+                  className="text-xs font-medium text-amber-300 hover:text-white px-2.5 py-2 rounded-xl hover:bg-white/5 transition-colors flex items-center gap-1"
+                >
+                  <span>Details</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
                 <button
                   onClick={handleDismiss}
-                  className="text-xs font-medium text-slate-400 hover:text-white px-2.5 py-2 rounded-xl hover:bg-white/5 transition-colors"
+                  className="text-xs font-medium text-slate-400 hover:text-white px-2 py-2 rounded-xl hover:bg-white/5 transition-colors"
                 >
-                  Later
+                  ✕
                 </button>
               </div>
             </div>
@@ -190,7 +193,7 @@ export function AndroidInstallPrompt() {
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-white">Install on Android Device</h3>
-                  <p className="text-[11px] text-slate-400">Add Bothra CMS directly to your home screen</p>
+                  <p className="text-[11px] text-slate-400">Add Bothra CMS directly to your phone screen</p>
                 </div>
               </div>
               <button
@@ -207,7 +210,7 @@ export function AndroidInstallPrompt() {
                   1
                 </div>
                 <div className="text-xs text-slate-300">
-                  Tap the <strong className="text-white">Three Dots (⋮)</strong> menu in the top right corner of Chrome or your Android browser.
+                  Tap the <strong className="text-white">Three Dots (⋮)</strong> menu button in the top right corner of Chrome or your browser.
                 </div>
               </div>
 
@@ -216,7 +219,7 @@ export function AndroidInstallPrompt() {
                   2
                 </div>
                 <div className="text-xs text-slate-300">
-                  Select <strong className="text-amber-400">"Install app"</strong> or <strong className="text-amber-400">"Add to Home screen"</strong> from the menu options.
+                  Select <strong className="text-amber-400">"Install app"</strong> (or <strong className="text-amber-400">"Add to Home screen"</strong>) from the menu list.
                 </div>
               </div>
 
@@ -225,15 +228,22 @@ export function AndroidInstallPrompt() {
                   3
                 </div>
                 <div className="text-xs text-slate-300">
-                  Tap <strong className="text-white">"Install"</strong> in the confirmation popup. The Bothra CMS app icon will appear on your Android home screen and app drawer!
+                  Tap <strong className="text-white">"Install"</strong> in the confirmation popup. The Bothra CMS app icon will appear directly in your Android app list!
                 </div>
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center gap-2">
+              <Link
+                href="/install"
+                onClick={() => setShowInstructionsModal(false)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs py-2.5 rounded-xl text-center transition"
+              >
+                View Install Portal
+              </Link>
               <button
                 onClick={() => setShowInstructionsModal(false)}
-                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-2.5 rounded-xl transition-all shadow-md active:scale-95"
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs py-2.5 rounded-xl transition-all shadow-md active:scale-95"
               >
                 Got It
               </button>

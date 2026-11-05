@@ -556,7 +556,15 @@ export default function Shell({ children }: ShellProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={triggerAndroidInstall}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 text-xs font-bold transition-all shrink-0 active:scale-95 shadow-xs"
+            title="Install Android App"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+            <span>Install App</span>
+          </button>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className="relative p-2 text-slate-300 hover:text-amber-400 hover:bg-white/10 rounded-xl transition"
@@ -698,6 +706,15 @@ export default function Shell({ children }: ShellProps) {
               >
                 <Zap className="w-4 h-4" />
               </button>
+              <button
+                type="button"
+                onClick={triggerAndroidInstall}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 text-amber-900 text-[11px] font-bold transition shadow-xs active:scale-95 shrink-0"
+                title="Install Android App"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+                <span>Install</span>
+              </button>
               <InteractiveGuideModal />
               {languageToggle("md")}
               <Link
@@ -744,6 +761,15 @@ export default function Shell({ children }: ShellProps) {
             </span>
             <div className="flex items-center gap-2 shrink-0">
               {languageToggle("sm")}
+              <button
+                type="button"
+                onClick={triggerAndroidInstall}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 text-amber-900 text-[11px] font-bold transition shadow-xs active:scale-95 shrink-0"
+                title="Install Android App"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-amber-600" />
+                <span>Install</span>
+              </button>
               <InteractiveGuideModal />
             </div>
           </div>

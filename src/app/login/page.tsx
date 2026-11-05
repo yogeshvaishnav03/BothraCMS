@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { HardHat, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { HardHat, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2, Smartphone, Download } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -151,6 +152,31 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+        </div>
+
+        {/* Android / Mobile App Installation Card */}
+        <div className="mt-4 p-4 rounded-2xl bg-white/[0.04] backdrop-blur-xl ring-1 ring-amber-500/30 flex items-center justify-between gap-3 shadow-xl">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
+              <Smartphone className="w-5 h-5 text-slate-950" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                <span>Bothra CMS for Android</span>
+                <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded border border-emerald-500/30">
+                  Native
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400 truncate">Install app for offline & 1-tap site check-in</div>
+            </div>
+          </div>
+          <Link
+            href="/install"
+            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shrink-0 flex items-center gap-1.5 transition active:scale-95 shadow-md"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Install</span>
+          </Link>
         </div>
 
         {/* Security badge footer */}
