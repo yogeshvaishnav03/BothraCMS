@@ -199,7 +199,7 @@ export default function InstallAppPage() {
                 2
               </div>
               <div className="text-xs text-slate-300">
-                Select <strong className="text-amber-400">"Install app"</strong> or <strong className="text-amber-400">"Add to Home screen"</strong>.
+                Select <strong className="text-amber-400">&ldquo;Install app&rdquo;</strong> or <strong className="text-amber-400">&ldquo;Add to Home screen&rdquo;</strong>.
               </div>
             </div>
 
@@ -208,7 +208,7 @@ export default function InstallAppPage() {
                 3
               </div>
               <div className="text-xs text-slate-300">
-                Tap <strong className="text-white">"Install"</strong> in the popup. Bothra CMS is now installed on your phone!
+                Tap <strong className="text-white">&ldquo;Install&rdquo;</strong> in the popup. Bothra CMS is now installed on your phone!
               </div>
             </div>
           </div>

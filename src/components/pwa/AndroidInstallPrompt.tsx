@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Download, X, Smartphone, CheckCircle, ArrowRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
@@ -11,6 +11,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function AndroidInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
@@ -38,7 +39,9 @@ export function AndroidInstallPrompt() {
     // 3. Listen for browser install prompt (Chrome / Android / Edge)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      const promptEvent = e as BeforeInstallPromptEvent;
+      deferredPromptRef.current = promptEvent;
+      setDeferredPrompt(promptEvent);
       if (!dismissed) {
         setShowBanner(true);
       }
@@ -48,16 +51,19 @@ export function AndroidInstallPrompt() {
     const handleAppInstalled = () => {
       setInstalledSuccess(true);
       setShowBanner(false);
+      deferredPromptRef.current = null;
       setDeferredPrompt(null);
       setTimeout(() => setInstalledSuccess(false), 4000);
     };
 
     // 5. Global trigger event (from top bar, sidebar, menu buttons)
     const handleManualTrigger = () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt().then(() => {
-          deferredPrompt.userChoice.then((choice) => {
+      const prompt = deferredPromptRef.current;
+      if (prompt) {
+        prompt.prompt().then(() => {
+          prompt.userChoice.then((choice) => {
             if (choice.outcome === "accepted") {
+              deferredPromptRef.current = null;
               setDeferredPrompt(null);
               setShowBanner(false);
             }
@@ -219,7 +225,7 @@ export function AndroidInstallPrompt() {
                   2
                 </div>
                 <div className="text-xs text-slate-300">
-                  Select <strong className="text-amber-400">"Install app"</strong> (or <strong className="text-amber-400">"Add to Home screen"</strong>) from the menu list.
+                  Select <strong className="text-amber-400">&ldquo;Install app&rdquo;</strong> (or <strong className="text-amber-400">&ldquo;Add to Home screen&rdquo;</strong>) from the menu list.
                 </div>
               </div>
 
@@ -228,7 +234,7 @@ export function AndroidInstallPrompt() {
                   3
                 </div>
                 <div className="text-xs text-slate-300">
-                  Tap <strong className="text-white">"Install"</strong> in the confirmation popup. The Bothra CMS app icon will appear directly in your Android app list!
+                  Tap <strong className="text-white">&ldquo;Install&rdquo;</strong> in the confirmation popup. The Bothra CMS app icon will appear directly in your Android app list!
                 </div>
               </div>
             </div>
