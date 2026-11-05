@@ -10,7 +10,7 @@
 const VERSION = "bothra-v5";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
-const SHELL = ["/offline", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+const SHELL = ["/offline", "/manifest.webmanifest", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-512-maskable.png"];
 
 // The no-signal page must work even if it was never opened, so its scripts and styles are kept too.
 async function precache() {

@@ -1,0 +1,14 @@
+{
+  "appId": "com.bothracms.app",
+  "appName": "Bothra CMS",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

@@ -40,6 +40,7 @@ import {
   Layers,
   Wallet,
   Landmark,
+  Smartphone,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -47,6 +48,7 @@ import InteractiveGuideModal from "@/components/ui/InteractiveGuideModal";
 import QuickActionLauncher from "@/components/ui/QuickActionLauncher";
 import OfflineBar from "@/components/layout/OfflineBar";
 import { clearQueue, listQueued } from "@/lib/offline-queue";
+import { triggerAndroidInstall } from "@/components/pwa/AndroidInstallPrompt";
 
 interface ShellProps {
   children: React.ReactNode;
@@ -507,6 +509,16 @@ export default function Shell({ children }: ShellProps) {
           ))}
         </nav>
 
+        <div className="px-3 pb-1">
+          <button
+            onClick={triggerAndroidInstall}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-white/[0.04] text-slate-300 text-xs font-medium hover:bg-white/[0.08] hover:text-amber-300 ring-1 ring-white/10 transition-colors"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+            <span>Install Android App</span>
+          </button>
+        </div>
+
         <div className="m-3 p-3 rounded-2xl bg-white/[0.04] ring-1 ring-white/10 flex items-center justify-between gap-2">
           <Link href="/settings" className="flex items-center gap-2.5 min-w-0 group">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-400 to-orange-600 text-slate-950 flex items-center justify-center font-bold text-xs shrink-0 ring-2 ring-white/10">
@@ -623,7 +635,17 @@ export default function Shell({ children }: ShellProps) {
                 </div>
               ))}
             </nav>
-            <div className="pt-3 border-t border-white/10">
+            <div className="pt-3 border-t border-white/10 space-y-2">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  triggerAndroidInstall();
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500/10 text-amber-300 text-sm font-semibold hover:bg-amber-500/20 border border-amber-500/20 active:scale-98 transition-all"
+              >
+                <Smartphone className="w-4 h-4 text-amber-400" />
+                <span>Install Android App</span>
+              </button>
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-rose-500/10 text-rose-300 text-sm font-semibold hover:bg-rose-500/20"

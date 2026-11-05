@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
+import { ServiceWorkerRegister } from "@/components/pwa/ServiceWorkerRegister";
+import { AndroidInstallPrompt } from "@/components/pwa/AndroidInstallPrompt";
 
 export const metadata: Metadata = {
   title: "Bothra CMS — Construction & Site Operations",
@@ -10,12 +12,17 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Bothra", statusBarStyle: "black-translucent" },
   other: {
     "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "theme-color": "#0b1020",
+    "msapplication-TileColor": "#0b1020",
+    "format-detection": "telephone=no",
   },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: "/icons/apple-touch-icon.png",
   },
@@ -23,6 +30,11 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0b1020",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -44,7 +56,11 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen flex flex-col">
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          <ServiceWorkerRegister />
+          <AndroidInstallPrompt />
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );
