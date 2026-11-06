@@ -27,6 +27,7 @@ import {
   Check,
   Sparkles,
   Filter,
+  Building2,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 
@@ -173,6 +174,31 @@ export default function MaterialsPage() {
   const [isCustomMaterialName, setIsCustomMaterialName] = useState(false);
   const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
   const materialDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Table row site breakdown dropdown state
+  const [activeDropdownMaterialId, setActiveDropdownMaterialId] = useState<string | null>(null);
+  const siteDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close site stock dropdown on outside click or Escape
+  useEffect(() => {
+    if (!activeDropdownMaterialId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (siteDropdownRef.current && !siteDropdownRef.current.contains(e.target as Node)) {
+        setActiveDropdownMaterialId(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveDropdownMaterialId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeDropdownMaterialId]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -852,13 +878,209 @@ export default function MaterialsPage() {
                       key={m.id}
                       className="hover:bg-amber-50/40 transition-colors group cursor-pointer"
                     >
-                      <td className="py-3.5 px-4">
-                        <Link href={`/materials/${m.id}`} className="block">
-                          <div className="font-bold text-slate-900 group-hover:text-amber-600 transition-colors">
-                            {m.name}
+                      <td className="py-3.5 px-4 relative">
+                        <div className="flex items-start justify-between gap-2">
+                          <Link href={`/materials/${m.id}`} className="block flex-1 group/link">
+                            <div className="font-bold text-slate-900 group-hover/link:text-amber-600 transition-colors">
+                              {m.name}
+                            </div>
+                            <div className="text-xs text-slate-400 font-mono">{m.sku}</div>
+                          </Link>
+
+                          {/* Site Breakdown Dropdown Trigger on Material Name */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveDropdownMaterialId((prev) => (prev === m.id ? null : m.id));
+                            }}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 mt-0.5 rounded-md text-[11px] font-bold transition shadow-2xs shrink-0 cursor-pointer ${
+                              activeDropdownMaterialId === m.id
+                                ? "bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-sm"
+                                : "bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-950 border border-slate-200"
+                            }`}
+                            title="Click to view site-by-site stock breakdown"
+                          >
+                            <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                            <span className="hidden sm:inline">Sites Stock</span>
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                activeDropdownMaterialId === m.id ? "rotate-180" : ""
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Interactive Dropdown Panel */}
+                        {activeDropdownMaterialId === m.id && (
+                          <div
+                            ref={siteDropdownRef}
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute left-2 sm:left-4 top-[calc(100%-4px)] z-50 w-80 sm:w-96 max-w-[92vw] bg-white rounded-xl border border-slate-200 shadow-2xl p-3.5 text-slate-800 text-xs animate-in fade-in zoom-in-95 duration-150 cursor-default"
+                          >
+                            {/* Header */}
+                            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700">
+                                  <Building2 className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="font-black text-slate-900 text-xs sm:text-sm">
+                                    Stock by Site
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    {m.sku} • {m.unitCode}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdownMaterialId(null);
+                                }}
+                                className="text-slate-400 hover:text-slate-600 p-1 rounded-md transition"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Total Company Stock Banner */}
+                            <div className="my-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-slate-600">Company Total Stock:</span>
+                              <span className="font-black text-slate-900 font-mono">
+                                {formatQuantity(m.totalStockCompany ?? m.totalStock, m.unitCode)}
+                              </span>
+                            </div>
+
+                            {/* Sites List */}
+                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                              {(!m.siteBreakdown || m.siteBreakdown.length === 0) ? (
+                                <div className="text-center py-4 text-slate-400 italic text-[11px]">
+                                  No site stock information recorded yet.
+                                </div>
+                              ) : (
+                                m.siteBreakdown.map((sb: any) => {
+                                  const isCurrentActive = activeSiteId && sb.siteId === activeSiteId;
+                                  const hasStock = Number(sb.stock) > 0;
+                                  const hasOrdered = Number(sb.ordered) > 0;
+
+                                  return (
+                                    <div
+                                      key={sb.siteId}
+                                      className={`p-2.5 rounded-lg border transition ${
+                                        isCurrentActive
+                                          ? "bg-amber-50/80 border-amber-300 ring-1 ring-amber-300"
+                                          : hasStock
+                                          ? "bg-white border-slate-200"
+                                          : "bg-slate-50/60 border-slate-100 text-slate-400"
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <span
+                                            className={`w-2 h-2 rounded-full shrink-0 ${
+                                              hasStock
+                                                ? "bg-emerald-500"
+                                                : hasOrdered
+                                                ? "bg-amber-400"
+                                                : "bg-slate-300"
+                                            }`}
+                                          />
+                                          <span className="font-bold text-slate-900 truncate">
+                                            {sb.siteName}
+                                          </span>
+                                          {sb.siteCode && (
+                                            <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                                              ({sb.siteCode})
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <span
+                                            className={`font-black font-mono text-xs ${
+                                              hasStock ? "text-slate-900" : "text-slate-400"
+                                            }`}
+                                          >
+                                            {formatQuantity(sb.stock, m.unitCode)}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Ordered / In Transit */}
+                                      {hasOrdered && (
+                                        <div className="mt-1 flex items-center justify-between text-[11px] text-amber-700 bg-amber-100/60 px-2 py-0.5 rounded">
+                                          <span className="inline-flex items-center gap-1 font-medium">
+                                            <ShoppingCart className="w-3 h-3 text-amber-600" />
+                                            <span>Ordered / In-Transit:</span>
+                                          </span>
+                                          <span className="font-bold font-mono">
+                                            +{formatQuantity(sb.ordered, m.unitCode)}
+                                          </span>
+                                        </div>
+                                      )}
+
+                                      {/* Individual Stores */}
+                                      {sb.stores && sb.stores.length > 0 && (
+                                        <div className="mt-1.5 pl-3 border-l-2 border-slate-200 space-y-0.5 text-[11px] text-slate-600">
+                                          {sb.stores.map((st: any) => (
+                                            <div key={st.storeId} className="flex items-center justify-between">
+                                              <span className="truncate">{st.storeName}:</span>
+                                              <span className="font-mono font-medium text-slate-800 ml-2">
+                                                {formatQuantity(st.stock, m.unitCode)}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+
+                                      {isCurrentActive && (
+                                        <div className="mt-1 text-[10px] font-bold text-amber-800 uppercase tracking-wide">
+                                          ✓ Active Filter Site
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            {/* Dropdown Footer Actions */}
+                            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                              {canPlaceOrder && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDropdownMaterialId(null);
+                                    setOrderModalMaterial({
+                                      id: m.id,
+                                      name: m.name,
+                                      sku: m.sku,
+                                      unitCode: m.unitCode,
+                                      unitPrice: m.unitPrice,
+                                      minStockQty: m.minStockQty,
+                                      reorderQty: m.reorderQty,
+                                      currentStock: m.totalStock,
+                                    });
+                                    setShowPlaceOrderModal(true);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg transition cursor-pointer"
+                                >
+                                  <ShoppingCart className="w-3 h-3" />
+                                  <span>Order for Site</span>
+                                </button>
+                              )}
+                              <Link
+                                href={`/materials/${m.id}`}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 hover:text-amber-700 ml-auto"
+                              >
+                                <span>Full Ledger</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </Link>
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-400 font-mono">{m.sku}</div>
-                        </Link>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-slate-600">
                         {m.category?.name || "General"}
@@ -872,7 +1094,22 @@ export default function MaterialsPage() {
                         {m.unitPrice ? `₹${Number(m.unitPrice).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                       </td>
                       <td className="py-3.5 px-4 text-right font-black text-slate-900 tabular-nums">
-                        {formatQuantity(m.totalStock, m.unitCode)}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveDropdownMaterialId((prev) => (prev === m.id ? null : m.id));
+                          }}
+                          className="inline-flex items-center gap-1 font-black text-slate-900 hover:text-amber-600 transition cursor-pointer"
+                          title="Click to view site-by-site stock breakdown"
+                        >
+                          <span>{formatQuantity(m.totalStock, m.unitCode)}</span>
+                          <ChevronDown
+                            className={`w-3 h-3 text-slate-400 group-hover:text-amber-500 transition-transform ${
+                              activeDropdownMaterialId === m.id ? "rotate-180 text-amber-600" : ""
+                            }`}
+                          />
+                        </button>
                       </td>
                       <td className="py-3.5 px-4 text-right text-slate-500 tabular-nums">
                         {formatQuantity(m.minStockQty, m.unitCode)}

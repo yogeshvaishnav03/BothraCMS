@@ -767,16 +767,35 @@ export class InventoryService {
       siteStoreIds = siteStores.map((s: any) => s.id);
     }
 
-    const materials = await prisma.material.findMany({
-      where: { organizationId, active: true, isArchived: false },
-      include: {
-        category: true,
-        stockBalances: {
-          include: { store: { include: { site: true } } },
+    const [materials, allOrgSites, allActivePOs] = await Promise.all([
+      prisma.material.findMany({
+        where: { organizationId, active: true, isArchived: false },
+        include: {
+          category: true,
+          stockBalances: {
+            include: { store: { include: { site: true } } },
+          },
         },
-      },
-      orderBy: { name: "asc" },
-    });
+        orderBy: { name: "asc" },
+      }),
+      prisma.site.findMany({
+        where: { organizationId, status: "ACTIVE" },
+        select: { id: true, name: true, code: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.purchaseOrder.findMany({
+        where: {
+          organizationId,
+          status: { in: ["PENDING_APPROVAL", "APPROVED", "PLACED", "CONFIRMED"] },
+        },
+        select: {
+          materialId: true,
+          siteId: true,
+          storeId: true,
+          quantity: true,
+        },
+      }),
+    ]);
 
     const results = [];
 
@@ -850,6 +869,79 @@ export class InventoryService {
         alertReason = `Reorder point reached: ${availableStock} / ${reorderLevel} ${m.unitCode}`;
       }
 
+      // Compute company-wide total stock and site-by-site breakdown
+      const companyStock = m.stockBalances.reduce((sum: number, sb: any) => sum + (sb.quantityOnHand || 0), 0);
+
+      const siteMap = new Map<string, {
+        siteId: string;
+        siteName: string;
+        siteCode: string;
+        stock: number;
+        ordered: number;
+        stores: { storeId: string; storeName: string; stock: number }[];
+      }>();
+
+      for (const s of allOrgSites) {
+        siteMap.set(s.id, {
+          siteId: s.id,
+          siteName: s.name,
+          siteCode: s.code || "",
+          stock: 0,
+          ordered: 0,
+          stores: [],
+        });
+      }
+
+      for (const sb of m.stockBalances) {
+        const sId = sb.store?.siteId || sb.store?.site?.id;
+        if (!sId) continue;
+        let siteEntry = siteMap.get(sId);
+        if (!siteEntry) {
+          siteEntry = {
+            siteId: sId,
+            siteName: sb.store?.site?.name || "Site",
+            siteCode: sb.store?.site?.code || "",
+            stock: 0,
+            ordered: 0,
+            stores: [],
+          };
+          siteMap.set(sId, siteEntry);
+        }
+        const qty = roundQuantity(sb.quantityOnHand || 0);
+        siteEntry.stock = roundQuantity(siteEntry.stock + qty);
+        siteEntry.stores.push({
+          storeId: sb.storeId,
+          storeName: sb.store?.name || "Store",
+          stock: qty,
+        });
+      }
+
+      const materialPOs = allActivePOs.filter((po) => po.materialId === m.id);
+      for (const po of materialPOs) {
+        if (!po.siteId) continue;
+        let siteEntry = siteMap.get(po.siteId);
+        if (!siteEntry) {
+          const foundSite = allOrgSites.find((s) => s.id === po.siteId);
+          siteEntry = {
+            siteId: po.siteId,
+            siteName: foundSite?.name || "Site",
+            siteCode: foundSite?.code || "",
+            stock: 0,
+            ordered: 0,
+            stores: [],
+          };
+          siteMap.set(po.siteId, siteEntry);
+        }
+        siteEntry.ordered = roundQuantity(siteEntry.ordered + (po.quantity || 0));
+      }
+
+      const siteBreakdown = Array.from(siteMap.values()).sort((a, b) => {
+        const aActive = a.stock > 0 || a.ordered > 0 ? 1 : 0;
+        const bActive = b.stock > 0 || b.ordered > 0 ? 1 : 0;
+        if (bActive !== aActive) return bActive - aActive;
+        return a.siteName.localeCompare(b.siteName);
+      });
+
       results.push({
         id: m.id,
         materialId: m.id,
@@ -862,6 +954,8 @@ export class InventoryService {
         unitCode: m.unitCode,
         unitPrice: m.unitPrice ?? 0,
         totalStock: availableStock,
+        totalStockCompany: roundQuantity(companyStock),
+        siteBreakdown,
         actualStock: availableStock,
         authoritativeStock: availableStock,
         availableStock,
