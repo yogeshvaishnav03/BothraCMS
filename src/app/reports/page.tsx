@@ -3,6 +3,7 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useActiveSite } from "@/hooks/useActiveSite";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, formatDate } from "@/lib/formatters";
 import { canUser } from "@/lib/permissions";
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 
 export default function ReportsPage() {
+  const { activeSiteId } = useActiveSite();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canReadFinance = canUser(currentUser, "finance:read");
   const [reportType, setReportType] = useState<"STOCK" | "PAYABLES" | "ATTENDANCE">("STOCK");
@@ -33,14 +35,16 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchReportsData = () => {
+  const fetchReportsData = (siteIdFilter?: string) => {
     setLoading(true);
     setError(null);
+    const targetSite = siteIdFilter !== undefined ? siteIdFilter : activeSiteId;
+    const matUrl = targetSite ? `/api/materials?siteId=${encodeURIComponent(targetSite)}` : "/api/materials";
     fetch("/api/auth/me").then((r) => r.json()).then((res) => {
       if (res.success && res.data?.user) setCurrentUser(res.data.user);
     }).catch(() => {});
     Promise.all([
-      fetch("/api/materials").then(async (r) => {
+      fetch(matUrl).then(async (r) => {
         if (!r.ok) throw new Error(`Materials fetch failed (HTTP ${r.status})`);
         return r.json();
       }),
@@ -66,8 +70,8 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
-    fetchReportsData();
-  }, []);
+    fetchReportsData(activeSiteId);
+  }, [activeSiteId]);
 
   const filteredMaterials = useMemo(() => {
     return materials.filter((m) => {
@@ -93,11 +97,12 @@ export default function ReportsPage() {
 
   const filteredAttendance = useMemo(() => {
     return attendance.filter((a) => {
+      if (activeSiteId && a.siteId && a.siteId !== activeSiteId) return false;
       if (startDate && a.workDate < startDate) return false;
       if (endDate && a.workDate > endDate) return false;
       return true;
     });
-  }, [attendance, startDate, endDate]);
+  }, [attendance, startDate, endDate, activeSiteId]);
 
   const stockColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -354,7 +359,7 @@ export default function ReportsPage() {
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs text-red-800">
             <span>{error}</span>
             <button
-              onClick={fetchReportsData}
+              onClick={() => fetchReportsData()}
               className="px-3 py-1 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition"
             >
               Retry

@@ -263,6 +263,25 @@ export default function Shell({ children }: ShellProps) {
     };
   }, [router, fetchNotifications]);
 
+  // Synchronize activeSiteId in Shell with external updates from child pages and tabs
+  useEffect(() => {
+    const handleSiteChangeExt = (e: any) => {
+      const newSiteId = e.detail?.siteId !== undefined ? e.detail.siteId : (localStorage.getItem("buildtrack_active_site") || "");
+      setActiveSiteId(newSiteId);
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "buildtrack_active_site") {
+        setActiveSiteId(e.newValue || "");
+      }
+    };
+    window.addEventListener("siteChanged", handleSiteChangeExt);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("siteChanged", handleSiteChangeExt);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
   // Auto-dismiss chat toast after 6 seconds
   useEffect(() => {
     if (chatToast) {

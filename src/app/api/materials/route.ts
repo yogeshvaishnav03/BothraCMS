@@ -24,9 +24,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search")?.toLowerCase();
     const categoryId = searchParams.get("categoryId");
+    const siteId = searchParams.get("siteId") || undefined;
 
     // Unified Authoritative Stock Calculation from Ledger
-    const allStockStatus = await InventoryService.getAuthoritativeStockSummary(user.organizationId);
+    const allStockStatus = await InventoryService.getAuthoritativeStockSummary(user.organizationId, siteId);
 
     let filtered = allStockStatus;
     if (categoryId) {

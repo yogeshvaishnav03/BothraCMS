@@ -582,8 +582,20 @@ export default function DashboardPage() {
       loadDashboard(newSiteId);
     };
 
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "buildtrack_active_site") {
+        const newSiteId = e.newValue || "";
+        setActiveSiteId(newSiteId);
+        loadDashboard(newSiteId);
+      }
+    };
+
     window.addEventListener("siteChanged", onSiteChanged);
-    return () => window.removeEventListener("siteChanged", onSiteChanged);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("siteChanged", onSiteChanged);
+      window.removeEventListener("storage", onStorage);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

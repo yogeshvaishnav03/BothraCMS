@@ -43,6 +43,7 @@ import {
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
 import ExcelTable, { ExcelColumn } from "@/components/ui/ExcelTable";
+import { useActiveSite } from "@/hooks/useActiveSite";
 
 interface DayBookData {
   date: string;
@@ -597,6 +598,7 @@ export default function DayBookPage() {
     return todayStr;
   });
   const [dateFilterMode, setDateFilterMode] = useState<"SINGLE" | "RANGE">("SINGLE");
+  const { activeSiteId, setActiveSiteId } = useActiveSite();
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"ALL" | "PAYMENTS" | "REJECTED" | "BILLS" | "ATTENDANCE" | "REPORTS">("ALL");
@@ -1189,7 +1191,7 @@ export default function DayBookPage() {
       const rawSites = siteRes.data || [];
       setSites(rawSites);
       if (rawSites.length > 0) {
-        setWfSiteId(rawSites[0].id);
+        setWfSiteId((prev) => prev || activeSiteId || rawSites[0].id);
       }
 
       const rawParties = partyRes.data || [];
@@ -1208,9 +1210,16 @@ export default function DayBookPage() {
       }
     });
 
-    loadDayBook(selectedDate, toDate, selectedSiteId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Synchronize Day Book with global active site
+  useEffect(() => {
+    setSelectedSiteId(activeSiteId || "");
+    if (activeSiteId) setWfSiteId(activeSiteId);
+    loadDayBook(selectedDate, toDate, activeSiteId || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSiteId, selectedDate, toDate]);
 
   const handleDateChange = (newFrom: string, newTo?: string) => {
     const to = newTo || newFrom;
@@ -1243,6 +1252,7 @@ export default function DayBookPage() {
   const handleSiteChange = (newSiteId: string) => {
     setSelectedSiteId(newSiteId);
     if (newSiteId) setWfSiteId(newSiteId);
+    setActiveSiteId(newSiteId);
     loadDayBook(selectedDate, toDate, newSiteId);
   };
 

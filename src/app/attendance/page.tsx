@@ -32,6 +32,7 @@ import {
   Check,
 } from "lucide-react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useActiveSite } from "@/hooks/useActiveSite";
 
 interface AttendanceRecord {
   id: string;
@@ -118,6 +119,7 @@ function getRoleBadge(role?: string) {
 }
 
 export default function AttendancePage() {
+  const { activeSiteId, setActiveSiteId } = useActiveSite();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState("");
@@ -180,6 +182,15 @@ export default function AttendancePage() {
   const [alterCheckIn, setAlterCheckIn] = useState<string>("");
   const [alterCheckOut, setAlterCheckOut] = useState<string>("");
   const [alterReason, setAlterReason] = useState<string>("");
+
+  // Synchronize Attendance site filter with global active site
+  useEffect(() => {
+    setSiteFilter(activeSiteId || "ALL");
+    if (activeSiteId) {
+      setSelectedSiteId(activeSiteId);
+      setAlterSiteId(activeSiteId);
+    }
+  }, [activeSiteId]);
 
   // Live clock
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1427,7 +1438,11 @@ export default function AttendancePage() {
               {sites.length > 0 && (
                 <select
                   value={siteFilter}
-                  onChange={(e) => setSiteFilter(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSiteFilter(val);
+                    setActiveSiteId(val === "ALL" ? "" : val);
+                  }}
                   className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs max-w-[160px] truncate"
                 >
                   <option value="ALL">All Sites</option>

@@ -758,6 +758,15 @@ export class InventoryService {
     organizationId: string,
     siteId?: string
   ) {
+    let siteStoreIds: string[] | null = null;
+    if (siteId) {
+      const siteStores = await prisma.store.findMany({
+        where: { organizationId, siteId },
+        select: { id: true },
+      });
+      siteStoreIds = siteStores.map((s: any) => s.id);
+    }
+
     const materials = await prisma.material.findMany({
       where: { organizationId, active: true, isArchived: false },
       include: {
@@ -772,24 +781,30 @@ export class InventoryService {
     const results = [];
 
     for (const m of materials) {
-      let storeIds: string[] | undefined = undefined;
+      let availableStock = 0;
+
       if (siteId) {
-        storeIds = m.stockBalances
-          .filter((b: any) => b.store?.siteId === siteId)
-          .map((b: any) => b.storeId);
+        if (!siteStoreIds || siteStoreIds.length === 0) {
+          availableStock = 0;
+        } else {
+          const agg = await prisma.stockMovement.aggregate({
+            where: {
+              organizationId,
+              materialId: m.id,
+              storeId: { in: siteStoreIds },
+              isArchived: false,
+            },
+            _sum: { quantityDelta: true },
+          });
+          availableStock = roundQuantity(agg._sum.quantityDelta || 0);
+        }
+      } else {
+        const agg = await prisma.stockMovement.aggregate({
+          where: { organizationId, materialId: m.id, isArchived: false },
+          _sum: { quantityDelta: true },
+        });
+        availableStock = roundQuantity(agg._sum.quantityDelta || 0);
       }
-
-      // Compute authoritative sum from ledger
-      const whereMovement: any = { organizationId, materialId: m.id, isArchived: false };
-      if (storeIds && storeIds.length > 0) {
-        whereMovement.storeId = { in: storeIds };
-      }
-
-      const agg = await prisma.stockMovement.aggregate({
-        where: whereMovement,
-        _sum: { quantityDelta: true },
-      });
-      const availableStock = roundQuantity(agg._sum.quantityDelta || 0);
 
       // Reconcile StockBalance for each store
       for (const sb of m.stockBalances) {

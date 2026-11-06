@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useActiveSite } from "@/hooks/useActiveSite";
 
 interface HeadcountRecord {
   id: string;
@@ -62,10 +63,12 @@ interface WorkerRosterItem {
   workerType: string;
   phone?: string;
   dailyWageRate?: number;
+  defaultSiteId?: string | null;
   defaultSite?: { id: string; name: string };
 }
 
 export default function WorkforcePage() {
+  const { activeSiteId, setActiveSiteId } = useActiveSite();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
@@ -262,6 +265,15 @@ export default function WorkforcePage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Synchronize workforce page with global active site filter
+  useEffect(() => {
+    setSelectedSiteId(activeSiteId || "");
+    setSelectedProjectId("");
+    if (activeSiteId) {
+      setModalSiteId(activeSiteId);
+    }
+  }, [activeSiteId]);
 
   const openUploadModal = (existing?: HeadcountRecord) => {
     if (existing) {
@@ -586,8 +598,13 @@ export default function WorkforcePage() {
     []
   );
 
+  const siteScopedWorkers = useMemo(() => {
+    if (!selectedSiteId) return workers;
+    return workers.filter((w) => w.defaultSiteId === selectedSiteId || (w as any).defaultSite?.id === selectedSiteId);
+  }, [workers, selectedSiteId]);
+
   const excelWorkers = useExcelTable({
-    data: workers,
+    data: siteScopedWorkers,
     columns: workerColumns,
   });
 
@@ -651,8 +668,10 @@ export default function WorkforcePage() {
                 <select
                   value={selectedSiteId}
                   onChange={(e) => {
-                    setSelectedSiteId(e.target.value);
+                    const val = e.target.value;
+                    setSelectedSiteId(val);
                     setSelectedProjectId("");
+                    setActiveSiteId(val);
                   }}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 >

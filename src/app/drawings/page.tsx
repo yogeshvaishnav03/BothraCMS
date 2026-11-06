@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
@@ -8,6 +8,7 @@ import { Field, Modal, StatTile, inputCls } from "@/components/ui/Modal";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { api, post, shortDate } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
+import { useActiveSite } from "@/hooks/useActiveSite";
 import { CheckCircle2, ChevronDown, Columns2, ExternalLink, PenLine, FilePlus2, Layers, Search, ShieldCheck, Upload, XCircle } from "lucide-react";
 
 const DISCIPLINES: Record<string, { label: string; dot: string }> = {
@@ -133,12 +134,26 @@ function RevisionModal({ drawing, onClose, onSaved }: { drawing: any; onClose: (
 const prevWithFile = (revisions: any[], r: any) => revisions.slice(revisions.indexOf(r) + 1).find((x) => x.fileUrl);
 
 export default function DrawingsPage() {
+  const { activeSiteId } = useActiveSite();
   const [data, setData] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [projectId, setProjectId] = useState("");
   const [discipline, setDiscipline] = useState("");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+
+  const visibleProjects = useMemo(() => {
+    if (!activeSiteId) return projects;
+    return projects.filter((p) => p.siteId === activeSiteId);
+  }, [projects, activeSiteId]);
+
+  const visibleDrawings = useMemo(() => {
+    if (!data?.drawings) return [];
+    if (!activeSiteId) return data.drawings;
+    return data.drawings.filter(
+      (d: any) => d.project?.siteId === activeSiteId || visibleProjects.some((p) => p.id === d.projectId || p.id === d.project?.id)
+    );
+  }, [data?.drawings, activeSiteId, visibleProjects]);
   // Coming back from the viewer opens that drawing again.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id");
@@ -218,7 +233,7 @@ export default function DrawingsPage() {
           </div>
           <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
             <option value="">All projects</option>
-            {projects.map((p) => (
+            {visibleProjects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
@@ -236,11 +251,11 @@ export default function DrawingsPage() {
 
         {!data ? (
           <div className="skeleton h-64 rounded-2xl" />
-        ) : data.drawings.length === 0 ? (
+        ) : visibleDrawings.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No drawings yet. Add the first one with its PDF.</div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-            {data.drawings.map((d: any) => {
+            {visibleDrawings.map((d: any) => {
               const isOpen = open === d.id;
               const disc = DISCIPLINES[d.discipline] || DISCIPLINES.OTHER;
               return (

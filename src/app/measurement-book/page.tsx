@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, rupeesToPaise } from "@/lib/formatters";
 import { canUser } from "@/lib/permissions";
+import { useActiveSite } from "@/hooks/useActiveSite";
 import {
   MEASUREMENT_UNIT_GROUPS,
   MEASUREMENT_TYPE_GROUPS,
@@ -169,6 +170,7 @@ function getKpiAmountClass(text: string): string {
 }
 
 export default function MeasurementBookPage() {
+  const { activeSiteId, setActiveSiteId } = useActiveSite();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canWriteProjects = canUser(currentUser, "projects:write");
   const canWriteFinance = canUser(currentUser, "finance:write");
@@ -369,6 +371,14 @@ export default function MeasurementBookPage() {
       setLoading(false);
     }
   };
+
+  // Synchronize Measurement Book with activeSiteId
+  useEffect(() => {
+    setSelectedSite(activeSiteId || "ALL");
+    if (activeSiteId) {
+      setGrpSiteId(activeSiteId);
+    }
+  }, [activeSiteId]);
 
   useEffect(() => {
     loadData();
@@ -1587,7 +1597,11 @@ export default function MeasurementBookPage() {
             {/* Site Filter */}
             <select
               value={selectedSite}
-              onChange={(e) => setSelectedSite(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedSite(val);
+                setActiveSiteId(val === "ALL" ? "" : val);
+              }}
               className="text-xs font-medium px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
             >
               <option value="ALL">All Sites</option>

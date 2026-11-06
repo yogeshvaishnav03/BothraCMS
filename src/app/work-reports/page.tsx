@@ -8,6 +8,7 @@ import { ContactActions } from "@/components/ui/ContactActions";
 import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
 import { isOffline, submitOrQueue } from "@/lib/offline-queue";
 import { cn } from "@/lib/cn";
+import { useActiveSite } from "@/hooks/useActiveSite";
 import {
   CloudOff,
   AlertTriangle,
@@ -330,7 +331,12 @@ function AttendanceCard() {
 function MyReport({ initialDate }: { initialDate: string }) {
   const [date, setDate] = useState(initialDate);
   const [draft, setDraft] = useState<any>(null);
+  const { activeSiteId } = useActiveSite();
   const [projects, setProjects] = useState<any[]>([]);
+  const visibleProjects = useMemo(() => {
+    if (!activeSiteId) return projects;
+    return projects.filter((p) => p.siteId === activeSiteId);
+  }, [projects, activeSiteId]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -528,7 +534,7 @@ function MyReport({ initialDate }: { initialDate: string }) {
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                 >
                   <option value="">Office / general</option>
-                  {projects.map((p) => (
+                  {visibleProjects.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
                     </option>

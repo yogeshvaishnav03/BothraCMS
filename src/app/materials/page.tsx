@@ -8,6 +8,7 @@ import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import { useActiveSite } from "@/hooks/useActiveSite";
 import { formatCurrency, formatQuantity } from "@/lib/formatters";
 import {
   Boxes,
@@ -134,6 +135,7 @@ const STANDARD_CONSTRUCTION_MATERIALS: StandardMaterialCategory[] = [
 ];
 
 export default function MaterialsPage() {
+  const { activeSiteId } = useActiveSite();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
@@ -309,9 +311,11 @@ export default function MaterialsPage() {
   const [transferRefDoc, setTransferRefDoc] = useState("");
   const [transferNotes, setTransferNotes] = useState("");
 
-  const loadMaterials = () => {
+  const loadMaterials = (siteIdFilter?: string) => {
     setLoading(true);
-    fetch("/api/materials")
+    const targetSiteId = siteIdFilter !== undefined ? siteIdFilter : activeSiteId;
+    const url = targetSiteId ? `/api/materials?siteId=${encodeURIComponent(targetSiteId)}` : "/api/materials";
+    fetch(url)
       .then((r) => r.json())
       .then((res) => {
         if (res.success) {
@@ -324,8 +328,10 @@ export default function MaterialsPage() {
       .finally(() => setLoading(false));
   };
 
-  const loadStores = () => {
-    fetch("/api/stores")
+  const loadStores = (siteIdFilter?: string) => {
+    const targetSiteId = siteIdFilter !== undefined ? siteIdFilter : activeSiteId;
+    const url = targetSiteId ? `/api/stores?siteId=${encodeURIComponent(targetSiteId)}` : "/api/stores";
+    fetch(url)
       .then((r) => r.json())
       .then((res) => {
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
@@ -339,12 +345,23 @@ export default function MaterialsPage() {
           } else {
             setTransferTargetStoreId(res.data[0].id);
           }
+        } else if (res.success && Array.isArray(res.data) && res.data.length === 0) {
+          setStores([]);
+          setSelectedStoreId("");
+          setTransferSourceStoreId("");
+          setTransferTargetStoreId("");
         }
       })
       .catch((err) => {
         console.error("Authoritative stores load failed:", err);
       });
   };
+
+  useEffect(() => {
+    loadMaterials(activeSiteId);
+    loadStores(activeSiteId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSiteId]);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -355,8 +372,6 @@ export default function MaterialsPage() {
         }
       })
       .catch(() => {});
-    loadMaterials();
-    loadStores();
     fetch("/api/parties?type=VENDOR")
       .then((r) => r.json())
       .then((res) => {

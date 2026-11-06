@@ -4,6 +4,7 @@ import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useActiveSite } from "@/hooks/useActiveSite";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -94,6 +95,7 @@ export default function ProjectsPage() {
   );
 
   // Active Site Filter state synchronized with global shell
+  const { activeSiteId, setActiveSiteId } = useActiveSite();
   const [activeSiteFilter, setActiveSiteFilter] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -132,6 +134,7 @@ export default function ProjectsPage() {
     setSearchQuery("");
     setStatusFilter("ALL");
     setActiveSiteFilter("");
+    setActiveSiteId("");
     setCurrentPage(1);
     loadData("");
   };
@@ -211,20 +214,11 @@ export default function ProjectsPage() {
   };
 
   useEffect(() => {
-    const savedSite = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") || "" : "";
-    setActiveSiteFilter(savedSite);
-    loadData(savedSite);
-
-    const onSiteChanged = (e: any) => {
-      const newSite = e.detail?.siteId || "";
-      setActiveSiteFilter(newSite);
-      loadData(newSite);
-    };
-
-    window.addEventListener("siteChanged", onSiteChanged);
-    return () => window.removeEventListener("siteChanged", onSiteChanged);
+    setActiveSiteFilter(activeSiteId || "");
+    setCurrentPage(1);
+    loadData(activeSiteId || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeSiteId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -519,6 +513,7 @@ export default function ProjectsPage() {
                   onChange={(e) => {
                     const sId = e.target.value;
                     setActiveSiteFilter(sId);
+                    setActiveSiteId(sId);
                     setCurrentPage(1);
                     loadData(sId);
                   }}

@@ -2,7 +2,7 @@
 
 import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatDate } from "@/lib/formatters";
 import {
@@ -33,6 +33,7 @@ import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import TaskTimeline from "@/components/tasks/TaskTimeline";
 import { canUser } from "@/lib/permissions";
+import { useActiveSite } from "@/hooks/useActiveSite";
 
 // Safely fetch and parse JSON, never throwing SyntaxError on HTML (e.g. 500 error pages)
 async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
@@ -49,6 +50,7 @@ async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
 }
 
 export default function TasksPage() {
+  const { activeSiteId } = useActiveSite();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -412,14 +414,26 @@ export default function TasksPage() {
     return new Date(task.dueAt).getTime() < Date.now();
   };
 
+  const availableProjects = useMemo(() => {
+    if (!activeSiteId) return projects;
+    const siteProjs = projects.filter((p) => p.siteId === activeSiteId);
+    return siteProjs.length > 0 ? siteProjs : projects;
+  }, [projects, activeSiteId]);
+
   const safeTasks = Array.isArray(tasks) ? tasks : [];
-  const filteredTasks = safeTasks.filter(
-    (t) =>
+  const filteredTasks = safeTasks.filter((t) => {
+    if (activeSiteId) {
+      const taskSiteId = t.project?.siteId || projects.find((p) => p.id === t.projectId)?.siteId;
+      if (taskSiteId && taskSiteId !== activeSiteId) return false;
+      if (!taskSiteId && t.projectId && t.projectId !== "OTHER" && t.projectId !== activeSiteId) return false;
+    }
+    return (
       (t.title || "").toLowerCase().includes(search.toLowerCase()) ||
       (t.description && t.description.toLowerCase().includes(search.toLowerCase())) ||
       (t.assignee?.name && t.assignee.name.toLowerCase().includes(search.toLowerCase())) ||
       (t.project?.name && t.project.name.toLowerCase().includes(search.toLowerCase()))
-  );
+    );
+  });
 
   return (
     <Shell>
@@ -431,10 +445,10 @@ export default function TasksPage() {
             <button
               onClick={() => {
                 setProjectId((prev) => {
-                  if (prev && (prev === "OTHER" || projects.some((p) => p.id === prev))) {
+                  if (prev && (prev === "OTHER" || availableProjects.some((p: any) => p.id === prev))) {
                     return prev;
                   }
-                  return projects.length > 0 ? projects[0].id : "OTHER";
+                  return availableProjects.length > 0 ? availableProjects[0].id : "OTHER";
                 });
                 setShowCreateModal(true);
               }}
@@ -782,15 +796,15 @@ export default function TasksPage() {
                     Target Project
                   </label>
                   <select
-                    value={projectId || (projects.length > 0 ? projects[0].id : "OTHER")}
+                    value={projectId || (availableProjects.length > 0 ? availableProjects[0].id : "OTHER")}
                     onChange={(e) => setProjectId(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                   >
-                    {projects.length === 0 ? (
+                    {availableProjects.length === 0 ? (
                       <option value="OTHER">Other / General Operations (Default Site)</option>
                     ) : (
                       <>
-                        {projects.map((p) => (
+                        {availableProjects.map((p: any) => (
                           <option key={p.id} value={p.id}>
                             {p.name} ({p.code})
                           </option>
@@ -799,7 +813,7 @@ export default function TasksPage() {
                       </>
                     )}
                   </select>
-                  {projects.length === 0 ? (
+                  {availableProjects.length === 0 ? (
                     <p className="mt-1 text-[11px] text-slate-500">
                       No project-specific site assigned. Task will be logged under General Site Operations.
                     </p>
