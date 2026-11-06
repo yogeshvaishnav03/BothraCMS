@@ -77,6 +77,7 @@ if (!process.env.SESSION_SECRET && isProductionLike) {
 
 function sanitizeDbUrl(url) {
   if (!url) return url;
+  if (url.startsWith("file:")) return url;
   try {
     const u = new URL(url);
     u.searchParams.delete("channel_binding");
@@ -246,6 +247,20 @@ if (!allowDemoSeed) {
   } catch (poErr) {
     console.warn("Notice: Projects and orders seed completed or skipped:", poErr.message);
   }
+}
+
+// Always ensure all authoritative role accounts from Pass.txt are present with Password123!
+try {
+  console.log("⚡ Bootstrapping authoritative role accounts from Pass.txt configuration...");
+  execSync("node scripts/bootstrap-all-users.js", {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      DATABASE_URL: directUrl || dbUrl,
+    },
+  });
+} catch (userErr) {
+  console.warn("Notice: User bootstrap notice:", userErr.message);
 }
 
 // Synchronize prisma/dev.db to prisma/prisma/dev.db
