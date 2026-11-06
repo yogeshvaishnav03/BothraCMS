@@ -13,6 +13,9 @@ if (process.env.NODE_ENV === "production" && !isBuildPhase && !process.env.SESSI
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  env: {
+    ALLOW_DEMO_SEED: process.env.ALLOW_DEMO_SEED ?? "true",
+  },
   async rewrites() {
     return [
       {

@@ -31,6 +31,7 @@ import {
   Filter,
   Users,
   UserCheck,
+  Sparkles,
   Info,
   Camera,
   UploadCloud,
@@ -1562,6 +1563,29 @@ export default function DayBookPage() {
     }
   };
 
+  const handleSeedDemoData = async () => {
+    setActionLoading(true);
+    setStatusMessage(null);
+    try {
+      const res = await fetch("/api/day-book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: selectedDate, siteId: selectedSiteId || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusMessage("✅ Demo records generated successfully for Day Book!");
+        loadDayBook(selectedDate, selectedSiteId);
+      } else {
+        setStatusMessage(`❌ Error: ${data.error?.message || "Could not load demo data"}`);
+      }
+    } catch {
+      setStatusMessage("❌ Server error while loading demo data.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const exportDayBookCSV = () => {
     if (!dayData) return;
     const rows = [
@@ -1665,6 +1689,19 @@ export default function DayBookPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Populate Demo Data Button (Super Admin only) */}
+            {isSuperAdmin && (
+              <button
+                onClick={handleSeedDemoData}
+                disabled={actionLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-800 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
+                title="Generate complete realistic demo records for Day Book"
+              >
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span>{actionLoading ? "Loading..." : "Load Demo Data"}</span>
+              </button>
+            )}
+
             {/* Quick Action Button */}
             {canLogDayEntry && (
               <button

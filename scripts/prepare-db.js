@@ -58,7 +58,7 @@ const isProductionLike =
   process.env.VERCEL_ENV === "production" ||
   ((rawDbUrl.startsWith("postgres://") || rawDbUrl.startsWith("postgresql://")) &&
     !rawDbUrl.includes("localhost"));
-const allowDemoSeed = !isProductionLike || process.env.ALLOW_DEMO_SEED === "true";
+const allowDemoSeed = process.env.ALLOW_DEMO_SEED !== "false";
 
 // Ensure SESSION_SECRET is guaranteed in process.env across all environments
 if (!process.env.SESSION_SECRET) {

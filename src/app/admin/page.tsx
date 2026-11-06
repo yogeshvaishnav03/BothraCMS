@@ -58,6 +58,9 @@ export default function SuperAdminDashboardPage() {
   const [suspendedTenants, setSuspendedTenants] = useState(0);
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedSummary, setSeedSummary] = useState<any>(null);
+  const [seedCredentials, setSeedCredentials] = useState<{ password: string; emails: string[] } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -306,6 +309,42 @@ export default function SuperAdminDashboardPage() {
   }
 
 
+  async function handleSeedDemoData(targetOrgId?: string, targetOrgName?: string) {
+    const orgLabel = targetOrgName ? `organization "${targetOrgName}"` : "the platform demo environment";
+    const confirmed = confirm(
+      `Populate full realistic demo data for ${orgLabel} in 1 click?\n\nThis will seed Sites, Projects, Stores, Materials, Vendors, Attendance, Tasks, and Bills.`
+    );
+    if (!confirmed) return;
+
+    setSeeding(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+    setSeedSummary(null);
+    setSeedCredentials(null);
+
+    try {
+      const res = await fetch("/api/admin/seed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: targetOrgId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccessMsg(data.data.message || "Demo data populated successfully!");
+        setSeedSummary(data.data.summary);
+        setSeedCredentials(data.data.demoCredentials || null);
+        await loadTenants();
+        await loadPendingOrders();
+      } else {
+        setErrorMsg(data.error?.message || "Failed to seed demo data");
+      }
+    } catch (err: any) {
+      setErrorMsg(`Network error: ${err.message || "Failed to seed demo data"}`);
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   const handleCopyMessage = () => {
     if (approvedNotification?.message) {
       navigator.clipboard.writeText(approvedNotification.message);
@@ -547,6 +586,15 @@ export default function SuperAdminDashboardPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => handleSeedDemoData()}
+              disabled={seeding || loading}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
+              title="Populate complete sample sites, projects, materials, workers, bills and attendance in 1 click"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              {seeding ? "Populating Demo Data..." : "Add Demo Data (1-Click)"}
+            </button>
             <Link
               href="/chat"
               className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold transition shadow-sm"
@@ -1014,6 +1062,70 @@ export default function SuperAdminDashboardPage() {
         </div>
 
         
+        {/* One-Click Demo Data Showcase Banner */}
+        <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white p-5 rounded-2xl border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
+              <Sparkles className="w-4 h-4" /> Instant Demo Environment
+            </div>
+            <h3 className="text-base font-bold text-white">
+              One-Click Comprehensive Demo Data Generator
+            </h3>
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              Instantly load sample construction data: 2 active sites, projects, material stock, vendor bills, worker attendance, and daily site reports.
+            </p>
+          </div>
+          <button
+            onClick={() => handleSeedDemoData()}
+            disabled={seeding || loading}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition disabled:opacity-50 shrink-0"
+          >
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>{seeding ? "Populating Demo Records..." : "Seed Complete Demo Data"}</span>
+          </button>
+        </div>
+
+        {/* Demo Data Seeding Summary Modal/Card */}
+        {seedSummary && (
+          <div className="bg-emerald-50 border border-emerald-300 p-4 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <span>Demo Data Population Completed</span>
+              </div>
+              <button onClick={() => setSeedSummary(null)} className="text-emerald-700 hover:text-emerald-900 text-xs">
+                Dismiss
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 pt-1">
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Sites</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.sitesCreated} Sites</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Projects</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.projectsCreated} Projects</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Stores</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.storesCreated} Stores</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Materials</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.materialsCreated} Items</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Parties / Vendors</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.partiesCreated} Parties</div>
+              </div>
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Workers</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.workforceCreated} Workers</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Global Telemetry KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -1129,6 +1241,15 @@ export default function SuperAdminDashboardPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleSeedDemoData(t.id, t.name)}
+                            disabled={seeding || actionLoading === t.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition disabled:opacity-50"
+                            title={`Seed sample demo records for ${t.name}`}
+                          >
+                            <Database className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Seed Data</span>
+                          </button>
                           <button
                             onClick={() => toggleTenantStatus(t.id, t.status)}
                             disabled={actionLoading === t.id}
