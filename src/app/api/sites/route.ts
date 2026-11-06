@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
           where: { status: "ACTIVE" },
         },
         projects: {
-          where: { status: { in: ["PLANNING", "IN_PROGRESS", "ACTIVE"] } },
+          where: { isArchived: false },
           select: {
             id: true,
             name: true,
