@@ -63,11 +63,27 @@ export function getDirectDbUrl(): string | undefined {
 }
 
 // Select best connection string
-const rawUrl =
+let rawUrl =
   process.env.POSTGRES_PRISMA_URL ||
   process.env.DATABASE_URL ||
   process.env.POSTGRES_URL ||
   process.env.POSTGRES_URL_NON_POOLING;
+
+// If on Vercel and no Postgres configured, ensure /tmp/dev.db fallback is available
+if (!rawUrl || rawUrl.startsWith("file:")) {
+  if (process.env.VERCEL) {
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const tmpDb = "/tmp/dev.db";
+      const bundledDb = path.resolve(process.cwd(), "prisma", "dev.db");
+      if (!fs.existsSync(tmpDb) && fs.existsSync(bundledDb)) {
+        fs.copyFileSync(bundledDb, tmpDb);
+      }
+      rawUrl = `file:${tmpDb}`;
+    } catch {}
+  }
+}
 
 const dbUrl = optimizeDbUrl(rawUrl);
 
