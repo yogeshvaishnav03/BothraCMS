@@ -23,6 +23,7 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
 interface MaterialSummary {
   id: string;
@@ -513,25 +514,25 @@ export default function PlaceOrderModal({
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Select Material *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={materials.map((m) => ({
+                      value: m.id,
+                      label: m.name,
+                      badge: m.sku,
+                      subLabel: `Unit: ${m.unitCode}${m.minStockQty ? ` • Min: ${m.minStockQty}` : ""}${m.currentStock !== undefined ? ` • Current Stock: ${m.currentStock} ${m.unitCode}` : ""}`,
+                    }))}
                     value={selectedMaterialId}
-                    onChange={(e) => {
-                      const matId = e.target.value;
+                    onChange={(matId) => {
                       setSelectedMaterialId(matId);
                       const foundMat = materials.find((m) => m.id === matId);
                       if (foundMat?.unitPrice && Number(foundMat.unitPrice) > 0) {
                         setUnitRate(String(foundMat.unitPrice));
                       }
                     }}
+                    placeholder="Search and select material..."
+                    searchPlaceholder="Type to search (e.g. Cement, Steel, MAT-174)..."
                     required
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  >
-                    {materials.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.sku}) — {m.unitCode}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
               )}
 
@@ -545,25 +546,19 @@ export default function PlaceOrderModal({
                     </span>
                   )}
                 </label>
-                <div className="relative">
-                  <select
-                    value={selectedVendorId}
-                    onChange={(e) => setSelectedVendorId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  >
-                    {vendors.length === 0 ? (
-                      <option value="">No vendors found</option>
-                    ) : (
-                      vendors.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name} {v.phone ? `(${v.phone})` : ""} {v.taxIdentifier ? `• GSTIN: ${v.taxIdentifier}` : ""}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  <Building2 className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
-                </div>
+                <SearchableSelect
+                  options={vendors.map((v) => ({
+                    value: v.id,
+                    label: v.name,
+                    badge: v.taxIdentifier ? `GST: ${v.taxIdentifier}` : undefined,
+                    subLabel: v.phone ? `Phone: ${v.phone}` : undefined,
+                  }))}
+                  value={selectedVendorId}
+                  onChange={(vId) => setSelectedVendorId(vId)}
+                  placeholder="Search and select vendor / supplier..."
+                  searchPlaceholder="Type supplier name, phone, or GST..."
+                  required
+                />
               </div>
 
               {/* Quantity and Rate Grid */}
@@ -621,18 +616,17 @@ export default function PlaceOrderModal({
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                     {t("order.deliveryStore", "Delivery Store / Site Yard")}
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={stores.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                      subLabel: s.site?.name ? `Site: ${s.site.name}` : undefined,
+                    }))}
                     value={selectedStoreId}
-                    onChange={(e) => setSelectedStoreId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  >
-                    {stores.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.site?.name ? `${s.site.name} — ` : ""}
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(sId) => setSelectedStoreId(sId)}
+                    placeholder="Select store / site yard..."
+                    searchPlaceholder="Search store by name or site..."
+                  />
                 </div>
 
                 <div>

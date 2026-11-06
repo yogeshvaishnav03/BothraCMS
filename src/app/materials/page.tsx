@@ -7,6 +7,7 @@ import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { formatCurrency, formatQuantity } from "@/lib/formatters";
 import {
   Boxes,
@@ -962,18 +963,19 @@ export default function MaterialsPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Select Material
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={materials.map((m) => ({
+                      value: m.id,
+                      label: m.name,
+                      badge: m.sku,
+                      subLabel: `Unit: ${m.unitCode}${m.totalStock !== undefined ? ` • Current Stock: ${m.totalStock} ${m.unitCode}` : ""}`,
+                    }))}
                     value={selectedMaterialId}
-                    onChange={(e) => setSelectedMaterialId(e.target.value)}
+                    onChange={(val) => setSelectedMaterialId(val)}
+                    placeholder="Search and select material..."
+                    searchPlaceholder="Type to search (e.g. Cement, Steel, MAT-102)..."
                     required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {materials.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.sku}) — {m.unitCode}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div>
@@ -1039,18 +1041,17 @@ export default function MaterialsPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Vendor / Supplier
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={parties.map((p) => ({
+                        value: p.id,
+                        label: p.name,
+                        subLabel: p.phone ? `Phone: ${p.phone}` : undefined,
+                      }))}
                       value={vendorPartyId}
-                      onChange={(e) => setVendorPartyId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                    >
-                      <option value="">Select Vendor (Optional)</option>
-                      {parties.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setVendorPartyId(val)}
+                      placeholder="Select vendor (optional)..."
+                      searchPlaceholder="Type vendor name or phone..."
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -1142,18 +1143,19 @@ export default function MaterialsPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Select Material to Issue
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={materials.map((m) => ({
+                      value: m.id,
+                      label: m.name,
+                      badge: m.sku,
+                      subLabel: `Available: ${m.totalStock} ${m.unitCode}`,
+                    }))}
                     value={selectedMaterialId}
-                    onChange={(e) => setSelectedMaterialId(e.target.value)}
+                    onChange={(val) => setSelectedMaterialId(val)}
+                    placeholder="Search material to issue..."
+                    searchPlaceholder="Type to search material name or code..."
                     required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {materials.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} — Current Stock: {m.totalStock} {m.unitCode}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div>
@@ -1349,18 +1351,19 @@ export default function MaterialsPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Select Material
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={materials.map((m) => ({
+                      value: m.id,
+                      label: m.name,
+                      badge: m.sku,
+                      subLabel: `Available: ${m.totalStock} ${m.unitCode}`,
+                    }))}
                     value={transferMaterialId}
-                    onChange={(e) => setTransferMaterialId(e.target.value)}
+                    onChange={(val) => setTransferMaterialId(val)}
+                    placeholder="Search material to transfer..."
+                    searchPlaceholder="Type to search material name or code..."
                     required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {materials.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.sku}) — Available: {m.totalStock} {m.unitCode}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
