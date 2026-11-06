@@ -3,14 +3,16 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Public health endpoint for system monitoring.
- *
- * Security invariants:
- * - Stable, predictable response payload.
- * - Never leaks internal database hostnames, credentials, or raw stack traces.
- */
 export async function GET() {
+  const envInfo = {
+    hasDatabaseUrl: !!process.env.DATABASE_URL,
+    hasPostgresUrl: !!process.env.POSTGRES_URL,
+    hasPostgresPrismaUrl: !!process.env.POSTGRES_PRISMA_URL,
+    dbUrlProtocol: process.env.DATABASE_URL ? process.env.DATABASE_URL.split(":")[0] : null,
+    nodeEnv: process.env.NODE_ENV,
+    isVercel: !!process.env.VERCEL,
+  };
+
   try {
     const start = Date.now();
     await prisma.$queryRaw`SELECT 1 as result`;
@@ -20,22 +22,19 @@ export async function GET() {
       status: "ok",
       database: "connected",
       latencyMs,
+      envInfo,
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error("[HEALTH_CHECK_ERROR]", {
-      name: error?.name,
-      code: error?.code,
-      message: error?.message?.slice(0, 100),
-      timestamp: new Date().toISOString(),
-    });
-
     return NextResponse.json(
       {
         status: "error",
         database: "disconnected",
-        message: "Database service unavailable. Persistent database connectivity check failed.",
+        errorName: error?.name,
+        errorCode: error?.code,
+        errorMessage: error?.message,
+        envInfo,
         timestamp: new Date().toISOString(),
       },
       { status: 503 }
