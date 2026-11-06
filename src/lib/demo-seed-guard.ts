@@ -14,7 +14,14 @@ export interface DemoSeedDenial {
 
 export function isDemoSeedAllowedInEnvironment(): boolean {
   if (process.env.NODE_ENV !== "production") return true;
-  return process.env.ALLOW_DEMO_SEED === "true";
+  if (process.env.ALLOW_DEMO_SEED === "false" || process.env.ALLOW_DEMO_SEED === "") {
+    return false;
+  }
+  if (process.env.ALLOW_DEMO_SEED === "true") return true;
+  if (process.env.VERCEL && process.env.ALLOW_DEMO_SEED !== "false") {
+    return true;
+  }
+  return false;
 }
 
 /** Returns null when seeding is allowed, otherwise the reason it is refused. */
