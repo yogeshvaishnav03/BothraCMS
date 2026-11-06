@@ -4,15 +4,6 @@ import { prisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const envInfo = {
-    hasDatabaseUrl: !!process.env.DATABASE_URL,
-    hasPostgresUrl: !!process.env.POSTGRES_URL,
-    hasPostgresPrismaUrl: !!process.env.POSTGRES_PRISMA_URL,
-    dbUrlProtocol: process.env.DATABASE_URL ? process.env.DATABASE_URL.split(":")[0] : null,
-    nodeEnv: process.env.NODE_ENV,
-    isVercel: !!process.env.VERCEL,
-  };
-
   try {
     const start = Date.now();
     await prisma.$queryRaw`SELECT 1 as result`;
@@ -22,7 +13,6 @@ export async function GET() {
       status: "ok",
       database: "connected",
       latencyMs,
-      envInfo,
       uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     });
@@ -31,10 +21,7 @@ export async function GET() {
       {
         status: "error",
         database: "disconnected",
-        errorName: error?.name,
-        errorCode: error?.code,
-        errorMessage: error?.message,
-        envInfo,
+        message: "Database service unavailable. Persistent database connectivity check failed.",
         timestamp: new Date().toISOString(),
       },
       { status: 503 }
