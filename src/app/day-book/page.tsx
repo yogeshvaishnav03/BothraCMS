@@ -18,6 +18,7 @@ import {
   Download,
   Printer,
   PlusCircle,
+  Receipt,
   Clock,
   ArrowUpRight,
   ArrowDownLeft,
@@ -203,10 +204,17 @@ export default function DayBookPage() {
         key: "party",
         label: "Party / Vendor",
         width: "220px",
-        accessor: (p) => p.party?.name || "Direct Expense",
+        accessor: (p) => p.party?.name || (p.recipientType === "OUT_OF_POCKET" ? `Out-of-Pocket: ${p.recipientName || "Expense"}` : "Direct Expense"),
         render: (p) => (
           <div>
-            <div className="font-bold text-slate-900">{p.party?.name || "Direct Expense"}</div>
+            <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+              <span>{p.party?.name || p.recipientName || "Direct Expense"}</span>
+              {p.recipientType === "OUT_OF_POCKET" && (
+                <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                  Out-of-Pocket
+                </span>
+              )}
+            </div>
             {p.notes && <div className="text-[11px] text-slate-400 italic break-words whitespace-normal">{p.notes}</div>}
             {p.status === "REJECTED" && p.rejectionReason && (
               <div className="text-[10px] text-rose-600 font-semibold mt-0.5 break-words whitespace-normal">
@@ -2226,6 +2234,14 @@ export default function DayBookPage() {
                     >
                       <Printer className="w-3.5 h-3.5" />
                     </button>
+                    <Link
+                      href="/expenses"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 rounded-lg text-xs font-bold transition"
+                      title="Supervisors can log personal site expenses with mandatory receipt photos"
+                    >
+                      <Receipt className="w-3.5 h-3.5 text-amber-600" />
+                      <span>+ Out-of-Pocket Expense</span>
+                    </Link>
                     {canWriteFinance && (
                       <button
                         onClick={() => {
@@ -2248,18 +2264,27 @@ export default function DayBookPage() {
                     </div>
                     <p className="text-xs font-bold text-slate-700">No disbursed payments recorded on this date.</p>
                     <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Record contractor advances, petty cash expenses, and vendor payments directly into Day Book.</p>
-                    {canWriteFinance && (
-                      <button
-                        onClick={() => {
-                          setModalMode("PAYMENT");
-                          setShowLogModal(true);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                      <Link
+                        href="/expenses"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition shadow-xs"
                       >
-                        <PlusCircle className="w-4 h-4" />
-                        <span>+ Record Payment</span>
-                      </button>
-                    )}
+                        <Receipt className="w-4 h-4" />
+                        <span>+ Out-of-Pocket Expense</span>
+                      </Link>
+                      {canWriteFinance && (
+                        <button
+                          onClick={() => {
+                            setModalMode("PAYMENT");
+                            setShowLogModal(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                        >
+                          <PlusCircle className="w-4 h-4" />
+                          <span>+ Record Payment</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <ExcelTable
