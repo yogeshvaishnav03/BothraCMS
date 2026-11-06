@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowRight,
   ArrowDownLeft,
   ArrowUpRight,
   BadgeCheck,
@@ -614,7 +615,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
         {/* ── Day Book timeline ───────────────────────────────────────────── */}
         <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -631,6 +632,14 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                   : "Loading…"}
               </p>
             </div>
+            <Link
+              href={`/day-book?from=${date}&to=${date}${siteId ? `&siteId=${siteId}` : ""}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-xs transition"
+            >
+              <BookOpenCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>{hi ? "पूरी डे बुक" : "Full Day Book"}</span>
+              <ArrowRight className="w-3 h-3 text-amber-600" />
+            </Link>
           </div>
 
           <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1 [scrollbar-width:none]">
@@ -701,46 +710,74 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               ) : null}
             </div>
           ) : (
-            <ol className="relative mt-2 max-h-[560px] overflow-y-auto pr-1 stagger">
-              {timeline.map((e) => {
-                const m = KIND_META[e.kind];
-                return (
-                  <li key={e.id} className="relative pl-12 pb-3 last:pb-0">
-                    <span className="absolute left-[17px] top-9 bottom-0 w-px bg-slate-200" aria-hidden />
-                    <span className={cn("absolute left-0 top-0 w-9 h-9 rounded-xl flex items-center justify-center ring-1", m.chip)}>
-                      <m.Icon className="w-4 h-4" aria-hidden />
-                    </span>
-                    <Link
-                      href={e.href}
-                      className="block rounded-xl px-3 py-2 -mx-1 hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-slate-900 truncate">{e.title}</div>
-                          <div className="text-xs text-slate-500 truncate">
-                            {[e.detail, e.actor && `${hi ? "द्वारा" : "by"} ${e.actor}`].filter(Boolean).join(" · ")}
+            <>
+              <ol className="relative mt-2 max-h-[640px] overflow-y-auto pr-1.5 [scrollbar-width:thin] stagger">
+                {timeline.map((e) => {
+                  const m = KIND_META[e.kind];
+                  return (
+                    <li key={e.id} className="relative pl-12 pb-3 last:pb-0">
+                      <span className="absolute left-[17px] top-9 bottom-0 w-px bg-slate-200" aria-hidden />
+                      <span className={cn("absolute left-0 top-0 w-9 h-9 rounded-xl flex items-center justify-center ring-1", m.chip)}>
+                        <m.Icon className="w-4 h-4" aria-hidden />
+                      </span>
+                      <Link
+                        href={e.href}
+                        className="block rounded-xl px-3 py-2 -mx-1 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-slate-900 truncate">{e.title}</div>
+                            <div className="text-xs text-slate-500 truncate">
+                              {[e.detail, e.actor && `${hi ? "द्वारा" : "by"} ${e.actor}`].filter(Boolean).join(" · ")}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            {typeof e.amount === "number" ? (
+                              <div
+                                className={cn(
+                                  "text-sm font-bold tabular-nums",
+                                  e.kind === "PAYMENT" ? "text-rose-600" : "text-slate-900"
+                                )}
+                              >
+                                {e.kind === "PAYMENT" ? "−" : ""}
+                                {formatCurrency(e.amount)}
+                              </div>
+                            ) : e.kind === "HEADCOUNT" ? (
+                              <div className="text-[11px] font-bold text-orange-800 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md inline-block">
+                                {e.title.split(" ")[0]} Workers
+                              </div>
+                            ) : e.kind === "ATTENDANCE" ? (
+                              <div className="text-[10px] font-bold text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md inline-block uppercase">
+                                Check-In
+                              </div>
+                            ) : e.kind === "SITE_REPORT" ? (
+                              <div className="text-[10px] font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md inline-block uppercase">
+                                Progress Report
+                              </div>
+                            ) : null}
+                            <div className="text-[11px] text-slate-400 tabular-nums mt-0.5">{timeOf(e.at)}</div>
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          {typeof e.amount === "number" && (
-                            <div
-                              className={cn(
-                                "text-sm font-bold tabular-nums",
-                                e.kind === "PAYMENT" ? "text-rose-600" : "text-slate-900"
-                              )}
-                            >
-                              {e.kind === "PAYMENT" ? "−" : ""}
-                              {formatCurrency(e.amount)}
-                            </div>
-                          )}
-                          <div className="text-[11px] text-slate-400 tabular-nums">{timeOf(e.at)}</div>
-                        </div>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ol>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ol>
+
+              {/* Timeline Footer */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                <span>
+                  {hi ? "दिखाए जा रहे हैं" : "Showing"} <strong className="font-semibold text-slate-900">{timeline.length}</strong> {hi ? "में से" : "of"} <strong className="font-semibold text-slate-900">{data?.timelineTotal || timeline.length}</strong> {hi ? "प्रविष्टियाँ" : "entries"}
+                </span>
+                <Link
+                  href={`/day-book?from=${date}&to=${date}${siteId ? `&siteId=${siteId}` : ""}`}
+                  className="font-bold text-amber-600 hover:text-amber-700 hover:underline flex items-center gap-1"
+                >
+                  <span>{hi ? "पूरी डे बुक लेज़र देखें" : "View complete Day Book ledger"}</span>
+                  <span>&rarr;</span>
+                </Link>
+              </div>
+            </>
           )}
         </div>
 
@@ -770,7 +807,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               <ul className="space-y-3">
                 {data.team.slice(0, 8).map((m) => {
                   const totalUpdates = m.actions + m.taskUpdates;
-                  const isExpanded = expandedTeamUsers[m.userId] ?? (data.team.length === 1 || totalUpdates > 0);
+                  const isExpanded = expandedTeamUsers[m.userId] ?? (data.team.length === 1);
 
                   return (
                     <li key={m.userId} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-2.5 transition hover:border-slate-300">

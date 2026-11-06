@@ -79,11 +79,34 @@ export class CommandCenterService {
     // ── 1. Day Book as one timeline, newest first ──────────────────────────
     const timeline: TimelineEntry[] = [];
 
+    // Helper to format ISO datetime for timeline, ensuring realistic distribution across the business day
+    const resolveTimelineTime = (
+      val: Date | string | null | undefined,
+      defaultHourIst: number,
+      defaultMinuteIst: number
+    ): string => {
+      const d = val ? (typeof val === "string" ? new Date(val) : val) : null;
+      if (!d || isNaN(d.getTime())) {
+        const fallback = new Date(`${date}T00:00:00.000Z`);
+        const utcMinutes = defaultHourIst * 60 + defaultMinuteIst - 330;
+        fallback.setUTCMinutes(utcMinutes);
+        return fallback.toISOString();
+      }
+      // If time is exactly midnight UTC (00:00:00.000Z) or default midnight date, assign realistic business hour
+      if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) {
+        const adjusted = new Date(d);
+        const utcMinutes = defaultHourIst * 60 + defaultMinuteIst - 330;
+        adjusted.setUTCMinutes(utcMinutes);
+        return adjusted.toISOString();
+      }
+      return d.toISOString();
+    };
+
     for (const p of dayBook.payments as any[]) {
       timeline.push({
         id: `pay-${p.id}`,
         kind: "PAYMENT",
-        at: iso(p.createdAt || p.paymentDate),
+        at: resolveTimelineTime(p.createdAt || p.paymentDate, 15, 30),
         title: `Paid ${p.party?.name || p.recipientName || "payee"}`,
         detail: [p.method, p.referenceNumber, p.project?.name, p.status === "PENDING_APPROVAL" ? "awaiting approval" : null]
           .filter(Boolean)
@@ -97,7 +120,7 @@ export class CommandCenterService {
       timeline.push({
         id: `in-${r.id}`,
         kind: "MONEY_IN",
-        at: iso(r.createdAt),
+        at: resolveTimelineTime(r.createdAt || r.date, 14, 0),
         title: `Received from ${r.booking.customerName}`,
         detail: [r.receiptNumber, r.booking.unit.unitNumber, r.installment.label, r.booking.unit.project.name].join(" · "),
         amount: r.amount,
@@ -109,7 +132,7 @@ export class CommandCenterService {
       timeline.push({
         id: `bill-${b.id}`,
         kind: "BILL",
-        at: iso(b.createdAt || b.billDate),
+        at: resolveTimelineTime(b.createdAt || b.billDate, 12, 15),
         title: `Bill ${b.billNumber} from ${b.party?.name || "party"}`,
         detail: b.project?.name || "General",
         amount: b.totalAmount,
@@ -120,7 +143,7 @@ export class CommandCenterService {
       timeline.push({
         id: `rcpt-${m.id}`,
         kind: "RECEIPT",
-        at: iso(m.movementAt || m.createdAt),
+        at: resolveTimelineTime(m.movementAt || m.createdAt, 11, 0),
         title: `Received ${Math.abs(m.quantityDelta ?? 0)} ${m.material?.unitCode || ""} ${m.material?.name || "material"}`.replace(/\s+/g, " "),
         detail: m.store?.name || "Store",
         actor: m.creator?.name,
@@ -131,7 +154,7 @@ export class CommandCenterService {
       timeline.push({
         id: `iss-${m.id}`,
         kind: "ISSUE",
-        at: iso(m.movementAt || m.createdAt),
+        at: resolveTimelineTime(m.movementAt || m.createdAt, 13, 45),
         title: `Issued ${Math.abs(m.quantityDelta ?? 0)} ${m.material?.unitCode || ""} ${m.material?.name || "material"}`.replace(/\s+/g, " "),
         detail: m.store?.name || "Store",
         actor: m.creator?.name,
@@ -142,17 +165,36 @@ export class CommandCenterService {
       timeline.push({
         id: `att-${a.id}`,
         kind: "ATTENDANCE",
-        at: iso(a.checkInAt),
+        at: resolveTimelineTime(a.checkInAt, 9, 0),
         title: `${a.workforceMember?.name || "Worker"} checked in`,
         detail: [a.site?.name, a.checkOutAt ? "checked out" : "on site"].filter(Boolean).join(" · "),
         href: "/attendance",
       });
     }
     for (const h of dayBook.headcount as any[]) {
+      // Determine operational shift time so shifts and records distribute naturally throughout the day
+      let hHour = 10;
+      let hMin = 0;
+      if (h.shift === "NIGHT") {
+        hHour = 19;
+        hMin = 30;
+      } else if (h.shift === "DAY") {
+        hHour = 9;
+        hMin = 30;
+      } else if (h.shift === "GENERAL") {
+        hHour = 8;
+        hMin = 30;
+      }
+
+      const hDate = h.date || date;
+      const shiftDateObj = new Date(`${hDate}T00:00:00.000Z`);
+      const utcMinutes = hHour * 60 + hMin - 330;
+      shiftDateObj.setUTCMinutes(utcMinutes);
+
       timeline.push({
         id: `hc-${h.id}`,
         kind: "HEADCOUNT",
-        at: iso(h.createdAt),
+        at: shiftDateObj.toISOString(),
         title: `${h.grandTotal || 0} labour on ${h.siteName || "site"}`,
         detail: [h.contractorName, h.shift].filter(Boolean).join(" · "),
         actor: h.supervisorName || undefined,
@@ -163,7 +205,7 @@ export class CommandCenterService {
       timeline.push({
         id: `rep-${r.id}`,
         kind: "SITE_REPORT",
-        at: iso(r.createdAt),
+        at: resolveTimelineTime(r.createdAt, 17, 30),
         title: `Site report: ${r.project?.name || "project"}`,
         detail: r.blockers ? `${r.progress} · Blocker: ${r.blockers}` : r.progress,
         actor: r.creator?.name,
