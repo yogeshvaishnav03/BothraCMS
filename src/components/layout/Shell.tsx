@@ -211,7 +211,7 @@ export default function Shell({ children }: ShellProps) {
         }
       })
       .catch(() => {});
-  }, [pathname]);
+  }, [pathname, playAlertChime, router]);
 
   const handleMarkAsRead = async (notifId: string, href?: string) => {
     const target = notifications.find((n) => n.id === notifId);

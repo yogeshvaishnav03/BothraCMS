@@ -820,7 +820,7 @@ export default function ProjectsPage() {
                 <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                 <div className="text-sm font-bold text-slate-700">No active sites found</div>
                 <div className="text-xs text-slate-400 mt-1 mb-3">
-                  Click "+ Add New Site" to create your first construction site.
+                  Click &quot;+ Add New Site&quot; to create your first construction site.
                 </div>
               </div>
             ) : (

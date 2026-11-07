@@ -1,7 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/PageHeader";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import Shell from "@/components/layout/Shell";
@@ -35,7 +35,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchReportsData = (siteIdFilter?: string) => {
+  const fetchReportsData = useCallback((siteIdFilter?: string) => {
     setLoading(true);
     setError(null);
     const targetSite = siteIdFilter !== undefined ? siteIdFilter : activeSiteId;
@@ -67,11 +67,11 @@ export default function ReportsPage() {
         setError(err.message || "Failed to load authoritative report datasets");
       })
       .finally(() => setLoading(false));
-  };
+  }, [activeSiteId]);
 
   useEffect(() => {
     fetchReportsData(activeSiteId);
-  }, [activeSiteId]);
+  }, [activeSiteId, fetchReportsData]);
 
   const filteredMaterials = useMemo(() => {
     return materials.filter((m) => {
