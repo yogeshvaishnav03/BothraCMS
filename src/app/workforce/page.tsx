@@ -222,12 +222,17 @@ export default function WorkforcePage() {
     setErrorMessage(null);
 
     try {
+      const ts = Date.now();
+      const noCacheInit = {
+        cache: "no-store" as RequestCache,
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      };
       const [authRes, sitesRes, headcountRes, workforceRes, projectsRes] = await Promise.all([
-        fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
-        fetch("/api/sites", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
-        fetch("/api/workforce/headcount", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
-        fetch("/api/workforce", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
-        fetch("/api/projects", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        fetch(`/api/auth/me?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+        fetch(`/api/sites?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+        fetch(`/api/workforce/headcount?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+        fetch(`/api/workforce?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+        fetch(`/api/projects?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
       ]);
 
       if (authRes?.success && authRes.data?.user) {

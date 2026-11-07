@@ -349,6 +349,8 @@ export default function FinancePage() {
       const data = await res.json();
       if (res.ok && data.success) {
         setStatusMessage(data.data?.message || `Payment to ${payeeName} approved and posted.`);
+        // Optimistically update payment status immediately so UI updates without refreshing
+        setPayments((prev) => prev.map((p) => (p.id === payment.id ? { ...p, status: "APPROVED" } : p)));
         loadData();
       } else {
         setErrorMessage(data.error?.message || "Failed to approve payment");
@@ -375,6 +377,8 @@ export default function FinancePage() {
       const data = await res.json();
       if (res.ok && data.success) {
         setStatusMessage(`Payment query to ${payeeName} rejected.`);
+        // Optimistically update payment status immediately so UI updates without refreshing
+        setPayments((prev) => prev.map((p) => (p.id === payment.id ? { ...p, status: "REJECTED" } : p)));
         loadData();
       } else {
         setErrorMessage(data.error?.message || "Failed to reject payment");
@@ -403,6 +407,10 @@ export default function FinancePage() {
       } else {
         setStatusMessage(
           `Payment #${paymentToReverse.referenceNumber} reversed. Bill balances restored and audit trail recorded.`
+        );
+        // Optimistically update payment status immediately so UI updates without refreshing
+        setPayments((prev) =>
+          prev.map((p) => (p.id === paymentToReverse.id ? { ...p, status: "REVERSED" } : p))
         );
         setShowReverseModal(false);
         setPaymentToReverse(null);

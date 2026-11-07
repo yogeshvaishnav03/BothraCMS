@@ -855,6 +855,16 @@ export default function MeasurementBookPage() {
         setStatusMessage("Deletion Change Request submitted to Project Managers for review.");
       } else {
         setStatusMessage("Measurement successfully archived with audit trail.");
+        // Optimistically remove measurement from local state immediately so UI updates without refreshing
+        setGroups((prevGroups) =>
+          prevGroups.map((g) => ({
+            ...g,
+            subgroups: (g.subgroups || []).map((sg) => ({
+              ...sg,
+              entries: (sg.entries || []).filter((ent) => ent.id !== activeEntry.id),
+            })),
+          }))
+        );
       }
       setShowDeleteEntryModal(false);
       setActiveEntry(null);
@@ -887,6 +897,8 @@ export default function MeasurementBookPage() {
         throw new Error(data.error?.message || "Failed to delete Main Group.");
       }
       setStatusMessage(`Main Group "${groupToDelete.project?.name || "Project"} - ${groupToDelete.party?.name || "Party"}" deleted successfully.`);
+      // Optimistically remove group from local state immediately so UI updates without refreshing
+      setGroups((prevGroups) => prevGroups.filter((g) => g.id !== groupToDelete.id));
       setShowDeleteGroupModal(false);
       setGroupToDelete(null);
       loadData();
@@ -918,6 +930,13 @@ export default function MeasurementBookPage() {
         throw new Error(data.error?.message || "Failed to delete Room / Subgroup.");
       }
       setStatusMessage(`Room / Subgroup "${subgroupToDelete.subgroup.name}" deleted successfully.`);
+      // Optimistically remove subgroup from local state immediately so UI updates without refreshing
+      setGroups((prevGroups) =>
+        prevGroups.map((g) => ({
+          ...g,
+          subgroups: g.subgroups.filter((sg) => sg.id !== subgroupToDelete.subgroup.id),
+        }))
+      );
       setShowDeleteSubgroupModal(false);
       setSubgroupToDelete(null);
       loadData();

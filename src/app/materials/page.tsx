@@ -506,6 +506,8 @@ export default function MaterialsPage() {
         return;
       }
       setStatusMessage("Material removed successfully.");
+      // Optimistically remove from state immediately so UI updates without refreshing
+      setMaterials((prev) => prev.filter((m) => m.id !== id));
       loadMaterials();
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete material"}`);

@@ -269,7 +269,10 @@ export default function PartiesPage() {
 
   const loadParties = () => {
     setLoading(true);
-    fetch(`/api/parties?type=ALL`)
+    fetch(`/api/parties?type=ALL&_t=${Date.now()}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then((r) => r.json())
       .then((res) => {
         if (res.success) setParties(res.data || []);
@@ -339,6 +342,8 @@ export default function PartiesPage() {
         return;
       }
       setStatusMessage(`Party "${partyName}" deleted.`);
+      // Optimistically remove from state immediately so UI updates without refreshing
+      setParties((prev) => prev.filter((p) => p.id !== id));
       loadParties();
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete party"}`);

@@ -302,6 +302,9 @@ export default function ProjectsPage() {
             : `Site "${siteToDelete.name}" deleted successfully.`)
       );
 
+      // Optimistically remove the deleted site immediately so UI updates without refreshing
+      setSites((prev) => prev.filter((s) => s.id !== siteToDelete.id));
+
       // Re-assign or clear active filter if currently selected
       if (activeSiteId === siteToDelete.id) {
         setActiveSiteId(targetId || "");
@@ -331,6 +334,8 @@ export default function ProjectsPage() {
         return;
       }
       setStatusMessage(`Project "${projectName}" deleted successfully.`);
+      // Optimistically remove from state immediately so UI updates without refreshing
+      setProjects((prev) => prev.filter((p) => p.id !== id));
       loadData();
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete project"}`);

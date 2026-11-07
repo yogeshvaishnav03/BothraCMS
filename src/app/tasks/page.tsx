@@ -417,6 +417,8 @@ export default function TasksPage() {
         return;
       }
       setStatusMessage(`Task "${taskTitle}" deleted.`);
+      // Optimistically remove from state immediately so UI updates without refreshing
+      setTasks((prev) => prev.filter((t) => t.id !== id));
       loadData();
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete task"}`);
