@@ -47,8 +47,13 @@ async function contact(organizationId: string) {
   const settings = await readSettings(organizationId);
   const site = settings.messaging?.siteUrl;
   if (typeof site === "string" && site.startsWith("https://")) return site;
+  if (process.env.APP_URL && process.env.APP_URL.startsWith("https://")) return process.env.APP_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   const admin = await prisma.user.findFirst({ where: { organizationId, role: { in: ["SUPER_ADMIN", "ORG_ADMIN"] }, status: "ACTIVE" }, select: { email: true } });
-  return `mailto:${admin?.email || "admin@localhost"}`;
+  if (admin?.email && admin.email.includes("@") && !admin.email.endsWith(".local") && !admin.email.endsWith("@localhost")) {
+    return `mailto:${admin.email}`;
+  }
+  return "mailto:admin@bothracms.com";
 }
 
 export interface PushMessage {

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { PushToggle } from "@/components/layout/PushToggle";
+import { NotificationBanner } from "@/components/layout/NotificationBanner";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -76,9 +77,38 @@ export default function Shell({ children }: ShellProps) {
     senderName: string;
     content: string;
   } | null>(null);
+  const [alertToast, setAlertToast] = useState<{
+    id: string;
+    title: string;
+    message: string;
+    href: string;
+    severity?: string;
+  } | null>(null);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
   const prevChatCountRef = useRef(0);
+  const prevAlertIdsRef = useRef<Set<string>>(new Set());
+  const isFirstAlertFetchRef = useRef(true);
+
+  // Synthesize a soft, clean alert chime (works cross-browser without external audio files)
+  const playAlertChime = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08); // A5
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch {}
+  }, []);
 
   // Live date and clock for the top bar (India time, the company's timezone).
   const [now, setNow] = useState<Date>(() => new Date());
@@ -133,6 +163,51 @@ export default function Shell({ children }: ShellProps) {
             }
           }
           prevChatCountRef.current = newChatCount;
+
+          // Track newly arrived unread operational alerts for laptops and mobile
+          const currentAlerts = res.data.alerts || [];
+          if (isFirstAlertFetchRef.current) {
+            prevAlertIdsRef.current = new Set(currentAlerts.map((a: any) => a.id));
+            isFirstAlertFetchRef.current = false;
+          } else {
+            const newlyArrived = currentAlerts.filter(
+              (a: any) => !a.isRead && !prevAlertIdsRef.current.has(a.id)
+            );
+            if (newlyArrived.length > 0) {
+              const latest = newlyArrived[0];
+              setAlertToast({
+                id: latest.id,
+                title: latest.title,
+                message: latest.message,
+                href: latest.href || "/",
+                severity: latest.severity,
+              });
+              playAlertChime();
+
+              // Trigger native Desktop/Mobile Web Notification when tab is backgrounded
+              if (
+                typeof window !== "undefined" &&
+                "Notification" in window &&
+                Notification.permission === "granted" &&
+                document.hidden
+              ) {
+                try {
+                  const n = new Notification(latest.title, {
+                    body: latest.message,
+                    icon: "/icons/icon-192.png",
+                    badge: "/icons/icon-192.png",
+                    tag: latest.id,
+                  });
+                  n.onclick = () => {
+                    window.focus();
+                    if (latest.href) router.push(latest.href);
+                    n.close();
+                  };
+                } catch {}
+              }
+            }
+            prevAlertIdsRef.current = new Set(currentAlerts.map((a: any) => a.id));
+          }
         }
       })
       .catch(() => {});
@@ -296,6 +371,14 @@ export default function Shell({ children }: ShellProps) {
       setChatToast(null);
     }
   }, [pathname]);
+
+  // Auto-dismiss in-app operational alert toast
+  useEffect(() => {
+    if (alertToast) {
+      const timer = setTimeout(() => setAlertToast(null), 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [alertToast]);
 
   const handleSiteChange = (siteId: string) => {
     setActiveSiteId(siteId);
@@ -1040,6 +1123,61 @@ export default function Shell({ children }: ShellProps) {
                 {t("nav.settings", "Settings")} &rarr;
               </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proactive Notification Permission & Auto-Sync Banner */}
+      <NotificationBanner />
+
+      {/* Real-Time Operational Alert Toast for Desktop & Mobile */}
+      {alertToast && (
+        <div className={`fixed bottom-24 lg:bottom-20 right-4 lg:right-5 z-50 max-w-sm w-[calc(100%-2rem)] bg-slate-900 border ${
+          alertToast.severity === "CRITICAL"
+            ? "border-rose-500/80 shadow-rose-950/40"
+            : alertToast.severity === "WARNING"
+            ? "border-amber-500/80 shadow-amber-950/40"
+            : "border-sky-500/60 shadow-sky-950/40"
+        } text-white p-4 rounded-2xl shadow-2xl animate-fade-up`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className={`w-9 h-9 rounded-xl ${
+                alertToast.severity === "CRITICAL"
+                  ? "bg-rose-500 text-white"
+                  : alertToast.severity === "WARNING"
+                  ? "bg-amber-500 text-slate-950"
+                  : "bg-sky-500 text-slate-950"
+              } font-black flex items-center justify-center shrink-0 shadow-sm`}>
+                <Bell className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                  <span>{alertToast.title}</span>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                  {alertToast.message}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setAlertToast(null)}
+              className="p-1 text-slate-400 hover:text-white rounded transition"
+              aria-label="Dismiss alert toast"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <button
+              onClick={() => {
+                const href = alertToast.href || "/";
+                handleMarkAsRead(alertToast.id, href);
+                setAlertToast(null);
+              }}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition flex items-center gap-1 shadow-sm"
+            >
+              <span>View Details &rarr;</span>
+            </button>
           </div>
         </div>
       )}

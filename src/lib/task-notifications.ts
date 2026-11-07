@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { pushToPeople } from "@/lib/push";
 
 /**
  * Sends a task update to the people who need to know: every active admin,
@@ -43,6 +44,17 @@ export async function notifyTaskUpdate(params: {
       href: `/tasks?task=${params.task.id}`,
     })),
   });
+
+  // Push notifications to assigned staff and managers on laptop and mobile
+  await pushToPeople(params.organizationId, Array.from(recipients), {
+    title: params.title,
+    body: params.message,
+    href: `/tasks?task=${params.task.id}`,
+    tag: `TASK:${params.task.id}`,
+  }).catch((err) => {
+    console.warn("[notifyTaskUpdate] Push failed:", err);
+  });
+
   return result.count;
 }
 

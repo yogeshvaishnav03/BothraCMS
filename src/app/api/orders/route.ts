@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { alertStaffNow } from "@/services/staff-alerts";
+import { notifyPeople } from "@/lib/notify";
 import {
   formatNotificationMessage,
   buildWhatsAppUrl,
@@ -272,6 +273,26 @@ export async function POST(req: NextRequest) {
           : `Raised purchase order query ${orderNumber} to Super Admin for approval and confirmation`,
       },
     });
+
+    // Notify Super Admin & Org Admin on mobile and laptops
+    try {
+      await notifyPeople({
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        includeAdmins: true,
+        type: "PURCHASE_ORDER",
+        title: shouldApproveImmediately
+          ? `Purchase Order ${orderNumber} Placed`
+          : `New Order Query: ${orderNumber} (${material.name})`,
+        message: `${user.name} created purchase order ${orderNumber} for ${quantity} ${material.unitCode} of ${material.name} (₹${(((totalAmountPaise || 0) / 100)).toLocaleString("en-IN")}) at ${purchaseOrder.site?.name || "Site"}.`,
+        href: "/orders",
+        entityType: "PURCHASE_ORDER",
+        entityId: purchaseOrder.id,
+        severity: shouldApproveImmediately ? "INFO" : "WARNING",
+      });
+    } catch (notifErr) {
+      console.warn("Purchase order notification warning:", notifErr);
+    }
 
     const expDateFormatted = parsedExpDate
       ? parsedExpDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })

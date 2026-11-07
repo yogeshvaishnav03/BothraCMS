@@ -47,10 +47,15 @@ export async function notifyPeople(params: {
   });
   // WhatsApp too, for the kinds the builder has switched on.
   await alertStaffNow(params.organizationId, Array.from(recipients));
-  // And on the phones of people who turned on push; only critical ones at night (9 pm to 8 am).
-  if (params.severity === "CRITICAL" || !isQuietHour(new Date())) {
-    await pushToPeople(params.organizationId, Array.from(recipients), { title: params.title, body: message, href: params.href, tag: `${params.entityType}:${params.entityId}` }).catch(() => {});
-  }
+  // And on the phones and laptops of people who turned on push (delivered 24/7 as device OS manages DND).
+  await pushToPeople(params.organizationId, Array.from(recipients), {
+    title: params.title,
+    body: message,
+    href: params.href,
+    tag: `${params.entityType}:${params.entityId}`,
+  }).catch((err) => {
+    console.warn("[notifyPeople] Push notification delivery failed:", err);
+  });
   return result.count;
 }
 

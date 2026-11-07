@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { notifyPeople } from "@/lib/notify";
 import {
   formatNotificationMessage,
   buildWhatsAppUrl,
@@ -98,6 +99,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         reason: `Purchase order ${updated.orderNumber} confirmed and approved by ${user.name} (${user.role})`,
       },
     });
+
+    // Notify the user who requested the order
+    try {
+      if (updated.createdBy) {
+        await notifyPeople({
+          organizationId: existing.organizationId,
+          actorUserId: user.userId,
+          userIds: [updated.createdBy],
+          includeAdmins: true,
+          type: "PURCHASE_ORDER",
+          title: `Order ${updated.orderNumber} Approved`,
+          message: `Your purchase order for ${updated.quantity} ${updated.material.name} has been approved by ${user.name}.`,
+          href: "/orders",
+          entityType: "PURCHASE_ORDER",
+          entityId: updated.id,
+          severity: "INFO",
+        });
+      }
+    } catch (notifErr) {
+      console.warn("Purchase order approval notification warning:", notifErr);
+    }
 
     const orgName = updated.organization?.name || "Bothra Infrastructure";
     const deliveryLocation = updated.store

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { notifyPeople } from "@/lib/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         reason: `Purchase order ${updated.orderNumber} rejected by ${user.name}: ${reason}`,
       },
     });
+
+    // Notify the user who requested the order
+    try {
+      if (updated.createdBy) {
+        await notifyPeople({
+          organizationId: existing.organizationId,
+          actorUserId: user.userId,
+          userIds: [updated.createdBy],
+          includeAdmins: true,
+          type: "PURCHASE_ORDER",
+          title: `Order ${updated.orderNumber} Rejected`,
+          message: `Your purchase order for ${updated.material.name} was rejected by ${user.name}: ${reason}`,
+          href: "/orders",
+          entityType: "PURCHASE_ORDER",
+          entityId: updated.id,
+          severity: "WARNING",
+        });
+      }
+    } catch (notifErr) {
+      console.warn("Purchase order rejection notification warning:", notifErr);
+    }
 
     return jsonSuccess({
       order: updated,

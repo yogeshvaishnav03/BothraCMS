@@ -82,7 +82,7 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-// Phone alerts: the server sends {title, body, href, tag}.
+// Phone & Laptop alerts: the server sends {title, body, href, tag}.
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -90,26 +90,35 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  event.waitUntil(
-    self.registration.showNotification(data.title || "Bothra CMS", {
-      body: data.body || "",
-      tag: data.tag || undefined,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      data: { href: data.href || "/" },
-    })
-  );
+  const title = data.title || "Bothra CMS";
+  const options = {
+    body: data.body || "",
+    tag: data.tag || undefined,
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    vibrate: [200, 100, 200],
+    renotify: true,
+    requireInteraction: false,
+    data: { href: data.href || "/" },
+    actions: [{ action: "open", title: "View Details" }],
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 // Tapping an alert opens its page, in the app window if one is already open.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const href = new URL((event.notification.data && event.notification.data.href) || "/", self.location.origin);
+  const targetHref = (event.notification.data && event.notification.data.href) || "/";
+  const href = new URL(targetHref, self.location.origin);
   if (href.origin !== self.location.origin) return;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
       const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
-      if (win) return win.focus().then((w) => (w && "navigate" in w ? w.navigate(href.href) : null));
+      if (win) {
+        if ("focus" in win) win.focus();
+        if ("navigate" in win) return win.navigate(href.href);
+        return;
+      }
       return self.clients.openWindow(href.href);
     })
   );

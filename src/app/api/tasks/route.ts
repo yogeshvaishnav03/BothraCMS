@@ -8,6 +8,7 @@ import {
   getUserAccessibleProjectIds,
 } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { notifyPeople } from "@/lib/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -226,6 +227,26 @@ export async function POST(req: NextRequest) {
         note: resolvedType === "PERSONAL" ? "Personal task initialized" : "Task created",
       },
     });
+
+    // Notify assignee if assigned to someone else
+    if (targetAssigneeId && targetAssigneeId !== user.userId) {
+      try {
+        await notifyPeople({
+          organizationId: user.organizationId,
+          actorUserId: user.userId,
+          userIds: [targetAssigneeId],
+          type: "TASK_REMINDER",
+          title: `New Task Assigned: "${task.title}"`,
+          message: `${user.name} assigned you: "${task.title}". Priority: ${task.priority}.`,
+          href: `/tasks?task=${task.id}`,
+          entityType: "TASK",
+          entityId: task.id,
+          severity: task.priority === "URGENT" ? "WARNING" : "INFO",
+        });
+      } catch (notifErr) {
+        console.warn("Task assignment notification warning:", notifErr);
+      }
+    }
 
     return jsonSuccess(task, 201);
   } catch (error) {

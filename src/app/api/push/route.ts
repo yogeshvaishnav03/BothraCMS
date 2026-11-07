@@ -23,22 +23,41 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const subscribeSchema = z.object({
+const testOnlySchema = z.object({
+  testOnly: z.literal(true),
+});
+
+const fullSubscribeSchema = z.object({
   endpoint: z.string().url().max(1000).refine((u) => u.startsWith("https://"), "Push address must be https"),
   keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(8).max(100) }),
   test: z.boolean().optional(),
+  testOnly: z.literal(false).optional(),
 });
 
-/** Turn on alerts for this phone (or move this phone to the person now logged in). */
+const subscribeSchema = z.union([testOnlySchema, fullSubscribeSchema]);
+
+/** Turn on alerts for this phone/device (or send a test notification). */
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
     const body = subscribeSchema.parse(await req.json());
+
+    if ("testOnly" in body && body.testOnly) {
+      const result = await pushToPeople(user.organizationId, [user.userId], {
+        title: "Alerts are on",
+        body: "You will get Bothra CMS alerts on this device.",
+        href: "/",
+        tag: `push-test-${Date.now()}`,
+      });
+      return jsonSuccess({ subscribed: true, test: result }, 200);
+    }
+
+    const fullBody = body as z.infer<typeof fullSubscribeSchema>;
     const userAgent = (req.headers.get("user-agent") || "").slice(0, 200) || null;
-    const data = { organizationId: user.organizationId, userId: user.userId, p256dh: body.keys.p256dh, auth: body.keys.auth, userAgent, failures: 0 };
-    await prisma.pushSubscription.upsert({ where: { endpoint: body.endpoint }, create: { endpoint: body.endpoint, ...data }, update: data });
-    const result = body.test
-      ? await pushToPeople(user.organizationId, [user.userId], { title: "Alerts are on", body: "You will get Bothra CMS alerts on this phone.", href: "/", tag: "push-test" })
+    const data = { organizationId: user.organizationId, userId: user.userId, p256dh: fullBody.keys.p256dh, auth: fullBody.keys.auth, userAgent, failures: 0 };
+    await prisma.pushSubscription.upsert({ where: { endpoint: fullBody.endpoint }, create: { endpoint: fullBody.endpoint, ...data }, update: data });
+    const result = fullBody.test
+      ? await pushToPeople(user.organizationId, [user.userId], { title: "Alerts are on", body: "You will get Bothra CMS alerts on this device.", href: "/", tag: "push-test" })
       : null;
     return jsonSuccess({ subscribed: true, test: result }, 201);
   } catch (error) {
