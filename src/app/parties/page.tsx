@@ -830,7 +830,8 @@ export default function PartiesPage() {
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs min-h-[400px]">
             <ExcelTableToolbar table={excelParties} columns={partyColumns} tableName="partners" showSearch={true} showExport={true} />
-            <div className="overflow-x-auto min-h-[400px]">
+            {/* Desktop Table View (≥ lg screens) */}
+            <div className="hidden lg:block overflow-x-auto min-h-[400px]">
               <table className="w-full text-left text-sm min-w-[700px]">
                 <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
                   <tr>
@@ -908,6 +909,90 @@ export default function PartiesPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile & Tablet Partners Cards (< lg screens) */}
+            <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+              {excelParties.filteredData.length === 0 ? (
+                <div className="py-12 text-center text-slate-400">
+                  <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="font-semibold text-slate-700">No partners match selected filters</p>
+                  <button
+                    type="button"
+                    onClick={excelParties.clearAllFilters}
+                    className="mt-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              ) : (
+                excelParties.filteredData.map((p) => {
+                  const style = TYPE_STYLE[p.partyType] || TYPE_STYLE.VENDOR;
+
+                  return (
+                    <div key={`p-card-${p.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                      {/* Top: Partner Name, Type Chip & GSTIN */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <Link href={`/parties/${p.id}`} className="font-bold text-slate-900 hover:text-amber-700 text-sm block">
+                            {p.name}
+                          </Link>
+                          {p.taxIdentifier && (
+                            <div className="text-xs text-slate-400 font-mono mt-0.5">
+                              GSTIN: {p.taxIdentifier}
+                            </div>
+                          )}
+                        </div>
+
+                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-md ring-1 shrink-0", style.chip)}>
+                          {style.label}
+                        </span>
+                      </div>
+
+                      {/* Middle: Outstanding Balance & Contact */}
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs items-center">
+                        <div>
+                          {canReadFinance ? (
+                            <>
+                              <div className="text-[11px] text-slate-400 font-medium">Outstanding Balance</div>
+                              <div className="text-base font-black tabular-nums mt-0.5">
+                                <span className={p.outstandingBalance > 0 ? "text-amber-600" : p.outstandingBalance < 0 ? "text-emerald-600" : "text-slate-400"}>
+                                  {formatCurrency(p.outstandingBalance)}
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-slate-500">{p.city || "Direct Vendor"}</span>
+                          )}
+                        </div>
+
+                        <div className="flex justify-end">
+                          <ContactActions
+                            phone={p.phone}
+                            whatsappNumber={p.whatsappNumber}
+                            email={p.email}
+                            message={`Namaste ${p.contactPerson || p.name},`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <Link
+                          href={`/parties/${p.id}`}
+                          className="text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
+                        >
+                          View Profile &rarr;
+                        </Link>
+
+                        <div className="flex items-center gap-1">
+                          {rowActions(p)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}

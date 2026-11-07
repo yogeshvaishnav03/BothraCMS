@@ -1527,7 +1527,8 @@ export default function AttendancePage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto min-h-[400px]">
+              {/* Desktop Table View (≥ lg screens) */}
+              <div className="hidden lg:block overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                     <tr>
@@ -1666,6 +1667,91 @@ export default function AttendancePage() {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile & Tablet Attendance Cards (< lg screens) */}
+            <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+              {excelAttendance.filteredData.map((s) => {
+                const dateObj = new Date(s.workDate);
+                const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                const isCompleted = Boolean(s.checkOutAt);
+                const roleBadge = getRoleBadge(s.employeeRole);
+
+                return (
+                  <div key={`att-card-${s.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                    {/* Top: Staff Name, Role and Shift Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900 text-sm">{s.employeeName}</div>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded-md border ${roleBadge.className}`}>
+                            {roleBadge.label}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">{s.employeeCode}</span>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="shrink-0">
+                        {isCompleted ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span>Shift Done</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            <span>On Shift</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Middle: Work Date & Check-in / Check-out Times */}
+                    <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                      <div>
+                        <div className="text-[11px] text-slate-400 font-medium">Work Date</div>
+                        <div className="font-bold text-slate-800 flex items-center gap-1 mt-0.5">
+                          <span>{formatDate(s.workDate)}</span>
+                          <span className="text-[10px] font-mono uppercase text-slate-500">({dayName})</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-[11px] text-slate-400 font-medium">Timing</div>
+                        <div className="text-slate-700 font-mono text-[11px] mt-0.5">
+                          {s.checkInAt ? new Date(s.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                          {" → "}
+                          {s.checkOutAt ? new Date(s.checkOutAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Active"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer: GPS verification and Correct Action */}
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1 text-[11px]">
+                        {s.checkInLat ? (
+                          <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
+                            <span className="text-emerald-600">✓</span> GPS Logged
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Standard check-in</span>
+                        )}
+                      </div>
+
+                      {isPrivileged && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCorrection(s)}
+                          className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition"
+                        >
+                          Correct
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
           )}

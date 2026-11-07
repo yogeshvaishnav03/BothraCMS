@@ -2202,7 +2202,8 @@ export default function DayBookPage() {
                   </div>
                   <span className="text-xs font-bold text-emerald-700">{formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}</span>
                 </div>
-                <div className="overflow-x-auto">
+                {/* Desktop Table View (≥ lg screens) */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full min-w-[640px] text-sm">
                     <thead className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       <tr>
@@ -2240,6 +2241,39 @@ export default function DayBookPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile & Tablet Card View (< lg screens: No horizontal scroll) */}
+                <div className="lg:hidden divide-y divide-slate-100">
+                  {dayData!.moneyIn!.map((r: any) => (
+                    <div key={`m-in-card-${r.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-slate-900 text-sm">
+                            {r.booking.customerName}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {r.booking.unit.unitNumber} · {r.booking.unit.project.name}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-base font-black font-mono text-emerald-700 tabular-nums">
+                            {formatCurrency(r.amount)}
+                          </div>
+                          <span className="inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {({ NEFT_RTGS: "NEFT / RTGS", HOME_LOAN: "Home loan", UPI: "UPI", CHEQUE: "Cheque", CASH: "Cash" } as Record<string, string>)[r.mode] || r.mode}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 font-mono">
+                        <Link href={`/sales/receipt/${r.id}`} className="font-bold text-slate-700 hover:text-amber-600 hover:underline">
+                          Receipt #{r.receiptNumber}
+                        </Link>
+                        <span>{r.installment.label}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -2478,7 +2512,7 @@ export default function DayBookPage() {
                         Staff Attendance Sessions ({dayData.attendance.length})
                       </span>
                     </div>
-                    <div className="overflow-x-auto min-h-[400px]">
+                    <div className="hidden lg:block overflow-x-auto min-h-[400px]">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
                           <tr>
@@ -2505,6 +2539,23 @@ export default function DayBookPage() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Mobile & Tablet Card List */}
+                    <div className="lg:hidden divide-y divide-slate-100">
+                      {dayData.attendance.map((a) => (
+                        <div key={`staff-att-card-${a.id}`} className="p-3 bg-white hover:bg-slate-50/70 transition flex items-center justify-between gap-2">
+                          <div>
+                            <div className="font-bold text-slate-900 text-xs">{a.name || a.workforceMember?.name || "N/A"}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              {a.role || a.workforceMember?.workerType || "Staff"} · <span className="font-mono">{a.employeeCode || a.workforceMember?.employeeCode || "—"}</span>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
+                            {a.status}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -2538,7 +2589,7 @@ export default function DayBookPage() {
                         <span>Daily Trade Workers ({dayData?.workerAttendance?.length || 0})</span>
                       </span>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="hidden lg:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
                           <tr>
@@ -2571,6 +2622,26 @@ export default function DayBookPage() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Mobile & Tablet Trade Workers Card List */}
+                    <div className="lg:hidden divide-y divide-slate-100">
+                      {(dayData?.workerAttendance || []).map((w: any) => (
+                        <div key={`w-att-card-${w.id}`} className="p-3 bg-white hover:bg-slate-50/70 transition flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 text-xs truncate">{w.workforceMember?.name || "Worker"}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                                {w.workforceMember?.workerType || "Labour"}
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-400">{w.workforceMember?.employeeCode || "—"}</span>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
+                            {w.status}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

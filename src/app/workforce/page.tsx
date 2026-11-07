@@ -887,7 +887,8 @@ export default function WorkforcePage() {
                     showSearch={true}
                     showExport={true}
                   />
-                  <div className="overflow-x-auto min-h-[400px]">
+                  {/* Desktop Table View (≥ lg screens) */}
+                  <div className="hidden lg:block overflow-x-auto min-h-[400px]">
                     <table className="w-full text-left text-xs min-w-[700px]">
                       <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                         <tr>
@@ -998,6 +999,67 @@ export default function WorkforcePage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile & Tablet Headcount Cards (< lg screens) */}
+                <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+                  {excelHeadcount.filteredData.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400">
+                      <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="font-semibold text-slate-700">No headcount records found</p>
+                      <p className="text-xs text-slate-400">Try adjusting your filters.</p>
+                    </div>
+                  ) : (
+                    excelHeadcount.filteredData.map((r) => (
+                      <div key={`hc-card-${r.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm">{formatDate(r.date)}</div>
+                            <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-700">
+                                {r.shift} SHIFT
+                              </span>
+                              <span>·</span>
+                              <span>{r.contractorName || "Direct Site / Self"}</span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
+                              {r.grandTotal} Workers
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Supervisor info and notes */}
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                          <div>
+                            <span className="text-[11px] text-slate-400">Supervisor:</span>{" "}
+                            <span className="font-semibold text-slate-700">{r.supervisorName}</span>
+                          </div>
+
+                          {canWrite && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => openUploadModal(r)}
+                                className="p-1.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                title="Edit Headcount"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRecord(r.id, r.siteName, r.date)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                title="Delete Record"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               )}

@@ -1772,7 +1772,8 @@ export default function FinancePage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto min-h-[400px]">
+              {/* Desktop Payments Table (≥ lg screens) */}
+              <div className="hidden lg:block overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-sm min-w-[760px]">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
@@ -1989,6 +1990,150 @@ export default function FinancePage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile & Tablet Payments Cards (< lg screens) */}
+              <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+                {excelPayments.filteredData.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="font-semibold text-slate-700">No payments found</p>
+                    <p className="text-xs text-slate-400">Try adjusting your search terms or filters.</p>
+                  </div>
+                ) : (
+                  excelPayments.filteredData.map((p) => {
+                    const isReversed = p.status === "REVERSED";
+                    const isPending = p.status === "PENDING_APPROVAL";
+                    const isRejected = p.status === "REJECTED";
+                    const payee = p.recipientName || p.party?.name || "Recipient";
+                    const rType = p.recipientType || p.party?.type || "VENDOR";
+                    const canSuperAdminAct =
+                      currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+
+                    return (
+                      <div key={`p-card-${p.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                        {/* Top: Payee, Type Pill & Status Badge */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {p.partyId ? (
+                                <Link
+                                  href={`/parties/${p.partyId}`}
+                                  className="font-bold text-slate-900 hover:text-amber-600 text-sm"
+                                >
+                                  {payee}
+                                </Link>
+                              ) : (
+                                <span className="font-bold text-slate-900 text-sm">{payee}</span>
+                              )}
+                              <span
+                                className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                  rType === "EMPLOYEE"
+                                    ? "bg-purple-50 text-purple-700 border-purple-200"
+                                    : rType === "SUBCONTRACTOR"
+                                    ? "bg-sky-50 text-sky-700 border-sky-200"
+                                    : "bg-amber-50 text-amber-700 border-amber-200"
+                                }`}
+                              >
+                                {rType}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-400 font-mono mt-0.5">
+                              {formatDate(p.paymentDate)} · Ref: {p.referenceNumber}
+                            </div>
+                          </div>
+
+                          {/* Status Badge */}
+                          <div className="shrink-0">
+                            {isReversed ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800">
+                                REVERSED
+                              </span>
+                            ) : isRejected ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700">
+                                REJECTED
+                              </span>
+                            ) : isPending ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                                PENDING
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                APPROVED
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Amount & Method - Paying bank account & allocation internals hidden */}
+                        <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                          <div>
+                            <div className="text-[11px] text-slate-400 font-medium">Payment Amount</div>
+                            <div className="text-base font-black text-slate-900 font-mono tabular-nums">
+                              {formatCurrency(p.amount)}
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <div className="text-[11px] text-slate-400 font-medium">Mode</div>
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
+                              {p.method || "Direct Bank"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Actions Footer */}
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                          <button
+                            onClick={() =>
+                              setAttachmentTarget({
+                                type: "PAYMENT",
+                                id: p.id,
+                                title: `Voucher #${p.referenceNumber} Attachments`,
+                                categoryDefault: "RECEIPT",
+                              })
+                            }
+                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                          >
+                            <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Voucher Docs</span>
+                          </button>
+
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            {isPending && canSuperAdminAct ? (
+                              <>
+                                <button
+                                  onClick={() => handleApprovePayment(p)}
+                                  className="px-2.5 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleRejectPayment(p)}
+                                  className="px-2.5 py-1 rounded text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            ) : null}
+
+                            {!isReversed && !isRejected && !isPending && canReverseFinance && (
+                              <button
+                                onClick={() => {
+                                  setPaymentToReverse(p);
+                                  setShowReverseModal(true);
+                                }}
+                                className="px-2 py-1 rounded text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200"
+                              >
+                                Reverse
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -2050,7 +2195,8 @@ export default function FinancePage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto min-h-[400px]">
+              {/* Desktop Bills Table (≥ lg screens) */}
+              <div className="hidden lg:block overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-sm min-w-[720px]">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
@@ -2131,6 +2277,90 @@ export default function FinancePage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile & Tablet Vendor Bills Cards (< lg screens) */}
+              <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+                {excelBills.filteredData.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="font-semibold text-slate-700">No vendor bills found</p>
+                    <p className="text-xs text-slate-400">Try adjusting your search terms or filter.</p>
+                  </div>
+                ) : (
+                  excelBills.filteredData.map((b) => (
+                    <div key={`b-card-${b.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                      {/* Top: Bill Number, Vendor Link & Status Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold font-mono text-slate-900 text-sm">
+                            {b.billNumber}
+                          </div>
+                          <div className="text-xs text-slate-700 font-semibold mt-0.5">
+                            <Link href={`/parties/${b.partyId}`} className="hover:text-amber-600 hover:underline">
+                              {b.party?.name || "Vendor"}
+                            </Link>
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            {formatDate(b.billDate)}
+                          </div>
+                        </div>
+
+                        {/* Status Badge */}
+                        <div className="shrink-0">
+                          {b.outstandingAmount === 0 ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                              PAID
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                              PENDING
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Middle: Pending Balance & Total Bill Amount (Paid Amount column hidden) */}
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                        <div>
+                          <div className="text-[11px] text-slate-400 font-medium">Pending Balance</div>
+                          <div className={`text-base font-black font-mono tabular-nums ${b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}`}>
+                            {formatCurrency(b.outstandingAmount)}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-[11px] text-slate-400 font-medium">Total Bill</div>
+                          <div className="font-bold text-slate-700 font-mono tabular-nums text-sm">
+                            {formatCurrency(b.totalAmount)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer Actions: Attach Invoices / Challans */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-slate-400">
+                          {b.outstandingAmount === 0 ? "Fully Settled" : "Awaiting Clearance"}
+                        </span>
+
+                        <button
+                          onClick={() =>
+                            setAttachmentTarget({
+                              type: "BILL",
+                              id: b.id,
+                              title: `Bill #${b.billNumber} Invoices & Challans`,
+                              categoryDefault: "INVOICE",
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 transition cursor-pointer"
+                        >
+                          <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Attach Invoice / Challan</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

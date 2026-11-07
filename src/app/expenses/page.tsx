@@ -642,7 +642,8 @@ export default function ExpensesPage() {
               showSearch={true}
               showExport={true}
             />
-            <div className="overflow-x-auto min-h-[400px]">
+            {/* Desktop Table View (≥ lg screens) */}
+            <div className="hidden lg:block overflow-x-auto min-h-[400px]">
               <table className="w-full text-left text-sm min-w-[850px]">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
@@ -819,6 +820,158 @@ export default function ExpensesPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile & Tablet Card View (< lg screens: No horizontal scroll, secondary fields hidden) */}
+            <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+              {excelExpenses.filteredData.length === 0 ? (
+                <div className="py-12 text-center text-slate-400">
+                  <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="font-semibold text-slate-700">No expenses match selected filters</p>
+                  <button
+                    type="button"
+                    onClick={excelExpenses.clearAllFilters}
+                    className="mt-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-xs"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              ) : (
+                excelExpenses.filteredData.map((exp) => {
+                  const receipt = exp.receipt || (exp.attachments && exp.attachments[0]) || null;
+                  const isPending = exp.status === "PENDING_APPROVAL";
+
+                  return (
+                    <div key={`exp-card-${exp.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                      {/* Top: Title, Ref # and Status Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-slate-900 text-sm leading-snug">{exp.title}</h4>
+                          <div className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-2 flex-wrap">
+                            <span>{exp.referenceNumber}</span>
+                            {exp.site && (
+                              <span className="text-[11px] text-slate-500 flex items-center gap-1 font-sans">
+                                <Building2 className="w-3 h-3 text-slate-400" />
+                                <span>{exp.site.name}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status Badge */}
+                        <div className="shrink-0">
+                          {exp.status === "POSTED" ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Approved
+                            </span>
+                          ) : exp.status === "REJECTED" ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800"
+                              title={exp.rejectionReason || "Declined"}
+                            >
+                              <XCircle className="w-3 h-3 text-rose-600" /> Declined
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                              <Clock className="w-3 h-3 text-amber-600" /> Pending Review
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Middle: Key Data Grid (Amount, Paid To, Date) - Category & user ID hidden */}
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                        <div>
+                          <div className="text-[11px] text-slate-400 font-medium">Amount</div>
+                          <div className="text-base font-black text-slate-900 font-mono tabular-nums">
+                            {formatCurrency(exp.amount)}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-[11px] text-slate-400 font-medium">Paid To / Shop</div>
+                          <div className="font-semibold text-slate-800 truncate" title={exp.paidTo}>
+                            {exp.paidTo}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            {formatDate(exp.expenseDate)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Rejection Note if present */}
+                      {exp.rejectionReason && (
+                        <div className="mt-2 p-2 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                          <span className="font-bold">Reason:</span> {exp.rejectionReason}
+                        </div>
+                      )}
+
+                      {/* Footer Actions: Receipt View & Approvals */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                        {receipt ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewingReceipt({
+                                url: receipt.url,
+                                fileName: receipt.fileName,
+                                title: exp.title,
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-xs font-semibold text-slate-700 hover:text-amber-800 transition cursor-pointer"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-amber-500" />
+                            <span>View Bill Photo</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">No receipt attached</span>
+                        )}
+
+                        <div className="flex items-center gap-1.5 ml-auto">
+                          {isApprover && isPending ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleApproveExpense(exp.id)}
+                                className="inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer shadow-xs"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Approve</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingExpenseId(exp.id);
+                                  setRejectionReason("");
+                                }}
+                                className="inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Decline</span>
+                              </button>
+                            </>
+                          ) : receipt ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setViewingReceipt({
+                                  url: receipt.url,
+                                  fileName: receipt.fileName,
+                                  title: exp.title,
+                                })
+                              }
+                              className="text-amber-600 hover:text-amber-700 text-xs font-bold inline-flex items-center gap-1"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Details</span>
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
