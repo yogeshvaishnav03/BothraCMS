@@ -7,7 +7,7 @@
  * - Alerts pushed by the server show as phone notifications; tapping one
  *   opens its page.
  */
-const VERSION = "bothra-v5";
+const VERSION = "bothra-v6";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const SHELL = ["/offline", "/manifest.webmanifest", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-512-maskable.png"];

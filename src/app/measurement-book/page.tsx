@@ -297,14 +297,20 @@ export default function MeasurementBookPage() {
       if (selectedPartyType !== "ALL") queryParams.set("partyType", selectedPartyType);
       if (selectedStatus !== "ALL") queryParams.set("status", selectedStatus);
       if (search.trim()) queryParams.set("search", search.trim());
+      queryParams.set("_t", Date.now().toString());
+
+      const noCacheInit: RequestInit = {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      };
 
       const [mbRes, projRes, partyRes, siteRes, meRes, crRes] = await Promise.all([
-        fetch(`/api/measurement-book?${queryParams.toString()}`),
-        fetch("/api/projects"),
-        fetch("/api/parties"),
-        fetch("/api/sites"),
-        fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/measurement-book/change-requests"),
+        fetch(`/api/measurement-book?${queryParams.toString()}`, noCacheInit),
+        fetch(`/api/projects?_t=${Date.now()}`, noCacheInit),
+        fetch(`/api/parties?_t=${Date.now()}`, noCacheInit),
+        fetch(`/api/sites?_t=${Date.now()}`, noCacheInit),
+        fetch("/api/auth/me", noCacheInit).then((r) => r.json()).catch(() => ({})),
+        fetch(`/api/measurement-book/change-requests?_t=${Date.now()}`, noCacheInit),
       ]);
 
       const mbData = await mbRes.json();

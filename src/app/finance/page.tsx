@@ -137,14 +137,19 @@ export default function FinancePage() {
 
   const loadData = () => {
     setLoading(true);
+    const noCacheInit: RequestInit = {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    };
+    const t = Date.now();
     Promise.all([
-      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
-      fetch("/api/finance/bills").then((r) => r.json()),
-      fetch("/api/finance/payments").then((r) => r.json()),
-      fetch("/api/parties").then((r) => r.json()),
-      fetch("/api/projects").then((r) => r.json()),
-      fetch("/api/materials").then((r) => r.json()),
-      fetch("/api/workforce").then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/auth/me?_t=${t}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/finance/bills?_t=${t}`, noCacheInit).then((r) => r.json()),
+      fetch(`/api/finance/payments?_t=${t}`, noCacheInit).then((r) => r.json()),
+      fetch(`/api/parties?_t=${t}`, noCacheInit).then((r) => r.json()),
+      fetch(`/api/projects?_t=${t}`, noCacheInit).then((r) => r.json()),
+      fetch(`/api/materials?_t=${t}`, noCacheInit).then((r) => r.json()),
+      fetch(`/api/workforce?_t=${t}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
     ])
       .then(([meRes, billsRes, paymentsRes, partiesRes, projRes, matRes, wfRes]) => {
         if (meRes.success && meRes.data) {

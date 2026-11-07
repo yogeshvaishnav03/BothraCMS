@@ -110,15 +110,20 @@ export default function ExpensesPage() {
 
   const isApprover = currentUser?.role && ["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT"].includes(currentUser.role);
 
-  const loadExpenses = () => {
+  const loadExpenses = (statusOverride?: string) => {
     setLoading(true);
     let url = "/api/expenses";
     const params = new URLSearchParams();
     if (activeSiteId) params.set("siteId", activeSiteId);
-    if (statusFilter !== "ALL") params.set("status", statusFilter);
-    if (params.toString()) url += `?${params.toString()}`;
+    const activeStatus = statusOverride !== undefined ? statusOverride : statusFilter;
+    if (activeStatus && activeStatus !== "ALL") params.set("status", activeStatus);
+    params.set("_t", Date.now().toString());
+    url += `?${params.toString()}`;
 
-    fetch(url)
+    fetch(url, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then((r) => r.json())
       .then((res) => {
         if (res.success && Array.isArray(res.data)) {
@@ -285,6 +290,11 @@ export default function ExpensesPage() {
         message: `Expense claim of ₹${amtNum.toLocaleString("en-IN")} submitted successfully! Admin & Finance notified.`,
       });
 
+      // Instantly prepend new expense to state for 0ms visual update in the table
+      if (resJson.data?.expense) {
+        setExpenses((prev) => [resJson.data.expense, ...prev.filter((e) => e.id !== resJson.data.expense.id)]);
+      }
+
       // Reset form
       setShowLogModal(false);
       setTitle("");
@@ -292,7 +302,9 @@ export default function ExpensesPage() {
       setPaidTo("");
       setNotes("");
       handleClearPhoto();
-      loadExpenses();
+      setStatusFilter("ALL");
+      loadExpenses("ALL");
+      window.dispatchEvent(new CustomEvent("refreshExpenses"));
     } catch (err: any) {
       setFeedback({ tone: "error", message: err.message || "Failed to submit expense." });
     } finally {
@@ -303,17 +315,24 @@ export default function ExpensesPage() {
 
   const handleApproveExpense = async (id: string) => {
     if (!confirm("Are you sure you want to approve this out-of-pocket expense for reimbursement?")) return;
+    // Optimistic status update
+    setExpenses((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, status: "POSTED" as const } : e))
+    );
     try {
       const res = await fetch(`/api/expenses/${id}/approve`, { method: "POST" });
       const data = await res.json();
       if (!res.ok || !data.success) {
         alert(data.error?.message || "Failed to approve expense");
+        loadExpenses();
         return;
       }
       setFeedback({ tone: "success", message: "Expense claim approved successfully for reimbursement!" });
       loadExpenses();
+      window.dispatchEvent(new CustomEvent("refreshExpenses"));
     } catch {
       alert("Network error approving expense");
+      loadExpenses();
     }
   };
 
@@ -321,9 +340,14 @@ export default function ExpensesPage() {
     e.preventDefault();
     if (!rejectingExpenseId || !rejectionReason.trim()) return;
 
+    const targetId = rejectingExpenseId;
+    // Optimistic status update
+    setExpenses((prev) =>
+      prev.map((e) => (e.id === targetId ? { ...e, status: "REJECTED" as const } : e))
+    );
     setRejectSubmitting(true);
     try {
-      const res = await fetch(`/api/expenses/${rejectingExpenseId}/reject`, {
+      const res = await fetch(`/api/expenses/${targetId}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rejectionReason: rejectionReason.trim() }),
@@ -331,14 +355,17 @@ export default function ExpensesPage() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         alert(data.error?.message || "Failed to decline expense");
+        loadExpenses();
         return;
       }
       setFeedback({ tone: "success", message: "Expense claim declined." });
       setRejectingExpenseId(null);
       setRejectionReason("");
       loadExpenses();
+      window.dispatchEvent(new CustomEvent("refreshExpenses"));
     } catch {
       alert("Network error declining expense");
+      loadExpenses();
     } finally {
       setRejectSubmitting(false);
     }

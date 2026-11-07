@@ -35,10 +35,21 @@ import TaskTimeline from "@/components/tasks/TaskTimeline";
 import { canUser } from "@/lib/permissions";
 import { useActiveSite } from "@/hooks/useActiveSite";
 
-// Safely fetch and parse JSON, never throwing SyntaxError on HTML (e.g. 500 error pages)
+// Safely fetch and parse JSON with cache-busting to ensure fresh tables
 async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
   try {
-    const res = await fetch(url, init);
+    const isGet = !init || !init.method || init.method.toUpperCase() === "GET";
+    const finalUrl = isGet ? `${url}${url.includes("?") ? "&" : "?"}_t=${Date.now()}` : url;
+    const finalInit: RequestInit = {
+      cache: "no-store",
+      ...init,
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+        ...(init?.headers || {}),
+      },
+    };
+    const res = await fetch(finalUrl, finalInit);
     const ct = res.headers.get("content-type") || "";
     if (ct.includes("application/json")) {
       return await res.json();
@@ -299,7 +310,11 @@ export default function TasksPage() {
         setAssigneeUserId("");
         setTaskType("STANDARD");
         setProjectId(projects.length > 0 ? projects[0].id : "OTHER");
+        if (data.data) {
+          setTasks((prev) => [data.data, ...prev.filter((t) => t.id !== data.data.id)]);
+        }
         loadData();
+        window.dispatchEvent(new CustomEvent("refreshTasks"));
       }
     } catch {
       setErrorMessage("Network error during task creation");

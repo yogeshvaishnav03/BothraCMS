@@ -1148,20 +1148,32 @@ export default function DayBookPage() {
     setShowLogModal(false);
   };
 
-  const loadDayBook = (fromDate: string, toDateStr?: string, siteId?: string) => {
+  const loadDayBook = (fromDate?: string, toDateStr?: string, siteId?: string) => {
     setLoading(true);
-    const to = toDateStr || fromDate;
-    const query = new URLSearchParams({ from: fromDate, to });
-    if (siteId) query.set("siteId", siteId);
+    const isValidDate = (d?: string) => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d));
 
-    fetch(`/api/day-book?${query.toString()}`)
+    // Handle case where caller might have called loadDayBook(date, siteId) with 2 arguments
+    let from = isValidDate(fromDate) ? (fromDate as string) : selectedDate;
+    let to = isValidDate(toDateStr) ? (toDateStr as string) : (isValidDate(toDate) ? toDate : from);
+    let effectiveSiteId = siteId !== undefined ? siteId : (isValidDate(toDateStr) ? (selectedSiteId || activeSiteId || "") : (toDateStr || selectedSiteId || activeSiteId || ""));
+
+    const query = new URLSearchParams({ from, to });
+    if (effectiveSiteId) query.set("siteId", effectiveSiteId);
+    query.set("_t", Date.now().toString());
+
+    fetch(`/api/day-book?${query.toString()}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then((r) => r.json())
       .then((res) => {
         if (res.success && res.data) {
           setDayData(res.data);
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error("Day Book load error:", err);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -1228,6 +1240,15 @@ export default function DayBookPage() {
     loadDayBook(selectedDate, toDate, activeSiteId || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSiteId, selectedDate, toDate]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      loadDayBook(selectedDate, toDate, selectedSiteId || activeSiteId || "");
+    };
+    window.addEventListener("refreshDayBook", handleRefresh);
+    return () => window.removeEventListener("refreshDayBook", handleRefresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, toDate, selectedSiteId, activeSiteId]);
 
   const handleDateChange = (newFrom: string, newTo?: string) => {
     const to = newTo || newFrom;
@@ -1359,6 +1380,7 @@ export default function DayBookPage() {
         setPaymentRef("");
         setSelectedPaymentBillId("");
         loadDayBook(selectedDate, toDate, selectedSiteId);
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
         setStatusMessage(`❌ Error: ${data.error?.message || "Could not record payment"}`);
       }
@@ -1439,6 +1461,7 @@ export default function DayBookPage() {
         setBillNumber("");
         setBillNotes("");
         loadDayBook(selectedDate, toDate, selectedSiteId);
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
         setStatusMessage(`❌ Error: ${data.error?.message || "Could not enter bill"}`);
       }
@@ -1497,7 +1520,9 @@ export default function DayBookPage() {
         setWfLaborerFemale("0");
         setWfContractor("");
         setWfNotes("");
-        loadDayBook(selectedDate, selectedSiteId);
+        loadDayBook(selectedDate, toDate, selectedSiteId);
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
         setStatusMessage(`❌ Error: ${data.error?.message || "Could not save headcount"}`);
       }
@@ -1569,7 +1594,9 @@ export default function DayBookPage() {
         setDsrProgress("");
         setDsrBlockers("");
         setDsrSafety("");
-        loadDayBook(selectedDate, selectedSiteId);
+        loadDayBook(selectedDate, toDate, selectedSiteId);
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
         setStatusMessage(`❌ Error: ${data.error?.message || "Could not log progress"}`);
       }
@@ -1593,7 +1620,9 @@ export default function DayBookPage() {
       const data = await res.json();
       if (data.success) {
         setStatusMessage("✅ Demo records generated successfully for Day Book!");
-        loadDayBook(selectedDate, selectedSiteId);
+        loadDayBook(selectedDate, toDate, selectedSiteId);
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
         setStatusMessage(`❌ Error: ${data.error?.message || "Could not load demo data"}`);
       }

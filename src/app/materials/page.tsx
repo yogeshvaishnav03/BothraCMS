@@ -331,8 +331,12 @@ export default function MaterialsPage() {
   const loadMaterials = (siteIdFilter?: string) => {
     setLoading(true);
     const targetSiteId = siteIdFilter !== undefined ? siteIdFilter : activeSiteId;
-    const url = targetSiteId ? `/api/materials?siteId=${encodeURIComponent(targetSiteId)}` : "/api/materials";
-    fetch(url)
+    const base = targetSiteId ? `/api/materials?siteId=${encodeURIComponent(targetSiteId)}` : "/api/materials";
+    const url = `${base}${base.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+    fetch(url, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then((r) => r.json())
       .then((res) => {
         if (res.success) {
@@ -347,8 +351,12 @@ export default function MaterialsPage() {
 
   const loadStores = (siteIdFilter?: string) => {
     const targetSiteId = siteIdFilter !== undefined ? siteIdFilter : activeSiteId;
-    const url = targetSiteId ? `/api/stores?siteId=${encodeURIComponent(targetSiteId)}` : "/api/stores";
-    fetch(url)
+    const base = targetSiteId ? `/api/stores?siteId=${encodeURIComponent(targetSiteId)}` : "/api/stores";
+    const url = `${base}${base.includes("?") ? "&" : "?"}_t=${Date.now()}`;
+    fetch(url, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then((r) => r.json())
       .then((res) => {
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
@@ -474,7 +482,10 @@ export default function MaterialsPage() {
         setSelectedMaterialPreset("");
         setIsCustomMaterialName(false);
         setIsMaterialDropdownOpen(false);
-        loadMaterials();
+        if (data.data) {
+          setMaterials((prev) => [data.data, ...prev.filter((m) => m.id !== data.data.id)]);
+        }
+        loadMaterials(activeSiteId);
       }
     } catch {
       setErrorMessage("Network error during material creation");

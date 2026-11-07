@@ -160,7 +160,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return jsonSuccess(mapped);
+    const res = jsonSuccess(mapped);
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.headers.set("Pragma", "no-cache");
+    return res;
   } catch (error) {
     return handleApiError(error);
   }
@@ -189,10 +192,28 @@ export async function POST(req: NextRequest) {
     // Resolve project and site
     let targetProjectId = data.projectId || undefined;
     if (!targetProjectId && data.siteId) {
-      const siteProject = await prisma.project.findFirst({
+      let siteProject = await prisma.project.findFirst({
         where: { siteId: data.siteId, organizationId: user.organizationId },
         select: { id: true },
       });
+      if (!siteProject) {
+        const site = await prisma.site.findUnique({
+          where: { id: data.siteId },
+          select: { id: true, name: true, code: true },
+        });
+        if (site) {
+          siteProject = await prisma.project.create({
+            data: {
+              organizationId: user.organizationId,
+              siteId: site.id,
+              name: `${site.name} — General Operations`,
+              code: `${site.code || "SITE"}-GEN`,
+              status: "IN_PROGRESS",
+            },
+            select: { id: true },
+          });
+        }
+      }
       targetProjectId = siteProject?.id;
     }
 
@@ -305,6 +326,80 @@ export async function POST(req: NextRequest) {
       console.warn("Out-of-pocket expense notification warning:", notifErr);
     }
 
+    // Fetch complete payment with relations for instant client-side state update
+    const createdWithRelations = await prisma.payment.findUnique({
+      where: { id: payment.id },
+      include: {
+        creator: { select: { id: true, name: true, role: true, email: true } },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            siteId: true,
+            site: { select: { id: true, name: true, code: true } },
+          },
+        },
+        attachments: {
+          where: { isArchived: false },
+          select: {
+            id: true,
+            fileId: true,
+            fileName: true,
+            fileSize: true,
+            mimeType: true,
+            category: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    const receiptAtt = createdWithRelations?.attachments.find((a) => a.category === "RECEIPT") || createdWithRelations?.attachments[0] || null;
+
+    const fullMapped = {
+      id: payment.id,
+      referenceNumber: payment.referenceNumber,
+      title: cleanTitle,
+      amount: data.amount,
+      amountPaise,
+      expenseDate: payment.paymentDate,
+      category: data.category,
+      paidTo: cleanPaidTo,
+      paymentMode: data.paymentMode,
+      payingAccount: payment.payingAccount,
+      status: payment.status,
+      approvedBy: payment.approvedBy,
+      approvedAt: payment.approvedAt,
+      rejectionReason: payment.rejectionReason,
+      notes: payment.notes,
+      creator: createdWithRelations?.creator || { id: user.userId, name: user.name, role: user.role, email: user.email },
+      project: createdWithRelations?.project ? { id: createdWithRelations.project.id, name: createdWithRelations.project.name, code: createdWithRelations.project.code } : null,
+      site: createdWithRelations?.project?.site || null,
+      receipt: receiptAtt
+        ? {
+            id: receiptAtt.id,
+            fileId: receiptAtt.fileId,
+            fileName: receiptAtt.fileName,
+            fileSize: receiptAtt.fileSize,
+            mimeType: receiptAtt.mimeType,
+            url: `/api/uploads/${receiptAtt.fileId}`,
+          }
+        : {
+            id: data.receiptFileId,
+            fileId: data.receiptFileId,
+            fileName: data.receiptFileName || "receipt-photo.jpg",
+            fileSize: data.receiptFileSize || 1024,
+            mimeType: data.receiptMimeType || "image/jpeg",
+            url: `/api/uploads/${data.receiptFileId}`,
+          },
+      attachments: (createdWithRelations?.attachments || []).map((a) => ({
+        ...a,
+        url: `/api/uploads/${a.fileId}`,
+      })),
+      createdAt: payment.createdAt,
+    };
+
     return jsonSuccess(
       {
         id: payment.id,
@@ -314,6 +409,7 @@ export async function POST(req: NextRequest) {
         amountPaise,
         status: payment.status,
         receiptUrl: `/api/uploads/${data.receiptFileId}`,
+        expense: fullMapped,
       },
       201
     );
