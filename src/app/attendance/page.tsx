@@ -1670,7 +1670,7 @@ export default function AttendancePage() {
             </div>
 
             {/* Mobile & Tablet Attendance Cards (< lg screens) */}
-            <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+            <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
               {excelAttendance.filteredData.map((s) => {
                 const dateObj = new Date(s.workDate);
                 const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
@@ -1678,7 +1678,7 @@ export default function AttendancePage() {
                 const roleBadge = getRoleBadge(s.employeeRole);
 
                 return (
-                  <div key={`att-card-${s.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                  <div key={`att-card-${s.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                     {/* Top: Staff Name, Role and Shift Status */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">

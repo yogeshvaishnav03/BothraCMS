@@ -2244,9 +2244,9 @@ export default function DayBookPage() {
                 </div>
 
                 {/* Mobile & Tablet Card View (< lg screens: No horizontal scroll) */}
-                <div className="lg:hidden divide-y divide-slate-100">
+                <div className="lg:hidden p-3 bg-slate-50/60 space-y-3">
                   {dayData!.moneyIn!.map((r: any) => (
-                    <div key={`m-in-card-${r.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                    <div key={`m-in-card-${r.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-slate-900 text-sm">
@@ -2542,9 +2542,9 @@ export default function DayBookPage() {
                     </div>
 
                     {/* Mobile & Tablet Card List */}
-                    <div className="lg:hidden divide-y divide-slate-100">
+                    <div className="lg:hidden p-3 bg-slate-50/60 space-y-2.5">
                       {dayData.attendance.map((a) => (
-                        <div key={`staff-att-card-${a.id}`} className="p-3 bg-white hover:bg-slate-50/70 transition flex items-center justify-between gap-2">
+                        <div key={`staff-att-card-${a.id}`} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition flex items-center justify-between gap-2">
                           <div>
                             <div className="font-bold text-slate-900 text-xs">{a.name || a.workforceMember?.name || "N/A"}</div>
                             <div className="text-[11px] text-slate-500 mt-0.5">
@@ -2625,9 +2625,9 @@ export default function DayBookPage() {
                     </div>
 
                     {/* Mobile & Tablet Trade Workers Card List */}
-                    <div className="lg:hidden divide-y divide-slate-100">
+                    <div className="lg:hidden p-3 bg-slate-50/60 space-y-2.5">
                       {(dayData?.workerAttendance || []).map((w: any) => (
-                        <div key={`w-att-card-${w.id}`} className="p-3 bg-white hover:bg-slate-50/70 transition flex items-center justify-between gap-2">
+                        <div key={`w-att-card-${w.id}`} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <div className="font-bold text-slate-900 text-xs truncate">{w.workforceMember?.name || "Worker"}</div>
                             <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">

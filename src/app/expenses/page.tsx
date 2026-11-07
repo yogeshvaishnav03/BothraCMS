@@ -823,9 +823,9 @@ export default function ExpensesPage() {
             </div>
 
             {/* Mobile & Tablet Card View (< lg screens: No horizontal scroll, secondary fields hidden) */}
-            <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+            <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
               {excelExpenses.filteredData.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">
+                <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                   <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <p className="font-semibold text-slate-700">No expenses match selected filters</p>
                   <button
@@ -842,7 +842,7 @@ export default function ExpensesPage() {
                   const isPending = exp.status === "PENDING_APPROVAL";
 
                   return (
-                    <div key={`exp-card-${exp.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                    <div key={`exp-card-${exp.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                       {/* Top: Title, Ref # and Status Badge */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">

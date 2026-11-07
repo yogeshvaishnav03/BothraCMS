@@ -1002,16 +1002,16 @@ export default function WorkforcePage() {
                 </div>
 
                 {/* Mobile & Tablet Headcount Cards (< lg screens) */}
-                <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+                <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
                   {excelHeadcount.filteredData.length === 0 ? (
-                    <div className="py-12 text-center text-slate-400">
+                    <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                       <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="font-semibold text-slate-700">No headcount records found</p>
                       <p className="text-xs text-slate-400">Try adjusting your filters.</p>
                     </div>
                   ) : (
                     excelHeadcount.filteredData.map((r) => (
-                      <div key={`hc-card-${r.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                      <div key={`hc-card-${r.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="font-bold text-slate-900 text-sm">{formatDate(r.date)}</div>

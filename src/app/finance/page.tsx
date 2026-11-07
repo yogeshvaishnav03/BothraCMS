@@ -1992,9 +1992,9 @@ export default function FinancePage() {
               </div>
 
               {/* Mobile & Tablet Payments Cards (< lg screens) */}
-              <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+              <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
                 {excelPayments.filteredData.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400">
+                  <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                     <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="font-semibold text-slate-700">No payments found</p>
                     <p className="text-xs text-slate-400">Try adjusting your search terms or filters.</p>
@@ -2010,7 +2010,7 @@ export default function FinancePage() {
                       currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
 
                     return (
-                      <div key={`p-card-${p.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                      <div key={`p-card-${p.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                         {/* Top: Payee, Type Pill & Status Badge */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
@@ -2280,16 +2280,16 @@ export default function FinancePage() {
               </div>
 
               {/* Mobile & Tablet Vendor Bills Cards (< lg screens) */}
-              <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+              <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
                 {excelBills.filteredData.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400">
+                  <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                     <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="font-semibold text-slate-700">No vendor bills found</p>
                     <p className="text-xs text-slate-400">Try adjusting your search terms or filter.</p>
                   </div>
                 ) : (
                   excelBills.filteredData.map((b) => (
-                    <div key={`b-card-${b.id}`} className="p-4 bg-white hover:bg-slate-50/70 transition-colors">
+                    <div key={`b-card-${b.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                       {/* Top: Bill Number, Vendor Link & Status Badge */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">

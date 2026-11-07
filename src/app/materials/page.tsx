@@ -1157,9 +1157,9 @@ export default function MaterialsPage() {
             </div>
 
             {/* Mobile & Tablet Card View (< lg screens: No horizontal scroll, secondary fields hidden) */}
-            <div className="lg:hidden divide-y divide-slate-100 min-h-[300px]">
+            <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
               {excelMaterials.filteredData.length === 0 ? (
-                <div className="py-12 text-center text-slate-400">
+                <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                   <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <p className="font-semibold text-slate-700">No materials match selected filters</p>
                   <p className="text-xs text-slate-400">Try clearing or adjusting column filters.</p>
@@ -1177,7 +1177,11 @@ export default function MaterialsPage() {
                   return (
                     <div
                       key={`card-${m.id}`}
-                      className={`p-4 transition-colors ${isExpanded ? "bg-amber-50/25" : "bg-white hover:bg-slate-50/70"}`}
+                      className={`p-4 rounded-xl border transition-all shadow-xs ${
+                        isExpanded
+                          ? "bg-white border-amber-300 ring-2 ring-amber-400/20 shadow-sm"
+                          : "bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-sm"
+                      }`}
                     >
                       {/* Top Row: Material Name, SKU & Status Badge */}
                       <div className="flex items-start justify-between gap-2">
