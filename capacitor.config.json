@@ -3,8 +3,14 @@
   "appName": "Bothra CMS",
   "webDir": "public",
   "server": {
+    "url": "https://bothra-cms.vercel.app",
     "androidScheme": "https",
     "cleartext": false
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
   },
   "android": {
     "allowMixedContent": false,

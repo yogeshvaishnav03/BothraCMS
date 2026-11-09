@@ -7,10 +7,18 @@
  * - Alerts pushed by the server show as phone notifications; tapping one
  *   opens its page.
  */
-const VERSION = "bothra-v6";
+const VERSION = "bothra-v7";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
-const SHELL = ["/offline", "/manifest.webmanifest", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-512-maskable.png"];
+const SHELL = [
+  "/offline",
+  "/manifest.webmanifest",
+  "/manifest.json",
+  "/icons/apple-touch-icon.png",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/icon-512-maskable.png",
+];
 
 // The no-signal page must work even if it was never opened, so its scripts and styles are kept too.
 async function precache() {
@@ -53,9 +61,17 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   // On localhost / dev server, bypass service worker caching completely
   if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return;
-  // The buyer portal, logging in and out, and file downloads are always live.
+  // The buyer portal, logging in and out, and file/binary downloads are always live.
   // (/api/auth/me is kept so the app still knows who is logged in with no signal.)
-  if ((url.pathname.startsWith("/api/auth") && url.pathname !== "/api/auth/me") || url.pathname.startsWith("/portal") || url.pathname.startsWith("/api/portal") || url.pathname.startsWith("/api/exports")) return;
+  if (
+    (url.pathname.startsWith("/api/auth") && url.pathname !== "/api/auth/me") ||
+    url.pathname.startsWith("/portal") ||
+    url.pathname.startsWith("/api/portal") ||
+    url.pathname.startsWith("/api/exports") ||
+    url.pathname.startsWith("/api/download")
+  ) {
+    return;
+  }
 
   if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/")) {
     event.respondWith(

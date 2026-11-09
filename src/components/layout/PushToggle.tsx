@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BellRing, BellOff, Loader2, Send } from "lucide-react";
+import { isIosDevice } from "@/lib/device-platform";
 
 /** The server's public key, from base64url to the bytes the browser wants. */
 export function keyBytes(base64url: string) {
@@ -12,11 +13,13 @@ export function keyBytes(base64url: string) {
 
 type State = "loading" | "unsupported" | "install" | "blocked" | "off" | "on";
 
-export const isIos = () => typeof navigator !== "undefined" && /iPhone|iPad|iPod/.test(navigator.userAgent);
+export const isIos = () => isIosDevice();
 export const isMobile = () =>
-  typeof navigator !== "undefined" && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  typeof navigator !== "undefined" &&
+  (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || isIosDevice());
 export const isInstalled = () =>
-  typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)").matches || (navigator as any).standalone === true);
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(display-mode: standalone)").matches || (navigator as any).standalone === true);
 
 /**
  * "Notifications on this device": turns Web Push on or off for this browser.
@@ -41,7 +44,9 @@ export function PushToggle() {
       const reg = await navigator.serviceWorker.getRegistration();
       const sub = await reg?.pushManager.getSubscription();
       if (!sub) return setState("off");
-      const res = await fetch(`/api/push?endpoint=${encodeURIComponent(sub.endpoint)}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      const res = await fetch(`/api/push?endpoint=${encodeURIComponent(sub.endpoint)}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .catch(() => null);
       setState(res?.data?.thisDevice ? "on" : "off");
     })().catch(() => setState("unsupported"));
   }, []);
@@ -180,7 +185,7 @@ export function PushToggle() {
       </div>
       {state === "install" && (
         <p className="text-slate-500 mt-1 text-[11px] leading-relaxed">
-          On iPhone / iPad, tap the Share icon ⎙ then &ldquo;Add to Home Screen&rdquo;, and open Bothra CMS from your home screen to enable push alerts.
+          On iPhone / iPad, open in Safari, tap the Share icon ⎙ then &ldquo;Add to Home Screen&rdquo;, and open Bothra CMS from your home screen to enable push alerts.
         </p>
       )}
       {state === "blocked" && (

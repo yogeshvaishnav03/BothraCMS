@@ -1,18 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { HardHat, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2, Smartphone, Download } from "lucide-react";
 import { useIsAppInstalled } from "@/components/pwa/useIsAppInstalled";
+import { detectDevicePlatform, type DevicePlatform } from "@/lib/device-platform";
 
 export default function LoginPage() {
-  const router = useRouter();
   const isAppInstalled = useIsAppInstalled();
+  const [platform, setPlatform] = useState<DevicePlatform>("desktop");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPlatform(detectDevicePlatform());
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,8 +56,18 @@ export default function LoginPage() {
     }
   };
 
+  const installCardTitle =
+    platform === "ios"
+      ? "Bothra CMS for iPhone & iPad"
+      : platform === "android"
+        ? "Bothra CMS for Android"
+        : "Bothra CMS Mobile App";
+
+  const installCardBadge =
+    platform === "ios" ? "iOS App" : platform === "android" ? "APK / App" : "iOS & Android";
+
   return (
-    <div className="relative min-h-screen bg-gradient-chrome flex flex-col justify-center items-center p-4 overflow-hidden selection:bg-amber-500 selection:text-slate-950">
+    <div className="relative min-h-screen bg-gradient-chrome flex flex-col justify-center items-center p-4 pt-safe pb-safe overflow-hidden selection:bg-amber-500 selection:text-slate-950">
       {/* Ambient blueprint grid and glow */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -76,7 +90,7 @@ export default function LoginPage() {
             Bothra <span className="text-gradient-brand">CMS</span>
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Construction Operations & Site Management Platform
+            Construction Operations &amp; Site Management Platform
           </p>
         </div>
 
@@ -156,7 +170,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Android / Mobile App Installation Card */}
+        {/* Mobile App Installation Card (iPhone & Android) */}
         {!isAppInstalled && (
           <div className="mt-4 p-4 rounded-2xl bg-white/[0.04] backdrop-blur-xl ring-1 ring-amber-500/30 flex items-center justify-between gap-3 shadow-xl">
             <div className="flex items-center gap-3 min-w-0">
@@ -165,12 +179,12 @@ export default function LoginPage() {
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
-                  <span>Bothra CMS for Android</span>
+                  <span>{installCardTitle}</span>
                   <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded border border-emerald-500/30">
-                    Native
+                    {installCardBadge}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400 truncate">Install app for offline & 1-tap site check-in</div>
+                <div className="text-[11px] text-slate-400 truncate">Install app for offline &amp; 1-tap site check-in</div>
               </div>
             </div>
             <Link

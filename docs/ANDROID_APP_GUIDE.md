@@ -1,5 +1,7 @@
 # Bothra CMS — Android Web Application & APK Guide
 
+> **Using iPhone / iPad (iOS) as well?** See the combined [Mobile App Guide (iPhone & Android)](./MOBILE_APP_GUIDE.md) — `.apk` files only run on Android, while `/install` automatically guides iPhone users through Safari **Add to Home Screen** and [`capacitor.config.json`](../capacitor.config.json) is configured for both `ios` and `android`.
+
 Bothra CMS is fully configured as a progressive native-feeling web application for Android smartphones and tablets. It can be installed directly from the browser as a native WebAPK without needing the Google Play Store, or compiled into a standalone `.apk` package.
 
 ---

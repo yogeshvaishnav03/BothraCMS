@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "Enterprise Construction Project, Site Operations & Financial Management Platform",
   manifest: "/manifest.webmanifest",
   applicationName: "Bothra CMS",
-  appleWebApp: { capable: true, title: "Bothra", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Bothra CMS", statusBarStyle: "black-translucent" },
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",

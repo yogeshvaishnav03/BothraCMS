@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bell, X, CheckCircle2, Loader2, Share } from "lucide-react";
 import { keyBytes, isIos, isMobile, isInstalled } from "@/components/layout/PushToggle";
+import { shouldShowIosPushInstallPrompt } from "@/lib/device-platform";
 
 export function NotificationBanner() {
   const [showPrompt, setShowPrompt] = useState(false);
@@ -11,12 +12,15 @@ export function NotificationBanner() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !("Notification" in window) || !("serviceWorker" in navigator)) {
+    if (typeof window === "undefined") {
       return;
     }
 
+    const hasNotificationApi = "Notification" in window;
+    const hasServiceWorker = "serviceWorker" in navigator;
+
     // 1. Silent Background Auto-Sync if permission is already granted
-    if (Notification.permission === "granted") {
+    if (hasNotificationApi && hasServiceWorker && Notification.permission === "granted") {
       (async () => {
         try {
           const reg = await navigator.serviceWorker.ready;
@@ -59,26 +63,38 @@ export function NotificationBanner() {
     }
 
     // 2. Check dismissal cooldown
-    const dismissedUntil = localStorage.getItem("bothra_push_prompt_dismissed_until");
+    let dismissedUntil: string | null = null;
+    try {
+      dismissedUntil = localStorage.getItem("bothra_push_prompt_dismissed_until");
+    } catch {}
     if (dismissedUntil && Number(dismissedUntil) > Date.now()) {
       return;
     }
 
-    // 3. For iOS Safari users where push requires "Add to Home Screen"
-    if (isIos() && !isInstalled()) {
+    // 3. For iOS Safari tabs, Notification does not exist until added to Home Screen
+    if (
+      shouldShowIosPushInstallPrompt({
+        ios: isIos(),
+        installed: isInstalled(),
+        hasNotificationApi,
+        notificationPermission: hasNotificationApi ? Notification.permission : undefined,
+      })
+    ) {
       setIsIosPrompt(true);
       setShowPrompt(true);
       return;
     }
 
     // 4. If permission is still "default", show enable banner
-    if (Notification.permission === "default") {
+    if (hasNotificationApi && hasServiceWorker && Notification.permission === "default") {
       setShowPrompt(true);
     }
   }, []);
 
   const handleDismiss = (days = 3) => {
-    localStorage.setItem("bothra_push_prompt_dismissed_until", String(Date.now() + days * 24 * 60 * 60 * 1000));
+    try {
+      localStorage.setItem("bothra_push_prompt_dismissed_until", String(Date.now() + days * 24 * 60 * 60 * 1000));
+    } catch {}
     setShowPrompt(false);
   };
 
@@ -131,7 +147,7 @@ export function NotificationBanner() {
   const deviceName = isMobile() ? "mobile device" : "laptop / PC";
 
   return (
-    <div className="fixed top-16 md:top-20 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] max-w-xl animate-fade-in pointer-events-auto">
+    <div className="fixed top-20 md:top-20 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] max-w-xl animate-fade-in pointer-events-auto">
       <div className="bg-slate-950/95 backdrop-blur-md border border-amber-500/40 text-white p-3.5 sm:p-4 rounded-2xl shadow-2xl flex items-start sm:items-center justify-between gap-3">
         <div className="flex items-start sm:items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
@@ -147,8 +163,8 @@ export function NotificationBanner() {
                 <p className="font-bold text-white flex items-center gap-1.5">
                   <span>Enable Alerts on iPhone</span>
                 </p>
-                <p className="text-slate-300 text-xs mt-0.5 flex items-center gap-1">
-                  Tap Share <Share className="w-3 h-3 inline text-amber-400" /> ➔ &ldquo;Add to Home Screen&rdquo; to turn on instant push alerts.
+                <p className="text-slate-300 text-xs mt-0.5 leading-relaxed">
+                  In Safari, tap Share <Share className="w-3.5 h-3.5 inline text-amber-400 mx-0.5 align-text-bottom" /> ➔ &ldquo;Add to Home Screen&rdquo; to install Bothra CMS and turn on instant push alerts.
                 </p>
               </div>
             ) : (

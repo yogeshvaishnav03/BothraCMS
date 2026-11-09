@@ -288,6 +288,20 @@
   .animate-in.slide-in-from-bottom-4 {
     animation-name: fade-up;
   }
+
+  /* iPhone / iPad notch, Dynamic Island & Home Indicator safe-area helpers */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .mobile-header-safe {
+    padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  }
+  .bottom-safe-offset {
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 @keyframes fade-up {
