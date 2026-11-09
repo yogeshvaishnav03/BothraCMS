@@ -1,13 +1,11 @@
 /* Bothra CMS service worker: lets the site app open with no signal.
  * - Built files (/_next/static) are kept once and reused.
- * - Pages and GET API calls go to the network first; the last good copy is
+ * - Navigations and /api/auth/me go to the network first; the last good copy is
  *   used when there is no signal, and /offline when there is none.
- * - Nothing that changes data is cached; saves made offline wait in the
- *   app's own outbox (IndexedDB) instead.
- * - Alerts pushed by the server show as phone notifications; tapping one
- *   opens its page.
+ * - Data API calls go straight to the network without service-worker cloning/cache writes.
+ * - Alerts pushed by the server show as phone notifications; tapping one opens its page.
  */
-const VERSION = "bothra-v7";
+const VERSION = "bothra-v8";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const SHELL = [
@@ -93,7 +91,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(networkFirst(request, "/offline"));
     return;
   }
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/uploads/")) {
+  if (url.pathname === "/api/auth/me") {
     event.respondWith(networkFirst(request));
   }
 });

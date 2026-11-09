@@ -7,6 +7,7 @@ import { roundQuantity, roundPaise } from "@/lib/financial-math";
 import { autoMigrateDatabase } from "@/lib/db-auto-migrate";
 
 function syncLegacyJson(entry: any) {
+  lastVerifiedJsonStat = null;
   try {
     const dir = path.resolve(process.cwd(), "storage", "data");
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -26,22 +27,35 @@ function syncLegacyJson(entry: any) {
   } catch {}
 }
 
+let lastVerifiedJsonStat: { mtimeMs: number; size: number } | null = null;
+
 function checkAndHealLegacyJsonBackup() {
   try {
     const storageFile = path.resolve(process.cwd(), "storage", "data", "measurement-book.json");
+    if (!fs.existsSync(storageFile)) return;
+    const stat = fs.statSync(storageFile);
+    if (
+      lastVerifiedJsonStat &&
+      stat.mtimeMs === lastVerifiedJsonStat.mtimeMs &&
+      stat.size === lastVerifiedJsonStat.size
+    ) {
+      return;
+    }
     const backupFile = path.resolve(process.cwd(), "storage", "data", "measurement-book.json.bak");
-    if (fs.existsSync(storageFile)) {
-      try {
-        const raw = fs.readFileSync(storageFile, "utf-8");
-        JSON.parse(raw);
-      } catch (err) {
-        if (fs.existsSync(backupFile)) {
-          const bakRaw = fs.readFileSync(backupFile, "utf-8");
-          try {
-            JSON.parse(bakRaw);
-            fs.writeFileSync(storageFile, bakRaw, "utf-8");
-          } catch {}
-        }
+    try {
+      const raw = fs.readFileSync(storageFile, "utf-8");
+      JSON.parse(raw);
+      lastVerifiedJsonStat = { mtimeMs: stat.mtimeMs, size: stat.size };
+    } catch {
+      lastVerifiedJsonStat = null;
+      if (fs.existsSync(backupFile)) {
+        const bakRaw = fs.readFileSync(backupFile, "utf-8");
+        try {
+          JSON.parse(bakRaw);
+          fs.writeFileSync(storageFile, bakRaw, "utf-8");
+          const healedStat = fs.statSync(storageFile);
+          lastVerifiedJsonStat = { mtimeMs: healedStat.mtimeMs, size: healedStat.size };
+        } catch {}
       }
     }
   } catch {}
@@ -1790,33 +1804,34 @@ export class MeasurementBookService {
     if (filters?.partyId) entryWhere.partyId = filters.partyId;
     if (filters?.status) entryWhere.status = filters.status;
 
-    const allEntries = await prisma.measurementBookEntry.findMany({
-      where: entryWhere,
-      include: {
-        project: { select: { id: true, name: true, code: true, siteId: true, site: { select: { id: true, name: true } } } },
-        party: { select: { id: true, name: true, partyType: true } },
-        group: { select: { id: true, name: true } },
-        subgroup: { select: { id: true, name: true, type: true } },
-        attachments: { where: { isDeleted: false }, orderBy: { createdAt: "desc" } },
-      },
-      orderBy: { createdAt: "asc" },
-    });
-
-    // Also fetch all groups in this organization
     const groupWhere: any = { organizationId };
     if (filters?.projectId) groupWhere.projectId = filters.projectId;
     if (filters?.partyId) groupWhere.partyId = filters.partyId;
 
-    let existingGroups = await prisma.measurementGroup.findMany({
-      where: groupWhere,
-      include: {
-        project: { select: { id: true, name: true, code: true, siteId: true, site: { select: { id: true, name: true } } } },
-        party: { select: { id: true, name: true, partyType: true } },
-        subgroups: {
-          orderBy: { sortOrder: "asc" },
+    const [allEntries, initialGroups] = await Promise.all([
+      prisma.measurementBookEntry.findMany({
+        where: entryWhere,
+        include: {
+          project: { select: { id: true, name: true, code: true, siteId: true, site: { select: { id: true, name: true } } } },
+          party: { select: { id: true, name: true, partyType: true } },
+          group: { select: { id: true, name: true } },
+          subgroup: { select: { id: true, name: true, type: true } },
+          attachments: { where: { isDeleted: false }, orderBy: { createdAt: "desc" } },
         },
-      },
-    });
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.measurementGroup.findMany({
+        where: groupWhere,
+        include: {
+          project: { select: { id: true, name: true, code: true, siteId: true, site: { select: { id: true, name: true } } } },
+          party: { select: { id: true, name: true, partyType: true } },
+          subgroups: {
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+      }),
+    ]);
+    let existingGroups = initialGroups;
 
     if (existingGroups.length === 0 && !filters?.projectId && !filters?.partyId) {
       // Auto-bootstrap default groups for active projects and contractor parties in the organization

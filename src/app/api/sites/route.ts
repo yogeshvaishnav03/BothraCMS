@@ -20,6 +20,32 @@ export async function GET(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
+    const compact = req.nextUrl.searchParams.get("compact") === "1";
+    if (compact) {
+      const sites = await prisma.site.findMany({
+        where: {
+          organizationId: user.organizationId,
+          status: "ACTIVE",
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          address: true,
+          status: true,
+          _count: {
+            select: {
+              projects: true,
+              workforceMembers: true,
+            },
+          },
+        },
+        orderBy: { name: "asc" },
+      });
+
+      return jsonSuccess(sites);
+    }
+
     const sites = await prisma.site.findMany({
       where: {
         organizationId: user.organizationId,

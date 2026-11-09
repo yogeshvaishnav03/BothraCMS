@@ -400,7 +400,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   // Keep today's view live without a manual refresh.
   useEffect(() => {
     if (!isToday) return;
-    const id = setInterval(() => load(true), 60_000);
+    const id = setInterval(() => { if (typeof document === "undefined" || !document.hidden) load(true); }, 60_000);
     return () => clearInterval(id);
   }, [isToday, load]);
 

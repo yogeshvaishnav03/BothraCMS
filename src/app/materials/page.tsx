@@ -9,6 +9,7 @@ import Shell from "@/components/layout/Shell";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatQuantity } from "@/lib/formatters";
 import {
   Boxes,
@@ -138,6 +139,7 @@ const STANDARD_CONSTRUCTION_MATERIALS: StandardMaterialCategory[] = [
 
 export default function MaterialsPage() {
   const { activeSiteId } = useActiveSite();
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
@@ -389,14 +391,9 @@ export default function MaterialsPage() {
   }, [activeSiteId]);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data?.user) {
-          setCurrentUser(res.data.user);
-        }
-      })
-      .catch(() => {});
+    refreshUser().then((u) => {
+      if (u) setCurrentUser(u);
+    });
     fetch("/api/parties?type=VENDOR")
       .then((r) => r.json())
       .then((res) => {
@@ -412,7 +409,7 @@ export default function MaterialsPage() {
       .then((res) => {
         if (res.success) setTasks(res.data || []);
       });
-  }, []);
+  }, [refreshUser]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

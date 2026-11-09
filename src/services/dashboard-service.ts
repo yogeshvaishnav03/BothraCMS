@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { bankAmount } from "@/lib/contractor-tds";
 import { roundPaise } from "@/lib/financial-math";
 import { UserContext } from "@/lib/auth";
-import { canReadFinance, isOrgOwnerOrAdmin, getUserAccessibleProjectIds } from "@/lib/server-auth";
+import { canReadFinance, getUserAccessibleProjectIds } from "@/lib/server-auth";
 import { InventoryService } from "@/services/inventory-service";
 import { WorkforceHeadcountService } from "@/services/workforce-headcount-service";
 
@@ -16,7 +16,7 @@ export class DashboardService {
     const hasFinanceAccess = userContext ? canReadFinance(userContext) : true;
     const accessibleProjectIds = userContext ? await getUserAccessibleProjectIds(userContext) : null;
 
-    // 1. Active Projects Count & List
+    // 1. Active Projects filter
     const activeProjectsWhere: any = {
       organizationId,
       status: { in: ["PLANNING", "IN_PROGRESS", "ACTIVE"] },
@@ -27,20 +27,7 @@ export class DashboardService {
       activeProjectsWhere.id = { in: accessibleProjectIds };
     }
 
-    const [activeProjectsCount, activeProjectsList] = await Promise.all([
-      prisma.project.count({ where: activeProjectsWhere }),
-      prisma.project.findMany({
-        where: activeProjectsWhere,
-        include: {
-          site: { select: { name: true, code: true } },
-          manager: { select: { name: true } },
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 10,
-      }),
-    ]);
-
-    // 2. Tasks Due Today
+    // 2. Tasks Due Today filter
     const tasksDueTodayWhere: any = {
       organizationId,
       dueAt: { gte: startOfToday, lte: endOfToday },
@@ -52,20 +39,7 @@ export class DashboardService {
       tasksDueTodayWhere.projectId = { in: accessibleProjectIds };
     }
 
-    const [tasksDueTodayCount, tasksDueTodayList] = await Promise.all([
-      prisma.task.count({ where: tasksDueTodayWhere }),
-      prisma.task.findMany({
-        where: tasksDueTodayWhere,
-        include: {
-          project: { select: { name: true } },
-          assignee: { select: { name: true } },
-        },
-        orderBy: { dueAt: "asc" },
-        take: 10,
-      }),
-    ]);
-
-    // 3. Tasks Overdue
+    // 3. Tasks Overdue filter
     const tasksOverdueWhere: any = {
       organizationId,
       dueAt: { lt: now },
@@ -77,35 +51,147 @@ export class DashboardService {
       tasksOverdueWhere.projectId = { in: accessibleProjectIds };
     }
 
-    const [tasksOverdueCount, tasksOverdueList] = await Promise.all([
-      prisma.task.count({ where: tasksOverdueWhere }),
+    // 4. Attendance filter
+    const attendanceWhere: any = {
+      organizationId,
+      workDate: todayStr,
+      status: { in: ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"] },
+      isArchived: false,
+    };
+    if (siteId) attendanceWhere.siteId = siteId;
+    if (accessibleProjectIds !== null) {
+      attendanceWhere.OR = [
+        { projectId: { in: accessibleProjectIds } },
+        { projectId: null },
+      ];
+    }
+
+    // Execute all independent metric queries in ONE parallel round-trip
+    const [
+      activeProjectsCount,
+      activeProjectsList,
+      tasksDueTodayCount,
+      tasksDueTodayList,
+      tasksOverdueCount,
+      tasksOverdueList,
+      allRecentRecords,
+      staffAttendanceCount,
+      attendanceList,
+      stockSummaries,
+      paymentsToday,
+      postedBills,
+    ] = await Promise.all([
+      prisma.project.count({ where: activeProjectsWhere }),
+      prisma.project.findMany({
+        where: activeProjectsWhere,
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          status: true,
+          budgetAmount: true,
+          site: { select: { name: true, code: true } },
+          manager: { select: { name: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 10,
+      }),
+      prisma.task.count({ where: tasksDueTodayWhere }),
       prisma.task.findMany({
-        where: tasksOverdueWhere,
-        include: {
+        where: tasksDueTodayWhere,
+        select: {
+          id: true,
+          title: true,
+          priority: true,
+          dueAt: true,
           project: { select: { name: true } },
           assignee: { select: { name: true } },
         },
         orderBy: { dueAt: "asc" },
         take: 10,
       }),
-    ]);
-
-    // 4. Site Workforce Headcount & Checked-in Attendance on Site Today (with fallback to latest logged count)
-    const [todaySummary, todayRecords, allRecentRecords] = await Promise.all([
-      WorkforceHeadcountService.getSummary(organizationId, siteId, todayStr).catch(() => ({
-        totalArtisan: 0,
-        totalCraftsman: 0,
-        totalLaborer: 0,
-        totalLaborerMale: 0,
-        totalLaborerFemale: 0,
-        grandTotal: 0,
-      })),
-      WorkforceHeadcountService.listRecords(organizationId, { siteId, date: todayStr }).catch(() => []),
+      prisma.task.count({ where: tasksOverdueWhere }),
+      prisma.task.findMany({
+        where: tasksOverdueWhere,
+        select: {
+          id: true,
+          title: true,
+          priority: true,
+          dueAt: true,
+          project: { select: { name: true } },
+          assignee: { select: { name: true } },
+        },
+        orderBy: { dueAt: "asc" },
+        take: 10,
+      }),
       WorkforceHeadcountService.listRecords(organizationId, { siteId }).catch(() => []),
+      prisma.attendanceSession.count({ where: attendanceWhere }).catch(() => 0),
+      prisma.attendanceSession
+        .findMany({
+          where: attendanceWhere,
+          select: {
+            id: true,
+            checkInAt: true,
+            status: true,
+            workforceMember: { select: { name: true, workerType: true } },
+            creator: { select: { name: true, role: true } },
+            site: { select: { name: true } },
+          },
+          orderBy: { checkInAt: "desc" },
+          take: 15,
+        })
+        .catch(() => []),
+      InventoryService.getAuthoritativeStockSummary(organizationId, siteId),
+      hasFinanceAccess
+        ? prisma.payment.findMany({
+            where: {
+              organizationId,
+              paymentDate: { gte: startOfToday, lte: endOfToday },
+              status: "POSTED",
+              isArchived: false,
+            },
+            select: {
+              id: true,
+              recipientName: true,
+              amount: true,
+              tdsAmount: true,
+              method: true,
+              referenceNumber: true,
+              payingAccount: true,
+              paymentDate: true,
+              party: { select: { name: true } },
+            },
+            orderBy: { paymentDate: "desc" },
+            take: 10,
+          })
+        : Promise.resolve([]),
+      hasFinanceAccess
+        ? prisma.bill.findMany({
+            where: { organizationId, status: "POSTED", isArchived: false },
+            select: {
+              id: true,
+              billNumber: true,
+              totalAmount: true,
+              dueDate: true,
+              party: { select: { name: true } },
+              allocations: {
+                where: { reversedAt: null, payment: { status: "POSTED" } },
+                select: { amount: true },
+              },
+            },
+            orderBy: { dueDate: "asc" },
+          })
+        : Promise.resolve([]),
     ]);
 
-    // Authoritative per-site resolution:
+    // Authoritative per-site workforce resolution from single headcount query:
     // For each site, prefer today's record; if none submitted today, fallback to the site's most recent record.
+    const todayRecords = allRecentRecords.filter((r) => r.date === todayStr);
+    const todaySummaryGrandTotal = todayRecords.reduce(
+      (s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0) + (r.craftsmanCount ?? r.craftsmanTotal ?? 0) + (r.laborerTotal || 0),
+      0
+    );
+
     const siteRecordsMap = new Map<string, any>();
     for (const r of todayRecords) {
       if (!siteRecordsMap.has(r.siteId)) {
@@ -122,7 +208,7 @@ export class DashboardService {
     const hasTodayData = todayRecords.length > 0 && effectiveRecords.every((r) => r.date === todayStr);
     const isLatestFallback = effectiveRecords.some((r) => r.date !== todayStr);
     const latestDate = allRecentRecords.length > 0 ? allRecentRecords[0].date : todayStr;
-    const activeDate = hasTodayData ? todayStr : (effectiveRecords[0]?.date || latestDate);
+    const activeDate = hasTodayData ? todayStr : effectiveRecords[0]?.date || latestDate;
 
     const effectiveArtisans = effectiveRecords.reduce((s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
     const effectiveCraftsmen = effectiveRecords.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
@@ -131,39 +217,10 @@ export class DashboardService {
     const effectiveLaborerFemale = effectiveRecords.reduce((s, r) => s + (r.laborerFemale || 0), 0);
     const effectiveGrandTotal = effectiveArtisans + effectiveCraftsmen + effectiveLaborers;
 
-    const attendanceWhere: any = {
-      organizationId,
-      workDate: todayStr,
-      status: { in: ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"] },
-      isArchived: false,
-    };
-    if (siteId) attendanceWhere.siteId = siteId;
-    if (accessibleProjectIds !== null) {
-      attendanceWhere.OR = [
-        { projectId: { in: accessibleProjectIds } },
-        { projectId: null },
-      ];
-    }
-
-    const [staffAttendanceCount, attendanceList] = await Promise.all([
-      prisma.attendanceSession.count({ where: attendanceWhere }).catch(() => 0),
-      prisma.attendanceSession.findMany({
-        where: attendanceWhere,
-        include: {
-          workforceMember: { select: { name: true, workerType: true } },
-          creator: { select: { name: true, role: true } },
-          site: { select: { name: true } },
-        },
-        orderBy: { checkInAt: "desc" },
-        take: 15,
-      }).catch(() => []),
-    ]);
-
     const workforceCount = effectiveGrandTotal;
     const totalWorkersPresentCount = workforceCount > 0 ? workforceCount : staffAttendanceCount;
 
-    // 5. Authoritative Low Stock Items from Inventory Ledger
-    const stockSummaries = await InventoryService.getAuthoritativeStockSummary(organizationId, siteId);
+    // Authoritative Low Stock Items
     const lowStockItems = stockSummaries.filter((m) => m.isLowStock);
     const lowStockItemsCount = lowStockItems.length;
     const lowStockItemsList = lowStockItems.slice(0, 10).map((mat) => ({
@@ -180,31 +237,17 @@ export class DashboardService {
       alertSeverity: mat.alertSeverity,
     }));
 
-    // 6. Financial Metrics (only calculated and exposed if user has finance:read permission)
+    // Financial Metrics (only exposed when user has finance:read permission)
     let paymentsMadeTodayAmount: number | undefined = undefined;
     let totalOutstandingPayablesAmount: number | undefined = undefined;
     let paymentsTodayList: any[] | undefined = undefined;
     let outstandingBillsList: any[] | undefined = undefined;
 
     if (hasFinanceAccess) {
-      const paymentsToday = await prisma.payment.findMany({
-        where: {
-          organizationId,
-          paymentDate: { gte: startOfToday, lte: endOfToday },
-          status: "POSTED",
-          isArchived: false,
-        },
-        include: {
-          party: { select: { name: true } },
-        },
-        orderBy: { paymentDate: "desc" },
-        take: 10,
-      });
-
       paymentsMadeTodayAmount = roundPaise(
         paymentsToday.reduce((sum: number, p: any) => sum + bankAmount(p), 0)
       );
-      paymentsTodayList = paymentsToday.map((p) => ({
+      paymentsTodayList = paymentsToday.map((p: any) => ({
         id: p.id,
         recipientName: p.recipientName || p.party?.name || "Payee",
         amount: p.amount,
@@ -214,20 +257,9 @@ export class DashboardService {
         paymentDate: p.paymentDate.toISOString(),
       }));
 
-      const postedBills = await prisma.bill.findMany({
-        where: { organizationId, status: "POSTED", isArchived: false },
-        include: {
-          party: { select: { name: true } },
-          allocations: {
-            where: { reversedAt: null, payment: { status: "POSTED" } },
-          },
-        },
-        orderBy: { dueDate: "asc" },
-      });
-
       let outstandingSum = 0;
       const billsList: any[] = [];
-      for (const b of postedBills) {
+      for (const b of postedBills as any[]) {
         const paid = roundPaise(b.allocations.reduce((sum: number, a: any) => sum + (a.amount ?? 0), 0));
         const remaining = roundPaise(b.totalAmount - paid);
         if (remaining > 0) {
@@ -266,7 +298,7 @@ export class DashboardService {
         totalLaborerFemale: effectiveLaborerFemale,
         isLatestFallback,
         activeDate,
-        todayGrandTotal: todaySummary.grandTotal,
+        todayGrandTotal: todaySummaryGrandTotal,
         records: (effectiveRecords || []).map((r) => ({
           id: r.id,
           siteId: r.siteId,

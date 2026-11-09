@@ -5,6 +5,8 @@ import { Bell, X, CheckCircle2, Loader2, Share } from "lucide-react";
 import { keyBytes, isIos, isMobile, isInstalled } from "@/components/layout/PushToggle";
 import { shouldShowIosPushInstallPrompt } from "@/lib/device-platform";
 
+let hasAutoSyncedPushThisSession = false;
+
 export function NotificationBanner() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIosPrompt, setIsIosPrompt] = useState(false);
@@ -19,8 +21,12 @@ export function NotificationBanner() {
     const hasNotificationApi = "Notification" in window;
     const hasServiceWorker = "serviceWorker" in navigator;
 
-    // 1. Silent Background Auto-Sync if permission is already granted
+    // 1. Silent Background Auto-Sync if permission is already granted (once per document load)
     if (hasNotificationApi && hasServiceWorker && Notification.permission === "granted") {
+      if (hasAutoSyncedPushThisSession) {
+        return;
+      }
+      hasAutoSyncedPushThisSession = true;
       (async () => {
         try {
           const reg = await navigator.serviceWorker.ready;

@@ -227,6 +227,9 @@ model Task {
 
   @@index([organizationId, projectId])
   @@index([status])
+  @@index([organizationId, isArchived, status])
+  @@index([organizationId, isArchived, dueAt])
+  @@index([organizationId, reminderDeliveredAt, reminderAt])
 }
 
 model TaskStatusHistory {
@@ -368,6 +371,7 @@ model StockMovement {
   attachments    Attachment[]
 
   @@index([organizationId, materialId, storeId])
+  @@index([organizationId, isArchived, materialId, storeId])
   @@index([movementAt])
 }
 
@@ -458,6 +462,8 @@ model Bill {
   @@unique([organizationId, partyId, billNumber])
   @@index([organizationId, partyId])
   @@index([status])
+  @@index([organizationId, status, isArchived])
+  @@index([organizationId, isArchived, billDate])
 }
 
 model BillLine {
@@ -526,6 +532,8 @@ model Payment {
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, partyId])
   @@index([paymentDate])
+  @@index([organizationId, status, isArchived])
+  @@index([organizationId, paymentDate])
 }
 
 model PaymentAllocation {
@@ -611,6 +619,7 @@ model AttendanceSession {
 
   @@unique([organizationId, workforceMemberId, siteId, workDate])
   @@index([organizationId, siteId, workDate])
+  @@index([organizationId, isArchived, workDate])
 }
 
 model AuditEvent {
@@ -630,6 +639,7 @@ model AuditEvent {
 
   @@index([organizationId, entityType, entityId])
   @@index([createdAt])
+  @@index([organizationId, createdAt])
 }
 
 model RateLimitRecord {
@@ -653,6 +663,7 @@ model IdempotencyRecord {
 
   @@unique([organizationId, key])
   @@index([organizationId, key])
+  @@index([organizationId, operation])
 }
 
 model PurchaseOrder {
@@ -745,6 +756,7 @@ model ChatMessage {
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+  @@index([conversationId, createdAt])
   @@index([senderId])
   @@index([createdAt])
 }
@@ -881,6 +893,7 @@ model Notification {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, userId, readAt])
+  @@index([organizationId, userId, createdAt])
   @@index([organizationId, entityType, entityId])
 }
 
@@ -1008,6 +1021,7 @@ model MeasurementBookEntry {
   @@index([billId])
   @@index([createdAt])
   @@index([isDeleted])
+  @@index([organizationId, isDeleted, status])
 }
 
 model MeasurementAttachment {

@@ -43,10 +43,12 @@ import {
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import CommandCenter from "@/components/dashboard/CommandCenter";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
+  const { refreshUser, refreshSites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [dashboardMode, setDashboardMode] = useState<"EXECUTIVE" | "EMPLOYEE">("EXECUTIVE");
   const [recentPhotos, setRecentPhotos] = useState<any[]>([]);
@@ -526,13 +528,14 @@ export default function DashboardPage() {
       fetch(projUrl, { cache: "no-store" }).then((r) => r.json()),
       fetch(`/api/tasks?${cb}`, { cache: "no-store" }).then((r) => r.json()),
       fetch(`/api/attendance?workDate=${todayStr}${siteId ? `&siteId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/materials?${cb}`, { cache: "no-store" }).then((r) => r.json()),
+
       fetch(`/api/workforce${siteId ? `?siteId=${siteId}` : ""}${siteId ? `&${cb}` : `?${cb}`}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/sites?${cb}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/auth/me?${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      refreshSites().then((data) => ({ data })),
+      refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
+
       fetch(`/api/attachments?category=PHOTO&entityType=SITE_PHOTO&limit=12${siteId ? `&projectId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
     ])
-      .then(([kpiRes, projRes, taskRes, attRes, matRes, wfRes, sitesRes, meRes, photoRes]) => {
+      .then(([kpiRes, projRes, taskRes, attRes, wfRes, sitesRes, meRes, photoRes]) => {
         if (meRes.success && meRes.data) {
           setCurrentUser(meRes.data.user);
         }

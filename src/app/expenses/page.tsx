@@ -5,6 +5,7 @@ import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
@@ -71,6 +72,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function ExpensesPage() {
   const { activeSiteId } = useActiveSite();
+  const { refreshUser, refreshSites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [sites, setSites] = useState<any[]>([]);
@@ -137,23 +139,13 @@ export default function ExpensesPage() {
   };
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data?.user) {
-          setCurrentUser(res.data.user);
-        }
-      })
-      .catch(() => {});
+    refreshUser().then((u) => {
+      if (u) setCurrentUser(u);
+    });
 
-    fetch("/api/sites")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && Array.isArray(res.data)) {
-          setSites(res.data);
-        }
-      })
-      .catch(() => {});
+    refreshSites().then((list) => {
+      if (Array.isArray(list)) setSites(list);
+    });
 
     fetch("/api/projects")
       .then((r) => r.json())
@@ -163,7 +155,7 @@ export default function ExpensesPage() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [refreshSites, refreshUser]);
 
   useEffect(() => {
     loadExpenses();

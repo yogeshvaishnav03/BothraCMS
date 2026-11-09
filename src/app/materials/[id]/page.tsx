@@ -5,6 +5,7 @@ import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 import { formatCurrency, formatQuantity, formatDateTime, formatDate } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
@@ -37,6 +38,7 @@ export default function MaterialDetailPage() {
   const materialId = params.id as string;
   const { t } = useLanguage();
 
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [ledgerData, setLedgerData] = useState<any>(null);
@@ -86,15 +88,12 @@ export default function MaterialDetailPage() {
   }, [materialId]);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setCurrentUser(res.data.user);
-        }
+    refreshUser()
+      .then((u) => {
+        if (u) setCurrentUser(u);
       })
       .catch(() => {});
-  }, []);
+  }, [refreshUser]);
 
   const handleApproveOrder = async (order: any) => {
     const confirmed = confirm(

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { PushToggle } from "@/components/layout/PushToggle";
 import { NotificationBanner } from "@/components/layout/NotificationBanner";
@@ -52,6 +52,9 @@ import { clearQueue, listQueued } from "@/lib/offline-queue";
 import { triggerAppInstall } from "@/components/pwa/AndroidInstallPrompt";
 import { useIsAppInstalled } from "@/components/pwa/useIsAppInstalled";
 import { detectDevicePlatform, type DevicePlatform } from "@/lib/device-platform";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
+
+let hasClearedDevSwThisLoad = false;
 
 interface ShellProps {
   children: React.ReactNode;
@@ -64,63 +67,42 @@ export default function Shell({ children }: ShellProps) {
   const router = useRouter();
   const { language, setLanguage, t, languages } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  const [sites, setSites] = useState<any[]>([]);
-  const [activeSiteId, setActiveSiteId] = useState<string>("");
-
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
-  const [chatToast, setChatToast] = useState<{
-    id: string;
-    senderName: string;
-    content: string;
-  } | null>(null);
-  const [alertToast, setAlertToast] = useState<{
-    id: string;
-    title: string;
-    message: string;
-    href: string;
-    severity?: string;
-  } | null>(null);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
-  const prevChatCountRef = useRef(0);
-  const prevAlertIdsRef = useRef<Set<string>>(new Set());
-  const isFirstAlertFetchRef = useRef(true);
-
-  // Synthesize a soft, clean alert chime (works cross-browser without external audio files)
-  const playAlertChime = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08); // A5
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.35);
-    } catch {}
-  }, []);
+  const {
+    user,
+    sites,
+    activeSiteId,
+    setActiveSiteId: setSharedActiveSiteId,
+    notifications,
+    unreadCount,
+    unreadChatCount,
+    chatToast,
+    setChatToast,
+    alertToast,
+    setAlertToast,
+    ensureSession,
+    markNotificationRead,
+    markAllNotificationsRead,
+    clearSessionCache,
+  } = useAppSession();
 
   // Live date and clock for the top bar (India time, the company's timezone).
   const [now, setNow] = useState<Date>(() => new Date());
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30_000);
+    const id = setInterval(() => {
+      if (typeof document === "undefined" || !document.hidden) {
+        setNow(new Date());
+      }
+    }, 30_000);
     return () => clearInterval(id);
   }, []);
 
-  // Evict stale service worker caches on local dev environment so updates load immediately
+  // Evict stale service worker caches on local dev environment once per page load
   useEffect(() => {
+    if (hasClearedDevSwThisLoad) return;
+    hasClearedDevSwThisLoad = true;
     if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.getRegistrations().then((registrations) => {
@@ -146,148 +128,13 @@ export default function Shell({ children }: ShellProps) {
   });
   const clock = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
 
-  // Fetch operational alerts and unread chat message counts
-  const fetchNotifications = useCallback(() => {
-    fetch("/api/notifications", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setNotifications(res.data.alerts || []);
-          setUnreadCount(res.data.unreadCount || 0);
-
-          const newChatCount = res.data.unreadChatCount || 0;
-          setUnreadChatCount(newChatCount);
-
-          // If count increased and user is not currently in /chat, show toast notification!
-          if (newChatCount > prevChatCountRef.current && res.data.latestChatMessage) {
-            if (pathname !== "/chat") {
-              setChatToast(res.data.latestChatMessage);
-            }
-          }
-          prevChatCountRef.current = newChatCount;
-
-          // Track newly arrived unread operational alerts for laptops and mobile
-          const currentAlerts = res.data.alerts || [];
-          if (isFirstAlertFetchRef.current) {
-            prevAlertIdsRef.current = new Set(currentAlerts.map((a: any) => a.id));
-            isFirstAlertFetchRef.current = false;
-          } else {
-            const newlyArrived = currentAlerts.filter(
-              (a: any) => !a.isRead && !prevAlertIdsRef.current.has(a.id)
-            );
-            if (newlyArrived.length > 0) {
-              const latest = newlyArrived[0];
-              setAlertToast({
-                id: latest.id,
-                title: latest.title,
-                message: latest.message,
-                href: latest.href || "/",
-                severity: latest.severity,
-              });
-              playAlertChime();
-
-              // Trigger native Desktop/Mobile Web Notification when tab is backgrounded
-              if (
-                typeof window !== "undefined" &&
-                "Notification" in window &&
-                Notification.permission === "granted" &&
-                document.hidden
-              ) {
-                try {
-                  const n = new Notification(latest.title, {
-                    body: latest.message,
-                    icon: "/icons/icon-192.png",
-                    badge: "/icons/icon-192.png",
-                    tag: latest.id,
-                  });
-                  n.onclick = () => {
-                    window.focus();
-                    if (latest.href) router.push(latest.href);
-                    n.close();
-                  };
-                } catch {}
-              }
-            }
-            prevAlertIdsRef.current = new Set(currentAlerts.map((a: any) => a.id));
-          }
-        }
-      })
-      .catch(() => {});
-  }, [pathname, playAlertChime, router]);
-
   const handleMarkAsRead = async (notifId: string, href?: string) => {
-    const target = notifications.find((n) => n.id === notifId);
-    if (!target || target.isRead) {
-      if (href) {
-        setNotificationsOpen(false);
-        router.push(href);
-      }
-      return;
-    }
-
-    // Optimistic update
-    const prevNotifications = [...notifications];
-    const prevCount = unreadCount;
-    setUnreadCount((c) => Math.max(0, c - 1));
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n))
-    );
-
-    try {
-      const res = await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationId: notifId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        // Rollback
-        setUnreadCount(prevCount);
-        setNotifications(prevNotifications);
-      } else {
-        window.dispatchEvent(new CustomEvent("refreshNotifications"));
-      }
-    } catch {
-      // Rollback on network failure
-      setUnreadCount(prevCount);
-      setNotifications(prevNotifications);
-    }
-
-    if (href) {
-      setNotificationsOpen(false);
-      router.push(href);
-    }
+    if (href) setNotificationsOpen(false);
+    await markNotificationRead(notifId, href);
   };
 
   const handleMarkAllAsRead = async () => {
-    if (unreadCount === 0) return;
-    const prevNotifications = [...notifications];
-    const prevCount = unreadCount;
-    const alertIds = notifications.map((n) => n.id);
-
-    // Optimistic update
-    setUnreadCount(0);
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-
-    try {
-      const res = await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true, alertIds }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        // Rollback
-        setUnreadCount(prevCount);
-        setNotifications(prevNotifications);
-      } else {
-        window.dispatchEvent(new CustomEvent("refreshNotifications"));
-      }
-    } catch {
-      // Rollback
-      setUnreadCount(prevCount);
-      setNotifications(prevNotifications);
-    }
+    await markAllNotificationsRead();
   };
 
   useEffect(() => {
@@ -302,73 +149,8 @@ export default function Shell({ children }: ShellProps) {
         : "Install Mobile App";
 
   useEffect(() => {
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then((res) => {
-        if (!res.ok) {
-          router.push("/login");
-          return null;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data && data.success) {
-          setUser(data.data.user);
-        }
-      })
-      // No signal is not the same as logged out: keep the page (the site app works offline).
-      .catch(() => {
-        if (navigator.onLine) router.push("/login");
-      })
-      .finally(() => setLoading(false));
-
-    fetch("/api/sites", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((res) => {
-        const sitesList = res.data || [];
-        if (sitesList.length > 0) {
-          setSites(sitesList);
-          const saved = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") : null;
-          const matched = saved ? sitesList.find((s: any) => s.id === saved) : null;
-          const initialId = matched ? matched.id : "";
-          setActiveSiteId(initialId);
-          document.cookie = `buildtrack_active_site=${initialId}; path=/; max-age=31536000; SameSite=Lax`;
-        }
-      })
-      .catch((err) => {
-        console.error("Authoritative sites load failed:", err);
-      });
-
-    fetchNotifications();
-
-    // Background interval poll (every 5 seconds) to catch incoming messages in real-time
-    const interval = setInterval(fetchNotifications, 5000);
-    const handleRefresh = () => fetchNotifications();
-    window.addEventListener("refreshNotifications", handleRefresh);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("refreshNotifications", handleRefresh);
-    };
-  }, [router, fetchNotifications]);
-
-  // Synchronize activeSiteId in Shell with external updates from child pages and tabs
-  useEffect(() => {
-    const handleSiteChangeExt = (e: any) => {
-      const newSiteId = e.detail?.siteId !== undefined ? e.detail.siteId : (localStorage.getItem("buildtrack_active_site") || "");
-      setActiveSiteId(newSiteId);
-    };
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === "buildtrack_active_site") {
-        setActiveSiteId(e.newValue || "");
-      }
-    };
-    window.addEventListener("siteChanged", handleSiteChangeExt);
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      window.removeEventListener("siteChanged", handleSiteChangeExt);
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, []);
+    ensureSession();
+  }, [ensureSession]);
 
   // Auto-dismiss chat toast after 6 seconds
   useEffect(() => {
@@ -376,14 +158,14 @@ export default function Shell({ children }: ShellProps) {
       const timer = setTimeout(() => setChatToast(null), 6000);
       return () => clearTimeout(timer);
     }
-  }, [chatToast]);
+  }, [chatToast, setChatToast]);
 
   // Clear toast if navigating to /chat
   useEffect(() => {
     if (pathname === "/chat") {
       setChatToast(null);
     }
-  }, [pathname]);
+  }, [pathname, setChatToast]);
 
   // Auto-dismiss in-app operational alert toast
   useEffect(() => {
@@ -391,15 +173,10 @@ export default function Shell({ children }: ShellProps) {
       const timer = setTimeout(() => setAlertToast(null), 7000);
       return () => clearTimeout(timer);
     }
-  }, [alertToast]);
+  }, [alertToast, setAlertToast]);
 
   const handleSiteChange = (siteId: string) => {
-    setActiveSiteId(siteId);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("buildtrack_active_site", siteId);
-      document.cookie = `buildtrack_active_site=${siteId}; path=/; max-age=31536000; SameSite=Lax`;
-      window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId } }));
-    }
+    setSharedActiveSiteId(siteId);
   };
 
   const handleLogout = async () => {
@@ -409,6 +186,7 @@ export default function Shell({ children }: ShellProps) {
     await clearQueue().catch(() => {});
     // Pages kept for offline use belong to this login.
     if ("caches" in window) await caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => {});
+    clearSessionCache();
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
   };
@@ -563,22 +341,6 @@ export default function Shell({ children }: ShellProps) {
       ))}
     </select>
   );
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-chrome flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 animate-fade-in">
-          <div className="relative w-14 h-14">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-brand shadow-glow animate-pulse" />
-            <div className="absolute inset-0 flex items-center justify-center font-display font-extrabold text-2xl text-slate-950">
-              B
-            </div>
-          </div>
-          <span className="text-slate-400 text-sm font-medium">{t("nav.loading", "Loading Bothra CMS…")}</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row overflow-x-clip">

@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 
 interface AttendanceRecord {
   id: string;
@@ -120,6 +121,7 @@ function getRoleBadge(role?: string) {
 
 export default function AttendancePage() {
   const { activeSiteId, setActiveSiteId } = useActiveSite();
+  const { user: sessionUser, refreshUser, refreshSites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState("");
@@ -209,63 +211,61 @@ export default function AttendancePage() {
     setErrorMessage(null);
 
     try {
-      const [authRes, sitesRes, shiftRes] = await Promise.all([
-        fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
-        fetch("/api/sites", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      const resolveScope = (u: any) =>
+        scopeOverride ||
+        (u?.role === "SUPER_ADMIN"
+          ? "all"
+          : activeTab === "all" && ["ORG_ADMIN", "HR_VIEWER", "AUDITOR"].includes(u?.role)
+          ? "all"
+          : "self");
+
+      const userPromise = sessionUser ? Promise.resolve(sessionUser) : refreshUser();
+      const historyPromise = userPromise.then((u) =>
+        fetch(`/api/attendance/history?months=3&scope=${resolveScope(u)}`, {
+          cache: "no-store",
+        })
+          .then((r) => r.json())
+          .catch(() => ({}))
+      );
+      const usersPromise = userPromise.then((u) =>
+        u && ["SUPER_ADMIN", "ORG_ADMIN"].includes(u.role)
+          ? fetch("/api/users", { cache: "no-store" })
+              .then((r) => r.json())
+              .catch(() => null)
+          : null
+      );
+
+      const [user, rawSites, shiftRes, historyRes, usersRes] = await Promise.all([
+        userPromise,
+        refreshSites(),
         fetch("/api/attendance/shifts", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+        historyPromise,
+        usersPromise,
       ]);
 
       if (shiftRes?.success && shiftRes.data) {
         setShiftSettings(shiftRes.data);
       }
 
-      const user = authRes?.data?.user;
       if (user) {
         setCurrentUser(user);
-        // If not privileged and first load, lock to "my"
         if (!["SUPER_ADMIN", "ORG_ADMIN", "HR_VIEWER", "AUDITOR"].includes(user.role)) {
           setActiveTab("my");
         }
+      }
 
-        // Pre-fetch team users for admin alteration modal
-        if (["SUPER_ADMIN", "ORG_ADMIN"].includes(user.role)) {
-          fetch("/api/users", { cache: "no-store" })
-            .then((r) => r.json())
-            .then((usersRes) => {
-              if (usersRes?.success && usersRes.data) {
-                setStaffUsers(usersRes.data);
-                if (usersRes.data.length > 0) {
-                  setAlterUserId((prev) => prev || usersRes.data[0].id);
-                }
-              }
-            })
-            .catch(() => {});
+      if (usersRes?.success && usersRes.data) {
+        setStaffUsers(usersRes.data);
+        if (usersRes.data.length > 0) {
+          setAlterUserId((prev) => prev || usersRes.data[0].id);
         }
       }
 
-      if (sitesRes?.success && sitesRes.data) {
-        const rawSites = sitesRes.data || [];
+      if (Array.isArray(rawSites) && rawSites.length > 0) {
         setSites(rawSites);
-        if (rawSites.length > 0) {
-          setSelectedSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
-          setAlterSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
-        }
+        setSelectedSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
+        setAlterSiteId((prev) => (rawSites.some((s: any) => s.id === prev) ? prev : rawSites[0].id));
       }
-
-      const isSuper = user?.role === "SUPER_ADMIN";
-      const targetScope =
-        scopeOverride ||
-        (isSuper
-          ? "all"
-          : activeTab === "all" && ["ORG_ADMIN", "HR_VIEWER", "AUDITOR"].includes(user?.role)
-          ? "all"
-          : "self");
-
-      const historyRes = await fetch(`/api/attendance/history?months=3&scope=${targetScope}`, {
-        cache: "no-store",
-      })
-        .then((r) => r.json())
-        .catch(() => ({}));
 
       if (historyRes?.success && historyRes.data) {
         setTodaySession(historyRes.data.todaySession || null);

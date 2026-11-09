@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { ContactActions } from "@/components/ui/ContactActions";
@@ -1047,6 +1048,7 @@ function Register({ canManage }: { canManage: boolean }) {
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function WorkReportsPage() {
+  const { refreshUser } = useAppSession();
   const [user, setUser] = useState<any>(null);
   const [tab, setTab] = useState<"me" | "team" | "register">("me");
   const [initialDate, setInitialDate] = useState(todayIst());
@@ -1055,10 +1057,8 @@ export default function WorkReportsPage() {
     const params = new URLSearchParams(window.location.search);
     const d = params.get("date");
     if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setInitialDate(d);
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((j) => {
-        const u = j?.data?.user;
+    refreshUser()
+      .then((u) => {
         setUser(u || null);
         const t = params.get("tab");
         const team = u && ["SUPER_ADMIN", "ORG_ADMIN", "HR_VIEWER"].includes(u.role);
@@ -1066,7 +1066,7 @@ export default function WorkReportsPage() {
         else if (team && !t && u.role !== "HR_VIEWER") setTab("team");
       })
       .catch(() => {});
-  }, []);
+  }, [refreshUser]);
 
   const canViewTeam = !!user && ["SUPER_ADMIN", "ORG_ADMIN", "HR_VIEWER"].includes(user.role);
   const canManage = !!user && ["SUPER_ADMIN", "ORG_ADMIN"].includes(user.role);

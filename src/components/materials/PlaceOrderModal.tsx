@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { formatCurrency, formatQuantity } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import {
   ShoppingCart,
   Send,
@@ -50,6 +51,7 @@ export default function PlaceOrderModal({
   initialMaterial,
 }: PlaceOrderModalProps) {
   const { t } = useLanguage();
+  const { refreshUser } = useAppSession();
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [materials, setMaterials] = useState<any[]>([]);
@@ -86,12 +88,9 @@ export default function PlaceOrderModal({
 
     setLoading(true);
 
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setCurrentUser(res.data.user);
-        }
+    refreshUser()
+      .then((u) => {
+        if (u) setCurrentUser(u);
       })
       .catch(() => {});
 
@@ -154,7 +153,7 @@ export default function PlaceOrderModal({
         setErrorMessage("Failed to load required vendors and materials");
       })
       .finally(() => setLoading(false));
-  }, [isOpen, initialMaterial]);
+  }, [isOpen, initialMaterial, refreshUser]);
 
   useEffect(() => {
     if (!isOpen) return;

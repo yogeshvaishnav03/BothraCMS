@@ -5,6 +5,7 @@ import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatDate, formatQuantity, formatDateTime } from "@/lib/formatters";
 import {
   Building2,
@@ -38,6 +39,7 @@ export default function PartyStatementPage() {
   const params = useParams();
   const partyId = params.id as string;
 
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [statementData, setStatementData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -75,17 +77,14 @@ export default function PartyStatementPage() {
   };
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setCurrentUser(res.data.user);
-        }
+    refreshUser()
+      .then((u) => {
+        if (u) setCurrentUser(u);
       })
       .catch(() => {});
     loadStatementAndOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partyId]);
+  }, [partyId, refreshUser]);
 
   const bills = useMemo(() => statementData?.bills || [], [statementData]);
   const payments = useMemo(() => statementData?.payments || [], [statementData]);

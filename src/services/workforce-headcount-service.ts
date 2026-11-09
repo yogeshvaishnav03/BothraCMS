@@ -48,6 +48,9 @@ export interface SaveHeadcountInput {
   notes?: string;
 }
 
+const EMPTY_LEGACY_TTL_MS = 60_000;
+const emptyLegacyOrgCache = new Map<string, number>();
+
 function normalizeDbRecord(r: any): WorkforceHeadcountRecord {
   const artisanCount = Number(r.artisanCount) || 0;
   const craftsmanCount = Number(r.craftsmanCount) || 0;
@@ -114,6 +117,12 @@ export class WorkforceHeadcountService {
       console.warn("Notice: WorkforceHeadcount table query fallback:", err);
     }
 
+    // Avoid repeated IdempotencyRecord scans when this org has recently been confirmed to have 0 legacy records
+    const cachedEmptyAt = emptyLegacyOrgCache.get(organizationId);
+    if (cachedEmptyAt && Date.now() - cachedEmptyAt < EMPTY_LEGACY_TTL_MS) {
+      return [];
+    }
+
     // Fallback: Query legacy IdempotencyRecords if table has not yet been populated
     const recordsMap = new Map<string, WorkforceHeadcountRecord>();
     try {
@@ -122,8 +131,14 @@ export class WorkforceHeadcountService {
           organizationId,
           operation: "WORKFORCE_HEADCOUNT",
         },
+        select: { responseBodyJson: true },
         orderBy: { createdAt: "desc" },
       });
+
+      if (idempRecords.length === 0) {
+        emptyLegacyOrgCache.set(organizationId, Date.now());
+        return [];
+      }
 
       for (const rec of idempRecords) {
         try {
@@ -163,12 +178,14 @@ export class WorkforceHeadcountService {
     if (!input.siteId) {
       throw new Error("Target site is required to upload workforce count");
     }
+    emptyLegacyOrgCache.delete(organizationId);
 
     // Resolve site name
     let siteName = "Site";
     try {
       const site = await prisma.site.findFirst({
         where: { id: input.siteId, organizationId },
+        select: { name: true },
       });
       if (site) {
         siteName = site.name;
@@ -305,6 +322,7 @@ export class WorkforceHeadcountService {
    * Delete a headcount record
    */
   static async deleteRecord(organizationId: string, id: string): Promise<boolean> {
+    emptyLegacyOrgCache.delete(organizationId);
     try {
       const del = await prisma.workforceHeadcount.deleteMany({
         where: { id, organizationId },

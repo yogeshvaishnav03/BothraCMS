@@ -8,6 +8,7 @@ import { ContactActions, WhatsAppIcon } from "@/components/ui/ContactActions";
 import { whatsappLink } from "@/lib/contact-links";
 import { formatDateTime } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import {
   MessageSquare,
   Users,
@@ -157,6 +158,7 @@ function compressImageToDataUrl(file: File, maxDimension = 1280, quality = 0.8):
 export default function ChatPage() {
   const { t } = useLanguage();
 
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -395,7 +397,7 @@ export default function ChatPage() {
   const loadChatData = useCallback(async () => {
     try {
       const [userRes, convRes, empRes] = await Promise.all([
-        safeFetchJson("/api/auth/me"),
+        refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
         safeFetchJson("/api/chat/conversations"),
         safeFetchJson("/api/chat/employees"),
       ]);
@@ -420,7 +422,7 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshUser]);
 
   useEffect(() => {
     loadChatData();
@@ -528,6 +530,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!activeConversationId) return;
     const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       loadMessages(activeConversationId, true);
     }, 4000);
     return () => clearInterval(interval);
@@ -536,6 +539,7 @@ export default function ChatPage() {
   // Auto-poll conversations list every 6 seconds to keep previews and unread badges updated
   useEffect(() => {
     const interval = setInterval(async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       try {
         const convRes = await safeFetchJson("/api/chat/conversations");
         if (convRes.success && convRes.data?.conversations) {

@@ -8,6 +8,9 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
+const REMINDER_SWEEP_TTL_MS = 20_000;
+const lastReminderSweepByOrg = new Map<string, number>();
+
 export interface OperationalAlert {
   id: string;
   type:
@@ -43,26 +46,226 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
 
-    // 0. Automatically trigger idempotent due task reminder delivery
-    await ReminderService.deliverDueReminders(user.organizationId);
+    // 0. Automatically trigger idempotent due task reminder delivery (throttled per org to avoid hot-poll scans)
+    const nowMs = Date.now();
+    const lastSweep = lastReminderSweepByOrg.get(user.organizationId) || 0;
+    if (nowMs - lastSweep >= REMINDER_SWEEP_TTL_MS) {
+      lastReminderSweepByOrg.set(user.organizationId, nowMs);
+      await ReminderService.deliverDueReminders(user.organizationId);
+    }
 
     const alerts: OperationalAlert[] = [];
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
     const hasFinanceAccess = canReadFinance(user);
+    const isAdminRole = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
 
-    // Retrieve all read notification and alert identifiers for the current user
-    const readNotifications = await prisma.notification.findMany({
-      where: {
-        organizationId: user.organizationId,
-        userId: user.userId,
-        readAt: { not: null },
-      },
-      select: {
-        id: true,
-        entityId: true,
-      },
-    });
+    // Run all independent operational queries concurrently with minimal field projections
+    const [
+      readNotifications,
+      userNotifications,
+      pendingOrders,
+      pendingPayments,
+      lowStockItems,
+      overdueBills,
+      danglingSessions,
+      shiftSettings,
+      userTodaySession,
+      otherOpenSessions,
+      activeOrders,
+      userParticipantConvs,
+    ] = await Promise.all([
+      prisma.notification.findMany({
+        where: {
+          organizationId: user.organizationId,
+          userId: user.userId,
+          readAt: { not: null },
+        },
+        select: {
+          id: true,
+          entityId: true,
+        },
+      }),
+      prisma.notification.findMany({
+        where: {
+          organizationId: user.organizationId,
+          userId: user.userId,
+          type: { not: "OPERATIONAL_ALERT" },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      isAdminRole
+        ? prisma.purchaseOrder.findMany({
+            where: {
+              organizationId: user.organizationId,
+              status: "PENDING_APPROVAL",
+            },
+            select: {
+              id: true,
+              orderNumber: true,
+              quantity: true,
+              unitCode: true,
+              totalAmount: true,
+              createdAt: true,
+              material: { select: { id: true, name: true, unitCode: true } },
+              vendor: { select: { name: true } },
+              creator: { select: { name: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          })
+        : Promise.resolve([]),
+      isAdminRole && hasFinanceAccess
+        ? prisma.payment.findMany({
+            where: {
+              organizationId: user.organizationId,
+              status: "PENDING_APPROVAL",
+              isArchived: false,
+            },
+            select: {
+              id: true,
+              amount: true,
+              recipientName: true,
+              recipientType: true,
+              payingAccount: true,
+              approvalQuery: true,
+              createdAt: true,
+              party: { select: { name: true } },
+              creator: { select: { name: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          })
+        : Promise.resolve([]),
+      InventoryService.getLowStockAlerts(user.organizationId),
+      hasFinanceAccess
+        ? prisma.bill.findMany({
+            where: {
+              organizationId: user.organizationId,
+              status: "POSTED",
+              isArchived: false,
+              dueDate: { lt: now },
+            },
+            select: {
+              id: true,
+              billNumber: true,
+              totalAmount: true,
+              dueDate: true,
+              party: { select: { name: true } },
+              allocations: {
+                where: { reversedAt: null },
+                select: { amount: true },
+              },
+            },
+            take: 10,
+          })
+        : Promise.resolve([]),
+      prisma.attendanceSession.findMany({
+        where: {
+          organizationId: user.organizationId,
+          workDate: { lt: todayStr },
+          checkOutAt: null,
+          isArchived: false,
+        },
+        select: {
+          id: true,
+          workDate: true,
+          checkInAt: true,
+          workforceMember: { select: { name: true } },
+          site: { select: { name: true } },
+        },
+        take: 10,
+      }),
+      attendanceShiftSettings(user.organizationId),
+      prisma.attendanceSession.findFirst({
+        where: {
+          organizationId: user.organizationId,
+          workDate: todayStr,
+          createdBy: user.userId,
+          checkOutAt: null,
+          isArchived: false,
+        },
+        select: {
+          checkInAt: true,
+          site: { select: { name: true } },
+        },
+      }),
+      isAdminRole
+        ? prisma.attendanceSession.findMany({
+            where: {
+              organizationId: user.organizationId,
+              workDate: todayStr,
+              checkOutAt: null,
+              isArchived: false,
+              createdBy: { not: user.userId },
+            },
+            select: {
+              id: true,
+              checkInAt: true,
+              workforceMember: { select: { name: true } },
+              site: { select: { name: true } },
+            },
+            take: 5,
+          })
+        : Promise.resolve([]),
+      prisma.purchaseOrder.findMany({
+        where: {
+          organizationId: user.organizationId,
+          status: { in: ["APPROVED", "PLACED"] },
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          quantity: true,
+          unitCode: true,
+          materialId: true,
+          createdAt: true,
+          material: { select: { name: true } },
+          vendor: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
+      prisma.conversationParticipant.findMany({
+        where: {
+          userId: user.userId,
+          conversation: {
+            organizationId: user.organizationId,
+          },
+        },
+        select: {
+          lastReadAt: true,
+          conversation: {
+            select: {
+              id: true,
+              type: true,
+              name: true,
+              participants: {
+                select: {
+                  userId: true,
+                  user: { select: { id: true, name: true, role: true } },
+                },
+              },
+              messages: {
+                where: {
+                  senderId: { not: user.userId },
+                },
+                orderBy: { createdAt: "desc" },
+                take: 5,
+                select: {
+                  id: true,
+                  content: true,
+                  imageUrl: true,
+                  createdAt: true,
+                  sender: { select: { id: true, name: true, role: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
 
     const readEntityIdSet = new Set<string>();
     for (const rn of readNotifications) {
@@ -78,16 +281,6 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. In-App User Notifications (e.g. Task Reminders)
-    const userNotifications = await prisma.notification.findMany({
-      where: {
-        organizationId: user.organizationId,
-        userId: user.userId,
-        type: { not: "OPERATIONAL_ALERT" },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-
     for (const notif of userNotifications) {
       const isRead =
         !!notif.readAt ||
@@ -107,80 +300,45 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Pending Order Approval Queries for Super Admin / Org Admin
-    if (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN") {
-      const pendingOrders = await prisma.purchaseOrder.findMany({
-        where: {
-          organizationId: user.organizationId,
-          status: "PENDING_APPROVAL",
-        },
-        include: {
-          material: { select: { id: true, name: true, unitCode: true } },
-          vendor: { select: { name: true } },
-          creator: { select: { name: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 10,
+    for (const po of pendingOrders) {
+      const totalStr =
+        po.totalAmount && hasFinanceAccess
+          ? ` (₹${(po.totalAmount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })})`
+          : "";
+      const alertId = `order-approval-${po.id}`;
+      const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(po.id);
+      alerts.push({
+        id: alertId,
+        type: "ORDER_APPROVAL_REQUEST",
+        severity: "WARNING",
+        title: `Super Admin Approval: ${po.orderNumber}`,
+        message: `${po.creator?.name || "Requester"} submitted order query for ${po.quantity} ${po.unitCode} ${po.material.name} from ${po.vendor.name}${totalStr}. Super Admin confirmation required.`,
+        href: "/admin",
+        createdAt: po.createdAt.toISOString(),
+        isRead,
       });
+    }
 
-      for (const po of pendingOrders) {
-        const totalStr =
-          po.totalAmount && hasFinanceAccess
-            ? ` (₹${(po.totalAmount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })})`
-            : "";
-        const alertId = `order-approval-${po.id}`;
-        const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(po.id);
-        alerts.push({
-          id: alertId,
-          type: "ORDER_APPROVAL_REQUEST",
-          severity: "WARNING",
-          title: `Super Admin Approval: ${po.orderNumber}`,
-          message: `${po.creator?.name || "Requester"} submitted order query for ${po.quantity} ${po.unitCode} ${po.material.name} from ${po.vendor.name}${totalStr}. Super Admin confirmation required.`,
-          href: "/admin",
-          createdAt: po.createdAt.toISOString(),
-          isRead,
-        });
-      }
-
-      // 2b. Pending Payment Approval Queries (ONLY for users with finance:read)
-      if (hasFinanceAccess) {
-        const pendingPayments = await prisma.payment.findMany({
-          where: {
-            organizationId: user.organizationId,
-            status: "PENDING_APPROVAL",
-            isArchived: false,
-          },
-          include: {
-            party: true,
-            creator: { select: { name: true } },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 10,
-        });
-
-        for (const pay of pendingPayments) {
-          const payee = pay.recipientName || pay.party?.name || "Payee";
-          const amountStr = `₹${(pay.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-          const accountStr = pay.payingAccount ? ` from ${pay.payingAccount}` : "";
-          const alertId = `payment-approval-${pay.id}`;
-          const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(pay.id);
-          alerts.push({
-            id: alertId,
-            type: "PAYMENT_APPROVAL_REQUEST",
-            severity: "WARNING",
-            title: `Super Admin Approval: Payment to ${payee} (${amountStr})`,
-            message: `${pay.creator?.name || "Finance team"} submitted payment query of ${amountStr} to ${pay.recipientType || "Party"} "${payee}"${accountStr}. Reason: "${pay.approvalQuery || "Disbursement"}". Super Admin confirmation required.`,
-            href: "/admin",
-            createdAt: pay.createdAt.toISOString(),
-            isRead,
-          });
-        }
-      }
+    // 2b. Pending Payment Approval Queries (ONLY for users with finance:read)
+    for (const pay of pendingPayments) {
+      const payee = pay.recipientName || pay.party?.name || "Payee";
+      const amountStr = `₹${(pay.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+      const accountStr = pay.payingAccount ? ` from ${pay.payingAccount}` : "";
+      const alertId = `payment-approval-${pay.id}`;
+      const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(pay.id);
+      alerts.push({
+        id: alertId,
+        type: "PAYMENT_APPROVAL_REQUEST",
+        severity: "WARNING",
+        title: `Super Admin Approval: Payment to ${payee} (${amountStr})`,
+        message: `${pay.creator?.name || "Finance team"} submitted payment query of ${amountStr} to ${pay.recipientType || "Party"} "${payee}"${accountStr}. Reason: "${pay.approvalQuery || "Disbursement"}". Super Admin confirmation required.`,
+        href: "/admin",
+        createdAt: pay.createdAt.toISOString(),
+        isRead,
+      });
     }
 
     // 3. Authoritative Low Stock Alerts from Ledger
-    const stockSummaries = await InventoryService.getAuthoritativeStockSummary(user.organizationId);
-    const lowStockItems = stockSummaries.filter((m) => m.isLowStock);
-
     for (const mat of lowStockItems) {
       const alertId = `low-stock-${mat.id}`;
       const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(mat.id);
@@ -197,56 +355,26 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Overdue Payables (Protected by finance:read)
-    if (hasFinanceAccess) {
-      const overdueBills = await prisma.bill.findMany({
-        where: {
-          organizationId: user.organizationId,
-          status: "POSTED",
-          isArchived: false,
-          dueDate: { lt: now },
-        },
-        include: {
-          party: true,
-          allocations: { where: { reversedAt: null } },
-        },
-        take: 10,
-      });
-
-      for (const bill of overdueBills) {
-        const paid = bill.allocations.reduce((sum: number, a: any) => sum + (a.amount || 0), 0);
-        const outstanding = bill.totalAmount - paid;
-        if (outstanding > 0) {
-          const alertId = `overdue-bill-${bill.id}`;
-          const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(bill.id);
-          alerts.push({
-            id: alertId,
-            type: "OVERDUE_BILL",
-            severity: "CRITICAL",
-            title: `Overdue Payment: Bill #${bill.billNumber}`,
-            message: `₹${(outstanding / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })} payable to ${bill.party.name} was due on ${bill.dueDate?.toLocaleDateString("en-IN")}.`,
-            href: "/finance",
-            createdAt: bill.dueDate ? bill.dueDate.toISOString() : now.toISOString(),
-            isRead,
-          });
-        }
+    for (const bill of overdueBills) {
+      const paid = bill.allocations.reduce((sum: number, a: any) => sum + (a.amount || 0), 0);
+      const outstanding = bill.totalAmount - paid;
+      if (outstanding > 0) {
+        const alertId = `overdue-bill-${bill.id}`;
+        const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(bill.id);
+        alerts.push({
+          id: alertId,
+          type: "OVERDUE_BILL",
+          severity: "CRITICAL",
+          title: `Overdue Payment: Bill #${bill.billNumber}`,
+          message: `₹${(outstanding / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })} payable to ${bill.party.name} was due on ${bill.dueDate?.toLocaleDateString("en-IN")}.`,
+          href: "/finance",
+          createdAt: bill.dueDate ? bill.dueDate.toISOString() : now.toISOString(),
+          isRead,
+        });
       }
     }
 
     // 5. Attendance Anomalies
-    const danglingSessions = await prisma.attendanceSession.findMany({
-      where: {
-        organizationId: user.organizationId,
-        workDate: { lt: todayStr },
-        checkOutAt: null,
-        isArchived: false,
-      },
-      include: {
-        workforceMember: true,
-        site: true,
-      },
-      take: 10,
-    });
-
     for (const sess of danglingSessions) {
       const alertId = `att-anomaly-${sess.id}`;
       const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(sess.id);
@@ -263,24 +391,10 @@ export async function GET(req: NextRequest) {
     }
 
     // 5B. Real-Time Shift Checkout Reminder for Today's Active Shifts
-    const shiftSettings = await attendanceShiftSettings(user.organizationId);
     if (shiftSettings.enableCheckoutReminder) {
-      // 5B.1: Reminder for the current account holder if their shift has ended
-      const userTodaySession = await prisma.attendanceSession.findFirst({
-        where: {
-          organizationId: user.organizationId,
-          workDate: todayStr,
-          createdBy: user.userId,
-          checkOutAt: null,
-          isArchived: false,
-        },
-        include: { site: true },
-      });
-
       if (userTodaySession) {
         const elapsedMinutes = Math.max(0, Math.round((now.getTime() - new Date(userTodaySession.checkInAt).getTime()) / 60000));
         const shiftDurationMinutes = (shiftSettings.standardWorkHours || 8) * 60;
-        const graceMinutes = shiftSettings.reminderGraceMinutes || 15;
 
         // Check if IST time is past standard shift end or duration has exceeded shift hours
         const istHours = (now.getUTCHours() + 5 + Math.floor((now.getUTCMinutes() + 30) / 60)) % 24;
@@ -304,19 +418,7 @@ export async function GET(req: NextRequest) {
       }
 
       // 5B.2: For Admin & Super Admin: Alerts for other account holders who finished shift but forgot to checkout
-      if (user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN") {
-        const otherOpenSessions = await prisma.attendanceSession.findMany({
-          where: {
-            organizationId: user.organizationId,
-            workDate: todayStr,
-            checkOutAt: null,
-            isArchived: false,
-            createdBy: { not: user.userId },
-          },
-          include: { workforceMember: true, site: true },
-          take: 5,
-        });
-
+      if (isAdminRole) {
         for (const sess of otherOpenSessions) {
           const elapsed = (now.getTime() - new Date(sess.checkInAt).getTime()) / 60000;
           if (elapsed >= (shiftSettings.standardWorkHours * 60)) {
@@ -338,19 +440,6 @@ export async function GET(req: NextRequest) {
     }
 
     // 6. Approved / Active Purchase Orders Placed to Vendors
-    const activeOrders = await prisma.purchaseOrder.findMany({
-      where: {
-        organizationId: user.organizationId,
-        status: { in: ["APPROVED", "PLACED"] },
-      },
-      include: {
-        material: true,
-        vendor: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    });
-
     for (const po of activeOrders) {
       const alertId = `order-placed-${po.id}`;
       const isRead = readEntityIdSet.has(alertId) || readEntityIdSet.has(po.id);
@@ -369,36 +458,6 @@ export async function GET(req: NextRequest) {
     // 7. Unread Chat Messages for Current Receiver
     let totalUnreadChatCount = 0;
     let latestChatMessage: { id: string; senderName: string; content: string; createdAt: string } | null = null;
-
-    const userParticipantConvs = await prisma.conversationParticipant.findMany({
-      where: {
-        userId: user.userId,
-        conversation: {
-          organizationId: user.organizationId,
-        },
-      },
-      include: {
-        conversation: {
-          include: {
-            participants: {
-              include: {
-                user: { select: { id: true, name: true, role: true } },
-              },
-            },
-            messages: {
-              where: {
-                senderId: { not: user.userId },
-              },
-              orderBy: { createdAt: "desc" },
-              take: 5,
-              include: {
-                sender: { select: { id: true, name: true, role: true } },
-              },
-            },
-          },
-        },
-      },
-    });
 
     for (const record of userParticipantConvs) {
       const conv = record.conversation;
@@ -507,7 +566,7 @@ export async function PATCH(req: NextRequest) {
             : [],
           prisma.attendanceSession.findMany({ where: { organizationId: user.organizationId, workDate: { lt: todayStr }, checkOutAt: null, isArchived: false }, select: { id: true } }),
           prisma.purchaseOrder.findMany({ where: { organizationId: user.organizationId, status: { in: ["APPROVED", "PLACED"] } }, select: { id: true } }),
-          InventoryService.getAuthoritativeStockSummary(user.organizationId).then((items) => items.filter((m) => m.isLowStock).map((m) => ({ id: m.id }))).catch(() => []),
+          InventoryService.getLowStockAlerts(user.organizationId).then((items) => items.map((m) => ({ id: m.id }))).catch(() => []),
           hasFinanceAccess
             ? prisma.bill.findMany({ where: { organizationId: user.organizationId, status: "POSTED", isArchived: false, dueDate: { lt: now } }, select: { id: true } })
             : [],

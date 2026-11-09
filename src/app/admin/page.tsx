@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatQuantity } from "@/lib/formatters";
 import {
   ShieldAlert,
@@ -50,6 +51,7 @@ interface Tenant {
 }
 
 export default function SuperAdminDashboardPage() {
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -75,22 +77,23 @@ export default function SuperAdminDashboardPage() {
   const [paymentsLoading, setPaymentsLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data) {
-          setCurrentUser(res.data.user);
-          if (res.data.user.role === "SUPER_ADMIN") {
+    refreshUser()
+      .then((u) => {
+        if (u) {
+          setCurrentUser(u);
+          if (u.role === "SUPER_ADMIN") {
             loadTenants();
             loadPendingOrders();
             loadPendingPayments();
           } else {
             setLoading(false);
           }
+        } else {
+          setLoading(false);
         }
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [refreshUser]);
 
   async function loadTenants() {
     setLoading(true);

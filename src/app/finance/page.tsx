@@ -2,7 +2,7 @@
 
 import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -38,8 +38,10 @@ import {
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import { canUser } from "@/lib/permissions";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 
 export default function FinancePage() {
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canReadFinance = canUser(currentUser, "finance:read");
   const canWriteFinance = canUser(currentUser, "finance:write");
@@ -135,7 +137,7 @@ export default function FinancePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
     setLoading(true);
     const noCacheInit: RequestInit = {
       cache: "no-store",
@@ -143,7 +145,7 @@ export default function FinancePage() {
     };
     const t = Date.now();
     Promise.all([
-      fetch(`/api/auth/me?_t=${t}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+      refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
       fetch(`/api/finance/bills?_t=${t}`, noCacheInit).then((r) => r.json()),
       fetch(`/api/finance/payments?_t=${t}`, noCacheInit).then((r) => r.json()),
       fetch(`/api/parties?_t=${t}`, noCacheInit).then((r) => r.json()),
@@ -169,11 +171,11 @@ export default function FinancePage() {
         console.error("Authoritative finance data load failed:", err);
       })
       .finally(() => setLoading(false));
-  };
+  }, [refreshUser]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

@@ -45,6 +45,7 @@ import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
 import ExcelTable, { ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 
 interface DayBookData {
   date: string;
@@ -607,6 +608,7 @@ export default function DayBookPage() {
   });
   const [dateFilterMode, setDateFilterMode] = useState<"SINGLE" | "RANGE">("SINGLE");
   const { activeSiteId, setActiveSiteId } = useActiveSite();
+  const { refreshUser, refreshSites } = useAppSession();
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"ALL" | "PAYMENTS" | "REJECTED" | "BILLS" | "ATTENDANCE" | "REPORTS">("ALL");
@@ -1200,10 +1202,10 @@ export default function DayBookPage() {
     setMounted(true);
     // Load metadata (sites, parties, projects, auth)
     Promise.all([
-      fetch("/api/sites").then((r) => r.json()),
+      refreshSites().then((data) => ({ data })),
       fetch("/api/parties").then((r) => r.json()),
       fetch("/api/projects").then((r) => r.json()),
-      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
+      refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
     ]).then(([siteRes, partyRes, projRes, meRes]) => {
       if (meRes.success && meRes.data) {
         setCurrentUser(meRes.data.user);

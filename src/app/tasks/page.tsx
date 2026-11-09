@@ -34,6 +34,7 @@ import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import TaskTimeline from "@/components/tasks/TaskTimeline";
 import { canUser } from "@/lib/permissions";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 
 // Safely fetch and parse JSON with cache-busting to ensure fresh tables
 async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
@@ -62,6 +63,7 @@ async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
 
 export default function TasksPage() {
   const { activeSiteId } = useActiveSite();
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -144,7 +146,7 @@ export default function TasksPage() {
       safeFetchJson(url),
       safeFetchJson("/api/projects"),
       safeFetchJson("/api/chat/employees"),
-      safeFetchJson("/api/auth/me"),
+      refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
     ])
       .then(([tasksRes, projRes, empRes, authRes]) => {
         if (authRes && authRes.success && authRes.data?.user) {

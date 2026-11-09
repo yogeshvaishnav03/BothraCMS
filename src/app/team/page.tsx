@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { ContactActions } from "@/components/ui/ContactActions";
@@ -72,6 +73,7 @@ function lastSeen(iso: string | null) {
 const EMPTY = { name: "", email: "", role: "SITE_SUPERVISOR", phone: "", jobTitle: "" };
 
 export default function TeamPage() {
+  const { refreshUser } = useAppSession();
   const [me, setMe] = useState<any>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,12 +118,11 @@ export default function TeamPage() {
   };
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((res) => res.success && setMe(res.data.user))
+    refreshUser()
+      .then((u) => u && setMe(u))
       .catch(() => {});
     load();
-  }, []);
+  }, [refreshUser]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

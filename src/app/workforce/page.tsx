@@ -30,6 +30,7 @@ import {
 import { canUser } from "@/lib/permissions";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 
 interface HeadcountRecord {
   id: string;
@@ -69,6 +70,7 @@ interface WorkerRosterItem {
 
 export default function WorkforcePage() {
   const { activeSiteId, setActiveSiteId } = useActiveSite();
+  const { refreshUser, refreshSites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
@@ -228,8 +230,8 @@ export default function WorkforcePage() {
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       };
       const [authRes, sitesRes, headcountRes, workforceRes, projectsRes] = await Promise.all([
-        fetch(`/api/auth/me?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
-        fetch(`/api/sites?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+        refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
+        refreshSites().then((data) => ({ success: true, data })),
         fetch(`/api/workforce/headcount?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
         fetch(`/api/workforce?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
         fetch(`/api/projects?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),

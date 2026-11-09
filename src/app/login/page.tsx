@@ -41,6 +41,10 @@ export default function LoginPage() {
         }
         setError(msg);
       } else {
+        try {
+          sessionStorage.removeItem("buildtrack_session_user_v1");
+          sessionStorage.removeItem("buildtrack_session_sites_v1");
+        } catch {}
         const params = new URLSearchParams(window.location.search);
         const destination = params.get("from");
         const safeDestination =

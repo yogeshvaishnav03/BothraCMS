@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { Field, Modal, StatTile, Tabs, inputCls } from "@/components/ui/Modal";
@@ -408,6 +409,7 @@ function WorkerRow({ w, canEdit, onSaved }: { w: any; canEdit: boolean; onSaved:
 }
 
 export default function PayrollPage() {
+  const { refreshUser } = useAppSession();
   const [me, setMe] = useState<any>(null);
   const [tab, setTab] = useState<Tab>("RUN");
   const [month, setMonth] = useState(thisMonth());
@@ -455,9 +457,9 @@ export default function PayrollPage() {
   }, []);
 
   useEffect(() => {
-    api("/api/auth/me").then((d: any) => setMe(d.user)).catch(() => {});
+    refreshUser().then((u) => u && setMe(u)).catch(() => {});
     loadSide();
-  }, [loadSide]);
+  }, [loadSide, refreshUser]);
   useEffect(() => {
     setRun(undefined);
     loadRun();

@@ -3,6 +3,7 @@
 import { Alert } from "@/components/ui/Alert";
 import { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { useLanguage, LanguageCode } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
@@ -98,6 +99,7 @@ interface OrgData {
 
 export default function SettingsPage() {
   const { language, setLanguage, t } = useLanguage();
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canManageSettings = canUser(currentUser, "org:settings");
   const isAdminOrSuperAdmin = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
@@ -141,12 +143,12 @@ export default function SettingsPage() {
   async function fetchOrg() {
     setLoading(true);
     try {
-      const [res, meRes] = await Promise.all([
+      const [res, meUser] = await Promise.all([
         fetch("/api/organization"),
-        fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
+        refreshUser().catch(() => null),
       ]);
-      if (meRes.success && meRes.data) {
-        setCurrentUser(meRes.data.user);
+      if (meUser) {
+        setCurrentUser(meUser);
       }
       const json = await res.json();
       if (json.success) {

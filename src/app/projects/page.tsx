@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
@@ -25,6 +26,7 @@ import {
 import { canUser } from "@/lib/permissions";
 
 export default function ProjectsPage() {
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
@@ -189,7 +191,7 @@ export default function ProjectsPage() {
       fetch(projUrl, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }).then((r) => r.json()),
       fetch(`/api/sites?${cacheBuster}`, { cache: "no-store" }).then((r) => r.json()),
       fetch(repUrl, { cache: "no-store", headers: { "Cache-Control": "no-cache" } }).then((r) => r.json()),
-      fetch(`/api/auth/me?${cacheBuster}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
     ])
       .then(([projRes, sitesRes, repRes, authRes]) => {
         if (authRes?.success && authRes.data?.user) {
@@ -314,6 +316,7 @@ export default function ProjectsPage() {
       }
 
       setSiteToDelete(null);
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("sitesUpdated"));
       loadData(targetId || (activeSiteId === siteToDelete.id ? "" : activeSiteId));
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete site"}`);
@@ -435,6 +438,7 @@ export default function ProjectsPage() {
         setSiteName("");
         setSiteCode("");
         setSiteAddress("");
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("sitesUpdated"));
         loadData();
       }
     } catch {
@@ -482,6 +486,7 @@ export default function ProjectsPage() {
         setReportBlockers("");
         setReportSafetyNotes("");
         setActiveTab("REPORTS");
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("sitesUpdated"));
         loadData();
       }
     } catch {

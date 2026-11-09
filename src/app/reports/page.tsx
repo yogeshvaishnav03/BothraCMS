@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatQuantity, formatDate } from "@/lib/formatters";
 import { canUser } from "@/lib/permissions";
 import {
@@ -18,6 +19,7 @@ import {
 
 export default function ReportsPage() {
   const { activeSiteId } = useActiveSite();
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canReadFinance = canUser(currentUser, "finance:read");
   const [reportType, setReportType] = useState<"STOCK" | "PAYABLES" | "ATTENDANCE">("STOCK");
@@ -40,8 +42,8 @@ export default function ReportsPage() {
     setError(null);
     const targetSite = siteIdFilter !== undefined ? siteIdFilter : activeSiteId;
     const matUrl = targetSite ? `/api/materials?siteId=${encodeURIComponent(targetSite)}` : "/api/materials";
-    fetch("/api/auth/me").then((r) => r.json()).then((res) => {
-      if (res.success && res.data?.user) setCurrentUser(res.data.user);
+    refreshUser().then((u) => {
+      if (u) setCurrentUser(u);
     }).catch(() => {});
     Promise.all([
       fetch(matUrl).then(async (r) => {
@@ -67,7 +69,7 @@ export default function ReportsPage() {
         setError(err.message || "Failed to load authoritative report datasets");
       })
       .finally(() => setLoading(false));
-  }, [activeSiteId]);
+  }, [activeSiteId, refreshUser]);
 
   useEffect(() => {
     fetchReportsData(activeSiteId);

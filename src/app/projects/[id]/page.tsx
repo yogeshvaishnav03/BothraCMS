@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
@@ -50,14 +51,14 @@ export default function ProjectDetailsPage() {
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"PROGRESS" | "BUDGET" | "DSR" | "TASKS" | "MATERIALS" | "DOCUMENTS">("PROGRESS");
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab")?.toUpperCase();
     if (tab && ["PROGRESS", "BUDGET", "DSR", "TASKS", "MATERIALS", "DOCUMENTS"].includes(tab)) setActiveTab(tab as any);
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((j) => setCurrentUser(j?.data?.user || null))
+    refreshUser()
+      .then((u) => setCurrentUser(u || null))
       .catch(() => {});
     fetch("/api/chat/employees")
       .then((r) => r.json())
@@ -70,7 +71,7 @@ export default function ProjectDetailsPage() {
         setEmployees(raw);
       })
       .catch(() => {});
-  }, []);
+  }, [refreshUser]);
 
   // Dynamic Modals
   const [showTaskModal, setShowTaskModal] = useState(false);

@@ -100,6 +100,21 @@ const POSTGRES_COLUMNS = [
   `CREATE INDEX IF NOT EXISTS "MeasurementBookEntry_groupId_idx" ON "MeasurementBookEntry"("groupId");`,
   `CREATE INDEX IF NOT EXISTS "MeasurementBookEntry_subgroupId_idx" ON "MeasurementBookEntry"("subgroupId");`,
   `CREATE INDEX IF NOT EXISTS "MeasurementBookEntry_isDeleted_idx" ON "MeasurementBookEntry"("isDeleted");`,
+  // Hot query composite performance indexes
+  `CREATE INDEX IF NOT EXISTS "Task_organizationId_isArchived_status_idx" ON "Task"("organizationId", "isArchived", "status");`,
+  `CREATE INDEX IF NOT EXISTS "Task_organizationId_isArchived_dueAt_idx" ON "Task"("organizationId", "isArchived", "dueAt");`,
+  `CREATE INDEX IF NOT EXISTS "Task_organizationId_reminderDeliveredAt_reminderAt_idx" ON "Task"("organizationId", "reminderDeliveredAt", "reminderAt");`,
+  `CREATE INDEX IF NOT EXISTS "StockMovement_organizationId_isArchived_materialId_storeId_idx" ON "StockMovement"("organizationId", "isArchived", "materialId", "storeId");`,
+  `CREATE INDEX IF NOT EXISTS "Bill_organizationId_status_isArchived_idx" ON "Bill"("organizationId", "status", "isArchived");`,
+  `CREATE INDEX IF NOT EXISTS "Bill_organizationId_isArchived_billDate_idx" ON "Bill"("organizationId", "isArchived", "billDate");`,
+  `CREATE INDEX IF NOT EXISTS "Payment_organizationId_status_isArchived_idx" ON "Payment"("organizationId", "status", "isArchived");`,
+  `CREATE INDEX IF NOT EXISTS "Payment_organizationId_paymentDate_idx" ON "Payment"("organizationId", "paymentDate");`,
+  `CREATE INDEX IF NOT EXISTS "AttendanceSession_organizationId_isArchived_workDate_idx" ON "AttendanceSession"("organizationId", "isArchived", "workDate");`,
+  `CREATE INDEX IF NOT EXISTS "IdempotencyRecord_organizationId_operation_idx" ON "IdempotencyRecord"("organizationId", "operation");`,
+  `CREATE INDEX IF NOT EXISTS "AuditEvent_organizationId_createdAt_idx" ON "AuditEvent"("organizationId", "createdAt");`,
+  `CREATE INDEX IF NOT EXISTS "ChatMessage_conversationId_createdAt_idx" ON "ChatMessage"("conversationId", "createdAt");`,
+  `CREATE INDEX IF NOT EXISTS "MeasurementBookEntry_organizationId_isDeleted_status_idx" ON "MeasurementBookEntry"("organizationId", "isDeleted", "status");`,
+  `CREATE INDEX IF NOT EXISTS "Notification_organizationId_userId_createdAt_idx" ON "Notification"("organizationId", "userId", "createdAt");`,
 ];
 
 const POSTGRES_TABLES = [

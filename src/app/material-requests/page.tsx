@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { cn } from "@/lib/cn";
@@ -502,6 +503,7 @@ function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any;
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function MaterialRequestsPage() {
+  const { refreshUser } = useAppSession();
   const [me, setMe] = useState<any>(null);
   const [requests, setRequests] = useState<any[] | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
@@ -533,11 +535,11 @@ export default function MaterialRequestsPage() {
     setHighlight(params.get("id"));
     const status = params.get("status");
     if (status && FILTERS.some((f) => f.id === status)) setFilter(status);
-    api("/api/auth/me").then((d: any) => setMe(d.user)).catch(() => {});
+    refreshUser().then((u) => u && setMe(u)).catch(() => {});
     api<any>("/api/projects").then((d) => setProjects(Array.isArray(d) ? d : d?.projects || [])).catch(() => {});
     api<any[]>("/api/materials").then(setMaterials).catch(() => {});
     api<any[]>("/api/parties").then((d) => setVendors((d || []).filter((p: any) => p.partyType !== "CONTRACTOR"))).catch(() => {});
-  }, []);
+  }, [refreshUser]);
 
   useEffect(() => {
     if (highlight && requests?.some((r) => r.id === highlight)) {

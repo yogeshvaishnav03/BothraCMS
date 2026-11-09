@@ -35,12 +35,6 @@ export interface TimelineEntry {
   href: string;
 }
 
-function iso(val: Date | string | null | undefined): string {
-  if (!val) return new Date(0).toISOString();
-  const d = typeof val === "string" ? new Date(val) : val;
-  return isNaN(d.getTime()) ? new Date(0).toISOString() : d.toISOString();
-}
-
 function shiftDate(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00.000Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -74,7 +68,98 @@ export class CommandCenterService {
   }
 
   static async getOverview(organizationId: string, date: string, siteId?: string) {
-    const dayBook = await fetchDayBookData(organizationId, date, siteId);
+    const trendStart = shiftDate(date, -6);
+    const rangeStart = new Date(`${trendStart}T00:00:00.000Z`);
+    rangeStart.setTime(rangeStart.getTime() - 6 * 3600 * 1000);
+    const rangeEnd = new Date(`${date}T23:59:59.999Z`);
+    const dayStart = new Date(`${date}T00:00:00.000+05:30`);
+    const dayEnd = new Date(`${date}T23:59:59.999+05:30`);
+
+    // Dispatch all independent Command Center blocks concurrently instead of 7 sequential waits
+    const [
+      dayBook,
+      pendingPayments,
+      pendingOrders,
+      postedBills,
+      trendPayments,
+      trendBills,
+      trendIn,
+      auditEvents,
+      taskUpdates,
+      taskComments,
+      staffDay,
+      portfolioWithProgress,
+      materialRequestsPending,
+      attentionData,
+    ] = await Promise.all([
+      fetchDayBookData(organizationId, date, siteId),
+      prisma.payment.findMany({
+        where: { organizationId, status: "PENDING_APPROVAL", isArchived: false },
+        select: { amount: true },
+      }),
+      prisma.purchaseOrder.count({ where: { organizationId, status: "PENDING_APPROVAL" } }),
+      prisma.bill.findMany({
+        where: { organizationId, status: "POSTED", isArchived: false },
+        select: {
+          totalAmount: true,
+          allocations: {
+            where: { reversedAt: null, payment: { status: "POSTED" } },
+            select: { amount: true },
+          },
+        },
+      }),
+      prisma.payment.findMany({
+        where: {
+          organizationId,
+          status: "POSTED",
+          isArchived: false,
+          paymentDate: { gte: rangeStart, lte: rangeEnd },
+        },
+        select: { amount: true, paymentDate: true },
+      }),
+      prisma.bill.findMany({
+        where: { organizationId, isArchived: false, billDate: { gte: rangeStart, lte: rangeEnd } },
+        select: { totalAmount: true, billDate: true },
+      }),
+      prisma.salesReceipt.findMany({
+        where: { organizationId, date: { gte: trendStart, lte: date }, cancelledAt: null, booking: { status: "ACTIVE" } },
+        select: { amount: true, date: true },
+      }),
+      prisma.auditEvent.findMany({
+        where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
+        include: { actor: { select: { id: true, name: true, role: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+      prisma.taskStatusHistory.findMany({
+        where: { createdAt: { gte: dayStart, lte: dayEnd }, task: { organizationId } },
+        include: {
+          user: { select: { id: true, name: true, role: true } },
+          task: { select: { id: true, title: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+      prisma.taskComment.findMany({
+        where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
+        include: {
+          user: { select: { id: true, name: true, role: true } },
+          task: { select: { id: true, title: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      WorkReportService.dayOverview(organizationId, date),
+      ProjectBudgetService.getPortfolio(organizationId).then(async (pf) => ({
+        portfolio: pf,
+        progress: await MilestoneService.progressByProject(
+          organizationId,
+          pf.map((p) => p.projectId)
+        ),
+      })),
+      prisma.materialRequest.count({ where: { organizationId, status: "PENDING" } }),
+      CommandCenterService.attention(organizationId, date),
+    ]);
 
     // ── 1. Day Book as one timeline, newest first ──────────────────────────
     const timeline: TimelineEntry[] = [];
@@ -214,26 +299,7 @@ export class CommandCenterService {
     }
     timeline.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 
-    // ── 2. Approvals waiting on the admin ──────────────────────────────────
-    const [pendingPayments, pendingOrders] = await Promise.all([
-      prisma.payment.findMany({
-        where: { organizationId, status: "PENDING_APPROVAL", isArchived: false },
-        select: { amount: true },
-      }),
-      prisma.purchaseOrder.count({ where: { organizationId, status: "PENDING_APPROVAL" } }),
-    ]);
-
     // ── 3. Outstanding payables (bills − posted allocations) ──────────────
-    const postedBills = await prisma.bill.findMany({
-      where: { organizationId, status: "POSTED", isArchived: false },
-      select: {
-        totalAmount: true,
-        allocations: {
-          where: { reversedAt: null, payment: { status: "POSTED" } },
-          select: { amount: true },
-        },
-      },
-    });
     let outstandingPayables = 0;
     for (const b of postedBills) {
       const paid = b.allocations.reduce((s, a) => s + (a.amount ?? 0), 0);
@@ -242,29 +308,6 @@ export class CommandCenterService {
     }
 
     // ── 4. Seven-day cash trend ending on `date` ───────────────────────────
-    const trendStart = shiftDate(date, -6);
-    const rangeStart = new Date(`${trendStart}T00:00:00.000Z`);
-    rangeStart.setTime(rangeStart.getTime() - 6 * 3600 * 1000);
-    const rangeEnd = new Date(`${date}T23:59:59.999Z`);
-    const [trendPayments, trendBills, trendIn] = await Promise.all([
-      prisma.payment.findMany({
-        where: {
-          organizationId,
-          status: "POSTED",
-          isArchived: false,
-          paymentDate: { gte: rangeStart, lte: rangeEnd },
-        },
-        select: { amount: true, paymentDate: true },
-      }),
-      prisma.bill.findMany({
-        where: { organizationId, isArchived: false, billDate: { gte: rangeStart, lte: rangeEnd } },
-        select: { totalAmount: true, billDate: true },
-      }),
-      prisma.salesReceipt.findMany({
-        where: { organizationId, date: { gte: trendStart, lte: date }, cancelledAt: null, booking: { status: "ACTIVE" } },
-        select: { amount: true, date: true },
-      }),
-    ]);
     const trend = Array.from({ length: 7 }, (_, i) => ({ date: shiftDate(trendStart, i), paid: 0, billed: 0, received: 0 }));
     const byDate = new Map(trend.map((t) => [t.date, t]));
     for (const p of trendPayments) {
@@ -280,39 +323,8 @@ export class CommandCenterService {
       if (slot) slot.billed = roundPaise(slot.billed + b.totalAmount);
     }
 
-    // ── 5. Who did what on this date (audit trail + task updates) ──────────
-    const dayStart = new Date(`${date}T00:00:00.000+05:30`);
-    const dayEnd = new Date(`${date}T23:59:59.999+05:30`);
-    const [auditEvents, taskUpdates, taskComments, staffDay, portfolio, materialRequestsPending] = await Promise.all([
-      prisma.auditEvent.findMany({
-        where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
-        include: { actor: { select: { id: true, name: true, role: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 200,
-      }),
-      prisma.taskStatusHistory.findMany({
-        where: { createdAt: { gte: dayStart, lte: dayEnd }, task: { organizationId } },
-        include: {
-          user: { select: { id: true, name: true, role: true } },
-          task: { select: { id: true, title: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 200,
-      }),
-      prisma.taskComment.findMany({
-        where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
-        include: {
-          user: { select: { id: true, name: true, role: true } },
-          task: { select: { id: true, title: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 100,
-      }),
-      WorkReportService.dayOverview(organizationId, date),
-      ProjectBudgetService.getPortfolio(organizationId),
-      prisma.materialRequest.count({ where: { organizationId, status: "PENDING" } }),
-    ]);
-    const progress = await MilestoneService.progressByProject(organizationId, portfolio.map((p) => p.projectId));
+    // ── 5. Who did what on this date ───────────────────────────────────────
+    const { portfolio, progress } = portfolioWithProgress;
     const projects = portfolio
       .filter((p) => !siteId || p.siteId === siteId)
       .map((p) => ({
@@ -509,7 +521,7 @@ export class CommandCenterService {
       summary: dayBook.summary,
       timeline: timeline.slice(0, 80),
       timelineTotal: timeline.length,
-      attention: await CommandCenterService.attention(organizationId, date),
+      attention: attentionData,
       approvals: {
         paymentsPendingCount: pendingPayments.length,
         paymentsPendingAmount: roundPaise(pendingPayments.reduce((s, p) => s + p.amount, 0)),

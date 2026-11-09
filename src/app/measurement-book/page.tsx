@@ -5,6 +5,7 @@ import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, rupeesToPaise } from "@/lib/formatters";
 import { canUser } from "@/lib/permissions";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import {
   MEASUREMENT_UNIT_GROUPS,
   MEASUREMENT_TYPE_GROUPS,
@@ -171,6 +172,7 @@ function getKpiAmountClass(text: string): string {
 
 export default function MeasurementBookPage() {
   const { activeSiteId, setActiveSiteId } = useActiveSite();
+  const { refreshUser, refreshSites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canWriteProjects = canUser(currentUser, "projects:write");
   const canWriteFinance = canUser(currentUser, "finance:write");
@@ -308,15 +310,15 @@ export default function MeasurementBookPage() {
         fetch(`/api/measurement-book?${queryParams.toString()}`, noCacheInit),
         fetch(`/api/projects?_t=${Date.now()}`, noCacheInit),
         fetch(`/api/parties?_t=${Date.now()}`, noCacheInit),
-        fetch(`/api/sites?_t=${Date.now()}`, noCacheInit),
-        fetch("/api/auth/me", noCacheInit).then((r) => r.json()).catch(() => ({})),
+        refreshSites().then((data) => ({ success: true, data })),
+        refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
         fetch(`/api/measurement-book/change-requests?_t=${Date.now()}`, noCacheInit),
       ]);
 
       const mbData = await mbRes.json();
       const projData = await projRes.json();
       const partyData = await partyRes.json();
-      const siteData = await siteRes.json();
+      const siteData = await siteRes;
       const crData = await crRes.json();
 
       if (meRes.success && meRes.data) {

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { cn } from "@/lib/cn";
 
 type PartyType = "VENDOR" | "CONTRACTOR" | "BOTH";
@@ -204,6 +205,7 @@ function BankDetailsModal({ party, onClose }: { party: any; onClose: () => void 
 }
 
 export default function PartiesPage() {
+  const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canReadFinance = canUser(currentUser, "finance:read");
   const canWriteFinance = canUser(currentUser, "finance:write");
@@ -284,14 +286,11 @@ export default function PartiesPage() {
   };
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.success && res.data) setCurrentUser(res.data.user);
-      })
-      .catch(() => {});
+    refreshUser().then((u) => {
+      if (u) setCurrentUser(u);
+    });
     loadParties();
-  }, []);
+  }, [refreshUser]);
 
   const handleOpenCreate = () => {
     setEditingPartyId(null);

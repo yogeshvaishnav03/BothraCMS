@@ -751,23 +751,103 @@ export class InventoryService {
   }
 
   /**
+   * Lightweight low-stock computation for notifications & operational alerts.
+   * Uses 2 parallel read queries with zero ledger mutations.
+   */
+  static async getLowStockAlerts(organizationId: string) {
+    const [materials, movementTotals] = await Promise.all([
+      prisma.material.findMany({
+        where: { organizationId, active: true, isArchived: false },
+        select: {
+          id: true,
+          name: true,
+          unitCode: true,
+          minStockQty: true,
+          reorderQty: true,
+        },
+        orderBy: { name: "asc" },
+      }),
+      prisma.stockMovement.groupBy({
+        by: ["materialId"],
+        where: { organizationId, isArchived: false },
+        _sum: { quantityDelta: true },
+      }),
+    ]);
+
+    const totalByMaterial = new Map<string, number>();
+    for (const row of movementTotals) {
+      totalByMaterial.set(row.materialId, roundQuantity(row._sum.quantityDelta || 0));
+    }
+
+    const lowStockItems: Array<{
+      id: string;
+      name: string;
+      availableStock: number;
+      isLowStock: boolean;
+      isZeroStock: boolean;
+      alertSeverity: "CRITICAL" | "WARNING" | "NORMAL";
+      alertReason: string;
+    }> = [];
+
+    for (const m of materials) {
+      const availableStock = totalByMaterial.get(m.id) ?? 0;
+      const minStock = m.minStockQty || 0;
+      const reorderLevel = m.reorderQty || 0;
+      let isLowStock = false;
+      let isZeroStock = false;
+      let alertSeverity: "CRITICAL" | "WARNING" | "NORMAL" = "NORMAL";
+      let alertReason = `Normal stock: ${availableStock} ${m.unitCode}`;
+
+      if (availableStock <= 0) {
+        isZeroStock = true;
+        isLowStock = true;
+        alertSeverity = "CRITICAL";
+        alertReason = `Out of stock: 0 ${m.unitCode} remaining in store`;
+      } else if (minStock > 0 && availableStock < minStock) {
+        isLowStock = true;
+        alertSeverity = "WARNING";
+        alertReason = `Low stock: ${availableStock} ${m.unitCode} available (below minimum safety threshold: ${minStock} ${m.unitCode})`;
+      } else if (minStock > 0 && availableStock === minStock) {
+        isLowStock = false;
+        alertSeverity = "NORMAL";
+        alertReason = `At threshold: ${availableStock} ${m.unitCode} (not below threshold)`;
+      } else if (reorderLevel > 0 && availableStock <= reorderLevel) {
+        isLowStock = true;
+        alertSeverity = "WARNING";
+        alertReason = `Reorder point reached: ${availableStock} / ${reorderLevel} ${m.unitCode}`;
+      }
+
+      if (isLowStock) {
+        lowStockItems.push({
+          id: m.id,
+          name: m.name,
+          availableStock,
+          isLowStock,
+          isZeroStock,
+          alertSeverity,
+          alertReason,
+        });
+      }
+    }
+
+    return lowStockItems;
+  }
+
+  /**
    * Authoritative summary of all materials for an organization
-   * Directly calculates available stock from StockMovement ledger and reconciles StockBalance.
+   * Directly calculates available stock from StockMovement ledger and reconciles drifted StockBalance rows.
    */
   static async getAuthoritativeStockSummary(
     organizationId: string,
     siteId?: string
   ) {
-    let siteStoreIds: string[] | null = null;
-    if (siteId) {
-      const siteStores = await prisma.store.findMany({
-        where: { organizationId, siteId },
-        select: { id: true },
-      });
-      siteStoreIds = siteStores.map((s: any) => s.id);
-    }
-
-    const [materials, allOrgSites, allActivePOs] = await Promise.all([
+    const [siteStores, materials, allOrgSites, allActivePOs, groupedMovements] = await Promise.all([
+      siteId
+        ? prisma.store.findMany({
+            where: { organizationId, siteId },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
       prisma.material.findMany({
         where: { organizationId, active: true, isArchived: false },
         include: {
@@ -795,49 +875,62 @@ export class InventoryService {
           quantity: true,
         },
       }),
+      prisma.stockMovement.groupBy({
+        by: ["materialId", "storeId"],
+        where: { organizationId, isArchived: false },
+        _sum: { quantityDelta: true },
+      }),
     ]);
 
+    const siteStoreSet = siteStores ? new Set<string>(siteStores.map((s) => s.id)) : null;
+
+    const storeStockMap = new Map<string, number>();
+    const orgRawTotalMap = new Map<string, number>();
+    const siteRawTotalMap = new Map<string, number>();
+
+    for (const row of groupedMovements) {
+      const delta = row._sum.quantityDelta || 0;
+      storeStockMap.set(`${row.materialId}::${row.storeId}`, roundQuantity(delta));
+      orgRawTotalMap.set(row.materialId, (orgRawTotalMap.get(row.materialId) || 0) + delta);
+      if (siteStoreSet && siteStoreSet.has(row.storeId)) {
+        siteRawTotalMap.set(row.materialId, (siteRawTotalMap.get(row.materialId) || 0) + delta);
+      }
+    }
+
+    const siteById = new Map<string, { id: string; name: string; code: string | null }>();
+    for (const s of allOrgSites) {
+      siteById.set(s.id, s);
+    }
+
+    const posByMaterialId = new Map<string, typeof allActivePOs>();
+    for (const po of allActivePOs) {
+      const list = posByMaterialId.get(po.materialId);
+      if (list) list.push(po);
+      else posByMaterialId.set(po.materialId, [po]);
+    }
+
+    const pendingBalanceUpdates: Array<{ id: string; quantityOnHand: number }> = [];
     const results = [];
 
     for (const m of materials) {
       let availableStock = 0;
 
       if (siteId) {
-        if (!siteStoreIds || siteStoreIds.length === 0) {
+        if (!siteStoreSet || siteStoreSet.size === 0) {
           availableStock = 0;
         } else {
-          const agg = await prisma.stockMovement.aggregate({
-            where: {
-              organizationId,
-              materialId: m.id,
-              storeId: { in: siteStoreIds },
-              isArchived: false,
-            },
-            _sum: { quantityDelta: true },
-          });
-          availableStock = roundQuantity(agg._sum.quantityDelta || 0);
+          availableStock = roundQuantity(siteRawTotalMap.get(m.id) || 0);
         }
       } else {
-        const agg = await prisma.stockMovement.aggregate({
-          where: { organizationId, materialId: m.id, isArchived: false },
-          _sum: { quantityDelta: true },
-        });
-        availableStock = roundQuantity(agg._sum.quantityDelta || 0);
+        availableStock = roundQuantity(orgRawTotalMap.get(m.id) || 0);
       }
 
-      // Reconcile StockBalance for each store
+      // Queue StockBalance healing only for rows whose persisted balance drifted from the ledger
       for (const sb of m.stockBalances) {
         if (!siteId || sb.store?.siteId === siteId) {
-          const storeAgg = await prisma.stockMovement.aggregate({
-            where: { organizationId, materialId: m.id, storeId: sb.storeId, isArchived: false },
-            _sum: { quantityDelta: true },
-          });
-          const storeStock = roundQuantity(storeAgg._sum.quantityDelta || 0);
+          const storeStock = storeStockMap.get(`${m.id}::${sb.storeId}`) ?? 0;
           if (Math.abs(sb.quantityOnHand - storeStock) > 0.0001) {
-            await prisma.stockBalance.update({
-              where: { id: sb.id },
-              data: { quantityOnHand: storeStock },
-            });
+            pendingBalanceUpdates.push({ id: sb.id, quantityOnHand: storeStock });
             sb.quantityOnHand = storeStock;
           }
         }
@@ -916,12 +1009,12 @@ export class InventoryService {
         });
       }
 
-      const materialPOs = allActivePOs.filter((po) => po.materialId === m.id);
+      const materialPOs = posByMaterialId.get(m.id) || [];
       for (const po of materialPOs) {
         if (!po.siteId) continue;
         let siteEntry = siteMap.get(po.siteId);
         if (!siteEntry) {
-          const foundSite = allOrgSites.find((s) => s.id === po.siteId);
+          const foundSite = siteById.get(po.siteId);
           siteEntry = {
             siteId: po.siteId,
             siteName: foundSite?.name || "Site",
@@ -973,6 +1066,17 @@ export class InventoryService {
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       });
+    }
+
+    if (pendingBalanceUpdates.length > 0) {
+      await Promise.all(
+        pendingBalanceUpdates.map((u) =>
+          prisma.stockBalance.update({
+            where: { id: u.id },
+            data: { quantityOnHand: u.quantityOnHand },
+          })
+        )
+      );
     }
 
     return results;
