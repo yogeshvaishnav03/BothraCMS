@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/Alert";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { compressImageFile } from "@/lib/image-compression";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   Receipt,
@@ -192,15 +193,25 @@ export default function ExpensesPage() {
     }
   }, [activeSiteId, sites, selectedSiteId]);
 
-  // Handle Photo selection & create live preview
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle Photo selection, compress images automatically, & create live preview
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFile = e.target.files?.[0];
+    e.target.value = "";
+    if (!rawFile) return;
 
-    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+    if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf") {
       setReceiptError("Please upload an image (JPG, PNG, WebP) or PDF receipt.");
       return;
     }
+
+    if (rawFile.type === "application/pdf" && rawFile.size > 5 * 1024 * 1024) {
+      setReceiptError("Receipt PDF exceeds 5MB limit. Please upload a smaller file.");
+      return;
+    }
+
+    const file = rawFile.type.startsWith("image/")
+      ? await compressImageFile(rawFile, { preset: "receipt" })
+      : rawFile;
 
     if (file.size > 5 * 1024 * 1024) {
       setReceiptError("Receipt file exceeds 5MB limit. Please upload a smaller photo.");
@@ -252,7 +263,7 @@ export default function ExpensesPage() {
     try {
       // Step 1: Upload receipt photo to /api/uploads
       const uploadForm = new FormData();
-      uploadForm.append("file", receiptFile);
+      uploadForm.append("file", receiptFile, receiptFile.name);
       uploadForm.append("category", "RECEIPT");
       uploadForm.append("entityType", "PAYMENT");
       uploadForm.append("notes", `Out-of-pocket receipt for ${title}`);

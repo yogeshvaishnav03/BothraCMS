@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { FileUp, Loader2, Paperclip, X } from "lucide-react";
+import { compressImageFile, presetForAttachmentCategory } from "@/lib/image-compression";
 
 /** Uploads one PDF or image to /api/attachments and hands back its url. */
 export function FileUpload({
@@ -23,12 +24,15 @@ export function FileUpload({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const upload = async (file: File | undefined) => {
-    if (!file) return;
+  const upload = async (rawFile: File | undefined) => {
+    if (!rawFile) return;
     setBusy(true);
     setError(null);
+    const file = await compressImageFile(rawFile, {
+      preset: presetForAttachmentCategory(category, entityType),
+    });
     const form = new FormData();
-    form.append("file", file);
+    form.append("file", file, file.name);
     form.append("entityType", entityType);
     if (projectId) form.append("projectId", projectId);
     form.append("category", category);

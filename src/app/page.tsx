@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { compressImageFile } from "@/lib/image-compression";
 import {
   FolderKanban,
   CheckSquare,
@@ -91,17 +92,18 @@ export default function DashboardPage() {
   };
 
   const handleDashboardPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (picked.length === 0) return;
 
     setUploadingPhoto(true);
     setPhotoMsg(null);
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (const rawFile of picked) {
+        const file = await compressImageFile(rawFile, { preset: "photo" });
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("file", file, file.name);
         formData.append("category", "PHOTO");
         formData.append("entityType", "SITE_PHOTO");
         formData.append("entityId", activeSiteId || "SITE");
@@ -122,16 +124,16 @@ export default function DashboardPage() {
       setPhotoError(err.message || "Failed to upload clicked photo");
     } finally {
       setUploadingPhoto(false);
-      e.target.value = "";
     }
   };
 
-  const uploadSingleSitePhoto = async (file: File) => {
+  const uploadSingleSitePhoto = async (rawFile: File) => {
     setUploadingPhoto(true);
     setPhotoMsg(null);
     try {
+      const file = await compressImageFile(rawFile, { preset: "photo" });
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", file, file.name);
       formData.append("category", "PHOTO");
       formData.append("entityType", "SITE_PHOTO");
       formData.append("entityId", activeSiteId || "SITE");
@@ -197,15 +199,19 @@ export default function DashboardPage() {
       return;
     }
 
+    const maxDim = 1600;
+    const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     canvas.toBlob(
       async (blob) => {
+        canvas.width = 0;
+        canvas.height = 0;
         if (!blob) return;
         const clickedFile = new File([blob], `site-photo-${Date.now()}.jpg`, {
           type: "image/jpeg",
@@ -214,19 +220,21 @@ export default function DashboardPage() {
         await uploadSingleSitePhoto(clickedFile);
       },
       "image/jpeg",
-      0.92
+      0.8
     );
   };
 
   const handleDashboardPhotoReplace = async (photoId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    e.target.value = "";
+    if (!rawFile) return;
 
     setUploadingPhoto(true);
     setPhotoMsg(null);
     try {
+      const file = await compressImageFile(rawFile, { preset: "photo" });
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", file, file.name);
 
       const res = await fetch(`/api/attachments/${photoId}`, {
         method: "PUT",
@@ -236,7 +244,7 @@ export default function DashboardPage() {
       if (!res.ok || !data.success) {
         // Fallback: POST new and DELETE old
         const postData = new FormData();
-        postData.append("file", file);
+        postData.append("file", file, file.name);
         postData.append("category", "PHOTO");
         postData.append("entityType", "SITE_PHOTO");
         postData.append("entityId", activeSiteId || "SITE");

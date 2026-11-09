@@ -1,5 +1,7 @@
 "use client";
 
+import { compressImageFile } from "@/lib/image-compression";
+
 /**
  * A small outbox for the site app. When there is no signal, a stage update or
  * a daily report (with its photos) is kept in IndexedDB on the phone and sent
@@ -109,8 +111,9 @@ export async function discard(id: string) {
 }
 
 async function uploadPhoto(p: QueuedPhoto): Promise<string> {
+  const file = await compressImageFile(p.blob, { preset: "photo", fileName: p.name });
   const form = new FormData();
-  form.append("file", p.blob, p.name);
+  form.append("file", file, file.name);
   form.append("entityType", p.entityType);
   if (p.entityId) form.append("entityId", p.entityId);
   if (p.projectId) form.append("projectId", p.projectId);

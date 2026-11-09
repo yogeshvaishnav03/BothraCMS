@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { formatFileSize } from "@/lib/formatters";
+import { compressImageFile, presetForAttachmentCategory } from "@/lib/image-compression";
 
 interface AttachmentItem {
   id: string;
@@ -96,7 +97,11 @@ export default function AttachmentManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityId, entityType, folderId]);
 
-  const uploadSingleFile = async (file: File, fileCategory: string) => {
+  const uploadSingleFile = async (rawFile: File, fileCategory: string) => {
+    const file = await compressImageFile(rawFile, {
+      preset: presetForAttachmentCategory(fileCategory, entityType),
+    });
+
     try {
       // 1. Attempt authorized presigned direct upload (bypasses serverless bandwidth)
       const presignRes = await fetch("/api/uploads/presign", {
@@ -164,7 +169,7 @@ export default function AttachmentManager({
 
     // Fallback: Standard multipart upload through /api/attachments
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", file, file.name);
     formData.append("entityType", entityType);
     formData.append("entityId", entityId);
     if (projectId) formData.append("projectId", projectId);

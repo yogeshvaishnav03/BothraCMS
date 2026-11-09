@@ -9,6 +9,7 @@ import { ContactActions } from "@/components/ui/ContactActions";
 import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
 import { isOffline, submitOrQueue } from "@/lib/offline-queue";
 import { downloadCsv as exportCsvBlob } from "@/lib/csv-download";
+import { compressImageFile } from "@/lib/image-compression";
 import { cn } from "@/lib/cn";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import {
@@ -95,25 +96,11 @@ function getPosition(): Promise<{ lat: number; lng: number } | null> {
   });
 }
 
-/** A camera photo made small (longest side 1024 px, JPEG) so it uploads quickly on site. */
-async function shrinkPhoto(file: File): Promise<Blob> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    return await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b || file), "image/jpeg", 0.8));
-  } catch {
-    return file;
-  }
-}
-
-/** Uploads the check-in selfie and returns its /api/uploads link. */
+/** Uploads the check-in selfie (automatically resized to <= 1024 px JPEG) and returns its /api/uploads link. */
 async function uploadSelfie(file: File): Promise<string> {
+  const shrunk = await compressImageFile(file, { preset: "selfie" });
   const form = new FormData();
-  form.append("file", new File([await shrinkPhoto(file)], "selfie.jpg", { type: "image/jpeg" }));
+  form.append("file", shrunk, shrunk.name || "selfie.jpg");
   form.append("entityType", "ATTENDANCE");
   form.append("category", "PHOTO");
   const res = await fetch("/api/uploads", { method: "POST", body: form });

@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import { Camera, CloudOff, Loader2, X } from "lucide-react";
 import { isNetworkError, isOffline, type QueuedPhoto } from "@/lib/offline-queue";
+import { compressImageFile } from "@/lib/image-compression";
 
 export interface PickedPhoto {
   url: string;
@@ -54,14 +55,15 @@ export function PhotoPicker({
 
     setUploading(picked.length);
     const added: PickedPhoto[] = [];
-    for (const file of picked) {
+    for (const rawFile of picked) {
+      const file = await compressImageFile(rawFile, { preset: "photo" });
       if (isOffline()) {
         added.push({ url: URL.createObjectURL(file), name: file.name, file });
         setUploading((n) => n - 1);
         continue;
       }
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", file, file.name);
       form.append("entityType", entityType);
       if (entityId) form.append("entityId", entityId);
       if (projectId) form.append("projectId", projectId);

@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, rupeesToPaise } from "@/lib/formatters";
 import { downloadCsv } from "@/lib/csv-download";
+import { compressImageFile } from "@/lib/image-compression";
 import { canUser } from "@/lib/permissions";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -1044,9 +1045,12 @@ export default function MeasurementBookPage() {
     setErrorMessage(null);
 
     try {
-      // Step 1: Upload to backend storage via /api/uploads
+      // Step 1: Automatically compress image and upload to backend storage via /api/uploads
+      const processedFile = uploadFile.type.startsWith("image/")
+        ? await compressImageFile(uploadFile, { preset: "photo" })
+        : uploadFile;
       const formData = new FormData();
-      formData.append("file", uploadFile);
+      formData.append("file", processedFile, processedFile.name);
       formData.append("category", "MEASUREMENT_EVIDENCE");
       formData.append("entityType", "MEASUREMENT_BOOK");
       formData.append("entityId", activeEntry.id);

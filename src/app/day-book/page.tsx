@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { downloadCsv } from "@/lib/csv-download";
+import { compressImageFile } from "@/lib/image-compression";
 import {
   CalendarDays,
   DollarSign,
@@ -1027,23 +1028,29 @@ export default function DayBookPage() {
     }
   }, [kpiPopupType, showLogModal, showPrintFilterModal, activePhotoLightbox]);
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (picked.length === 0) return;
     setFileValidationError(null);
-    const newFiles = Array.from(e.target.files);
 
     const validFiles: File[] = [];
-    newFiles.forEach((file) => {
-      if (!file.type.startsWith("image/")) {
-        setFileValidationError(`File "${file.name}" is not an image.`);
-        return;
+    for (const rawFile of picked) {
+      if (!rawFile.type.startsWith("image/")) {
+        setFileValidationError(`File "${rawFile.name}" is not an image.`);
+        continue;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        setFileValidationError(`Image "${file.name}" exceeds the 10 MB limit.`);
-        return;
+      if (rawFile.size > 40 * 1024 * 1024) {
+        setFileValidationError(`Image "${rawFile.name}" is too large to process.`);
+        continue;
       }
-      validFiles.push(file);
-    });
+      const compressed = await compressImageFile(rawFile, { preset: "photo" });
+      if (compressed.size > 10 * 1024 * 1024) {
+        setFileValidationError(`Image "${compressed.name}" exceeds the 10 MB limit.`);
+        continue;
+      }
+      validFiles.push(compressed);
+    }
 
     if (validFiles.length === 0) return;
 
@@ -1055,7 +1062,6 @@ export default function DayBookPage() {
       size: file.size,
     }));
     setDsrPhotoPreviews((prev) => [...prev, ...newPreviews]);
-    e.target.value = "";
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -1066,23 +1072,31 @@ export default function DayBookPage() {
     });
   };
 
-  const handleBillPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
+  const handleBillPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (picked.length === 0) return;
     setFileValidationError(null);
-    const newFiles = Array.from(e.target.files);
 
     const validFiles: File[] = [];
-    newFiles.forEach((file) => {
-      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
-        setFileValidationError(`File "${file.name}" is not a supported image or PDF document.`);
-        return;
+    for (const rawFile of picked) {
+      if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf") {
+        setFileValidationError(`File "${rawFile.name}" is not a supported image or PDF document.`);
+        continue;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        setFileValidationError(`File "${file.name}" exceeds the 10 MB limit.`);
-        return;
+      if (rawFile.type === "application/pdf" && rawFile.size > 10 * 1024 * 1024) {
+        setFileValidationError(`File "${rawFile.name}" exceeds the 10 MB limit.`);
+        continue;
       }
-      validFiles.push(file);
-    });
+      const processed = rawFile.type.startsWith("image/")
+        ? await compressImageFile(rawFile, { preset: "receipt" })
+        : rawFile;
+      if (processed.size > 10 * 1024 * 1024) {
+        setFileValidationError(`File "${processed.name}" exceeds the 10 MB limit.`);
+        continue;
+      }
+      validFiles.push(processed);
+    }
 
     if (validFiles.length === 0) return;
 
@@ -1094,7 +1108,6 @@ export default function DayBookPage() {
       size: file.size,
     }));
     setBillPhotoPreviews((prev) => [...prev, ...newPreviews]);
-    e.target.value = "";
   };
 
   const handleRemoveBillPhoto = (index: number) => {
@@ -1105,23 +1118,31 @@ export default function DayBookPage() {
     });
   };
 
-  const handlePaymentPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
+  const handlePaymentPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (picked.length === 0) return;
     setFileValidationError(null);
-    const newFiles = Array.from(e.target.files);
 
     const validFiles: File[] = [];
-    newFiles.forEach((file) => {
-      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
-        setFileValidationError(`File "${file.name}" is not a supported image or PDF document.`);
-        return;
+    for (const rawFile of picked) {
+      if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf") {
+        setFileValidationError(`File "${rawFile.name}" is not a supported image or PDF document.`);
+        continue;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        setFileValidationError(`File "${file.name}" exceeds the 10 MB limit.`);
-        return;
+      if (rawFile.type === "application/pdf" && rawFile.size > 10 * 1024 * 1024) {
+        setFileValidationError(`File "${rawFile.name}" exceeds the 10 MB limit.`);
+        continue;
       }
-      validFiles.push(file);
-    });
+      const processed = rawFile.type.startsWith("image/")
+        ? await compressImageFile(rawFile, { preset: "receipt" })
+        : rawFile;
+      if (processed.size > 10 * 1024 * 1024) {
+        setFileValidationError(`File "${processed.name}" exceeds the 10 MB limit.`);
+        continue;
+      }
+      validFiles.push(processed);
+    }
 
     if (validFiles.length === 0) return;
 
@@ -1133,7 +1154,6 @@ export default function DayBookPage() {
       size: file.size,
     }));
     setPaymentPhotoPreviews((prev) => [...prev, ...newPreviews]);
-    e.target.value = "";
   };
 
   const handleRemovePaymentPhoto = (index: number) => {

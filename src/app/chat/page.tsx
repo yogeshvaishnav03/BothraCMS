@@ -7,6 +7,7 @@ import Shell from "@/components/layout/Shell";
 import { ContactActions, WhatsAppIcon } from "@/components/ui/ContactActions";
 import { whatsappLink } from "@/lib/contact-links";
 import { formatDateTime } from "@/lib/formatters";
+import { compressImageFile } from "@/lib/image-compression";
 import { useLanguage } from "@/lib/i18n";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import {
@@ -361,22 +362,33 @@ export default function ChatPage() {
     setShowScrollBottomBtn(scrolledUp);
   }, []);
 
-  // Handle image selection from file picker
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle image selection from file picker (auto-compresses large camera photos)
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFile = e.target.files?.[0];
+    e.target.value = "";
+    if (!rawFile) return;
 
-    if (!file.type.startsWith("image/")) {
+    if (!rawFile.type.startsWith("image/")) {
       setActionError("Please select a valid image file (JPEG, PNG, WebP).");
       return;
     }
 
+    if (rawFile.size > 40 * 1024 * 1024) {
+      setActionError("Image file is too large to process.");
+      return;
+    }
+
+    const file = await compressImageFile(rawFile, { preset: "photo" });
+
     if (file.size > 5 * 1024 * 1024) {
-      setActionError("Image size exceeds 5MB limit. Please select a smaller photo.");
+      setActionError("Image size exceeds 5MB limit even after compression. Please select a smaller photo.");
       return;
     }
     setActionError(null);
 
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
     setSelectedImage(file);
     const previewUrl = URL.createObjectURL(file);
     setImagePreviewUrl(previewUrl);
@@ -594,19 +606,13 @@ export default function ChatPage() {
     try {
       let uploadedImageUrl: string | null = null;
 
-      // 1. Upload photo if selected
+      // 1. Upload compressed photo if selected
       if (selectedImage) {
-        // Pre-compress image to clean data URL as primary reliable payload
-        let localDataUrl: string | null = null;
-        try {
-          localDataUrl = await compressImageToDataUrl(selectedImage, 1200, 0.8);
-        } catch (compressErr) {
-          console.warn("Failed to compress image:", compressErr);
-        }
+        const compressedImage = await compressImageFile(selectedImage, { preset: "photo" });
 
         try {
           const formData = new FormData();
-          formData.append("file", selectedImage);
+          formData.append("file", compressedImage, compressedImage.name);
           formData.append("category", "PHOTO");
           formData.append("entityType", "CHAT");
           formData.append("entityId", activeConversationId);
@@ -619,23 +625,28 @@ export default function ChatPage() {
           const ct = uploadRes.headers.get("content-type") || "";
           if (uploadRes.ok && ct.includes("application/json")) {
             const uploadJson = await uploadRes.json();
-            // If storage provider returned an external cloud URL (S3/R2 CDN), use it;
-            // otherwise use localDataUrl because local storage on serverless does not persist across instances
+            const returnedUrl = uploadJson?.data?.url;
             if (
               uploadJson.success &&
-              uploadJson.data?.url &&
-              (uploadJson.data.url.startsWith("http://") || uploadJson.data.url.startsWith("https://"))
+              typeof returnedUrl === "string" &&
+              (returnedUrl.startsWith("/") ||
+                returnedUrl.startsWith("http://") ||
+                returnedUrl.startsWith("https://"))
             ) {
-              uploadedImageUrl = uploadJson.data.url;
+              uploadedImageUrl = returnedUrl;
             }
           }
         } catch (uploadErr) {
           console.warn("Storage upload failed, falling back to data URL:", uploadErr);
         }
 
-        // Resilient fallback: Use compressed base64 if no external cloud CDN URL
+        // Emergency fallback: only inline compressed data URL in DB if /api/uploads failed
         if (!uploadedImageUrl) {
-          uploadedImageUrl = localDataUrl;
+          try {
+            uploadedImageUrl = await compressImageToDataUrl(compressedImage, 1200, 0.8);
+          } catch (compressErr) {
+            console.warn("Failed to build fallback image data URL:", compressErr);
+          }
         }
 
         if (!uploadedImageUrl && !content) {
