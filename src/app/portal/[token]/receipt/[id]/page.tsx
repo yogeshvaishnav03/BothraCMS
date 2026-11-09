@@ -16,7 +16,7 @@ export default async function PortalReceipt({ params }: { params: { token: strin
   const receipt = await SalesService.portalReceipt(params.token, params.id);
   if (!receipt) notFound();
   return (
-    <div className="min-h-screen bg-slate-100 py-8 print:bg-white print:py-0">
+    <div className="min-h-dvh bg-slate-100 py-8 pt-[calc(2rem+env(safe-area-inset-top,0px))] pb-[calc(2rem+env(safe-area-inset-bottom,0px))] print:bg-white print:py-0">
       <div className="mx-auto mb-4 flex max-w-2xl items-center justify-between px-4 print:hidden">
         <Link href={`/portal/${params.token}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" /> Back

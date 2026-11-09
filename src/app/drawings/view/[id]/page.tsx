@@ -38,8 +38,19 @@ export default function DrawingViewerPage() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [showOthers, setShowOthers] = useState(true);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [noteValue, setNoteValue] = useState("");
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const noteResolver = useRef<((v: string | null) => void) | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const box = useRef<HTMLDivElement>(null);
+
+  const askDrawingNote = () =>
+    new Promise<string | null>((resolve) => {
+      noteResolver.current = resolve;
+      setNoteValue("");
+      setNoteModalOpen(true);
+    });
 
   const load = useCallback(async () => {
     const d = await api<any>(`/api/drawing-revisions/${id}`);
@@ -118,7 +129,7 @@ export default function DrawingViewerPage() {
         {error && <Alert tone="error">{error}</Alert>}
         {notice && <Alert tone="success">{notice}</Alert>}
         {!rev ? (
-          <div className="h-[70vh] animate-pulse rounded-2xl bg-slate-100" />
+          <div className="h-[70dvh] animate-pulse rounded-2xl bg-slate-100" />
         ) : (
           <>
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -159,7 +170,7 @@ export default function DrawingViewerPage() {
             </div>
 
             {/* Tools */}
-            <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur">
+            <div className="sticky top-[calc(3.85rem+env(safe-area-inset-top,0px))] lg:top-[4.25rem] z-20 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur">
               <div className="flex rounded-xl bg-slate-100 p-0.5">
                 {TOOLS.map((t) => (
                   <button key={t.key} onClick={() => setTool(t.key)} className={cn("inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold", tool === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800")} title={t.label}>
@@ -175,24 +186,24 @@ export default function DrawingViewerPage() {
               <button onClick={() => change(myShapes.slice(0, -1))} disabled={!myShapes.length} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40">
                 <Undo2 className="h-4 w-4" /> Undo
               </button>
-              <button onClick={() => myShapes.length && confirm("Remove all your marks on this page?") && change([])} disabled={!myShapes.length} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40">
+              <button onClick={() => myShapes.length && setClearConfirmOpen(true)} disabled={!myShapes.length} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40">
                 <Trash2 className="h-4 w-4" /> Clear mine
               </button>
               <div className="ml-auto flex items-center gap-1">
-                <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} className="rounded-lg p-1.5 hover:bg-slate-100" aria-label="Zoom out">
+                <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Zoom out">
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="w-12 text-center text-xs font-bold tabular-nums">{Math.round(zoom * 100)}%</span>
-                <button onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} className="rounded-lg p-1.5 hover:bg-slate-100" aria-label="Zoom in">
+                <button onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Zoom in">
                   <Plus className="h-4 w-4" />
                 </button>
                 {pages > 1 && (
                   <span className="ml-2 flex items-center gap-1 text-xs font-semibold">
-                    <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg p-1 hover:bg-slate-100 disabled:opacity-40" aria-label="Previous page">
+                    <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-40" aria-label="Previous page">
                       <ChevronLeft className="h-4 w-4" />
                     </button>
                     Page {page} of {pages}
-                    <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className="rounded-lg p-1 hover:bg-slate-100 disabled:opacity-40" aria-label="Next page">
+                    <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-40" aria-label="Next page">
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </span>
@@ -210,7 +221,7 @@ export default function DrawingViewerPage() {
             {!rev.fileUrl ? (
               <Alert tone="info">This revision has no file attached. Upload a revision with its PDF or image to mark it up.</Alert>
             ) : (
-              <div ref={box} className="relative overflow-auto rounded-2xl border border-slate-200 bg-slate-100" style={{ maxHeight: "78vh" }}>
+              <div ref={box} className="relative overflow-auto rounded-2xl border border-slate-200 bg-slate-100" style={{ maxHeight: "72dvh" }}>
                 <div className="relative mx-auto" style={{ width: size?.width, height: size?.height }}>
                   <canvas ref={canvas} className="block bg-white" />
                   {size && (
@@ -222,7 +233,7 @@ export default function DrawingViewerPage() {
                       mine={myShapes}
                       others={showOthers ? others : []}
                       onChange={change}
-                      onAskText={() => window.prompt("Note on the drawing:")}
+                      onAskText={askDrawingNote}
                     />
                   )}
                 </div>
@@ -241,6 +252,87 @@ export default function DrawingViewerPage() {
           </>
         )}
       </div>
+
+      {noteModalOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4 pb-safe backdrop-blur-sm"
+          onClick={() => {
+            setNoteModalOpen(false);
+            noteResolver.current?.(null);
+            noteResolver.current = null;
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Note on drawing"
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setNoteModalOpen(false);
+              noteResolver.current?.(noteValue.trim() || null);
+              noteResolver.current = null;
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-3"
+          >
+            <h3 className="text-sm font-bold text-slate-900">Note on the drawing</h3>
+            <input
+              type="text"
+              autoFocus
+              value={noteValue}
+              onChange={(e) => setNoteValue(e.target.value)}
+              placeholder="Enter callout note..."
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            />
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setNoteModalOpen(false);
+                  noteResolver.current?.(null);
+                  noteResolver.current = null;
+                }}
+                className="rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button type="submit" className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700">
+                Place Note
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {clearConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4 pb-safe backdrop-blur-sm"
+          onClick={() => setClearConfirmOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Clear drawing marks"
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-slate-900">Remove all your marks on this page?</h3>
+            <p className="text-xs text-slate-500">Other team members&apos; marks will stay intact.</p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button type="button" onClick={() => setClearConfirmOpen(false)} className="rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">
+                Keep Marks
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setClearConfirmOpen(false);
+                  change([]);
+                }}
+                className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700"
+              >
+                Clear Page Marks
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }

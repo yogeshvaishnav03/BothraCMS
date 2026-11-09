@@ -127,7 +127,7 @@ export function PhotoPicker({
         type="file"
         accept="image/jpeg,image/png,image/webp"
         multiple
-        className="hidden"
+        className="sr-only"
         onChange={(e) => upload(e.target.files)}
       />
       {error && <p className="text-[11px] font-medium text-rose-600">{error}</p>}

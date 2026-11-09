@@ -30,6 +30,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  X,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 
@@ -45,6 +46,23 @@ export default function MaterialDetailPage() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
+  const [orderDialog, setOrderDialog] = useState<{ type: "approve" | "reject"; order: any } | null>(null);
+  const [orderRejectReason, setOrderRejectReason] = useState("Order query rejected by administrator");
+  const [orderFeedback, setOrderFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!orderDialog) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOrderDialog(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [orderDialog]);
 
   const canPlaceOrder =
     canUser(currentUser, "inventory:receipt") ||
@@ -95,54 +113,56 @@ export default function MaterialDetailPage() {
       .catch(() => {});
   }, [refreshUser]);
 
-  const handleApproveOrder = async (order: any) => {
-    const confirmed = confirm(
-      `Approve Purchase Order ${order.orderNumber} for ${order.material?.name || "material"} (${order.quantity} ${order.unitCode})?\n\nThis will confirm the order and activate the vendor WhatsApp/Email notification.`
-    );
-    if (!confirmed) return;
-
-    setActionLoading(order.id);
-    try {
-      const res = await fetch(`/api/orders/${order.id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: "Approved from material ledger" }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        loadOrders();
-      } else {
-        alert(json.error?.message || "Failed to approve order");
-      }
-    } catch {
-      alert("Network error approving order");
-    } finally {
-      setActionLoading(null);
-    }
+  const handleApproveOrder = (order: any) => {
+    setOrderFeedback(null);
+    setOrderDialog({ type: "approve", order });
   };
 
-  const handleRejectOrder = async (order: any) => {
-    const reason = prompt(
-      `Please provide rejection reason for Purchase Order ${order.orderNumber}:`,
-      "Order query rejected by administrator"
-    );
-    if (!reason) return;
+  const handleRejectOrder = (order: any) => {
+    setOrderFeedback(null);
+    setOrderRejectReason("Order query rejected by administrator");
+    setOrderDialog({ type: "reject", order });
+  };
+
+  const executeOrderDialog = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!orderDialog) return;
+    const { type, order } = orderDialog;
+    if (type === "reject" && !orderRejectReason.trim()) return;
 
     setActionLoading(order.id);
     try {
-      const res = await fetch(`/api/orders/${order.id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        loadOrders();
+      if (type === "approve") {
+        const res = await fetch(`/api/orders/${order.id}/approve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: "Approved from material ledger" }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setOrderDialog(null);
+          setOrderFeedback({ tone: "success", text: `Order ${order.orderNumber} approved!` });
+          loadOrders();
+        } else {
+          setOrderFeedback({ tone: "error", text: json.error?.message || "Failed to approve order" });
+        }
       } else {
-        alert(json.error?.message || "Failed to reject order");
+        const res = await fetch(`/api/orders/${order.id}/reject`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: orderRejectReason.trim() }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setOrderDialog(null);
+          setOrderFeedback({ tone: "success", text: `Order ${order.orderNumber} rejected.` });
+          loadOrders();
+        } else {
+          setOrderFeedback({ tone: "error", text: json.error?.message || "Failed to reject order" });
+        }
       }
     } catch {
-      alert("Network error rejecting order");
+      setOrderFeedback({ tone: "error", text: `Network error ${type === "approve" ? "approving" : "rejecting"} order` });
     } finally {
       setActionLoading(null);
     }
@@ -199,7 +219,7 @@ export default function MaterialDetailPage() {
       <Shell>
         <div className="space-y-4">
           <div className="h-8 w-48 bg-slate-200 rounded animate-pulse" />
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-24 bg-slate-200 rounded-xl animate-pulse" />
             ))}
@@ -265,6 +285,21 @@ export default function MaterialDetailPage() {
             </button>
           )}
         </div>
+
+        {orderFeedback && (
+          <div
+            className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2 ${
+              orderFeedback.tone === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : "bg-rose-50 border-rose-200 text-rose-800"
+            }`}
+          >
+            <span>{orderFeedback.text}</span>
+            <button onClick={() => setOrderFeedback(null)} className="p-0.5 rounded hover:bg-black/5">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Low Stock Warning Banner */}
         {material.minStockQty > 0 && currentBalance < material.minStockQty && (
@@ -652,6 +687,90 @@ export default function MaterialDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Modal: Approve / Reject Purchase Order */}
+      {orderDialog && (
+        <div
+          className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setOrderDialog(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h3 className="font-bold text-slate-900 text-base">
+                {orderDialog.type === "approve" ? "Approve Purchase Order" : "Reject Purchase Order"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setOrderDialog(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {orderDialog.type === "approve" ? (
+              <>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Approve Purchase Order{" "}
+                  <strong className="font-mono text-slate-900">{orderDialog.order.orderNumber}</strong> for{" "}
+                  <strong className="text-slate-900">{orderDialog.order.material?.name || "material"}</strong> (
+                  {orderDialog.order.quantity} {orderDialog.order.unitCode})? This confirms the order and activates
+                  vendor WhatsApp/Email notification.
+                </p>
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setOrderDialog(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionLoading === orderDialog.order.id}
+                    onClick={() => executeOrderDialog()}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                  >
+                    {actionLoading === orderDialog.order.id ? "Approving..." : "Confirm & Approve"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <form onSubmit={executeOrderDialog} className="space-y-3">
+                <p className="text-xs text-slate-600">
+                  Provide rejection reason for Purchase Order{" "}
+                  <strong className="font-mono text-slate-900">{orderDialog.order.orderNumber}</strong>.
+                </p>
+                <textarea
+                  required
+                  rows={3}
+                  value={orderRejectReason}
+                  onChange={(e) => setOrderRejectReason(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                />
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setOrderDialog(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading === orderDialog.order.id || !orderRejectReason.trim()}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                  >
+                    {actionLoading === orderDialog.order.id ? "Rejecting..." : "Reject Order"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Interactive Place Order to Vendor Modal */}
       <PlaceOrderModal

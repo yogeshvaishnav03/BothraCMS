@@ -19,6 +19,7 @@ import {
   Upload,
   Eye,
   Download,
+  FileText,
   AlertTriangle,
   Building2,
   Wallet,
@@ -101,16 +102,37 @@ export default function ExpensesPage() {
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Modal: View Receipt Photo
   const [viewingReceipt, setViewingReceipt] = useState<{ url: string; fileName: string; title: string } | null>(null);
 
-  // Modal: Reject Reason
+  // Modal: Approve & Reject Confirmation
+  const [pendingApproveExpenseId, setPendingApproveExpenseId] = useState<string | null>(null);
   const [rejectingExpenseId, setRejectingExpenseId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectSubmitting, setRejectSubmitting] = useState(false);
 
   const isApprover = currentUser?.role && ["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT"].includes(currentUser.role);
+
+  useEffect(() => {
+    const anyModal = showLogModal || Boolean(viewingReceipt) || Boolean(rejectingExpenseId) || Boolean(pendingApproveExpenseId);
+    if (!anyModal) return;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowLogModal(false);
+        setViewingReceipt(null);
+        setRejectingExpenseId(null);
+        setPendingApproveExpenseId(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showLogModal, viewingReceipt, rejectingExpenseId, pendingApproveExpenseId]);
 
   const loadExpenses = (statusOverride?: string) => {
     setLoading(true);
@@ -204,6 +226,7 @@ export default function ExpensesPage() {
     setReceiptPreview(null);
     setReceiptError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
   const handleSubmitExpense = async (e: React.FormEvent) => {
@@ -305,8 +328,14 @@ export default function ExpensesPage() {
     }
   };
 
-  const handleApproveExpense = async (id: string) => {
-    if (!confirm("Are you sure you want to approve this out-of-pocket expense for reimbursement?")) return;
+  const handleApproveExpense = (id: string) => {
+    setPendingApproveExpenseId(id);
+  };
+
+  const confirmApproveExpense = async () => {
+    if (!pendingApproveExpenseId) return;
+    const id = pendingApproveExpenseId;
+    setPendingApproveExpenseId(null);
     // Optimistic status update
     setExpenses((prev) =>
       prev.map((e) => (e.id === id ? { ...e, status: "POSTED" as const } : e))
@@ -315,7 +344,7 @@ export default function ExpensesPage() {
       const res = await fetch(`/api/expenses/${id}/approve`, { method: "POST" });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.error?.message || "Failed to approve expense");
+        setFeedback({ tone: "error", message: data.error?.message || "Failed to approve expense" });
         loadExpenses();
         return;
       }
@@ -323,7 +352,7 @@ export default function ExpensesPage() {
       loadExpenses();
       window.dispatchEvent(new CustomEvent("refreshExpenses"));
     } catch {
-      alert("Network error approving expense");
+      setFeedback({ tone: "error", message: "Network error approving expense" });
       loadExpenses();
     }
   };
@@ -346,7 +375,7 @@ export default function ExpensesPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.error?.message || "Failed to decline expense");
+        setFeedback({ tone: "error", message: data.error?.message || "Failed to decline expense" });
         loadExpenses();
         return;
       }
@@ -356,7 +385,7 @@ export default function ExpensesPage() {
       loadExpenses();
       window.dispatchEvent(new CustomEvent("refreshExpenses"));
     } catch {
-      alert("Network error declining expense");
+      setFeedback({ tone: "error", message: "Network error declining expense" });
       loadExpenses();
     } finally {
       setRejectSubmitting(false);
@@ -971,7 +1000,7 @@ export default function ExpensesPage() {
         {/* Modal: Log New Out-of-Pocket Expense */}
         {showLogModal && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <div className="p-1.5 bg-amber-100 text-amber-700 rounded-lg">
@@ -1127,66 +1156,79 @@ export default function ExpensesPage() {
                     Supervisors must attach a clear photo of the shop receipt, cash memo, or UPI transaction screenshot.
                   </p>
 
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*,application/pdf"
-                    capture="environment"
-                    onChange={handlePhotoSelect}
-                    className="hidden"
-                    id="receipt-photo-input"
-                  />
+                  <div className="relative">
+                    <input
+                      type="file"
+                      ref={cameraInputRef}
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handlePhotoSelect}
+                      className="sr-only"
+                      id="receipt-camera-input"
+                    />
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*,application/pdf"
+                      onChange={handlePhotoSelect}
+                      className="sr-only"
+                      id="receipt-photo-input"
+                    />
 
-                  {receiptFile ? (
-                    <div className="bg-white p-3 rounded-lg border border-amber-200 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {receiptPreview ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={receiptPreview}
-                            alt="Receipt preview"
-                            className="w-12 h-12 object-cover rounded-md border border-slate-200 shrink-0"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-md bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
-                            <Receipt className="w-6 h-6" />
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-bold text-xs text-slate-900 truncate">
-                            {receiptFile.name}
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-mono">
-                            {(receiptFile.size / 1024).toFixed(1)} KB • Photo attached ✓
+                    {receiptFile ? (
+                      <div className="bg-white p-3 rounded-lg border border-amber-200 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {receiptPreview ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={receiptPreview}
+                              alt="Receipt preview"
+                              className="w-12 h-12 object-cover rounded-md border border-slate-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-md bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                              <Receipt className="w-6 h-6" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-xs text-slate-900 truncate">
+                              {receiptFile.name}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {(receiptFile.size / 1024).toFixed(1)} KB • Receipt attached ✓
+                            </div>
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          onClick={handleClearPhoto}
+                          className="p-2 text-slate-400 hover:text-rose-600 rounded-md transition"
+                          title="Remove receipt"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleClearPhoto}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md transition"
-                        title="Remove photo"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full py-4 px-3 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-lg bg-white/70 hover:bg-white text-center transition flex flex-col items-center justify-center gap-1.5 cursor-pointer group"
-                    >
-                      <div className="p-2 bg-amber-100 text-amber-700 rounded-full group-hover:scale-110 transition-transform">
-                        <Camera className="w-5 h-5" />
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="py-3.5 px-3 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Camera className="w-4 h-4 text-amber-700" />
+                          <span className="font-bold text-xs text-slate-900">Take Photo</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="py-3.5 px-3 border-2 border-dashed border-slate-300 hover:border-slate-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4 text-slate-700" />
+                          <span className="font-bold text-xs text-slate-900">Choose Receipt / PDF</span>
+                        </button>
                       </div>
-                      <span className="font-bold text-xs text-slate-900">
-                        Snap Photo with Camera or Upload Receipt
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        Tap here to open phone camera or file browser
-                      </span>
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Supervisor Remarks */}
@@ -1237,7 +1279,7 @@ export default function ExpensesPage() {
         {/* Modal: View Receipt Photo */}
         {viewingReceipt && (
           <div className="fixed inset-0 z-[80] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92dvh] animate-scale-in">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
                 <div>
                   <div className="font-bold text-slate-900 text-sm">{viewingReceipt.title}</div>
@@ -1265,12 +1307,66 @@ export default function ExpensesPage() {
               </div>
 
               <div className="flex-1 overflow-auto p-4 bg-slate-900 flex items-center justify-center min-h-[300px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={viewingReceipt.url}
-                  alt={viewingReceipt.fileName}
-                  className="max-h-[75vh] max-w-full object-contain rounded shadow-lg"
-                />
+                {viewingReceipt.url.toLowerCase().includes(".pdf") || viewingReceipt.fileName.toLowerCase().endsWith(".pdf") ? (
+                  <>
+                    <div className="sm:hidden flex flex-col items-center justify-center text-center text-white p-6 space-y-3">
+                      <FileText className="w-12 h-12 text-amber-400" />
+                      <div className="text-sm font-bold">{viewingReceipt.fileName}</div>
+                      <p className="text-xs text-slate-400 max-w-xs">
+                        Tap below to view or download the full PDF receipt on your device.
+                      </p>
+                      <a
+                        href={viewingReceipt.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        download={viewingReceipt.fileName}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-black"
+                      >
+                        <Download className="w-4 h-4" /> Open / Download PDF
+                      </a>
+                    </div>
+                    <iframe
+                      src={viewingReceipt.url}
+                      title={viewingReceipt.fileName}
+                      className="hidden sm:block w-full h-[70dvh] rounded-lg bg-white"
+                    />
+                  </>
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={viewingReceipt.url}
+                    alt={viewingReceipt.fileName}
+                    className="max-h-[75dvh] max-w-full object-contain rounded shadow-lg"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Approve Expense Claim Confirmation */}
+        {pendingApproveExpenseId && (
+          <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in space-y-3">
+              <div className="font-bold text-slate-900 text-base">Approve Expense Claim</div>
+              <p className="text-xs text-slate-600">
+                Confirm approval of this out-of-pocket expense claim for reimbursement?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingApproveExpenseId(null)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmApproveExpense}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+                >
+                  Confirm Approval
+                </button>
               </div>
             </div>
           </div>

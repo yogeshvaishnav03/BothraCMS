@@ -7,6 +7,7 @@ import { useActiveSite } from "@/hooks/useActiveSite";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatQuantity, formatDate } from "@/lib/formatters";
+import { downloadCsv } from "@/lib/csv-download";
 import { canUser } from "@/lib/permissions";
 import {
   FileText,
@@ -183,14 +184,8 @@ export default function ReportsPage() {
       m.isLowStock ? "LOW_STOCK" : "OK",
     ]);
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `BothraCMS_Stock_Report_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvString = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    downloadCsv(`BothraCMS_Stock_Report_${Date.now()}.csv`, csvString);
   };
 
   const exportPayablesCSV = () => {
@@ -204,14 +199,8 @@ export default function ReportsPage() {
       (p.outstandingBalance / 100).toFixed(2),
     ]);
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `BothraCMS_Payables_Report_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvString = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    downloadCsv(`BothraCMS_Payables_Report_${Date.now()}.csv`, csvString);
   };
 
   const exportAttendanceCSV = () => {
@@ -238,15 +227,8 @@ export default function ReportsPage() {
       `"${a.notes || ""}"`,
     ]);
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `BothraCMS_Attendance_Report_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvString = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    downloadCsv(`BothraCMS_Attendance_Report_${Date.now()}.csv`, csvString);
   };
 
   const totalStockQty = useMemo(
@@ -395,7 +377,7 @@ export default function ReportsPage() {
                 showExport={true}
                 dateRangeFilter={dateRangeConfig}
               />
-              <div className="overflow-x-auto min-h-[400px]">
+              <div className="overflow-x-auto md:min-h-[400px]">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
@@ -475,7 +457,7 @@ export default function ReportsPage() {
                 showExport={true}
                 dateRangeFilter={dateRangeConfig}
               />
-              <div className="overflow-x-auto min-h-[400px]">
+              <div className="overflow-x-auto md:min-h-[400px]">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
@@ -565,7 +547,7 @@ export default function ReportsPage() {
               showExport={true}
               dateRangeFilter={dateRangeConfig}
             />
-            <div className="overflow-x-auto min-h-[400px]">
+            <div className="overflow-x-auto md:min-h-[400px]">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>

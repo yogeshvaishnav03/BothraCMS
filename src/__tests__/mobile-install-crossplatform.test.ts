@@ -144,8 +144,9 @@ describe("Cross-Platform iPhone (iOS) & Android App Support", () => {
       expect(cap.appId).toBe("com.bothracms.app");
       expect(cap.server?.url).toMatch(/^https:\/\//);
       expect(cap.ios).toBeDefined();
-      expect(cap.ios.contentInset).toBe("automatic");
+      expect(cap.ios.contentInset).toBe("never");
       expect(cap.android).toBeDefined();
+      expect(cap.android.captureInput).toBe(false);
     });
 
     it("configures Apple Web App metadata, 180x180 touch icon, and viewportFit cover", () => {

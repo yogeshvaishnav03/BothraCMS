@@ -161,6 +161,8 @@ export default function DrawingsPage() {
   }, []);
   const [adding, setAdding] = useState(false);
   const [revising, setRevising] = useState<any>(null);
+  const [rejectTargetRev, setRejectTargetRev] = useState<any>(null);
+  const [rejectNote, setRejectNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -186,12 +188,13 @@ export default function DrawingsPage() {
     return () => clearTimeout(t);
   }, [load]);
 
-  const review = async (rev: any, action: "APPROVE" | "ISSUE" | "REJECT") => {
-    let note: string | null = null;
-    if (action === "REJECT") {
-      note = window.prompt("What needs to change?");
-      if (!note) return;
+  const review = async (rev: any, action: "APPROVE" | "ISSUE" | "REJECT", explicitNote?: string) => {
+    if (action === "REJECT" && !explicitNote) {
+      setRejectNote("");
+      setRejectTargetRev(rev);
+      return;
     }
+    const note: string | null = action === "REJECT" ? explicitNote || null : null;
     try {
       await api(`/api/drawing-revisions/${rev.id}/review`, post({ action, note }));
       setNotice(action === "ISSUE" ? `${rev.revision} issued for construction. The site team has been told.` : action === "APPROVE" ? `${rev.revision} approved.` : `${rev.revision} sent back.`);
@@ -352,6 +355,48 @@ export default function DrawingsPage() {
         )}
       </div>
 
+      {rejectTargetRev && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 p-4 pb-safe backdrop-blur-sm overflow-y-auto"
+          onClick={() => setRejectTargetRev(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Send back drawing revision"
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const rev = rejectTargetRev;
+              const txt = rejectNote.trim();
+              if (!txt) return;
+              setRejectTargetRev(null);
+              await review(rev, "REJECT", txt);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-3"
+          >
+            <h3 className="text-sm font-bold text-slate-900">Send back {rejectTargetRev.revision}?</h3>
+            <p className="text-xs text-slate-500">What needs to change before approving this drawing?</p>
+            <textarea
+              rows={3}
+              required
+              autoFocus
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              placeholder="e.g. Update plinth beam levels on Grid B"
+              className="w-full rounded-xl border border-slate-200 p-2.5 text-sm"
+            />
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button type="button" onClick={() => setRejectTargetRev(null)} className="rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">
+                Cancel
+              </button>
+              <button type="submit" disabled={!rejectNote.trim()} className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">
+                Send Back
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {adding && <NewDrawingModal projects={projects} defaultProject={projectId} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); setNotice("Drawing added as R0, waiting for approval."); load(); }} />}
       {revising && <RevisionModal drawing={revising} onClose={() => setRevising(null)} onSaved={(rev) => { setRevising(null); setNotice(`${rev} uploaded, waiting for approval.`); load(); }} />}
     </Shell>

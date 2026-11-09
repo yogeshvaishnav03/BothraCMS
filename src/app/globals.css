@@ -37,8 +37,14 @@
     background-image:
       radial-gradient(1200px 600px at 100% -10%, rgb(245 158 11 / 0.07), transparent 60%),
       radial-gradient(900px 500px at -10% 10%, rgb(99 102 241 / 0.05), transparent 60%);
-    background-attachment: fixed;
+    overflow-x: hidden;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  @media (min-width: 1024px) {
+    body {
+      background-attachment: fixed;
+    }
   }
 
   h1, h2, h3 {
@@ -68,6 +74,17 @@
   input[type="checkbox"],
   input[type="radio"] {
     accent-color: var(--accent);
+  }
+
+  /* Prevent iOS Safari / WebKit from auto-zooming on focused form inputs < 16px */
+  @supports (-webkit-touch-callout: none) {
+    @media (max-width: 767px) {
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+      select,
+      textarea {
+        font-size: 16px !important;
+      }
+    }
   }
 
   table, th, td {
@@ -184,8 +201,10 @@
   .app-main .bg-white.rounded-xl {
     transition: box-shadow 0.2s ease, border-color 0.2s ease;
   }
-  .app-main .bg-white.rounded-2xl:hover {
-    box-shadow: 0 6px 20px -8px rgb(15 23 42 / 0.12), 0 2px 6px -2px rgb(15 23 42 / 0.05);
+  @media (hover: hover) and (pointer: fine) {
+    .app-main .bg-white.rounded-2xl:hover {
+      box-shadow: 0 6px 20px -8px rgb(15 23 42 / 0.12), 0 2px 6px -2px rgb(15 23 42 / 0.05);
+    }
   }
 
   /* Glass surfaces */
@@ -267,8 +286,11 @@
     max-width: 100%;
   }
 
-  .overflow-x-auto:has(table) {
-    min-height: 400px;
+  /* Desktop 400px min-height for full-page data tables (excluded for compact embedded tables and mobile phones) */
+  @media (min-width: 768px) {
+    .overflow-x-auto:not(.compact-table):has(table) {
+      min-height: 400px;
+    }
   }
 
   .backdrop-blur-xs {
@@ -301,6 +323,13 @@
   }
   .bottom-safe-offset {
     bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Ensure hover-gated action controls remain visible on touchscreens (phones + iPad/Android tablets) */
+  @media (hover: none) {
+    [class*="group-hover:opacity-100"]:not(.hover-hint-only) {
+      opacity: 1 !important;
+    }
   }
 }
 

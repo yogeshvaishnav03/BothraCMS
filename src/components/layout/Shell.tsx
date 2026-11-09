@@ -69,6 +69,16 @@ export default function Shell({ children }: ShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [logoutConfirmCount, setLogoutConfirmCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!(mobileMenuOpen || notificationsOpen || langDropdownOpen || logoutConfirmCount !== null)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileMenuOpen, notificationsOpen, langDropdownOpen, logoutConfirmCount]);
 
   const {
     user,
@@ -179,16 +189,24 @@ export default function Shell({ children }: ShellProps) {
     setSharedActiveSiteId(siteId);
   };
 
-  const handleLogout = async () => {
-    // Saved updates are sent as whoever is logged in, so they cannot wait for the next person.
-    const waiting = await listQueued().catch(() => []);
-    if (waiting.length > 0 && !window.confirm(`${waiting.length} saved update${waiting.length === 1 ? " has" : "s have"} not been sent yet. Log out and discard ${waiting.length === 1 ? "it" : "them"}?`)) return;
+  const performLogout = async () => {
+    setLogoutConfirmCount(null);
     await clearQueue().catch(() => {});
     // Pages kept for offline use belong to this login.
     if ("caches" in window) await caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => {});
     clearSessionCache();
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
+  };
+
+  const handleLogout = async () => {
+    // Saved updates are sent as whoever is logged in, so they cannot wait for the next person.
+    const waiting = await listQueued().catch(() => []);
+    if (waiting.length > 0) {
+      setLogoutConfirmCount(waiting.length);
+      return;
+    }
+    await performLogout();
   };
 
   type NavItem = { key: string; defaultLabel: string; href: string; icon: typeof LayoutDashboard };
@@ -448,7 +466,8 @@ export default function Shell({ children }: ShellProps) {
               title={installAppTitle}
             >
               <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-              <span>Install App</span>
+              <span className="sm:hidden">Install</span>
+              <span className="hidden sm:inline">Install App</span>
             </button>
           )}
           <button
@@ -484,7 +503,7 @@ export default function Shell({ children }: ShellProps) {
           onClick={() => setMobileMenuOpen(false)}
         >
           <div
-            className="bg-gradient-chrome rounded-t-3xl p-5 pb-safe border-t border-white/10 max-h-[85vh] overflow-y-auto animate-fade-up"
+            className="bg-gradient-chrome rounded-t-3xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] border-t border-white/10 max-h-[85dvh] overflow-y-auto animate-fade-up"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
@@ -555,7 +574,7 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Main Content Area */}
-      <main className="app-main flex-1 min-w-0 pb-24 lg:pb-8">
+      <main className="app-main flex-1 min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:pb-8">
         {/* Desktop top bar */}
         <div className="hidden lg:block sticky top-0 z-30 glass border-b border-slate-200/70 print:hidden no-print">
           <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between gap-4">
@@ -651,17 +670,6 @@ export default function Shell({ children }: ShellProps) {
             </span>
             <div className="flex items-center gap-2 shrink-0">
               {languageToggle("sm")}
-              {!isAppInstalled && (
-                <button
-                  type="button"
-                  onClick={triggerAppInstall}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 ring-1 ring-amber-300 text-amber-900 text-[11px] font-bold transition shadow-xs active:scale-95 shrink-0"
-                  title={installAppTitle}
-                >
-                  <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Install</span>
-                </button>
-              )}
               <InteractiveGuideModal />
             </div>
           </div>
@@ -677,11 +685,11 @@ export default function Shell({ children }: ShellProps) {
       {/* Real-Time Operational Notifications Drawer */}
       {notificationsOpen && (
         <div
-          className="fixed inset-0 z-[60] flex items-start justify-end p-4 lg:p-6 bg-slate-950/40 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-[60] flex items-start justify-end p-4 pt-[calc(4rem+env(safe-area-inset-top,0px))] lg:p-6 lg:pt-16 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] bg-slate-950/40 backdrop-blur-sm overflow-y-auto"
           onClick={() => setNotificationsOpen(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl shadow-xl ring-1 ring-slate-200 overflow-hidden mt-14 max-h-[calc(100vh-5rem)] flex flex-col animate-slide-in-right"
+            className="w-full max-w-sm bg-white rounded-2xl shadow-xl ring-1 ring-slate-200 overflow-hidden max-h-[calc(100dvh-5.5rem-env(safe-area-inset-top,0px))] flex flex-col animate-slide-in-right"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 bg-gradient-chrome text-white flex items-center justify-between">
@@ -714,7 +722,7 @@ export default function Shell({ children }: ShellProps) {
               </div>
             </div>
             <PushToggle />
-            <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 p-2">
+            <div className="flex-1 min-h-0 max-h-[60dvh] overflow-y-auto divide-y divide-slate-100 p-2">
               {notifications.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-xs">
                   {t("nav.noAlerts", "No active operational alerts. All site systems normal!")}
@@ -764,10 +772,10 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Mobile Supervisor Bottom Dock */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-3 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around z-30 shadow-2xl print:hidden no-print">
+      <div data-mobile-dock className="lg:hidden fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-2 pt-1 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around z-30 shadow-2xl print:hidden no-print">
         <Link
           href="/"
-          className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${
+          className={`flex flex-col items-center justify-center min-h-[44px] min-w-[48px] py-0.5 gap-0.5 text-[11px] font-medium transition ${
             pathname === "/" ? "text-amber-400 font-bold" : "text-slate-400 hover:text-slate-200"
           }`}
         >
@@ -776,7 +784,7 @@ export default function Shell({ children }: ShellProps) {
         </Link>
         <Link
           href="/day-book"
-          className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${
+          className={`flex flex-col items-center justify-center min-h-[44px] min-w-[48px] py-0.5 gap-0.5 text-[11px] font-medium transition ${
             pathname.startsWith("/day-book") ? "text-amber-400 font-bold" : "text-slate-400 hover:text-slate-200"
           }`}
         >
@@ -801,7 +809,7 @@ export default function Shell({ children }: ShellProps) {
 
         <Link
           href="/attendance"
-          className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${
+          className={`flex flex-col items-center justify-center min-h-[44px] min-w-[48px] py-0.5 gap-0.5 text-[11px] font-medium transition ${
             pathname.startsWith("/attendance") ? "text-amber-400 font-bold" : "text-slate-400 hover:text-slate-200"
           }`}
         >
@@ -810,7 +818,7 @@ export default function Shell({ children }: ShellProps) {
         </Link>
         <Link
           href="/chat"
-          className={`flex flex-col items-center gap-0.5 text-[11px] font-medium relative transition ${
+          className={`flex flex-col items-center justify-center min-h-[44px] min-w-[48px] py-0.5 gap-0.5 text-[11px] font-medium relative transition ${
             pathname.startsWith("/chat") ? "text-amber-400 font-bold" : "text-slate-400 hover:text-slate-200"
           }`}
         >
@@ -833,7 +841,7 @@ export default function Shell({ children }: ShellProps) {
           onClick={() => setLangDropdownOpen(false)}
         >
           <div
-            className="w-full max-w-xs bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl p-4 space-y-3 max-h-[90vh] overflow-y-auto animate-scale-in"
+            className="w-full max-w-xs bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl p-4 space-y-3 max-h-[90dvh] overflow-y-auto animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
@@ -907,7 +915,7 @@ export default function Shell({ children }: ShellProps) {
 
       {/* Real-Time Operational Alert Toast for Desktop & Mobile */}
       {alertToast && (
-        <div className={`fixed bottom-24 lg:bottom-20 right-4 lg:right-5 z-50 max-w-sm w-[calc(100%-2rem)] bg-slate-900 border ${
+        <div className={`fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] lg:bottom-20 right-4 lg:right-5 z-50 max-w-sm w-[calc(100%-2rem)] bg-slate-900 border ${
           alertToast.severity === "CRITICAL"
             ? "border-rose-500/80 shadow-rose-950/40"
             : alertToast.severity === "WARNING"
@@ -959,7 +967,7 @@ export default function Shell({ children }: ShellProps) {
 
       {/* Real-Time Floating Chat Message Notification Toast */}
       {chatToast && (
-        <div className="fixed bottom-20 lg:bottom-5 right-4 lg:right-5 z-50 max-w-sm w-[calc(100%-2rem)] bg-gradient-chrome ring-1 ring-amber-500/30 text-white p-4 rounded-2xl shadow-xl animate-fade-up">
+        <div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] lg:bottom-5 right-4 lg:right-5 z-50 max-w-sm w-[calc(100%-2rem)] bg-gradient-chrome ring-1 ring-amber-500/30 text-white p-4 rounded-2xl shadow-xl animate-fade-up">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-9 h-9 rounded-full bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0 shadow-sm">
@@ -993,6 +1001,43 @@ export default function Shell({ children }: ShellProps) {
               <MessageSquare className="w-3.5 h-3.5" />
               <span>Open Chat</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* In-app Confirmation Modal when logging out with unsent offline queue */}
+      {logoutConfirmCount !== null && (
+        <div
+          className="fixed inset-0 z-[105] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 pb-safe overflow-y-auto"
+          onClick={() => setLogoutConfirmCount(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm logout"
+        >
+          <div
+            className="w-full max-w-sm bg-slate-900 border border-slate-700 text-white rounded-2xl p-5 shadow-2xl space-y-4 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-white">Discard unsent updates?</h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {logoutConfirmCount} saved update{logoutConfirmCount === 1 ? " has" : "s have"} not been sent yet. Logging out will discard {logoutConfirmCount === 1 ? "it" : "them"}.
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setLogoutConfirmCount(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+              >
+                Stay Signed In
+              </button>
+              <button
+                type="button"
+                onClick={performLogout}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-bold"
+              >
+                Log Out & Discard
+              </button>
+            </div>
           </div>
         </div>
       )}

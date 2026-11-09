@@ -367,14 +367,15 @@ export default function ChatPage() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Please select a valid image file (JPEG, PNG, WebP).");
+      setActionError("Please select a valid image file (JPEG, PNG, WebP).");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image size exceeds 5MB limit. Please select a smaller photo.");
+      setActionError("Image size exceeds 5MB limit. Please select a smaller photo.");
       return;
     }
+    setActionError(null);
 
     setSelectedImage(file);
     const previewUrl = URL.createObjectURL(file);
@@ -572,11 +573,11 @@ export default function ChatPage() {
         setActiveTab("conversations");
         await loadChatData();
       } else {
-        alert(json.error?.message || "Failed to start direct conversation");
+        setActionError(json.error?.message || "Failed to start direct conversation");
       }
     } catch (err) {
       console.error("Error starting direct chat:", err);
-      alert("Network error starting direct chat");
+      setActionError("Network error starting direct chat");
     }
   };
 
@@ -663,11 +664,11 @@ export default function ChatPage() {
           if (r.success) setConversations(r.data.conversations || []);
         });
       } else {
-        alert(json.error?.message || "Failed to send message");
+        setActionError(json.error?.message || "Failed to send message");
       }
     } catch (err: any) {
       console.error("Error sending message:", err);
-      alert(err.message || "Failed to send message. Please try again.");
+      setActionError(err.message || "Failed to send message. Please try again.");
     } finally {
       setSending(false);
     }
@@ -677,7 +678,7 @@ export default function ChatPage() {
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSuperAdmin) {
-      alert("Only Super Admin can create chat groups.");
+      setGroupError("Only Super Admin can create chat groups.");
       return;
     }
     if (!groupName.trim()) {
@@ -737,6 +738,24 @@ export default function ChatPage() {
   const clearAllEmployees = () => {
     setSelectedMemberIds([]);
   };
+
+  useEffect(() => {
+    const anyModal = showCreateGroupModal || Boolean(fullscreenImage) || Boolean(confirmDeleteMessageId);
+    if (!anyModal) return;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowCreateGroupModal(false);
+        setFullscreenImage(null);
+        setConfirmDeleteMessageId(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showCreateGroupModal, fullscreenImage, confirmDeleteMessageId]);
 
   const filteredConversations = conversations.filter((c) => {
     const q = search.toLowerCase();
@@ -826,7 +845,7 @@ export default function ChatPage() {
         </div>
 
         {/* Main Chat Interface */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:grid md:grid-cols-12 h-[calc(100vh-12.5rem)] min-h-[580px] max-h-[820px]">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:grid md:grid-cols-12 h-[calc(100dvh-13.5rem-env(safe-area-inset-bottom,0px))] md:h-[calc(100dvh-12.5rem)] min-h-[380px] md:min-h-[540px] max-h-[820px]">
           {/* Left Column: Conversations & Employees Directory (4 cols on desktop) */}
           <div
             className={`border-r border-slate-200 flex flex-col h-full min-h-0 bg-slate-50/50 overflow-hidden ${
@@ -1233,7 +1252,7 @@ export default function ChatPage() {
                               <div className={`flex items-end gap-1.5 max-w-full ${m.isMine ? "flex-row" : "flex-row-reverse"}`}>
                                 {/* Action Buttons Toolbar for Edit & Delete */}
                                 {!isEditing && (canEdit || canDelete) && (
-                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 bg-white border border-slate-200 shadow-xs rounded-lg p-0.5 shrink-0 mb-1">
+                                  <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 bg-white border border-slate-200 shadow-xs rounded-lg p-0.5 shrink-0 mb-1">
                                     {canEdit && (
                                       <button
                                         type="button"
@@ -1282,7 +1301,7 @@ export default function ChatPage() {
                                       />
                                       <div
                                         onClick={() => setFullscreenImage(m.imageUrl || null)}
-                                        className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
+                                        className="hover-hint-only hidden md:flex absolute inset-0 bg-slate-950/40 opacity-0 md:group-hover:opacity-100 transition items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
                                       >
                                         <Eye className="w-4 h-4" />
                                         <span>Click to preview</span>
@@ -1428,14 +1447,14 @@ export default function ChatPage() {
                     {/* Message Input Box */}
                     <form
                       onSubmit={handleSendMessage}
-                      className="p-3 border-t border-slate-200 bg-white flex items-center gap-2 shrink-0"
+                      className="relative p-3 border-t border-slate-200 bg-white flex items-center gap-2 shrink-0"
                     >
                       <input
                         type="file"
                         ref={fileInputRef}
                         accept="image/jpeg,image/png,image/webp"
                         onChange={handleImageSelect}
-                        className="hidden"
+                        className="sr-only"
                       />
 
                       <button
@@ -1461,7 +1480,7 @@ export default function ChatPage() {
                         }
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
-                        className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm sm:text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
                         disabled={sending}
                       />
 
@@ -1520,7 +1539,7 @@ export default function ChatPage() {
           onClick={() => setShowCreateGroupModal(false)}
         >
           <div
-            className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in"
+            className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
@@ -1678,7 +1697,7 @@ export default function ChatPage() {
           onClick={() => setFullscreenImage(null)}
         >
           <div
-            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+            className="relative max-w-4xl max-h-[90dvh] flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full flex items-center justify-between pb-3 text-white">
@@ -1710,7 +1729,7 @@ export default function ChatPage() {
             <img
               src={fullscreenImage}
               alt="Shared full photo"
-              className="max-h-[80vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
+              className="max-h-[78dvh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
             />
           </div>
         </div>

@@ -87,17 +87,19 @@ export default function SearchableSelect({
     }
   }, [highlightedIndex, isOpen]);
 
-  // Close on click outside
+  // Close on click/tap outside (pointerdown handles iOS touch reliably)
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: Event) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
     if (isOpen) {
+      document.addEventListener("pointerdown", handleClickOutside);
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen]);
@@ -237,7 +239,7 @@ export default function SearchableSelect({
           {/* Options List */}
           <div
             ref={listRef}
-            className="max-h-64 sm:max-h-72 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-slate-50"
+            className="max-h-[40dvh] sm:max-h-72 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-slate-50"
             role="listbox"
           >
             {filteredOptions.length === 0 ? (

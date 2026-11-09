@@ -64,22 +64,22 @@ export function Modal({
           onSubmit?.();
         }}
         onClick={(e) => e.stopPropagation()}
-        className={cn("flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white shadow-xl animate-scale-in sm:rounded-2xl", wide ? "max-w-3xl" : "max-w-lg")}
+        className={cn("flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-white shadow-xl animate-scale-in sm:rounded-2xl", wide ? "max-w-3xl" : "max-w-lg")}
       >
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
             {Icon && <Icon className="h-5 w-5 text-amber-500" />} {title}
           </h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close">
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100" aria-label="Close">
             <X className="h-5 w-5" />
           </button>
         </header>
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <div className={cn("flex-1 space-y-4 overflow-y-auto px-5 py-4", !onSubmit && "pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-4")}>
           {error && <Alert tone="error">{error}</Alert>}
           {children}
         </div>
         {onSubmit && (
-          <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">
+          <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-3">
             <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">
               Cancel
             </button>

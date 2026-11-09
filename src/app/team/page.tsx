@@ -99,6 +99,30 @@ export default function TeamPage() {
   const [newPassword, setNewPassword] = useState("");
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [passwordMode, setPasswordMode] = useState<"CUSTOM" | "GENERATE">("CUSTOM");
+  const [pendingTeamAction, setPendingTeamAction] = useState<
+    | { kind: "deactivate"; member: TeamMember }
+    | { kind: "resetPassword"; member: TeamMember }
+    | null
+  >(null);
+
+  useEffect(() => {
+    if (!(showForm || passwordTarget || credentials || pendingTeamAction)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowForm(false);
+        setPasswordTarget(null);
+        setCredentials(null);
+        setPendingTeamAction(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showForm, passwordTarget, credentials, pendingTeamAction]);
 
   const canManage = canUser(me, "users:manage");
 
@@ -254,9 +278,7 @@ export default function TeamPage() {
     }
   };
 
-  const toggleStatus = async (m: TeamMember) => {
-    const next = m.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-    if (next === "INACTIVE" && !confirm(`Deactivate ${m.name}? They will be signed out and cannot log in until reactivated.`)) return;
+  const performStatusToggle = async (m: TeamMember, next: "ACTIVE" | "INACTIVE") => {
     try {
       await call(`/api/users/${m.id}`, "PATCH", { status: next });
       setNotice(`${m.name} ${next === "ACTIVE" ? "reactivated" : "deactivated"}.`);
@@ -266,13 +288,36 @@ export default function TeamPage() {
     }
   };
 
-  const reset = async (m: TeamMember) => {
-    if (!confirm(`Reset the password for ${m.name}? Their current password will stop working.`)) return;
+  const toggleStatus = (m: TeamMember) => {
+    const next = m.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    if (next === "INACTIVE") {
+      setPendingTeamAction({ kind: "deactivate", member: m });
+      return;
+    }
+    performStatusToggle(m, next);
+  };
+
+  const executePendingTeamAction = async () => {
+    if (!pendingTeamAction) return;
+    const action = pendingTeamAction;
+    setPendingTeamAction(null);
+    setSaving(true);
     try {
-      const data = await call(`/api/users/${m.id}/reset-password`, "POST");
-      setCredentials({ name: m.name, email: m.email, password: data.temporaryPassword, isNew: false });
+      if (action.kind === "deactivate") {
+        await performStatusToggle(action.member, "INACTIVE");
+      } else {
+        const data = await call(`/api/users/${action.member.id}/reset-password`, "POST");
+        setCredentials({
+          name: action.member.name,
+          email: action.member.email,
+          password: data.temporaryPassword,
+          isNew: false,
+        });
+      }
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -441,7 +486,7 @@ export default function TeamPage() {
         {/* Add / edit */}
         {showForm && (
           <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <form onSubmit={submit} className="bg-white rounded-3xl max-w-lg w-full shadow-2xl ring-1 ring-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <form onSubmit={submit} className="bg-white rounded-3xl max-w-lg w-full shadow-2xl ring-1 ring-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-display font-bold text-lg text-slate-900">{editing ? `Edit ${editing.name}` : "Add a person"}</div>
                 <button type="button" onClick={() => setShowForm(false)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100" aria-label="Close">
@@ -677,7 +722,7 @@ export default function TeamPage() {
         {/* Credentials Display / Reveal Card */}
         {credentials && (
           <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full shadow-xl ring-1 ring-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="bg-white rounded-3xl max-w-md w-full shadow-xl ring-1 ring-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
               <div className="bg-gradient-chrome text-white p-5">
                 <div className="text-[11px] uppercase tracking-wider text-amber-300 font-semibold flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5" /> {credentials.isNew ? "Login created" : "Password updated"}
@@ -726,6 +771,51 @@ export default function TeamPage() {
                     Done
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {pendingTeamAction && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setPendingTeamAction(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="font-bold text-slate-900 text-base">
+                {pendingTeamAction.kind === "deactivate" ? "Deactivate Team Member?" : "Reset Password?"}
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {pendingTeamAction.kind === "deactivate" ? (
+                  <>
+                    Deactivate <strong className="text-slate-900">{pendingTeamAction.member.name}</strong>? They will be
+                    signed out and cannot log in until reactivated.
+                  </>
+                ) : (
+                  <>
+                    Reset the password for <strong className="text-slate-900">{pendingTeamAction.member.name}</strong>?
+                    Their current password will stop working.
+                  </>
+                )}
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingTeamAction(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={executePendingTeamAction}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                >
+                  {saving ? "Processing..." : pendingTeamAction.kind === "deactivate" ? "Deactivate" : "Reset Password"}
+                </button>
               </div>
             </div>
           </div>

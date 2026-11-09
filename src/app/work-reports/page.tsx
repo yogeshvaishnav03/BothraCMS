@@ -8,6 +8,7 @@ import { Alert } from "@/components/ui/Alert";
 import { ContactActions } from "@/components/ui/ContactActions";
 import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
 import { isOffline, submitOrQueue } from "@/lib/offline-queue";
+import { downloadCsv as exportCsvBlob } from "@/lib/csv-download";
 import { cn } from "@/lib/cn";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import {
@@ -269,7 +270,7 @@ function AttendanceCard() {
             type="file"
             accept="image/*"
             capture="user"
-            className="hidden"
+            className="sr-only"
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = "";
@@ -643,6 +644,17 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
   const [filter, setFilter] = useState<"all" | "submitted" | "missing" | "blockers">("all");
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [noteTargetId, setNoteTargetId] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
+
+  useEffect(() => {
+    if (!lightbox && !noteTargetId) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [lightbox, noteTargetId]);
 
   const load = useCallback(() => {
     setData(null);
@@ -654,12 +666,13 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
     load();
   }, [load]);
 
-  const review = async (reportId: string, status: "REVIEWED" | "NEEDS_INFO") => {
-    let note: string | null = null;
-    if (status === "NEEDS_INFO") {
-      note = window.prompt("What should they add?");
-      if (note === null) return;
+  const review = async (reportId: string, status: "REVIEWED" | "NEEDS_INFO", explicitNote?: string) => {
+    if (status === "NEEDS_INFO" && explicitNote === undefined) {
+      setNoteText("");
+      setNoteTargetId(reportId);
+      return;
     }
+    const note: string | null = status === "NEEDS_INFO" ? (explicitNote ?? "") : null;
     setBusyId(reportId);
     try {
       const updated = await api(`/api/work-reports/${reportId}`, {
@@ -813,7 +826,7 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
                     )}
                     {r.reviewNote && <div className="text-[11px] italic text-slate-500">Note: {r.reviewNote}</div>}
                     {canManage && r.status !== "REVIEWED" && (
-                      <div className="flex gap-2 border-t border-slate-100 pt-3">
+                      <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
                         <button
                           onClick={() => review(r.id, "REVIEWED")}
                           disabled={busyId === r.id}
@@ -855,11 +868,57 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
         </div>
       )}
 
+      {noteTargetId && (
+        <div
+          className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 pb-safe overflow-y-auto"
+          onClick={() => setNoteTargetId(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ask for detail"
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const id = noteTargetId;
+              const txt = noteText.trim();
+              setNoteTargetId(null);
+              if (id) await review(id, "NEEDS_INFO", txt);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-3 animate-scale-in"
+          >
+            <h3 className="text-sm font-bold text-slate-900">Ask for detail</h3>
+            <p className="text-xs text-slate-500">What should they add to this daily report?</p>
+            <textarea
+              rows={3}
+              autoFocus
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="e.g. Please attach concrete pour photos & slab qty"
+              className="w-full rounded-xl border border-slate-200 p-2.5 text-sm"
+            />
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button type="button" onClick={() => setNoteTargetId(null)} className="rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">
+                Cancel
+              </button>
+              <button type="submit" className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800">
+                Send note
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {lightbox && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 overflow-y-auto cursor-pointer" onClick={() => setLightbox(null)}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 pt-[calc(1rem+env(safe-area-inset-top,0px))] pb-[calc(1rem+env(safe-area-inset-bottom,0px))] overflow-y-auto cursor-pointer" onClick={() => setLightbox(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="Report photo" className="max-h-full max-w-full rounded-lg shadow-xl" />
-          <button className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white" aria-label="Close photo">
+          <img src={lightbox} alt="Report photo" className="max-h-[85dvh] max-w-full rounded-lg object-contain shadow-xl" onClick={(e) => e.stopPropagation()} />
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            className="fixed right-4 top-[calc(1rem+env(safe-area-inset-top,0px))] rounded-full bg-white/15 hover:bg-white/25 p-2 text-white"
+            aria-label="Close photo"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -914,12 +973,7 @@ function Register({ canManage }: { canManage: boolean }) {
       m.totals.hours,
     ]);
     const csv = [header, ...rows].map((r) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `staff-attendance-${month}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    exportCsvBlob(`staff-attendance-${month}.csv`, csv);
   };
 
   const today = todayIst();
@@ -1020,8 +1074,8 @@ function Register({ canManage }: { canManage: boolean }) {
       </div>
 
       {editing && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-sm overflow-y-auto animate-fade-in" onClick={() => setEditing(null)}>
-          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 pb-safe sm:p-4 backdrop-blur-sm overflow-y-auto animate-fade-in" onClick={() => setEditing(null)}>
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 shadow-xl max-h-[90dvh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm font-bold text-slate-900">{editing.name}</div>
             <div className="text-xs text-slate-500">{prettyDate(editing.date)}</div>
             <div className="mt-4 grid grid-cols-2 gap-2">
@@ -1098,7 +1152,7 @@ export default function WorkReportsPage() {
         />
 
         {tabs.length > 1 && (
-          <div className="inline-flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-2xs">
+          <div className="flex max-w-full flex-wrap sm:inline-flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-2xs">
             {tabs.map((t) => (
               <button
                 key={t.id}

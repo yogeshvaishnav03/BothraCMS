@@ -298,10 +298,17 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
     };
   }, [isOpen]);
 
-  // Autofocus input when opened
+  // Lock background scroll & selectively autofocus search only on tablet/desktop
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      if (typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches) {
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+      return () => {
+        document.body.style.overflow = prev;
+      };
     } else {
       setSearchQuery("");
     }
@@ -326,7 +333,7 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
           onClick={() => setIsOpen(false)}
         >
           <div
-            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90dvh] animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header & Search */}
@@ -360,7 +367,7 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
               </div>
 
               {/* Scoped Context Indicator */}
-              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-800/80 text-[11px] text-slate-300">
+              <div className="flex flex-wrap items-center gap-2 mb-2 pb-2 border-b border-slate-800/80 text-[11px] text-slate-300">
                 <span className="inline-flex items-center gap-1 bg-slate-800/90 text-amber-400 font-semibold px-2 py-0.5 rounded border border-slate-700">
                   <Building2 className="w-3 h-3 text-amber-400" />
                   {currentUser?.organizationName || "Active Organization"}
@@ -369,7 +376,7 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
                   <span className={`w-2 h-2 rounded-full ${activeSiteId ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
                   {activeSiteName ? `Site: ${activeSiteName}` : "All Sites Scoped"}
                 </span>
-                <span className="ml-auto text-[10px] text-slate-400 uppercase tracking-wider font-mono">
+                <span className="sm:ml-auto text-[10px] text-slate-400 uppercase tracking-wider font-mono">
                   Role: {currentUser?.role || "GUEST"}
                 </span>
               </div>
@@ -454,10 +461,13 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
             </div>
 
             {/* Modal Footer with Helpful Tips */}
-            <div className="p-3 sm:p-4 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-              <div className="flex items-center gap-1.5">
+            <div className="p-3 sm:p-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-4 bg-white border-t border-slate-200 flex items-center justify-between gap-2 text-xs text-slate-500">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>
+                <span className="sm:hidden truncate">
+                  {isHi ? "खोलने के लिए किसी भी कार्ड पर टैप करें" : "Tap any task above to open"}
+                </span>
+                <span className="hidden sm:inline">
                   {isHi
                     ? "टिप: कीबोर्ड पर Alt+Q दबाकर यह मेन्यू कभी भी खोलें"
                     : "Tip: Press Alt+Q anywhere to launch this menu instantly"}
@@ -466,9 +476,10 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition"
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition shrink-0"
               >
-                {isHi ? "बंद करें (Esc)" : "Close (Esc)"}
+                <span className="sm:hidden">{isHi ? "बंद करें" : "Close"}</span>
+                <span className="hidden sm:inline">{isHi ? "बंद करें (Esc)" : "Close (Esc)"}</span>
               </button>
             </div>
           </div>

@@ -155,7 +155,7 @@ function BankDetailsModal({ party, onClose }: { party: any; onClose: () => void 
   return (
     <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in" onClick={onClose}>
       <div
-        className="bg-white rounded-3xl max-w-md w-full shadow-xl ring-1 ring-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in"
+        className="bg-white rounded-3xl max-w-md w-full shadow-xl ring-1 ring-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-gradient-chrome text-white p-5 flex items-start justify-between gap-3">
@@ -237,6 +237,7 @@ export default function PartiesPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingDeleteParty, setPendingDeleteParty] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     try {
@@ -251,9 +252,10 @@ export default function PartiesPage() {
         setShowModal(false);
         setBankParty(null);
         setAuditParty(null);
+        setPendingDeleteParty(null);
       }
     };
-    if (showModal || bankParty || auditParty) {
+    if (showModal || bankParty || auditParty || pendingDeleteParty) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -261,7 +263,7 @@ export default function PartiesPage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [showModal, bankParty, auditParty]);
+  }, [showModal, bankParty, auditParty, pendingDeleteParty]);
   const changeView = (v: "cards" | "table") => {
     setView(v);
     try {
@@ -329,8 +331,14 @@ export default function PartiesPage() {
     setShowModal(true);
   };
 
-  const handleDeleteParty = async (id: string, partyName: string) => {
-    if (!confirm(`Are you sure you want to delete party "${partyName}"?`)) return;
+  const handleDeleteParty = (id: string, partyName: string) => {
+    setPendingDeleteParty({ id, name: partyName });
+  };
+
+  const executeDeleteParty = async () => {
+    if (!pendingDeleteParty) return;
+    const { id, name: partyName } = pendingDeleteParty;
+    setSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
     try {
@@ -338,14 +346,18 @@ export default function PartiesPage() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to delete party");
+        setPendingDeleteParty(null);
         return;
       }
       setStatusMessage(`Party "${partyName}" deleted.`);
-      // Optimistically remove from state immediately so UI updates without refreshing
       setParties((prev) => prev.filter((p) => p.id !== id));
+      setPendingDeleteParty(null);
       loadParties();
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete party"}`);
+      setPendingDeleteParty(null);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1004,7 +1016,7 @@ export default function PartiesPage() {
         {/* Modal: Register / Edit Partner */}
         {showModal && canWriteFinance && (
           <div className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl ring-1 ring-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl ring-1 ring-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-display font-bold text-slate-900 text-lg flex items-center gap-2.5">
                   <span className="w-9 h-9 rounded-xl bg-gradient-brand text-white flex items-center justify-center shadow-glow">
@@ -1186,6 +1198,40 @@ export default function PartiesPage() {
                   className="px-5 py-2.5 bg-gradient-brand text-slate-950 font-bold text-sm rounded-xl shadow-glow hover:brightness-110 disabled:opacity-50 transition"
                 >
                   {submitting ? "Saving…" : isEditing ? "Save changes" : "Add partner"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pendingDeleteParty && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setPendingDeleteParty(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="font-bold text-slate-900 text-base">Delete Party?</div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete party <strong className="text-slate-900">{pendingDeleteParty.name}</strong>?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteParty(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={executeDeleteParty}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                >
+                  {submitting ? "Deleting..." : "Delete Party"}
                 </button>
               </div>
             </div>

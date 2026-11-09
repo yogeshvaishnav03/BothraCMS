@@ -85,7 +85,7 @@ export default function InstallAppPage() {
   const isIosTab = selectedTab === "ios";
 
   return (
-    <div className="min-h-screen bg-gradient-chrome text-white flex flex-col justify-between p-4 sm:p-6 pt-safe pb-safe selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-dvh bg-gradient-chrome text-white flex flex-col justify-between p-4 sm:p-6 pt-safe pb-safe selection:bg-amber-500 selection:text-slate-950">
       <div className="max-w-xl mx-auto w-full py-6 sm:py-8 space-y-5">
         {/* Top Brand Bar */}
         <div className="flex items-center justify-between">

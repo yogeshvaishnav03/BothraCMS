@@ -119,7 +119,7 @@ export default function DashboardPage() {
       setPhotoMsg("Site photograph clicked with camera and saved successfully!");
       await refreshRecentPhotos(activeSiteId);
     } catch (err: any) {
-      alert(err.message || "Failed to upload clicked photo");
+      setPhotoError(err.message || "Failed to upload clicked photo");
     } finally {
       setUploadingPhoto(false);
       e.target.value = "";
@@ -148,7 +148,7 @@ export default function DashboardPage() {
       setPhotoMsg("Site photograph clicked with camera and saved successfully!");
       await refreshRecentPhotos(activeSiteId);
     } catch (err: any) {
-      alert(err.message || "Failed to save photo");
+      setPhotoError(err.message || "Failed to save photo");
     } finally {
       setUploadingPhoto(false);
     }
@@ -193,7 +193,7 @@ export default function DashboardPage() {
     if (!videoRef.current) return;
     const video = videoRef.current;
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      alert("Camera feed is warming up. Please wait a moment.");
+      setCameraError("Camera feed is warming up. Please wait a moment.");
       return;
     }
 
@@ -251,7 +251,7 @@ export default function DashboardPage() {
       setPhotoMsg("Photo replaced successfully!");
       await refreshRecentPhotos();
     } catch (err: any) {
-      alert(err.message || "Failed to replace photo");
+      setPhotoError(err.message || "Failed to replace photo");
     } finally {
       setUploadingPhoto(false);
       e.target.value = "";
@@ -282,26 +282,40 @@ export default function DashboardPage() {
       }
       loadDashboard(activeSiteId);
     } catch {
-      alert("Failed to copy headcount to today");
+      setErrorMessage("Failed to copy headcount to today");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDashboardPhotoDelete = async (photoId: string, fileName: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
+  const [pendingDeletePhoto, setPendingDeletePhoto] = useState<{ id: string; fileName: string } | null>(null);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
+  const handleDashboardPhotoDelete = (photoId: string, fileName: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setPhotoError(null);
+    setPendingDeletePhoto({ id: photoId, fileName });
+  };
+
+  const executeDashboardPhotoDelete = async () => {
+    if (!pendingDeletePhoto) return;
+    setDeletingPhoto(true);
+    setPhotoError(null);
     try {
-      const res = await fetch(`/api/attachments/${photoId}`, { method: "DELETE" });
+      const res = await fetch(`/api/attachments/${pendingDeletePhoto.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error?.message || "Failed to delete photo");
       }
-      setRecentPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      setRecentPhotos((prev) => prev.filter((p) => p.id !== pendingDeletePhoto.id));
+      setPendingDeletePhoto(null);
       setPhotoMsg("Photo deleted successfully!");
     } catch (err: any) {
-      alert(err.message || "Failed to delete photo");
+      setPhotoError(err.message || "Failed to delete photo");
+      setPendingDeletePhoto(null);
+    } finally {
+      setDeletingPhoto(false);
     }
   };
 
@@ -795,21 +809,25 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    if (!(selectedPhoto || cameraModalOpen || activeKpiModal || showQuickTaskModal || pendingDeletePhoto)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        setSelectedPhoto(null);
+        if (cameraModalOpen) stopLiveCamera();
         setActiveKpiModal(null);
         setShowQuickTaskModal(false);
+        setPendingDeletePhoto(null);
       }
     };
-    if (activeKpiModal || showQuickTaskModal) {
-      document.body.style.overflow = "hidden";
-      window.addEventListener("keydown", handleKeyDown);
-      return () => {
-        document.body.style.overflow = "";
-        window.removeEventListener("keydown", handleKeyDown);
-      };
-    }
-  }, [activeKpiModal, showQuickTaskModal]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPhoto, cameraModalOpen, activeKpiModal, showQuickTaskModal, pendingDeletePhoto]);
 
   const renderKpiModalContent = () => {
     switch (activeKpiModal) {
@@ -826,7 +844,7 @@ export default function DashboardPage() {
           emptyTitle: "No active projects",
           emptyDesc: "There are currently no active or planning projects recorded in the system.",
           content: list.length > 0 ? (
-            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
               {list.map((p: any) => (
                 <div
                   key={p.id}
@@ -904,7 +922,7 @@ export default function DashboardPage() {
           emptyTitle: "No workers logged yet",
           emptyDesc: "No site worker headcount or attendance sessions logged yet. Click below to enter site counts.",
           content: hasAnyData ? (
-            <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+            <div className="space-y-4 max-h-[65dvh] overflow-y-auto pr-1">
               {/* Fallback Notice Banner if showing previous day's count */}
               {isLatestFallback && (
                 <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900 gap-2 shadow-2xs">
@@ -1092,7 +1110,7 @@ export default function DashboardPage() {
           emptyTitle: "All stocks healthy",
           emptyDesc: "Every active material is currently stocked above its defined minimum reorder threshold.",
           content: list.length > 0 ? (
-            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
               {list.map((m: any) => (
                 <div
                   key={m.id}
@@ -1142,7 +1160,7 @@ export default function DashboardPage() {
           emptyTitle: "No overdue tasks",
           emptyDesc: "Outstanding tasks are proceeding on schedule with zero overdue items.",
           content: list.length > 0 ? (
-            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
               {list.map((t: any) => (
                 <div
                   key={t.id}
@@ -1214,7 +1232,7 @@ export default function DashboardPage() {
           emptyTitle: "No tasks due today",
           emptyDesc: "There are no tasks specifically scheduled to be completed by today.",
           content: list.length > 0 ? (
-            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
               {list.map((t: any) => (
                 <div
                   key={t.id}
@@ -1288,7 +1306,7 @@ export default function DashboardPage() {
           emptyTitle: "No payments recorded today",
           emptyDesc: "No banking disbursements or payouts have been logged for today yet.",
           content: list.length > 0 ? (
-            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
               {list.map((p: any) => (
                 <div
                   key={p.id}
@@ -1339,7 +1357,7 @@ export default function DashboardPage() {
           emptyTitle: "Zero outstanding payables",
           emptyDesc: "All verified vendor and contractor invoices are completely settled.",
           content: list.length > 0 ? (
-            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
               {list.map((b: any) => (
                 <div
                   key={b.id}
@@ -2011,7 +2029,7 @@ export default function DashboardPage() {
                     e.stopPropagation();
                     setActiveKpiModal("activeProjects");
                   }}
-                  className="text-blue-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
+                  className="text-blue-600 font-semibold opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
                 >
                   Details <ExternalLink className="w-3 h-3" />
                 </button>
@@ -2050,7 +2068,7 @@ export default function DashboardPage() {
                     e.stopPropagation();
                     setActiveKpiModal("workersPresentToday");
                   }}
-                  className="text-emerald-700 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 cursor-pointer"
+                  className="text-emerald-700 font-semibold opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 cursor-pointer"
                 >
                   Details <ExternalLink className="w-3 h-3" />
                 </button>
@@ -2084,7 +2102,7 @@ export default function DashboardPage() {
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Items below reorder limit</span>
-                <span className="text-amber-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span className="text-amber-600 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                   Details <ExternalLink className="w-3 h-3" />
                 </span>
               </div>
@@ -2126,7 +2144,7 @@ export default function DashboardPage() {
                     e.stopPropagation();
                     setActiveKpiModal("tasksOverdue");
                   }}
-                  className="text-rose-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
+                  className="text-rose-600 font-semibold opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
                 >
                   Details <ExternalLink className="w-3 h-3" />
                 </button>
@@ -2159,7 +2177,7 @@ export default function DashboardPage() {
                     e.stopPropagation();
                     setActiveKpiModal("tasksDueToday");
                   }}
-                  className="text-indigo-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
+                  className="text-indigo-600 font-semibold opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5 cursor-pointer"
                 >
                   Details <ExternalLink className="w-3 h-3" />
                 </button>
@@ -2183,7 +2201,7 @@ export default function DashboardPage() {
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Posted banking disbursements</span>
-                <span className="text-emerald-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span className="text-emerald-700 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                   Details <ExternalLink className="w-3 h-3" />
                 </span>
               </div>
@@ -3121,10 +3139,10 @@ export default function DashboardPage() {
                       <span>{uploadingPhoto ? "Saving..." : "Click Photo (Camera)"}</span>
                     </button>
                     <label
-                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg cursor-pointer transition"
+                      className="relative p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg cursor-pointer transition"
                       title="Direct Device Native Camera App (Mobile)"
                     >
-                      <Camera className="w-3.5 h-3.5 text-amber-600" />
+                      <Camera className="w-4 h-4 text-amber-600" />
                       <input
                         ref={cameraInputRef}
                         type="file"
@@ -3132,7 +3150,7 @@ export default function DashboardPage() {
                         capture="environment"
                         onChange={handleDashboardPhotoUpload}
                         disabled={uploadingPhoto}
-                        className="hidden"
+                        className="sr-only"
                       />
                     </label>
                   </div>
@@ -3148,6 +3166,18 @@ export default function DashboardPage() {
                 </button>
               </div>
             </div>
+
+            {photoError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{photoError}</span>
+                </div>
+                <button onClick={() => setPhotoError(null)} className="text-rose-600 hover:text-rose-800 p-0.5">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {photoMsg && (
               <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center justify-between">
@@ -3182,7 +3212,7 @@ export default function DashboardPage() {
                         <Camera className="w-4 h-4" />
                         <span>Click Photo (Live Camera)</span>
                       </button>
-                      <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer transition shadow-xs">
+                      <label className="relative inline-flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer transition shadow-xs">
                         <Camera className="w-3.5 h-3.5 text-amber-400" />
                         <span>Open Mobile Camera App</span>
                         <input
@@ -3191,7 +3221,7 @@ export default function DashboardPage() {
                           capture="environment"
                           onChange={handleDashboardPhotoUpload}
                           disabled={uploadingPhoto}
-                          className="hidden"
+                          className="sr-only"
                         />
                       </label>
                     </div>
@@ -3212,7 +3242,7 @@ export default function DashboardPage() {
                       />
 
                       {/* Card Action Controls */}
-                      <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-sm p-1 rounded-lg">
+                      <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity bg-black/65 backdrop-blur-sm p-1.5 rounded-xl">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -3240,7 +3270,7 @@ export default function DashboardPage() {
                           <>
                             <label
                               onClick={(e) => e.stopPropagation()}
-                              className="p-1 text-slate-300 hover:text-amber-400 cursor-pointer transition"
+                              className="relative p-1.5 text-slate-300 hover:text-amber-400 cursor-pointer transition"
                               title="Re-click photo with camera"
                               aria-label={`Re-click photo with camera ${photo.fileName}`}
                             >
@@ -3251,7 +3281,7 @@ export default function DashboardPage() {
                                 capture="environment"
                                 onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
                                 disabled={uploadingPhoto}
-                                className="hidden"
+                                className="sr-only"
                               />
                             </label>
                             <button
@@ -3284,10 +3314,45 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Modal: Confirm Dashboard Photo Delete */}
+        {pendingDeletePhoto && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setPendingDeletePhoto(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="font-bold text-slate-900 text-base">Delete Site Photo?</div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete <strong className="text-slate-900">{pendingDeletePhoto.fileName}</strong>?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeletePhoto(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingPhoto}
+                  onClick={executeDashboardPhotoDelete}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                >
+                  {deletingPhoto ? "Deleting..." : "Delete Photo"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal: Quick Task Creation */}
         {showQuickTaskModal && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-amber-500" />
@@ -3343,7 +3408,7 @@ export default function DashboardPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Priority
@@ -3403,7 +3468,7 @@ export default function DashboardPage() {
               onClick={() => setActiveKpiModal(null)}
             >
               <div
-                className="bg-white rounded-2xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+                className="bg-white rounded-2xl max-w-xl w-full max-h-[85dvh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Modal Header */}
@@ -3480,7 +3545,7 @@ export default function DashboardPage() {
             onClick={() => setSelectedPhoto(null)}
           >
             <div
-              className="relative max-w-4xl w-full bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+              className="relative max-w-4xl w-full bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col max-h-[92dvh] animate-in zoom-in-95 duration-150"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -3522,11 +3587,11 @@ export default function DashboardPage() {
               </div>
 
               {/* Photo Display */}
-              <div className="flex-1 overflow-auto p-2 sm:p-4 bg-black/90 flex items-center justify-center min-h-[300px]">
+              <div className="flex-1 overflow-auto p-2 sm:p-4 bg-black/90 flex items-center justify-center min-h-[220px] sm:min-h-[300px]">
                 <img
                   src={selectedPhoto.url}
                   alt={selectedPhoto.fileName}
-                  className="max-h-[75vh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+                  className="max-h-[72dvh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
                 />
               </div>
 
@@ -3549,7 +3614,7 @@ export default function DashboardPage() {
             onClick={stopLiveCamera}
           >
             <div
-              className="relative max-w-2xl w-full bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+              className="relative max-w-2xl w-full bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col max-h-[92dvh] animate-in zoom-in-95 duration-150"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Camera Header */}
@@ -3575,7 +3640,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Viewfinder Video Area */}
-              <div className="relative bg-black flex items-center justify-center min-h-[360px] sm:min-h-[440px] overflow-hidden">
+              <div className="relative bg-black flex items-center justify-center min-h-[240px] sm:min-h-[400px] overflow-hidden">
                 {cameraError ? (
                   <div className="p-6 text-center max-w-md space-y-3">
                     <Camera className="w-12 h-12 text-rose-400 mx-auto" />
@@ -3602,7 +3667,7 @@ export default function DashboardPage() {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover max-h-[60vh]"
+                      className="w-full h-full object-cover max-h-[55dvh]"
                     />
 
                     {/* Viewfinder Crosshair & Overlay */}
@@ -3617,7 +3682,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Camera Shutter Footer */}
-              <div className="px-5 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-4">
+              <div className="px-4 sm:px-5 py-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] sm:pb-4 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => {

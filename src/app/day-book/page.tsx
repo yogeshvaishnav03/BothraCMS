@@ -7,6 +7,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { downloadCsv } from "@/lib/csv-download";
 import {
   CalendarDays,
   DollarSign,
@@ -963,23 +964,6 @@ export default function DayBookPage() {
     },
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setKpiPopupType(null);
-        setShowLogModal(false);
-      }
-    };
-    if (kpiPopupType || showLogModal) {
-      document.body.style.overflow = "hidden";
-      window.addEventListener("keydown", handleKeyDown);
-      return () => {
-        document.body.style.overflow = "";
-        window.removeEventListener("keydown", handleKeyDown);
-      };
-    }
-  }, [kpiPopupType, showLogModal]);
-
   // Form states - Payment & Bill selection
   const [parties, setParties] = useState<any[]>([]);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -1022,19 +1006,40 @@ export default function DayBookPage() {
   const [dsrPhotoPreviews, setDsrPhotoPreviews] = useState<{ id: string; url: string; name: string; size: number }[]>([]);
   const [activePhotoLightbox, setActivePhotoLightbox] = useState<string | null>(null);
   const [uploadingPhotosCount, setUploadingPhotosCount] = useState<number>(0);
+  const [fileValidationError, setFileValidationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setKpiPopupType(null);
+        setShowLogModal(false);
+        setShowPrintFilterModal(false);
+        setActivePhotoLightbox(null);
+      }
+    };
+    if (kpiPopupType || showLogModal || showPrintFilterModal || activePhotoLightbox) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [kpiPopupType, showLogModal, showPrintFilterModal, activePhotoLightbox]);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
+    setFileValidationError(null);
     const newFiles = Array.from(e.target.files);
 
     const validFiles: File[] = [];
     newFiles.forEach((file) => {
       if (!file.type.startsWith("image/")) {
-        alert(`File "${file.name}" is not an image.`);
+        setFileValidationError(`File "${file.name}" is not an image.`);
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        alert(`Image "${file.name}" exceeds the 10 MB limit.`);
+        setFileValidationError(`Image "${file.name}" exceeds the 10 MB limit.`);
         return;
       }
       validFiles.push(file);
@@ -1063,16 +1068,17 @@ export default function DayBookPage() {
 
   const handleBillPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
+    setFileValidationError(null);
     const newFiles = Array.from(e.target.files);
 
     const validFiles: File[] = [];
     newFiles.forEach((file) => {
       if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
-        alert(`File "${file.name}" is not a supported image or PDF document.`);
+        setFileValidationError(`File "${file.name}" is not a supported image or PDF document.`);
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        alert(`File "${file.name}" exceeds the 10 MB limit.`);
+        setFileValidationError(`File "${file.name}" exceeds the 10 MB limit.`);
         return;
       }
       validFiles.push(file);
@@ -1101,16 +1107,17 @@ export default function DayBookPage() {
 
   const handlePaymentPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
+    setFileValidationError(null);
     const newFiles = Array.from(e.target.files);
 
     const validFiles: File[] = [];
     newFiles.forEach((file) => {
       if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
-        alert(`File "${file.name}" is not a supported image or PDF document.`);
+        setFileValidationError(`File "${file.name}" is not a supported image or PDF document.`);
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        alert(`File "${file.name}" exceeds the 10 MB limit.`);
+        setFileValidationError(`File "${file.name}" exceeds the 10 MB limit.`);
         return;
       }
       validFiles.push(file);
@@ -1138,6 +1145,7 @@ export default function DayBookPage() {
   };
 
   const handleCloseLogModal = () => {
+    setFileValidationError(null);
     dsrPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
     setDsrPhotos([]);
     setDsrPhotoPreviews([]);
@@ -1703,15 +1711,8 @@ export default function DayBookPage() {
       ]),
     ];
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," + rows.map((r) => r.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `DayBook_${selectedDate}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvString = rows.map((r) => r.join(",")).join("\n");
+    downloadCsv(`DayBook_${selectedDate}.csv`, csvString);
   };
 
   const isToday = selectedDate === todayStr;
@@ -2546,7 +2547,7 @@ export default function DayBookPage() {
                     {/* Mobile & Tablet Card List */}
                     <div className="lg:hidden p-3 bg-slate-50/60 space-y-2.5">
                       {dayData.attendance.map((a) => (
-                        <div key={`staff-att-card-${a.id}`} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition flex items-center justify-between gap-2">
+                        <div key={`staff-att-card-${a.id}`} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition flex flex-wrap items-center justify-between gap-2">
                           <div>
                             <div className="font-bold text-slate-900 text-xs">{a.name || a.workforceMember?.name || "N/A"}</div>
                             <div className="text-[11px] text-slate-500 mt-0.5">
@@ -2629,7 +2630,7 @@ export default function DayBookPage() {
                     {/* Mobile & Tablet Trade Workers Card List */}
                     <div className="lg:hidden p-3 bg-slate-50/60 space-y-2.5">
                       {(dayData?.workerAttendance || []).map((w: any) => (
-                        <div key={`w-att-card-${w.id}`} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition flex items-center justify-between gap-2">
+                        <div key={`w-att-card-${w.id}`} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition flex flex-wrap items-center justify-between gap-2">
                           <div className="min-w-0">
                             <div className="font-bold text-slate-900 text-xs truncate">{w.workforceMember?.name || "Worker"}</div>
                             <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
@@ -2799,7 +2800,7 @@ export default function DayBookPage() {
             }}
           >
             <div
-              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90dvh] flex flex-col"
               role="dialog"
               aria-modal="true"
               aria-labelledby="daybook-modal-title"
@@ -2887,6 +2888,18 @@ export default function DayBookPage() {
               </div>
 
               <div className="overflow-y-auto p-5">
+                {fileValidationError && (
+                  <div className="mb-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center justify-between gap-2">
+                    <span>{fileValidationError}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFileValidationError(null)}
+                      className="text-rose-600 hover:text-rose-800 p-0.5 shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 {/* Modal Explanatory Guidance Banner */}
                 <div className="mb-4 p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs">
                   <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
@@ -3070,7 +3083,7 @@ export default function DayBookPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
+                        <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
                           <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
                           <span className="text-xs font-bold text-amber-900">Click Photo</span>
                           <input
@@ -3078,11 +3091,11 @@ export default function DayBookPage() {
                             accept="image/*"
                             capture="environment"
                             onChange={handlePaymentPhotoSelect}
-                            className="hidden"
+                            className="sr-only"
                           />
                         </label>
 
-                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
+                        <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
                           <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
                           <span className="text-xs font-bold text-slate-700">Choose Receipt / PDF</span>
                           <input
@@ -3090,7 +3103,7 @@ export default function DayBookPage() {
                             accept="image/*,application/pdf"
                             multiple
                             onChange={handlePaymentPhotoSelect}
-                            className="hidden"
+                            className="sr-only"
                           />
                         </label>
                       </div>
@@ -3115,12 +3128,12 @@ export default function DayBookPage() {
                                   <span className="text-[10px] truncate max-w-full text-slate-300 mt-1">{preview.name}</span>
                                 </div>
                               )}
-                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                              <div className="absolute inset-0 bg-slate-950/40 lg:bg-slate-950/50 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition flex items-center justify-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => setActivePhotoLightbox(preview.url)}
                                   title="View preview"
-                                  className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
+                                  className="p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
                                 </button>
@@ -3262,7 +3275,7 @@ export default function DayBookPage() {
 
                       <div className="grid grid-cols-2 gap-2">
                         {/* Option 1: Live Camera Capture */}
-                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
+                        <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
                           <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
                           <span className="text-xs font-bold text-amber-900">Click Photo</span>
                           <input
@@ -3270,12 +3283,12 @@ export default function DayBookPage() {
                             accept="image/*"
                             capture="environment"
                             onChange={handleBillPhotoSelect}
-                            className="hidden"
+                            className="sr-only"
                           />
                         </label>
 
                         {/* Option 2: Choose / Upload Files or PDF */}
-                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
+                        <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
                           <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
                           <span className="text-xs font-bold text-slate-700">Choose Files / PDF</span>
                           <input
@@ -3283,7 +3296,7 @@ export default function DayBookPage() {
                             accept="image/*,application/pdf"
                             multiple
                             onChange={handleBillPhotoSelect}
-                            className="hidden"
+                            className="sr-only"
                           />
                         </label>
                       </div>
@@ -3309,12 +3322,12 @@ export default function DayBookPage() {
                                   <span className="text-[10px] truncate max-w-full text-slate-300 mt-1">{preview.name}</span>
                                 </div>
                               )}
-                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                              <div className="absolute inset-0 bg-slate-950/40 lg:bg-slate-950/50 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition flex items-center justify-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => setActivePhotoLightbox(preview.url)}
                                   title="View preview"
-                                  className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
+                                  className="p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
                                 </button>
@@ -3588,7 +3601,7 @@ export default function DayBookPage() {
 
                       <div className="grid grid-cols-2 gap-2">
                         {/* Option 1: Live Camera Shutter / Mobile Capture */}
-                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
+                        <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
                           <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
                           <span className="text-xs font-bold text-amber-900">Click Photo</span>
                           <input
@@ -3596,12 +3609,12 @@ export default function DayBookPage() {
                             accept="image/*"
                             capture="environment"
                             onChange={handlePhotoSelect}
-                            className="hidden"
+                            className="sr-only"
                           />
                         </label>
 
                         {/* Option 2: Choose / Upload from Files */}
-                        <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
+                        <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
                           <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
                           <span className="text-xs font-bold text-slate-700">Choose Files</span>
                           <input
@@ -3609,7 +3622,7 @@ export default function DayBookPage() {
                             accept="image/*"
                             multiple
                             onChange={handlePhotoSelect}
-                            className="hidden"
+                            className="sr-only"
                           />
                         </label>
                       </div>
@@ -3628,12 +3641,12 @@ export default function DayBookPage() {
                                 alt={preview.name}
                                 className="w-full h-full object-cover group-hover:scale-105 transition"
                               />
-                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                              <div className="absolute inset-0 bg-slate-950/40 lg:bg-slate-950/50 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition flex items-center justify-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => setActivePhotoLightbox(preview.url)}
                                   title="View full size"
-                                  className="p-1 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
+                                  className="p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-900 transition"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
                                 </button>
@@ -3703,7 +3716,7 @@ export default function DayBookPage() {
           >
             {/* 1. PAYMENTS POPUP (DISBURSED ONLY) */}
             {kpiPopupType === "PAYMENTS" && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85dvh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
                 <div className="p-4 bg-rose-600 text-white flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 bg-white/10 rounded-lg">
@@ -3833,7 +3846,7 @@ export default function DayBookPage() {
 
             {/* 1B. REJECTED PAYMENTS POPUP (SEPARATE MODAL) */}
             {kpiPopupType === "REJECTED_PAYMENTS" && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85dvh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
                 <div className="p-4 bg-rose-600 text-white flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 bg-white/10 rounded-lg">
@@ -3959,7 +3972,7 @@ export default function DayBookPage() {
 
             {/* 2. BILLS POPUP */}
             {kpiPopupType === "BILLS" && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85dvh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
                 <div className="p-4 bg-amber-600 text-white flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 bg-white/10 rounded-lg">
@@ -4081,7 +4094,7 @@ export default function DayBookPage() {
 
             {/* 3. WORKFORCE POPUP */}
             {kpiPopupType === "WORKFORCE" && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85dvh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
                 <div className="p-4 bg-emerald-600 text-white flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 bg-white/10 rounded-lg">
@@ -4235,7 +4248,7 @@ export default function DayBookPage() {
 
             {/* 4. DSR / SITE LOGS POPUP */}
             {kpiPopupType === "DSR" && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85dvh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
                 <div className="p-4 bg-blue-600 text-white flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 bg-white/10 rounded-lg">
@@ -4346,7 +4359,7 @@ export default function DayBookPage() {
                                     className="w-full h-full object-cover group-hover:scale-105 transition"
                                   />
                                   <div className="absolute inset-0 bg-slate-950/20 group-hover:bg-slate-950/40 transition flex items-center justify-center">
-                                    <Eye className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition drop-shadow-md" />
+                                    <Eye className="w-4 h-4 text-white opacity-90 lg:opacity-0 lg:group-hover:opacity-100 transition drop-shadow-md" />
                                   </div>
                                 </button>
                               ))}
@@ -4379,7 +4392,7 @@ export default function DayBookPage() {
               if (e.target === e.currentTarget) setShowPrintFilterModal(false);
             }}
           >
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {/* Modal Header */}
               <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0">
                 <div className="flex items-center gap-3">
@@ -5375,7 +5388,7 @@ export default function DayBookPage() {
           onClick={() => setActivePhotoLightbox(null)}
         >
           <div
-            className="relative max-w-4xl max-h-[90vh] bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col"
+            className="relative max-w-4xl w-full sm:w-auto max-h-[90dvh] bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
@@ -5399,17 +5412,34 @@ export default function DayBookPage() {
               </button>
             </div>
             {activePhotoLightbox.toLowerCase().includes(".pdf") ? (
-              <iframe
-                src={activePhotoLightbox}
-                className="w-[85vw] max-w-4xl h-[80vh] rounded-b-xl bg-white"
-                title="Document Preview"
-              />
+              <>
+                <div className="sm:hidden flex flex-col items-center justify-center p-8 text-center text-white space-y-3 min-h-[260px]">
+                  <FileText className="w-12 h-12 text-amber-400" />
+                  <div className="text-sm font-bold">PDF Document Preview</div>
+                  <p className="text-xs text-slate-400 max-w-xs">
+                    Open or download this PDF to read and zoom across all pages cleanly on mobile.
+                  </p>
+                  <a
+                    href={activePhotoLightbox}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-black"
+                  >
+                    <Download className="w-4 h-4" /> Open / Download PDF
+                  </a>
+                </div>
+                <iframe
+                  src={activePhotoLightbox}
+                  className="hidden sm:block w-[85vw] max-w-4xl h-[75dvh] rounded-b-xl bg-white"
+                  title="Document Preview"
+                />
+              </>
             ) : (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={activePhotoLightbox}
                 alt="Document / Photo Preview"
-                className="max-h-[85vh] w-auto object-contain mx-auto"
+                className="max-h-[85dvh] w-auto object-contain mx-auto"
               />
             )}
           </div>

@@ -8,7 +8,7 @@ describe("Table View & Row Top-Alignment Specification", () => {
     const cssContent = fs.readFileSync(cssPath, "utf8");
 
     // Container must have min-height: 400px so filter popovers are fully visible
-    expect(cssContent).toMatch(/\.overflow-x-auto:has\(table\)\s*\{[^}]*min-height:\s*400px/);
+    expect(cssContent).toMatch(/@media\s*\(min-width:\s*768px\)\s*\{\s*\.overflow-x-auto:not\(\.compact-table\):has\(table\)\s*\{[^}]*min-height:\s*400px/);
 
     // Table must have min-height: auto / height: auto to prevent stretching single rows into center
     expect(cssContent).toMatch(/table\s*\{[^}]*min-height:\s*auto/);
@@ -21,7 +21,8 @@ describe("Table View & Row Top-Alignment Specification", () => {
     const excelTableContent = fs.readFileSync(excelTablePath, "utf8");
 
     // Container wrapper must maintain min-h-[400px] for filter popover room
-    expect(excelTableContent).toContain("min-h-[400px]");
+    expect(excelTableContent).toContain("md:min-h-[400px]");
+    expect(excelTableContent).toContain("createPortal");
 
     // The <table> tag inside ExcelTable should not force min-h-[400px] on the table element
     expect(excelTableContent).not.toMatch(/<table[^>]*min-h-\[400px\]/);

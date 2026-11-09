@@ -193,9 +193,9 @@ export default function MaterialsPage() {
     });
   };
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click or touch tap
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: Event) => {
       if (
         materialDropdownRef.current &&
         !materialDropdownRef.current.contains(event.target as Node)
@@ -203,8 +203,10 @@ export default function MaterialsPage() {
         setIsMaterialDropdownOpen(false);
       }
     };
+    document.addEventListener("pointerdown", handleClickOutside);
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
@@ -310,6 +312,7 @@ export default function MaterialsPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [pendingDeleteMaterial, setPendingDeleteMaterial] = useState<{ id: string; name?: string } | null>(null);
 
   // Form states
   const [selectedMaterialId, setSelectedMaterialId] = useState("");
@@ -419,9 +422,10 @@ export default function MaterialsPage() {
         setShowTransferModal(false);
         setShowCreateMaterialModal(false);
         setShowPlaceOrderModal(false);
+        setPendingDeleteMaterial(null);
       }
     };
-    if (showReceiveModal || showIssueModal || showTransferModal || showCreateMaterialModal || showPlaceOrderModal) {
+    if (showReceiveModal || showIssueModal || showTransferModal || showCreateMaterialModal || showPlaceOrderModal || pendingDeleteMaterial) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -429,7 +433,7 @@ export default function MaterialsPage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [showReceiveModal, showIssueModal, showTransferModal, showCreateMaterialModal, showPlaceOrderModal]);
+  }, [showReceiveModal, showIssueModal, showTransferModal, showCreateMaterialModal, showPlaceOrderModal, pendingDeleteMaterial]);
 
   useEffect(() => {
     if (stores.length > 0) {
@@ -491,8 +495,15 @@ export default function MaterialsPage() {
     }
   };
 
-  const handleDeleteMaterial = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this material from inventory?")) return;
+  const handleDeleteMaterial = (id: string) => {
+    const mat = materials.find((m) => m.id === id);
+    setPendingDeleteMaterial({ id, name: mat?.name });
+  };
+
+  const executeDeleteMaterial = async () => {
+    if (!pendingDeleteMaterial) return;
+    const { id } = pendingDeleteMaterial;
+    setActionLoading(true);
     setErrorMessage(null);
     setStatusMessage(null);
     try {
@@ -500,14 +511,18 @@ export default function MaterialsPage() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to remove material");
+        setPendingDeleteMaterial(null);
         return;
       }
       setStatusMessage("Material removed successfully.");
-      // Optimistically remove from state immediately so UI updates without refreshing
       setMaterials((prev) => prev.filter((m) => m.id !== id));
+      setPendingDeleteMaterial(null);
       loadMaterials();
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete material"}`);
+      setPendingDeleteMaterial(null);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1366,7 +1381,7 @@ export default function MaterialsPage() {
         {/* Modal: Goods Receipt */}
         {showReceiveModal && canReceiveGoods && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <PackagePlus className="w-5 h-5 text-emerald-600" />
@@ -1458,7 +1473,7 @@ export default function MaterialsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Vendor / Supplier
@@ -1546,7 +1561,7 @@ export default function MaterialsPage() {
         {/* Modal: Issue Material */}
         {showIssueModal && canIssueStock && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <PackageMinus className="w-5 h-5 text-amber-500" />
@@ -1623,7 +1638,7 @@ export default function MaterialsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Target Project
@@ -1699,7 +1714,7 @@ export default function MaterialsPage() {
         {/* Modal: Transfer Material */}
         {showTransferModal && canTransferStock && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <ArrowRightLeft className="w-5 h-5 text-sky-600" />
@@ -1714,7 +1729,7 @@ export default function MaterialsPage() {
               </div>
 
               <form id="transfer-material-modal-form" onSubmit={handleTransferSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-semibold text-slate-700 uppercase">
@@ -1857,7 +1872,7 @@ export default function MaterialsPage() {
         {/* Modal: Create Material */}
         {showCreateMaterialModal && canAddMaterial && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Boxes className="w-5 h-5 text-amber-500" />
@@ -2138,6 +2153,42 @@ export default function MaterialsPage() {
           </div>
         )}
       </div>
+
+      {/* Confirm Delete Material Modal */}
+      {pendingDeleteMaterial && (
+        <div
+          className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+          onClick={() => setPendingDeleteMaterial(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-bold text-slate-900 text-base">Remove Material?</div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to remove{" "}
+              <strong className="text-slate-900">{pendingDeleteMaterial.name || "this material"}</strong> from inventory?
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteMaterial(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={executeDeleteMaterial}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+              >
+                {actionLoading ? "Removing..." : "Remove Material"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Place Order to Vendor Modal */}
       <PlaceOrderModal

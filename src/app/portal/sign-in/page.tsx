@@ -72,8 +72,8 @@ function SignIn() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-slate-900 px-4 pb-20 pt-8 text-white">
+    <div className="min-h-dvh bg-slate-50 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]">
+      <header className="bg-slate-900 px-4 pb-20 pt-[calc(2rem+env(safe-area-inset-top,0px))] text-white">
         <div className="mx-auto max-w-md">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-amber-400">
             <Building2 className="h-4 w-4" /> Your home

@@ -115,6 +115,9 @@ export default function TasksPage() {
   const [newCommentContent, setNewCommentContent] = useState("");
   const [newCommentType, setNewCommentType] = useState<"COMMENT" | "QUESTION" | "ASSISTANCE_REQUEST">("COMMENT");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<{ id: string; title: string } | null>(null);
+  const [deletingTask, setDeletingTask] = useState(false);
 
   // Attachments Modal state
   const [showAttachmentsModal, setShowAttachmentsModal] = useState(false);
@@ -203,9 +206,10 @@ export default function TasksPage() {
         setShowCommentsModal(false);
         setShowAttachmentsModal(false);
         setAuditTarget(null);
+        setPendingDeleteTask(null);
       }
     };
-    if (showCreateModal || showEditModal || showStatusModal || showCommentsModal || showAttachmentsModal || auditTarget) {
+    if (showCreateModal || showEditModal || showStatusModal || showCommentsModal || showAttachmentsModal || auditTarget || pendingDeleteTask) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -213,7 +217,7 @@ export default function TasksPage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [showCreateModal, showEditModal, showStatusModal, showCommentsModal, showAttachmentsModal, auditTarget]);
+  }, [showCreateModal, showEditModal, showStatusModal, showCommentsModal, showAttachmentsModal, auditTarget, pendingDeleteTask]);
 
   // Notifications link to /tasks?task=<id>: open that task's history once the list is in.
   useEffect(() => {
@@ -254,6 +258,7 @@ export default function TasksPage() {
     if (!activeTaskForComments || !newCommentContent.trim()) return;
 
     setCommentSubmitting(true);
+    setCommentError(null);
     try {
       const res = await fetch(`/api/tasks/${activeTaskForComments.id}/comments`, {
         method: "POST",
@@ -269,10 +274,10 @@ export default function TasksPage() {
         loadComments(activeTaskForComments.id);
         loadData();
       } else {
-        alert(data.error?.message || "Failed to add comment");
+        setCommentError(data.error?.message || "Failed to add comment");
       }
     } catch {
-      alert("Network error submitting comment");
+      setCommentError("Network error submitting comment");
     } finally {
       setCommentSubmitting(false);
     }
@@ -407,8 +412,14 @@ export default function TasksPage() {
     }
   };
 
-  const handleDeleteTask = async (id: string, taskTitle: string) => {
-    if (!confirm(`Are you sure you want to delete task "${taskTitle}"?`)) return;
+  const handleDeleteTask = (id: string, taskTitle: string) => {
+    setPendingDeleteTask({ id, title: taskTitle });
+  };
+
+  const executeDeleteTask = async () => {
+    if (!pendingDeleteTask) return;
+    const { id, title: taskTitle } = pendingDeleteTask;
+    setDeletingTask(true);
     setErrorMessage(null);
     setStatusMessage(null);
     try {
@@ -416,14 +427,18 @@ export default function TasksPage() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to delete task");
+        setPendingDeleteTask(null);
         return;
       }
       setStatusMessage(`Task "${taskTitle}" deleted.`);
-      // Optimistically remove from state immediately so UI updates without refreshing
       setTasks((prev) => prev.filter((t) => t.id !== id));
+      setPendingDeleteTask(null);
       loadData();
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete task"}`);
+      setPendingDeleteTask(null);
+    } finally {
+      setDeletingTask(false);
     }
   };
 
@@ -795,7 +810,7 @@ export default function TasksPage() {
         {/* Modal: Create Task */}
         {showCreateModal && canWriteTasks && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-amber-500" />
@@ -975,7 +990,7 @@ export default function TasksPage() {
         {/* Modal: Edit Task */}
         {showEditModal && editingTask && canWriteTasks && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Edit2 className="w-5 h-5 text-amber-500" />
@@ -1116,7 +1131,7 @@ export default function TasksPage() {
         {/* Modal: Update Status */}
         {showStatusModal && statusTask && canWriteTasks && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-amber-500" />
@@ -1189,7 +1204,7 @@ export default function TasksPage() {
         {/* Modal: Task Comments, Follow-up Questions & Assistance Requests */}
         {showCommentsModal && activeTaskForComments && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col">
+            <div className="bg-white rounded-2xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[85dvh] flex flex-col">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-amber-500" />
@@ -1257,10 +1272,18 @@ export default function TasksPage() {
               </div>
 
               {/* Post comment input */}
+              {commentError && (
+                <div className="mt-2 p-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center justify-between gap-2">
+                  <span>{commentError}</span>
+                  <button type="button" onClick={() => setCommentError(null)} className="text-rose-600 hover:text-rose-800 p-0.5 shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
               <form onSubmit={handleAddComment} className="pt-3 border-t border-slate-100 mt-3 space-y-2.5">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-semibold text-slate-600">Type:</span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     {[
                       { id: "COMMENT", label: "Note / Update" },
                       { id: "QUESTION", label: "Follow-up Question" },
@@ -1308,7 +1331,7 @@ export default function TasksPage() {
         {/* Modal: Photographs & Attachments */}
         {showAttachmentsModal && activeTaskForAttachments && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[85dvh] flex flex-col">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Paperclip className="w-5 h-5 text-amber-500" />
@@ -1350,6 +1373,41 @@ export default function TasksPage() {
             }}
             onChanged={loadData}
           />
+        )}
+
+        {/* Modal: Confirm Task Delete */}
+        {pendingDeleteTask && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setPendingDeleteTask(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="font-bold text-slate-900 text-base">Delete Task?</div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete task <strong className="text-slate-900">{pendingDeleteTask.title}</strong>?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteTask(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingTask}
+                  onClick={executeDeleteTask}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                >
+                  {deletingTask ? "Deleting..." : "Delete Task"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Modal: Audit History */}

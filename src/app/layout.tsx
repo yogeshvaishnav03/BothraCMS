@@ -34,8 +34,8 @@ export const viewport: Viewport = {
   themeColor: "#0b1020",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  // Keep pinch-zoom enabled for accessibility; mobile input zoom is prevented in globals.css
   viewportFit: "cover",
 };
 
@@ -51,7 +51,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body className="min-h-screen flex flex-col">
+      <body className="min-h-dvh flex flex-col">
         <GoogleFontsLoader />
         <AppSessionProvider>
           <LanguageProvider>

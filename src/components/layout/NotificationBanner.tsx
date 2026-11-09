@@ -153,7 +153,7 @@ export function NotificationBanner() {
   const deviceName = isMobile() ? "mobile device" : "laptop / PC";
 
   return (
-    <div className="fixed top-20 md:top-20 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] max-w-xl animate-fade-in pointer-events-auto">
+    <div className="fixed top-[calc(4.25rem+env(safe-area-inset-top,0px))] lg:top-20 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-1.5rem)] max-w-xl animate-fade-in pointer-events-auto">
       <div className="bg-slate-950/95 backdrop-blur-md border border-amber-500/40 text-white p-3.5 sm:p-4 rounded-2xl shadow-2xl flex items-start sm:items-center justify-between gap-3">
         <div className="flex items-start sm:items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">

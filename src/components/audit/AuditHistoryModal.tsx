@@ -77,7 +77,7 @@ export default function AuditHistoryModal({
       }}
     >
       <div
-        className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col"
+        className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[85dvh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby="audit-modal-title"

@@ -256,7 +256,7 @@ export default function PlaceOrderModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in"
+        className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="place-order-modal-title"

@@ -228,7 +228,7 @@ export default function MessagesSettingsPage() {
                   title="Send demand letters on WhatsApp by themselves"
                   text="When a stage is done and a demand is raised, the buyer gets it on WhatsApp with a link to their page. Then reminders, as set below."
                 />
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <Field label="Remind before due" hint="days (0 = no)">
                     <input type="number" min={0} max={15} className={input} value={s.remindBeforeDays} onChange={(e) => set("remindBeforeDays", Number(e.target.value))} />
                   </Field>
@@ -349,7 +349,7 @@ export default function MessagesSettingsPage() {
                   </p>
                   <p className="mt-2">Sign-in code: an Authentication template with a &quot;Copy code&quot; button.</p>
                 </details>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input className={input} inputMode="tel" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="Your mobile, for a test" />
                   <button
                     onClick={test}

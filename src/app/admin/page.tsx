@@ -76,6 +76,35 @@ export default function SuperAdminDashboardPage() {
   const [pendingPayments, setPendingPayments] = useState<any[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
 
+  // Unified non-blocking confirmation & reason prompt modal (iOS/Android WebView safe)
+  const [adminDialog, setAdminDialog] = useState<
+    | { kind: "approveOrder"; order: any }
+    | { kind: "rejectOrder"; order: any }
+    | { kind: "approvePayment"; payment: any }
+    | { kind: "rejectPayment"; payment: any }
+    | { kind: "toggleTenant"; orgId: string; nextStatus: string }
+    | { kind: "seedDemo"; targetOrgId?: string; targetOrgName?: string }
+    | null
+  >(null);
+  const [adminDialogReason, setAdminDialogReason] = useState("");
+
+  useEffect(() => {
+    if (!(adminDialog || approvedNotification)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAdminDialog(null);
+        setApprovedNotification(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [adminDialog, approvedNotification]);
+
   useEffect(() => {
     refreshUser()
       .then((u) => {
@@ -131,68 +160,13 @@ export default function SuperAdminDashboardPage() {
     }
   }
 
-  async function handleApproveOrder(order: any) {
-    const confirmed = confirm(
-      `Approve Purchase Order ${order.orderNumber} for ${order.material.name} (${order.quantity} ${order.unitCode})?\n\nThis will confirm the order and activate vendor WhatsApp/Email notification.`
-    );
-    if (!confirmed) return;
-
-    setActionLoading(order.id);
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    try {
-      const res = await fetch(`/api/orders/${order.id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: "Approved via Super Admin Console" }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setSuccessMsg(`Order ${order.orderNumber} successfully approved!`);
-        if (json.data?.notification) {
-          setApprovedNotification(json.data.notification);
-        }
-        await loadPendingOrders();
-      } else {
-        setErrorMsg(json.error?.message || "Failed to approve order");
-      }
-    } catch {
-      setErrorMsg("Network error approving order");
-    } finally {
-      setActionLoading(null);
-    }
+  function handleApproveOrder(order: any) {
+    setAdminDialog({ kind: "approveOrder", order });
   }
 
-  async function handleRejectOrder(order: any) {
-    const reason = prompt(
-      `Please provide rejection reason for Purchase Order ${order.orderNumber}:`,
-      "Order query not approved at this time"
-    );
-    if (!reason) return;
-
-    setActionLoading(order.id);
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    try {
-      const res = await fetch(`/api/orders/${order.id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setSuccessMsg(`Order ${order.orderNumber} rejected.`);
-        await loadPendingOrders();
-      } else {
-        setErrorMsg(json.error?.message || "Failed to reject order");
-      }
-    } catch {
-      setErrorMsg("Network error rejecting order");
-    } finally {
-      setActionLoading(null);
-    }
+  function handleRejectOrder(order: any) {
+    setAdminDialogReason("Order query not approved at this time");
+    setAdminDialog({ kind: "rejectOrder", order });
   }
 
   async function loadPendingPayments() {
@@ -210,115 +184,176 @@ export default function SuperAdminDashboardPage() {
     }
   }
 
-  async function handleApprovePayment(payment: any) {
-    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
-    const amountStr = (payment.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 });
-    const confirmed = confirm(
-      `Confirm & Approve Payment of ₹${amountStr}?\n\nRecipient: ${payeeName} (${payment.recipientType || "Party"})\nPaying Account: ${payment.payingAccount || "Company Account"}\nPurpose: ${payment.approvalQuery || "Payment"}\n\nThis will make the payment, deduct it from your account, and update the pending balance.`
-    );
-    if (!confirmed) return;
-
-    setActionLoading(payment.id);
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    try {
-      const res = await fetch(`/api/finance/payments/${payment.id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: "Approved and confirmed via Super Admin Console" }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setSuccessMsg(json.data?.message || `Payment of ₹${amountStr} to ${payeeName} successfully approved!`);
-        await loadPendingPayments();
-      } else {
-        setErrorMsg(json.error?.message || "Failed to approve payment");
-      }
-    } catch {
-      setErrorMsg("Network error approving payment");
-    } finally {
-      setActionLoading(null);
-    }
+  function handleApprovePayment(payment: any) {
+    setAdminDialog({ kind: "approvePayment", payment });
   }
 
-  async function handleRejectPayment(payment: any) {
-    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
-    const reason = prompt(
-      `Please provide rejection reason for payment to ${payeeName}:`,
-      "Payment query not approved at this time"
-    );
-    if (!reason) return;
-
-    setActionLoading(payment.id);
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    try {
-      const res = await fetch(`/api/finance/payments/${payment.id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setSuccessMsg(`Payment query to ${payeeName} rejected.`);
-        await loadPendingPayments();
-      } else {
-        setErrorMsg(json.error?.message || "Failed to reject payment");
-      }
-    } catch {
-      setErrorMsg("Network error rejecting payment");
-    } finally {
-      setActionLoading(null);
-    }
+  function handleRejectPayment(payment: any) {
+    setAdminDialogReason("Payment query not approved at this time");
+    setAdminDialog({ kind: "rejectPayment", payment });
   }
 
-  async function toggleTenantStatus(orgId: string, currentStatus: string) {
+  function toggleTenantStatus(orgId: string, currentStatus: string) {
     const nextStatus = currentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
-    const promptReason = prompt(
-      `Please provide an administrative reason to change status to ${nextStatus}:`,
-      `Administrative override by ${currentUser?.name || "Super Admin"}`
-    );
-    if (!promptReason) return;
-
-    setActionLoading(orgId);
-    setErrorMsg("");
-    setSuccessMsg("");
-
-    try {
-      const res = await fetch("/api/admin/tenants", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          organizationId: orgId,
-          status: nextStatus,
-          reason: promptReason,
-        }),
-      });
-
-      const json = await res.json();
-      if (json.success) {
-        setSuccessMsg(json.data.message || `Tenant status updated to ${nextStatus}`);
-        loadTenants();
-      } else {
-        setErrorMsg(json.error?.message || "Failed to change tenant status");
-      }
-    } catch {
-      setErrorMsg("Network error updating tenant status");
-    } finally {
-      setActionLoading(null);
-    }
+    setAdminDialogReason(`Administrative override by ${currentUser?.name || "Super Admin"}`);
+    setAdminDialog({ kind: "toggleTenant", orgId, nextStatus });
   }
 
+  function handleSeedDemoData(targetOrgId?: string, targetOrgName?: string) {
+    setAdminDialog({ kind: "seedDemo", targetOrgId, targetOrgName });
+  }
 
-  async function handleSeedDemoData(targetOrgId?: string, targetOrgName?: string) {
-    const orgLabel = targetOrgName ? `organization "${targetOrgName}"` : "the platform demo environment";
-    const confirmed = confirm(
-      `Populate full realistic demo data for ${orgLabel} in 1 click?\n\nThis will seed Sites, Projects, Stores, Materials, Vendors, Attendance, Tasks, and Bills.`
-    );
-    if (!confirmed) return;
+  async function executeAdminDialog(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!adminDialog) return;
 
+    if (adminDialog.kind === "approveOrder") {
+      const { order } = adminDialog;
+      setAdminDialog(null);
+      setActionLoading(order.id);
+      setErrorMsg("");
+      setSuccessMsg("");
+      try {
+        const res = await fetch(`/api/orders/${order.id}/approve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: "Approved via Super Admin Console" }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setSuccessMsg(`Order ${order.orderNumber} successfully approved!`);
+          if (json.data?.notification) setApprovedNotification(json.data.notification);
+          await loadPendingOrders();
+        } else {
+          setErrorMsg(json.error?.message || "Failed to approve order");
+        }
+      } catch {
+        setErrorMsg("Network error approving order");
+      } finally {
+        setActionLoading(null);
+      }
+      return;
+    }
+
+    if (adminDialog.kind === "rejectOrder") {
+      const reason = adminDialogReason.trim();
+      if (!reason) return;
+      const { order } = adminDialog;
+      setAdminDialog(null);
+      setActionLoading(order.id);
+      setErrorMsg("");
+      setSuccessMsg("");
+      try {
+        const res = await fetch(`/api/orders/${order.id}/reject`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setSuccessMsg(`Order ${order.orderNumber} rejected.`);
+          await loadPendingOrders();
+        } else {
+          setErrorMsg(json.error?.message || "Failed to reject order");
+        }
+      } catch {
+        setErrorMsg("Network error rejecting order");
+      } finally {
+        setActionLoading(null);
+      }
+      return;
+    }
+
+    if (adminDialog.kind === "approvePayment") {
+      const { payment } = adminDialog;
+      const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+      const amountStr = (payment.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+      setAdminDialog(null);
+      setActionLoading(payment.id);
+      setErrorMsg("");
+      setSuccessMsg("");
+      try {
+        const res = await fetch(`/api/finance/payments/${payment.id}/approve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: "Approved and confirmed via Super Admin Console" }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setSuccessMsg(json.data?.message || `Payment of ₹${amountStr} to ${payeeName} successfully approved!`);
+          await loadPendingPayments();
+        } else {
+          setErrorMsg(json.error?.message || "Failed to approve payment");
+        }
+      } catch {
+        setErrorMsg("Network error approving payment");
+      } finally {
+        setActionLoading(null);
+      }
+      return;
+    }
+
+    if (adminDialog.kind === "rejectPayment") {
+      const reason = adminDialogReason.trim();
+      if (!reason) return;
+      const { payment } = adminDialog;
+      const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+      setAdminDialog(null);
+      setActionLoading(payment.id);
+      setErrorMsg("");
+      setSuccessMsg("");
+      try {
+        const res = await fetch(`/api/finance/payments/${payment.id}/reject`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          setSuccessMsg(`Payment query to ${payeeName} rejected.`);
+          await loadPendingPayments();
+        } else {
+          setErrorMsg(json.error?.message || "Failed to reject payment");
+        }
+      } catch {
+        setErrorMsg("Network error rejecting payment");
+      } finally {
+        setActionLoading(null);
+      }
+      return;
+    }
+
+    if (adminDialog.kind === "toggleTenant") {
+      const reason = adminDialogReason.trim();
+      if (!reason) return;
+      const { orgId, nextStatus } = adminDialog;
+      setAdminDialog(null);
+      setActionLoading(orgId);
+      setErrorMsg("");
+      setSuccessMsg("");
+      try {
+        const res = await fetch("/api/admin/tenants", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ organizationId: orgId, status: nextStatus, reason }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          setSuccessMsg(json.data.message || `Tenant status updated to ${nextStatus}`);
+          loadTenants();
+        } else {
+          setErrorMsg(json.error?.message || "Failed to change tenant status");
+        }
+      } catch {
+        setErrorMsg("Network error updating tenant status");
+      } finally {
+        setActionLoading(null);
+      }
+      return;
+    }
+
+    const { targetOrgId } = adminDialog;
+    setAdminDialog(null);
     setSeeding(true);
     setErrorMsg("");
     setSuccessMsg("");
@@ -531,7 +566,7 @@ export default function SuperAdminDashboardPage() {
       <Shell>
         <div className="space-y-4">
           <div className="h-8 w-64 bg-slate-200 rounded animate-pulse" />
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-24 bg-slate-200 rounded-xl animate-pulse" />
             ))}
@@ -701,7 +736,7 @@ export default function SuperAdminDashboardPage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto min-h-[400px]">
+              <div className="overflow-x-auto md:min-h-[400px]">
                 <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                     <tr>
@@ -812,7 +847,7 @@ export default function SuperAdminDashboardPage() {
             onClick={() => setApprovedNotification(null)}
           >
             <div
-              className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in"
+              className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
@@ -956,7 +991,7 @@ export default function SuperAdminDashboardPage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto min-h-[400px]">
+              <div className="overflow-x-auto md:min-h-[400px]">
                 <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                     <tr>
@@ -1190,7 +1225,7 @@ export default function SuperAdminDashboardPage() {
             showSearch={true}
             showExport={true}
           />
-          <div className="overflow-x-auto min-h-[400px]">
+          <div className="overflow-x-auto md:min-h-[400px]">
             <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
                 <tr>
@@ -1277,6 +1312,129 @@ export default function SuperAdminDashboardPage() {
             </table>
           </div>
         </div>
+
+        {/* Unified Admin Action Confirmation / Reason Modal */}
+        {adminDialog && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setAdminDialog(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <h3 className="font-bold text-slate-900 text-base">
+                  {adminDialog.kind === "approveOrder"
+                    ? "Approve Purchase Order"
+                    : adminDialog.kind === "rejectOrder"
+                    ? "Reject Purchase Order"
+                    : adminDialog.kind === "approvePayment"
+                    ? "Confirm & Approve Payment"
+                    : adminDialog.kind === "rejectPayment"
+                    ? "Reject Payment Request"
+                    : adminDialog.kind === "toggleTenant"
+                    ? `Set Organization Status: ${adminDialog.nextStatus}`
+                    : "Populate Complete Demo Data"}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setAdminDialog(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {(adminDialog.kind === "rejectOrder" ||
+                adminDialog.kind === "rejectPayment" ||
+                adminDialog.kind === "toggleTenant") ? (
+                <form onSubmit={executeAdminDialog} className="space-y-3">
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {adminDialog.kind === "rejectOrder"
+                      ? `Provide rejection reason for Purchase Order ${adminDialog.order.orderNumber}.`
+                      : adminDialog.kind === "rejectPayment"
+                      ? `Provide rejection reason for payment to ${
+                          adminDialog.payment.recipientName || adminDialog.payment.party?.name || "Recipient"
+                        }.`
+                      : `Provide an administrative audit reason to change tenant status to ${adminDialog.nextStatus}.`}
+                  </p>
+                  <textarea
+                    required
+                    rows={3}
+                    value={adminDialogReason}
+                    onChange={(e) => setAdminDialogReason(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setAdminDialog(null)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!adminDialogReason.trim()}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {adminDialog.kind === "approveOrder" ? (
+                      <>
+                        Approve Purchase Order <strong className="font-mono text-slate-900">{adminDialog.order.orderNumber}</strong> for{" "}
+                        <strong className="text-slate-900">{adminDialog.order.material.name}</strong> ({adminDialog.order.quantity}{" "}
+                        {adminDialog.order.unitCode})? This confirms the order and activates vendor notification.
+                      </>
+                    ) : adminDialog.kind === "approvePayment" ? (
+                      <>
+                        Confirm &amp; authorize payment of{" "}
+                        <strong className="text-slate-900">
+                          ₹{(adminDialog.payment.amount / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </strong>{" "}
+                        to{" "}
+                        <strong className="text-slate-900">
+                          {adminDialog.payment.recipientName || adminDialog.payment.party?.name || "Recipient"}
+                        </strong>{" "}
+                        from <strong className="text-slate-800">{adminDialog.payment.payingAccount || "Company Account"}</strong>?
+                      </>
+                    ) : (
+                      <>
+                        Populate sample Sites, Projects, Stores, Materials, Vendors, Attendance, Tasks, and Bills for{" "}
+                        <strong className="text-slate-900">
+                          {adminDialog.targetOrgName || "the platform demo environment"}
+                        </strong>
+                        ?
+                      </>
+                    )}
+                  </p>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setAdminDialog(null)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => executeAdminDialog()}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg"
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </Shell>
   );

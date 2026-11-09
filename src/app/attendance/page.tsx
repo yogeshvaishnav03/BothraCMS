@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatDateTime, formatDate } from "@/lib/formatters";
+import { downloadCsv } from "@/lib/csv-download";
 import {
   Clock,
   MapPin,
@@ -811,18 +812,30 @@ export default function AttendancePage() {
       return commonFields.join(",");
     });
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    const csvString = [headers.join(","), ...rows].join("\n");
     const fileName = isAllStaffMode
       ? `all_staff_attendance_${new Date().toISOString().split("T")[0]}.csv`
       : `my_attendance_${currentUser?.name?.replace(/\s+/g, "_") || "staff"}.csv`;
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsv(fileName, csvString);
   };
+
+  useEffect(() => {
+    const anyModal = Boolean(correctionSession) || showAlterModal || showShiftSettingsModal;
+    if (!anyModal) return;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setCorrectionSession(null);
+        setShowAlterModal(false);
+        setShowShiftSettingsModal(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [correctionSession, showAlterModal, showShiftSettingsModal]);
 
   const isCheckedIn = Boolean(todaySession);
   const isCheckedOut = Boolean(todaySession?.checkOutAt);
@@ -1766,7 +1779,7 @@ export default function AttendancePage() {
             }}
           >
             <div
-              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[90dvh] flex flex-col"
               role="dialog"
               aria-modal="true"
               aria-labelledby="attendance-correction-title"
@@ -1898,7 +1911,7 @@ export default function AttendancePage() {
             }}
           >
             <div
-              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-150"
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden max-h-[92dvh] flex flex-col animate-in zoom-in-95 duration-150"
               role="dialog"
               aria-modal="true"
             >
@@ -2101,7 +2114,7 @@ export default function AttendancePage() {
             }}
           >
             <div
-              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-150"
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden max-h-[92dvh] flex flex-col animate-in zoom-in-95 duration-150"
               role="dialog"
               aria-modal="true"
             >

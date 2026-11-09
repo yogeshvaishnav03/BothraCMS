@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { downloadCsv } from "@/lib/csv-download";
 import {
   Filter,
   ArrowUp,
@@ -472,14 +473,7 @@ export function useExcelTable<T = any>({
         .join(",")
     );
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsv(filename, [headers.join(","), ...rows].join("\n"));
   };
 
   return {
@@ -537,7 +531,9 @@ export function ExcelColumnHeader<T = any>({
   table: ReturnType<typeof useExcelTable<T>>;
   theme?: "lightHeader" | "darkHeader";
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const isOpen = table.openFilterKey === column.key;
   const isSorted = table.sortColumnKey === column.key && table.sortDirection !== null;
   const isFiltered = Boolean(table.columnFilters[column.key]);
@@ -563,11 +559,38 @@ export function ExcelColumnHeader<T = any>({
 
   const isDark = theme === "darkHeader";
 
-  // Close on outside click or Esc
+  const updatePopoverPos = useCallback(() => {
+    if (!triggerRef.current || typeof window === "undefined") return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const pad = 12;
+    const width = Math.min(264, vw - pad * 2);
+    const left = Math.max(pad, Math.min(rect.right - width, vw - width - pad));
+    const maxEstH = Math.min(380, vh - pad * 2);
+    let top = rect.bottom + 6;
+    if (top + maxEstH > vh - pad && rect.top - maxEstH - 6 > pad) {
+      top = rect.top - maxEstH - 6;
+    } else if (top + maxEstH > vh - pad) {
+      top = Math.max(pad, vh - maxEstH - pad);
+    }
+    setPopoverPos({ top, left, width });
+  }, []);
+
+  // Position cleanly in viewport and close on outside tap/click or Esc
   useEffect(() => {
-    if (!isOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+    if (!isOpen) {
+      setPopoverPos(null);
+      return;
+    }
+    updatePopoverPos();
+    const handleClickOutside = (e: Event) => {
+      const target = e.target as Node;
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(target) &&
+        (!triggerRef.current || !triggerRef.current.contains(target))
+      ) {
         table.setOpenFilterKey(null);
       }
     };
@@ -575,13 +598,19 @@ export function ExcelColumnHeader<T = any>({
       if (e.key === "Escape") table.setOpenFilterKey(null);
     };
 
+    document.addEventListener("pointerdown", handleClickOutside);
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updatePopoverPos);
+    window.addEventListener("scroll", updatePopoverPos, true);
     return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePopoverPos);
+      window.removeEventListener("scroll", updatePopoverPos, true);
     };
-  }, [isOpen, table]);
+  }, [isOpen, table, updatePopoverPos]);
 
   return (
     <th
@@ -629,6 +658,7 @@ export function ExcelColumnHeader<T = any>({
         {/* Excel Filter Dropdown Trigger Button */}
         {column.filterable !== false && (
           <button
+            ref={triggerRef}
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -653,12 +683,13 @@ export function ExcelColumnHeader<T = any>({
         )}
       </div>
 
-      {/* Excel Filter Popover Menu */}
-      {isOpen && (
+      {/* Excel Filter Popover Menu rendered in Portal so overflow-x-auto never clips it */}
+      {isOpen && typeof document !== "undefined" && popoverPos && createPortal(
         <div
           ref={popoverRef}
+          style={{ top: popoverPos.top, left: popoverPos.left, width: popoverPos.width }}
           onClick={(e) => e.stopPropagation()}
-          className="absolute top-full z-50 mt-1 w-64 bg-white rounded-xl border border-slate-200 shadow-2xl p-3 text-slate-800 text-xs text-left normal-case tracking-normal animate-in fade-in zoom-in-95 duration-150 right-0 sm:right-auto"
+          className="fixed z-[110] max-h-[80dvh] overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl p-3 text-slate-800 text-xs text-left normal-case tracking-normal animate-in fade-in zoom-in-95 duration-150"
         >
           {/* Popover Header */}
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -842,7 +873,8 @@ export function ExcelColumnHeader<T = any>({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </th>
   );
@@ -892,13 +924,18 @@ export function MegaFilterModal<T = any>({
     return filterableColumns.filter((c) => c.label.toLowerCase().includes(q));
   }, [filterableColumns, columnSearch]);
 
-  // ESC key to close
+  // Lock background scroll and listen for Escape while MegaFilterModal is open
   useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") handleClose();
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [handleClose]);
 
   const activeKey = activeColumn ? activeColumn.key : "";
@@ -961,7 +998,7 @@ export function MegaFilterModal<T = any>({
       }}
     >
       <div
-        className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-150"
+        className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90dvh] flex flex-col animate-in zoom-in-95 duration-150"
         role="dialog"
         aria-modal="true"
         aria-labelledby="mega-filter-title"
@@ -1032,9 +1069,9 @@ export function MegaFilterModal<T = any>({
         </div>
 
         {/* Two-Column Slicer Body */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-[380px] max-h-[500px]">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* Left Column: Column Selector Navigation */}
-          <div className="w-full md:w-64 border-r border-slate-200 bg-slate-50/60 flex flex-col shrink-0">
+          <div className="w-full md:w-64 max-h-40 md:max-h-none border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50/60 flex flex-col shrink-0">
             <div className="p-3 border-b border-slate-200">
               <div className="relative">
                 <input
@@ -1120,7 +1157,7 @@ export function MegaFilterModal<T = any>({
           </div>
 
           {/* Right Column: Column Filter Controls */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-white p-4 sm:p-5 space-y-4">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto md:overflow-hidden bg-white p-4 sm:p-5 space-y-4">
             {/* Active Column Header & Quick Presets */}
             <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 shrink-0">
               <div>
@@ -1408,7 +1445,7 @@ export function MegaFilterModal<T = any>({
         </div>
 
         {/* Footer Action Bar */}
-        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+        <div className="p-3 sm:p-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2 text-xs">
             {table.activeFiltersCount > 0 ? (
               <button
@@ -2252,7 +2289,7 @@ export default function ExcelTable<T = any>({
   const isDark = theme === "darkHeader";
 
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs min-h-[400px] ${className}`}>
+    <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs md:min-h-[400px] ${className}`}>
       {/* Top Excel Toolbar */}
       {showToolbar && (
         <ExcelTableToolbar
@@ -2265,7 +2302,7 @@ export default function ExcelTable<T = any>({
       )}
 
       {/* Table Container */}
-      <div className="overflow-x-auto min-h-[400px]">
+      <div className="overflow-x-auto md:min-h-[400px]">
         <table className={`w-full text-left text-xs min-w-[640px] ${tableClassName}`}>
           <thead
             className={`${

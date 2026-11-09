@@ -65,7 +65,7 @@ export function FileUpload({
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />} {busy ? "Uploading…" : label}
         </button>
       )}
-      <input ref={ref} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
+      <input ref={ref} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => upload(e.target.files?.[0])} />
       {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
     </div>
   );

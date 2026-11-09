@@ -111,6 +111,26 @@ export default function ProjectDetailsPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!(showTaskModal || showReportModal || showEditModal || showFolderModal || showAuditModal)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowTaskModal(false);
+        setShowReportModal(false);
+        setShowEditModal(false);
+        setShowFolderModal(false);
+        setShowAuditModal(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showTaskModal, showReportModal, showEditModal, showFolderModal, showAuditModal]);
+
   const loadProject = () => {
     if (!projectId) return;
     setLoading(true);
@@ -327,7 +347,7 @@ export default function ProjectDetailsPage() {
       <Shell>
         <div className="space-y-4">
           <div className="h-8 w-64 bg-slate-200 rounded animate-pulse" />
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-24 bg-slate-200 rounded-xl animate-pulse" />
             ))}
@@ -393,7 +413,7 @@ export default function ProjectDetailsPage() {
               <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1 flex items-center gap-2">
                 {project.name}
               </h1>
-              <div className="text-xs text-slate-500 flex items-center gap-3 mt-0.5">
+              <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
                 <span className="flex items-center gap-1">
                   <Building2 className="w-3.5 h-3.5 text-slate-400" />
                   {project.site?.name}
@@ -408,7 +428,7 @@ export default function ProjectDetailsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowEditModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-sm transition-all"
@@ -866,7 +886,7 @@ export default function ProjectDetailsPage() {
         {/* Modal: Add Task */}
         {showTaskModal && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
@@ -1052,7 +1072,7 @@ export default function ProjectDetailsPage() {
         {/* Modal: Daily Report */}
         {showReportModal && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <ClipboardList className="w-5 h-5 text-amber-500" />
@@ -1117,7 +1137,7 @@ export default function ProjectDetailsPage() {
         {/* Modal: New Folder (Priority 7) */}
         {showFolderModal && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <FolderPlus className="w-5 h-5 text-amber-500" />
@@ -1183,7 +1203,7 @@ export default function ProjectDetailsPage() {
         {/* Modal: Edit Project & Audit (Priority 6) */}
         {showEditModal && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Edit2 className="w-5 h-5 text-amber-500" />

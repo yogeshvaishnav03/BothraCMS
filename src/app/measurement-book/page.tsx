@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatQuantity, rupeesToPaise } from "@/lib/formatters";
+import { downloadCsv } from "@/lib/csv-download";
 import { canUser } from "@/lib/permissions";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -218,6 +219,10 @@ export default function MeasurementBookPage() {
   const [showAbstractModal, setShowAbstractModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showBillModal, setShowBillModal] = useState(false);
+  const [pendingDeleteAtt, setPendingDeleteAtt] = useState<AttachmentItem | null>(null);
+  const [deleteAttReason, setDeleteAttReason] = useState("");
+  const [pendingReviewCr, setPendingReviewCr] = useState<{ requestId: string; action: "APPROVE" | "REJECT" } | null>(null);
+  const [reviewComments, setReviewComments] = useState("");
 
   // Modal active targets
   const [targetGroupForSubgroup, setTargetGroupForSubgroup] = useState<string>("");
@@ -379,6 +384,70 @@ export default function MeasurementBookPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const anyModalOpen =
+      showAddGroupModal ||
+      showAddSubgroupModal ||
+      showAddEntryModal ||
+      showEditEntryModal ||
+      showDeleteEntryModal ||
+      showDeleteGroupModal ||
+      showDeleteSubgroupModal ||
+      showImagesModal ||
+      showChangeRequestsModal ||
+      showAbstractModal ||
+      showHistoryModal ||
+      showBillModal ||
+      Boolean(pendingDeleteAtt) ||
+      Boolean(pendingReviewCr);
+    if (!anyModalOpen) return;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (pendingDeleteAtt) {
+          setPendingDeleteAtt(null);
+          return;
+        }
+        if (pendingReviewCr) {
+          setPendingReviewCr(null);
+          return;
+        }
+        setShowAddGroupModal(false);
+        setShowAddSubgroupModal(false);
+        setShowAddEntryModal(false);
+        setShowEditEntryModal(false);
+        setShowDeleteEntryModal(false);
+        setShowDeleteGroupModal(false);
+        setShowDeleteSubgroupModal(false);
+        setShowImagesModal(false);
+        setShowChangeRequestsModal(false);
+        setShowAbstractModal(false);
+        setShowHistoryModal(false);
+        setShowBillModal(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [
+    showAddGroupModal,
+    showAddSubgroupModal,
+    showAddEntryModal,
+    showEditEntryModal,
+    showDeleteEntryModal,
+    showDeleteGroupModal,
+    showDeleteSubgroupModal,
+    showImagesModal,
+    showChangeRequestsModal,
+    showAbstractModal,
+    showHistoryModal,
+    showBillModal,
+    pendingDeleteAtt,
+    pendingReviewCr,
+  ]);
 
   // Synchronize Measurement Book with activeSiteId
   useEffect(() => {
@@ -1038,22 +1107,27 @@ export default function MeasurementBookPage() {
     }
   };
 
-  const handleDeleteImage = async (att: AttachmentItem) => {
-    const reason = prompt("Enter mandatory reason for removing this photo (e.g. wrong photo, duplicate):");
-    if (!reason || !reason.trim()) {
-      alert("Removal cancelled: Mandatory reason is strictly required.");
+  const handleDeleteImage = (att: AttachmentItem) => {
+    setDeleteAttReason("");
+    setPendingDeleteAtt(att);
+  };
+
+  const confirmDeleteImage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingDeleteAtt || !activeEntry) return;
+    if (!deleteAttReason.trim()) {
+      setErrorMessage("Mandatory reason is strictly required to remove evidence.");
       return;
     }
-
-    if (!activeEntry) return;
+    const targetAtt = pendingDeleteAtt;
     setActionLoading(true);
     try {
       const res = await fetch(`/api/measurement-book/entries/${activeEntry.id}/images`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          attachmentId: att.id,
-          reason: reason.trim(),
+          attachmentId: targetAtt.id,
+          reason: deleteAttReason.trim(),
         }),
       });
 
@@ -1062,6 +1136,8 @@ export default function MeasurementBookPage() {
         throw new Error(data.error?.message || "Failed to remove image.");
       }
 
+      setPendingDeleteAtt(null);
+      setDeleteAttReason("");
       setStatusMessage("Image removed from active evidence (metadata retained).");
       const refEntry = await fetch(`/api/measurement-book/entries/${activeEntry.id}`);
       const refData = await refEntry.json();
@@ -1145,8 +1221,15 @@ export default function MeasurementBookPage() {
   };
 
   // Review Change Request
-  const handleReviewChangeRequest = async (requestId: string, action: "APPROVE" | "REJECT") => {
-    const comments = prompt(`Enter optional comments for ${action === "APPROVE" ? "approving" : "rejecting"} this request:`);
+  const handleReviewChangeRequest = (requestId: string, action: "APPROVE" | "REJECT") => {
+    setReviewComments("");
+    setPendingReviewCr({ requestId, action });
+  };
+
+  const confirmReviewChangeRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingReviewCr) return;
+    const { requestId, action } = pendingReviewCr;
     setActionLoading(true);
     try {
       const res = await fetch(`/api/measurement-book/change-requests/${requestId}`, {
@@ -1154,7 +1237,7 @@ export default function MeasurementBookPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
-          reviewerComments: comments || undefined,
+          reviewerComments: reviewComments.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -1162,6 +1245,8 @@ export default function MeasurementBookPage() {
         throw new Error(data.error?.message || `Failed to ${action} change request.`);
       }
 
+      setPendingReviewCr(null);
+      setReviewComments("");
       setStatusMessage(`Change request #${requestId.slice(0, 8)} ${action}D successfully.`);
       loadData();
     } catch (err: any) {
@@ -1262,14 +1347,8 @@ export default function MeasurementBookPage() {
       });
     });
 
-    const csvContent = "data:text/csv;charset=utf-8," + rows.map((r) => r.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Measurement_Book_Hierarchical_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvString = rows.map((r) => r.join(",")).join("\n");
+    downloadCsv(`Measurement_Book_Hierarchical_${new Date().toISOString().split("T")[0]}.csv`, csvString);
   };
 
   const getStatusBadge = (status: string) => {
@@ -1798,7 +1877,7 @@ export default function MeasurementBookPage() {
                       </div>
 
                       {canManageMeasurements && (
-                        <div className="flex items-center gap-1.5 ml-2">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:ml-2">
                           <button
                             onClick={() => {
                               setTargetGroupForSubgroup(grp.id);
@@ -1885,7 +1964,7 @@ export default function MeasurementBookPage() {
                                   </div>
 
                                   {canManageMeasurements && (
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex flex-wrap items-center gap-1.5">
                                       <button
                                         onClick={() => openAddMeasurementModal(grp.id, sg.id)}
                                         className="px-2 py-1 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold shadow-xs transition"
@@ -1909,13 +1988,116 @@ export default function MeasurementBookPage() {
 
                               {/* LEVEL 3: MEASUREMENT ENTRIES TABLE */}
                               {isSubExpanded && (
-                                <div className="overflow-x-auto bg-white">
+                                <div className="bg-white">
                                   {entries.length === 0 ? (
                                     <div className="p-5 text-center text-xs text-slate-400">
                                       No measurements recorded in {sg.name} yet. Click &quot;+ Add Wall&quot; to create one.
                                     </div>
                                   ) : (
-                                    <table className="w-full text-left border-collapse text-xs">
+                                    <>
+                                    <div className="lg:hidden divide-y divide-slate-100">
+                                      {entries.map((entry) => {
+                                        const photosCount = (entry.attachments || []).filter((a) => !a.isDeleted).length;
+                                        return (
+                                          <div key={`m-${entry.id}`} className="p-3.5 space-y-2.5">
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div className="min-w-0">
+                                                <div className="font-bold text-sm text-slate-900">{entry.entryName || "Wall 1"}</div>
+                                                <div className="text-xs text-slate-500 mt-0.5">{entry.itemDescription}</div>
+                                                {entry.referenceNumber && (
+                                                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">Ref: {entry.referenceNumber}</div>
+                                                )}
+                                              </div>
+                                              <div className="shrink-0">{getStatusBadge(entry.status)}</div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                                              <span className="px-2 py-0.5 rounded font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                                                {entry.measurementType.replace(/_/g, " ")}
+                                              </span>
+                                              <span className="px-2 py-0.5 rounded font-mono bg-slate-50 text-slate-600 border border-slate-200">
+                                                {entry.formula}: {entry.count} × {entry.length}
+                                                {entry.breadth !== null && entry.breadth !== undefined ? ` × ${entry.breadth}` : ""}
+                                                {entry.depth !== null && entry.depth !== undefined ? ` × ${entry.depth}` : ""}
+                                              </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-2.5 text-xs">
+                                              <div>
+                                                <div className="text-[10px] text-slate-500 uppercase">Net Qty</div>
+                                                <div className="font-mono font-bold text-slate-900">
+                                                  {formatQuantity(entry.quantity)} {entry.unit}
+                                                </div>
+                                                {entry.deduction > 0 && (
+                                                  <div className="text-[10px] font-mono text-rose-600">
+                                                    Gross {formatQuantity(entry.grossQuantity)} − {formatQuantity(entry.deduction)}
+                                                  </div>
+                                                )}
+                                              </div>
+                                              <div className="text-right">
+                                                <div className="text-[10px] text-slate-500 uppercase">Amount ({formatCurrency(entry.unitRate)}/{entry.unit})</div>
+                                                <div className="font-mono font-bold text-slate-900">{formatCurrency(entry.totalAmount)}</div>
+                                                {entry.measurementDate && (
+                                                  <div className="text-[10px] text-slate-400">{entry.measurementDate.split("T")[0]}</div>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                                              <button
+                                                onClick={() => openImagesModal(entry)}
+                                                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                                                  photosCount > 0
+                                                    ? "bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300"
+                                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                                }`}
+                                              >
+                                                <ImageIcon className="w-3.5 h-3.5" />
+                                                {photosCount > 0 ? `${photosCount} Evidence` : "+ Add Evidence"}
+                                              </button>
+
+                                              <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+                                                {canManageMeasurements && entry.status !== "BILLED" && (
+                                                  <button onClick={() => openEditModal(entry)} className="p-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200" title="Edit">
+                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                                {canManageMeasurements && (
+                                                  <button onClick={() => openDuplicateMeasurementModal(entry)} className="p-2 rounded-lg text-slate-600 hover:text-amber-600 hover:bg-amber-50 border border-slate-200" title="Duplicate">
+                                                    <Copy className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                                <button onClick={() => openHistoryModal(entry.id)} className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200" title="History">
+                                                  <History className="w-3.5 h-3.5" />
+                                                </button>
+                                                {canManageMeasurements && entry.status === "SUBMITTED" && (
+                                                  <button onClick={() => handleStatusChange(entry.id, "VERIFIED")} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                    Verify
+                                                  </button>
+                                                )}
+                                                {canWriteFinance && entry.status === "VERIFIED" && (
+                                                  <button onClick={() => handleStatusChange(entry.id, "APPROVED")} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    Approve
+                                                  </button>
+                                                )}
+                                                {canWriteFinance && entry.status === "APPROVED" && !entry.billId && (
+                                                  <button onClick={() => openConvertBillModal(entry)} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
+                                                    <Receipt className="w-3 h-3" /> Bill
+                                                  </button>
+                                                )}
+                                                {canManageMeasurements && entry.status !== "BILLED" && (
+                                                  <button onClick={() => openDeleteModal(entry)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 border border-rose-200" title="Delete">
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    <div className="hidden lg:block overflow-x-auto">
+                                      <table className="w-full text-left border-collapse text-xs">
                                       <thead>
                                         <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold uppercase tracking-wider text-[11px]">
                                           <th className="py-2.5 px-3">Ref & Wall / Item</th>
@@ -2114,7 +2296,9 @@ export default function MeasurementBookPage() {
                                           );
                                         })}
                                       </tbody>
-                                    </table>
+                                      </table>
+                                    </div>
+                                    </>
                                   )}
                                 </div>
                               )}
@@ -2135,7 +2319,7 @@ export default function MeasurementBookPage() {
         {/* 1. ADD MAIN GROUP MODAL */}
         {showAddGroupModal && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                   <FolderPlus className="w-5 h-5 text-amber-600" />
@@ -2251,7 +2435,7 @@ export default function MeasurementBookPage() {
         {/* 2. ADD SUBGROUP MODAL */}
         {showAddSubgroupModal && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                   <Layers className="w-5 h-5 text-blue-600" />
@@ -2347,7 +2531,7 @@ export default function MeasurementBookPage() {
         {/* 3. ADD / DUPLICATE MEASUREMENT MODAL */}
         {showAddEntryModal && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200/90 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200/90 max-h-[92dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
               {/* Modal Header */}
               <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-slate-100 bg-white shrink-0">
                 <div className="flex items-center gap-3">
@@ -2905,7 +3089,7 @@ export default function MeasurementBookPage() {
                       />
                     </div>
 
-                    <div>
+                    <div className="col-span-2 sm:col-span-1">
                       <div className="flex items-center justify-between mb-1 min-h-[16px]">
                         <label className="text-[11px] font-bold text-rose-700">Deduction (−)</label>
                         <span className="text-[10px] text-rose-500 font-medium">{activeUnitMeta.code}</span>
@@ -3040,7 +3224,7 @@ export default function MeasurementBookPage() {
         {/* 4. EDIT MEASUREMENT MODAL (WITH MANDATORY REASON) */}
         {showEditEntryModal && activeEntry && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200/90 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200/90 max-h-[92dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
               {/* Modal Header */}
               <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-white shrink-0">
                 <div className="flex items-center gap-3">
@@ -3383,7 +3567,7 @@ export default function MeasurementBookPage() {
                         />
                       </div>
 
-                      <div>
+                      <div className="col-span-2 sm:col-span-1">
                         <div className="flex items-center justify-between mb-1 min-h-[16px]">
                           <label className="text-[11px] font-bold text-rose-700">Deduction (−)</label>
                           <span className="text-[10px] text-rose-500 font-medium">{activeUnitMeta.code}</span>
@@ -3500,7 +3684,7 @@ export default function MeasurementBookPage() {
         {/* 5. DELETE MEASUREMENT MODAL (WITH MANDATORY REASON) */}
         {showDeleteEntryModal && activeEntry && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center gap-3 pb-3 border-b border-slate-100 text-rose-600">
                 <Trash2 className="w-6 h-6 shrink-0" />
                 <h3 className="text-lg font-bold text-slate-900">Delete Wall Measurement</h3>
@@ -3554,7 +3738,7 @@ export default function MeasurementBookPage() {
         {/* 5B. DELETE MAIN GROUP MODAL */}
         {showDeleteGroupModal && groupToDelete && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90dvh] overflow-y-auto animate-in zoom-in-95 duration-150">
               <div className="flex items-center gap-3 pb-3 border-b border-slate-100 text-rose-600">
                 <div className="p-2 bg-rose-50 rounded-xl text-rose-600">
                   <Trash2 className="w-6 h-6 shrink-0" />
@@ -3631,7 +3815,7 @@ export default function MeasurementBookPage() {
         {/* 5C. DELETE ROOM / SUBGROUP MODAL */}
         {showDeleteSubgroupModal && subgroupToDelete && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90dvh] overflow-y-auto animate-in zoom-in-95 duration-150">
               <div className="flex items-center gap-3 pb-3 border-b border-slate-100 text-rose-600">
                 <div className="p-2 bg-rose-50 rounded-xl text-rose-600">
                   <Trash2 className="w-6 h-6 shrink-0" />
@@ -3707,7 +3891,7 @@ export default function MeasurementBookPage() {
         {/* 6. EVIDENCE IMAGES MANAGEMENT MODAL */}
         {showImagesModal && activeEntry && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
                 <div className="flex items-center gap-2.5 text-slate-900 font-bold text-base sm:text-lg">
                   <ImageIcon className="w-5 h-5 text-amber-600 shrink-0" />
@@ -3752,15 +3936,22 @@ export default function MeasurementBookPage() {
                       .map((att) => (
                         <div key={att.id} className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 shadow-xs flex flex-col">
                           <div className="relative aspect-4/3 bg-slate-100">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={att.fileUrl}
-                              alt={att.fileName}
-                              className="w-full h-full object-cover"
-                              onError={(e: any) => {
-                                e.target.src = "https://placehold.co/400x300?text=Evidence+Photo";
-                              }}
-                            />
+                            {att.mimeType?.includes("pdf") || att.fileName.toLowerCase().endsWith(".pdf") ? (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-white p-2 text-center">
+                                <FileText className="w-8 h-8 text-amber-400 mb-1" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200">PDF Document</span>
+                              </div>
+                            ) : (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={att.fileUrl}
+                                alt={att.fileName}
+                                className="w-full h-full object-cover"
+                                onError={(e: any) => {
+                                  e.target.src = "https://placehold.co/400x300?text=Evidence+Photo";
+                                }}
+                              />
+                            )}
                             <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-slate-900/80 text-white text-[10px] font-mono font-bold">
                               v{att.version}
                             </span>
@@ -3815,15 +4006,43 @@ export default function MeasurementBookPage() {
                     </div>
 
                     <form onSubmit={handleUploadOrReplaceImage} className="space-y-3">
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          capture="environment"
-                          required
-                          onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
-                          className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-600 cursor-pointer"
-                        />
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 text-xs font-bold cursor-pointer transition">
+                            <ImageIcon className="w-4 h-4 text-amber-600" />
+                            <span>Take Photo (Camera)</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
+                              className="sr-only"
+                            />
+                          </label>
+                          <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold cursor-pointer transition">
+                            <Upload className="w-4 h-4 text-slate-600" />
+                            <span>Choose Photo / PDF</span>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
+                              className="sr-only"
+                            />
+                          </label>
+                        </div>
+                        {uploadFile && (
+                          <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-xs">
+                            <span className="truncate font-semibold text-slate-800">{uploadFile.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setUploadFile(null)}
+                              className="text-slate-400 hover:text-rose-600 shrink-0"
+                              title="Clear selected file"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {replaceTargetAtt && (
@@ -3921,7 +4140,7 @@ export default function MeasurementBookPage() {
         {/* 7. CHANGE REQUESTS REVIEW MODAL (FOR SUPER ADMIN / ORG ADMIN) */}
         {showChangeRequestsModal && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
                   <GitPullRequest className="w-5 h-5 text-rose-600 shrink-0" />
@@ -3994,7 +4213,7 @@ export default function MeasurementBookPage() {
         {/* 8. MB ABSTRACT MODAL / PRINT VIEW */}
         {showAbstractModal && abstractData && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white print:hidden">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
                   <Calculator className="w-5 h-5 text-amber-600 shrink-0" />
@@ -4037,7 +4256,8 @@ export default function MeasurementBookPage() {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
                     1. Summary by Unit of Measurement
                   </h4>
-                  <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="w-full min-w-[460px] text-left text-xs">
                     <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[11px]">
                       <tr>
                         <th className="py-2 px-3">Unit</th>
@@ -4057,6 +4277,7 @@ export default function MeasurementBookPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
                 {/* Subcontractors Abstract Table */}
@@ -4064,7 +4285,8 @@ export default function MeasurementBookPage() {
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
                     2. Summary by Contractor / Vendor
                   </h4>
-                  <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="w-full min-w-[520px] text-left text-xs">
                     <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[11px]">
                       <tr>
                         <th className="py-2 px-3">Party Name</th>
@@ -4096,6 +4318,7 @@ export default function MeasurementBookPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -4105,7 +4328,7 @@ export default function MeasurementBookPage() {
         {/* 9. AUDIT TRAIL / HISTORY DRAWER */}
         {showHistoryModal && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
                   <History className="w-5 h-5 text-slate-700 shrink-0" />
@@ -4164,7 +4387,7 @@ export default function MeasurementBookPage() {
         {/* 10. CONVERT TO BILL MODAL */}
         {showBillModal && billTargetEntry && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                   <Receipt className="w-5 h-5 text-purple-600" />
@@ -4209,6 +4432,84 @@ export default function MeasurementBookPage() {
                     className="px-4 py-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg shadow"
                   >
                     {actionLoading ? "Converting..." : "Generate Bill"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        {/* 11. REMOVE EVIDENCE IMAGE REASON MODAL */}
+        {pendingDeleteAtt && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3">
+              <div className="font-bold text-slate-900 text-base">Remove Evidence Photo</div>
+              <p className="text-xs text-slate-600">
+                Enter mandatory reason for removing <span className="font-semibold text-slate-900">{pendingDeleteAtt.fileName}</span> (e.g. wrong photo, duplicate). Metadata is retained in audit logs.
+              </p>
+              <form onSubmit={confirmDeleteImage} className="space-y-3">
+                <textarea
+                  rows={2}
+                  required
+                  value={deleteAttReason}
+                  onChange={(e) => setDeleteAttReason(e.target.value)}
+                  placeholder="Enter mandatory removal reason..."
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setPendingDeleteAtt(null)}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading || !deleteAttReason.trim()}
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg disabled:opacity-50"
+                  >
+                    {actionLoading ? "Removing..." : "Remove Photo"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 12. CHANGE REQUEST REVIEW COMMENTS MODAL */}
+        {pendingReviewCr && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3">
+              <div className="font-bold text-slate-900 text-base">
+                {pendingReviewCr.action === "APPROVE" ? "Approve Change Request" : "Reject Change Request"}
+              </div>
+              <p className="text-xs text-slate-600">
+                Enter optional reviewer comments before {pendingReviewCr.action === "APPROVE" ? "approving" : "rejecting"} request #{pendingReviewCr.requestId.slice(0, 8)}.
+              </p>
+              <form onSubmit={confirmReviewChangeRequest} className="space-y-3">
+                <textarea
+                  rows={2}
+                  value={reviewComments}
+                  onChange={(e) => setReviewComments(e.target.value)}
+                  placeholder="Optional reviewer comments..."
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setPendingReviewCr(null)}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className={`px-4 py-1.5 text-xs font-bold text-white rounded-lg disabled:opacity-50 ${
+                      pendingReviewCr.action === "APPROVE" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
+                    }`}
+                  >
+                    {actionLoading ? "Processing..." : pendingReviewCr.action === "APPROVE" ? "Confirm Approval" : "Confirm Rejection"}
                   </button>
                 </div>
               </form>

@@ -200,7 +200,7 @@ export default function MusterPage() {
 
   return (
     <Shell>
-      <div className="mx-auto max-w-3xl space-y-4 pb-48 lg:pb-28">
+      <div className="mx-auto max-w-3xl space-y-4 pb-56 lg:pb-28">
         <PageHeader icon={ClipboardCheck} title="Site Master" subtitle="Mark each worker present, half day or absent. It goes straight into their wages in payroll.">
           <Link href="/attendance" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Attendance
@@ -254,7 +254,7 @@ export default function MusterPage() {
         {error && <Alert tone="error">{error}</Alert>}
 
         {muster && (
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
             {[
               { n: totals.PRESENT, label: "Present", tone: "text-emerald-700" },
               { n: totals.HALF_DAY, label: "Half day", tone: "text-amber-600" },
@@ -369,7 +369,7 @@ export default function MusterPage() {
       </div>
 
       {muster && editable && (
-        <div className="fixed inset-x-0 bottom-[72px] z-30 px-4 lg:bottom-4 lg:left-64">
+        <div className="fixed inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] z-30 px-4 lg:bottom-4 lg:left-64">
           <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-xl">
             <div className="min-w-0 flex-1 text-xs">
               <div className="font-semibold text-slate-300">Wages for the day</div>

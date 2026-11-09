@@ -22,8 +22,8 @@ export default async function BuyerPortal({ params, searchParams }: { params: { 
   const nextDue = installments.find((i) => i.dueDate && i.receivedAmount < i.total);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
-      <header className="bg-slate-900 px-4 pb-16 pt-6 text-white">
+    <div className="min-h-dvh bg-slate-50 pb-[calc(3rem+env(safe-area-inset-bottom,0px))]">
+      <header className="bg-slate-900 px-4 pb-16 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] text-white">
         <div className="mx-auto max-w-3xl">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-amber-400">
             <Building2 className="h-4 w-4" /> {company.name}

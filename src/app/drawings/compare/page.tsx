@@ -80,7 +80,13 @@ function CompareDrawings() {
   }, [aId, bId]);
 
   useEffect(() => {
-    const fit = () => box.current && setWidth(Math.floor(((box.current.clientWidth - (mode === "side" ? 24 : 2)) / (mode === "side" ? 2 : 1)) * zoom));
+    const fit = () => {
+      if (!box.current) return;
+      const twoCols = mode === "side" && window.innerWidth >= 768;
+      const divisor = twoCols ? 2 : 1;
+      const gapOffset = twoCols ? 24 : 2;
+      setWidth(Math.floor(((box.current.clientWidth - gapOffset) / divisor) * zoom));
+    };
     fit();
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
@@ -111,7 +117,7 @@ function CompareDrawings() {
         </Link>
         {error && <Alert tone="error">{error}</Alert>}
         {!a || !b ? (
-          <div className="h-[70vh] animate-pulse rounded-2xl bg-slate-100" />
+          <div className="h-[70dvh] animate-pulse rounded-2xl bg-slate-100" />
         ) : (
           <>
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -140,7 +146,7 @@ function CompareDrawings() {
               </div>
             </div>
 
-            <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur">
+            <div className="sticky top-[calc(3.85rem+env(safe-area-inset-top,0px))] lg:top-[4.25rem] z-20 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur">
               <div className="flex rounded-xl bg-slate-100 p-0.5">
                 <button onClick={() => setMode("side")} className={cn("inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold", mode === "side" ? "bg-white shadow-sm" : "text-slate-500")}>
                   <Columns2 className="h-4 w-4" /> Side by side
@@ -168,20 +174,20 @@ function CompareDrawings() {
                 </span>
               )}
               <div className="ml-auto flex items-center gap-1">
-                <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} className="rounded-lg p-1.5 hover:bg-slate-100" aria-label="Zoom out">
+                <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Zoom out">
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="w-12 text-center text-xs font-bold tabular-nums">{Math.round(zoom * 100)}%</span>
-                <button onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} className="rounded-lg p-1.5 hover:bg-slate-100" aria-label="Zoom in">
+                <button onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Zoom in">
                   <Plus className="h-4 w-4" />
                 </button>
                 {pages > 1 && (
                   <span className="ml-2 flex items-center gap-1 text-xs font-semibold">
-                    <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg p-1 hover:bg-slate-100 disabled:opacity-40" aria-label="Previous page">
+                    <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-40" aria-label="Previous page">
                       <ChevronLeft className="h-4 w-4" />
                     </button>
                     Page {page} of {pages}
-                    <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className="rounded-lg p-1 hover:bg-slate-100 disabled:opacity-40" aria-label="Next page">
+                    <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages} className="rounded-lg p-2 hover:bg-slate-100 disabled:opacity-40" aria-label="Next page">
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </span>
@@ -190,7 +196,7 @@ function CompareDrawings() {
             </div>
 
             <div ref={box} className="relative">
-              <div className={cn(mode === "side" ? "grid grid-cols-2 gap-6" : "hidden")}>
+              <div className={cn(mode === "side" ? "grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6" : "hidden")}>
                 {[
                   { rev: a, ref: ca, scroll: left, side: "l" as const },
                   { rev: b, ref: cb, scroll: right, side: "r" as const },
@@ -199,14 +205,14 @@ function CompareDrawings() {
                     <div className="mb-1 text-xs font-bold text-slate-600">
                       {rev.revision} · {rev.status === "GFC" ? "on site" : rev.status.toLowerCase().replace("_", " ")}
                     </div>
-                    <div ref={scroll} onScroll={() => sync(side)} className="overflow-auto rounded-xl border border-slate-200 bg-slate-100" style={{ maxHeight: "74vh" }}>
+                    <div ref={scroll} onScroll={() => sync(side)} className="overflow-auto rounded-xl border border-slate-200 bg-slate-100" style={{ maxHeight: "72dvh" }}>
                       <Sheet rev={rev} page={page} width={width} canvasRef={ref} showMarks={showMarks} onDrawn={(r) => { setPages((p) => Math.max(p, r.pages)); setDrawn((d) => ({ ...d, [side === "l" ? "a" : "b"]: Date.now() })); }} />
                     </div>
                   </div>
                 ))}
               </div>
               {mode === "overlay" && (
-                <div className="overflow-auto rounded-xl border border-slate-200 bg-white" style={{ maxHeight: "78vh" }}>
+                <div className="overflow-auto rounded-xl border border-slate-200 bg-white" style={{ maxHeight: "72dvh" }}>
                   {changed === null && <Loader2 className="m-6 h-6 w-6 animate-spin text-slate-400" />}
                   <canvas ref={out} className="block" />
                 </div>

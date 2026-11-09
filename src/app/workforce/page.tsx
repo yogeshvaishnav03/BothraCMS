@@ -131,7 +131,7 @@ export default function WorkforcePage() {
 
   // Close contractor dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: Event) => {
       if (
         contractorDropdownRef.current &&
         !contractorDropdownRef.current.contains(event.target as Node)
@@ -139,8 +139,10 @@ export default function WorkforcePage() {
         setIsContractorDropdownOpen(false);
       }
     };
+    document.addEventListener("pointerdown", handleClickOutside);
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
@@ -209,6 +211,25 @@ export default function WorkforcePage() {
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pendingDeleteRecord, setPendingDeleteRecord] = useState<{ id: string; siteName: string; date: string } | null>(null);
+
+  useEffect(() => {
+    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowUploadModal(false);
+        setShowRegisterWorkerModal(false);
+        setPendingDeleteRecord(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -409,9 +430,14 @@ export default function WorkforcePage() {
     }
   };
 
-  const handleDeleteRecord = async (id: string, siteName: string, date: string) => {
-    if (!confirm(`Are you sure you want to delete the worker count for ${siteName} on ${formatDate(date)}?`)) return;
+  const handleDeleteRecord = (id: string, siteName: string, date: string) => {
+    setPendingDeleteRecord({ id, siteName, date });
+  };
 
+  const executeDeleteRecord = async () => {
+    if (!pendingDeleteRecord) return;
+    const { id } = pendingDeleteRecord;
+    setSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
 
@@ -429,6 +455,9 @@ export default function WorkforcePage() {
       }
     } catch {
       setErrorMessage("Network error deleting record");
+    } finally {
+      setSubmitting(false);
+      setPendingDeleteRecord(null);
     }
   };
 
@@ -1104,7 +1133,7 @@ export default function WorkforcePage() {
               showSearch={true}
               showExport={true}
             />
-            <div className="overflow-x-auto min-h-[400px]">
+            <div className="overflow-x-auto md:min-h-[400px]">
               <table className="w-full text-left text-xs min-w-[700px]">
                 <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                   <tr>
@@ -1155,7 +1184,7 @@ export default function WorkforcePage() {
         {/* Modal: Upload Site Workforce Headcount */}
         {showUploadModal && canWrite && (
           <div className="fixed inset-0 z-[70] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
-            <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="flex items-center justify-between p-5 pb-3 border-b border-slate-100 shrink-0 bg-white">
                 <div>
                   <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
@@ -1626,7 +1655,7 @@ export default function WorkforcePage() {
         {/* Modal: Register Individual Worker */}
         {showRegisterWorkerModal && canWrite && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-base flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-amber-500" />
@@ -1735,6 +1764,41 @@ export default function WorkforcePage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        {pendingDeleteRecord && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setPendingDeleteRecord(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="font-bold text-slate-900 text-base">Delete Worker Count?</div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete the worker count for{" "}
+                <strong className="text-slate-900">{pendingDeleteRecord.siteName}</strong> on{" "}
+                <strong className="text-slate-900">{formatDate(pendingDeleteRecord.date)}</strong>?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteRecord(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={executeDeleteRecord}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                >
+                  {submitting ? "Deleting..." : "Delete Record"}
+                </button>
+              </div>
             </div>
           </div>
         )}

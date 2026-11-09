@@ -157,6 +157,16 @@ export function AndroidInstallPrompt() {
     } catch {}
   };
 
+  // Lock background scroll while instructions modal is open
+  useEffect(() => {
+    if (!showInstructionsModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showInstructionsModal]);
+
   if (isStandalone) return null;
 
   const isIos = platform === "ios";
@@ -172,7 +182,7 @@ export function AndroidInstallPrompt() {
     <>
       {/* Success Notification */}
       {installedSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="fixed top-[calc(1rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300 max-w-[calc(100%-2rem)]">
           <CheckCircle className="w-5 h-5 text-emerald-200 shrink-0" />
           <div>
             <div className="text-xs font-bold">Bothra CMS Installed Successfully!</div>
@@ -241,8 +251,8 @@ export function AndroidInstallPrompt() {
 
       {/* Platform-Aware Step-by-Step Instructions Modal */}
       {showInstructionsModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 pb-safe animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 text-white rounded-3xl p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 sm:p-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700 text-white rounded-3xl p-5 sm:p-6 max-w-md w-full max-h-[90dvh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">

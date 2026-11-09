@@ -181,6 +181,7 @@ export default function ProjectMilestones({
   const [openPanel, setOpenPanel] = useState<string | null>(null);
   const [openHistory, setOpenHistory] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", plannedStart: "", plannedEnd: "", weight: "" });
   const [editing, setEditing] = useState<string | null>(null);
@@ -197,6 +198,20 @@ export default function ProjectMilestones({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [lightbox]);
 
   const run = async (fn: () => Promise<Data>) => {
     setBusy(true);
@@ -481,17 +496,38 @@ export default function ProjectMilestones({
                           <ChevronDown className={cn("h-3 w-3 transition-transform", openHistory === m.id && "rotate-180")} />
                         </button>
                       )}
-                      {canPlan && (
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Remove the stage "${m.name}" and its progress history?`)) run(() => call(`/api/milestones/${m.id}`, "DELETE"));
-                          }}
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                          aria-label={`Remove ${m.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
+                      {canPlan &&
+                        (confirmRemoveId === m.id ? (
+                          <div className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-1.5 py-1 ring-1 ring-rose-200">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => {
+                                setConfirmRemoveId(null);
+                                run(() => call(`/api/milestones/${m.id}`, "DELETE"));
+                              }}
+                              className="rounded px-2 py-0.5 text-[11px] font-bold bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmRemoveId(null)}
+                              className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-white"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRemoveId(m.id)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                            aria-label={`Remove ${m.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        ))}
                     </div>
                   </div>
 
@@ -546,9 +582,27 @@ export default function ProjectMilestones({
       )}
 
       {lightbox && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 overflow-y-auto cursor-pointer" onClick={() => setLightbox(null)}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 pt-safe pb-safe overflow-y-auto cursor-pointer"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            aria-label="Close photo preview"
+            className="fixed top-[calc(1rem+env(safe-area-inset-top,0px))] right-4 z-10 p-2 rounded-full bg-slate-900/80 text-white hover:bg-slate-800 border border-white/15"
+          >
+            <X className="w-5 h-5" />
+          </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="Site photo" className="max-h-full max-w-full rounded-lg shadow-xl" />
+          <img
+            src={lightbox}
+            alt="Site photo"
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[88dvh] max-w-full rounded-lg shadow-xl cursor-default"
+          />
         </div>
       )}
     </div>

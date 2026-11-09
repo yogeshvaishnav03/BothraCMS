@@ -61,6 +61,10 @@ export default function FinancePage() {
     title: string;
     categoryDefault?: string;
   } | null>(null);
+  const [approvePaymentTarget, setApprovePaymentTarget] = useState<any | null>(null);
+  const [rejectPaymentTarget, setRejectPaymentTarget] = useState<any | null>(null);
+  const [rejectPaymentReason, setRejectPaymentReason] = useState("Payment query not approved");
+  const [approvalActionSubmitting, setApprovalActionSubmitting] = useState(false);
 
   // Payment Modal state
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -184,9 +188,11 @@ export default function FinancePage() {
         setShowBillModal(false);
         setShowReverseModal(false);
         setAttachmentTarget(null);
+        setApprovePaymentTarget(null);
+        setRejectPaymentTarget(null);
       }
     };
-    if (showPaymentModal || showBillModal || showReverseModal || attachmentTarget) {
+    if (showPaymentModal || showBillModal || showReverseModal || attachmentTarget || approvePaymentTarget || rejectPaymentTarget) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -194,7 +200,7 @@ export default function FinancePage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [showPaymentModal, showBillModal, showReverseModal, attachmentTarget]);
+  }, [showPaymentModal, showBillModal, showReverseModal, attachmentTarget, approvePaymentTarget, rejectPaymentTarget]);
 
   // Ask the server what TDS this payment would hold back, as the form changes.
   useEffect(() => {
@@ -333,15 +339,15 @@ export default function FinancePage() {
     }
   };
 
-  const handleApprovePayment = async (payment: any) => {
-    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
-    const confirmed = confirm(
-      `Confirm & Authorize Payment of ₹${(payment.amount / 100).toFixed(2)} to ${payeeName}?\nPaid from: ${
-        payment.payingAccount || "Operating Account"
-      }`
-    );
-    if (!confirmed) return;
+  const handleApprovePayment = (payment: any) => {
+    setApprovePaymentTarget(payment);
+  };
 
+  const executeApprovePayment = async () => {
+    if (!approvePaymentTarget) return;
+    const payment = approvePaymentTarget;
+    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+    setApprovalActionSubmitting(true);
     try {
       const res = await fetch(`/api/finance/payments/${payment.id}/approve`, {
         method: "POST",
@@ -350,6 +356,7 @@ export default function FinancePage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        setApprovePaymentTarget(null);
         setStatusMessage(data.data?.message || `Payment to ${payeeName} approved and posted.`);
         // Optimistically update payment status immediately so UI updates without refreshing
         setPayments((prev) => prev.map((p) => (p.id === payment.id ? { ...p, status: "APPROVED" } : p)));
@@ -359,25 +366,31 @@ export default function FinancePage() {
       }
     } catch {
       setErrorMessage("Network error approving payment");
+    } finally {
+      setApprovalActionSubmitting(false);
     }
   };
 
-  const handleRejectPayment = async (payment: any) => {
-    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
-    const reason = prompt(
-      `Provide rejection reason for payment to ${payeeName}:`,
-      "Payment query not approved"
-    );
-    if (!reason) return;
+  const handleRejectPayment = (payment: any) => {
+    setRejectPaymentReason("Payment query not approved");
+    setRejectPaymentTarget(payment);
+  };
 
+  const executeRejectPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectPaymentTarget || !rejectPaymentReason.trim()) return;
+    const payment = rejectPaymentTarget;
+    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+    setApprovalActionSubmitting(true);
     try {
       const res = await fetch(`/api/finance/payments/${payment.id}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason: rejectPaymentReason.trim() }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        setRejectPaymentTarget(null);
         setStatusMessage(`Payment query to ${payeeName} rejected.`);
         // Optimistically update payment status immediately so UI updates without refreshing
         setPayments((prev) => prev.map((p) => (p.id === payment.id ? { ...p, status: "REJECTED" } : p)));
@@ -387,6 +400,8 @@ export default function FinancePage() {
       }
     } catch {
       setErrorMessage("Network error rejecting payment");
+    } finally {
+      setApprovalActionSubmitting(false);
     }
   };
 
@@ -2348,7 +2363,7 @@ export default function FinancePage() {
                       </div>
 
                       {/* Footer Actions: Attach Invoices / Challans */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[11px] text-slate-400">
                           {b.outstandingAmount === 0 ? "Fully Settled" : "Awaiting Clearance"}
                         </span>
@@ -2379,7 +2394,7 @@ export default function FinancePage() {
         {/* Modal: Record Payment */}
         {showPaymentModal && canWriteFinance && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90vh]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90dvh]">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-emerald-600" />
@@ -2732,7 +2747,7 @@ export default function FinancePage() {
         {/* Modal: Reverse Payment */}
         {showReverseModal && paymentToReverse && canReverseFinance && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <RotateCcw className="w-5 h-5 text-rose-600" />
@@ -2793,7 +2808,7 @@ export default function FinancePage() {
         {/* Modal: Create Bill */}
         {showBillModal && canWriteFinance && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-amber-500" />
@@ -2945,7 +2960,7 @@ export default function FinancePage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <div>
                             <input
                               type="number"
@@ -3107,7 +3122,7 @@ export default function FinancePage() {
         {/* Attachment Modal (Priority 3) */}
         {attachmentTarget && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[85vh] flex flex-col">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[85dvh] flex flex-col">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Paperclip className="w-5 h-5 text-amber-500" />
@@ -3132,6 +3147,87 @@ export default function FinancePage() {
                   missingLabel="No invoice or receipt attached yet"
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Confirm Payment Authorization */}
+        {approvePaymentTarget && (
+          <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3">
+              <div className="font-bold text-slate-900 text-base">Confirm &amp; Authorize Payment</div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Authorize payment of{" "}
+                <span className="font-bold text-slate-900">
+                  ₹{(approvePaymentTarget.amount / 100).toFixed(2)}
+                </span>{" "}
+                to{" "}
+                <span className="font-bold text-slate-900">
+                  {approvePaymentTarget.recipientName || approvePaymentTarget.party?.name || "Recipient"}
+                </span>
+                ? Paid from:{" "}
+                <span className="font-semibold text-slate-800">
+                  {approvePaymentTarget.payingAccount || "Operating Account"}
+                </span>
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setApprovePaymentTarget(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={approvalActionSubmitting}
+                  onClick={executeApprovePayment}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                >
+                  {approvalActionSubmitting ? "Authorizing..." : "Authorize Payment"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Reject Payment Query */}
+        {rejectPaymentTarget && (
+          <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3">
+              <div className="font-bold text-slate-900 text-base">Reject Payment Query</div>
+              <p className="text-xs text-slate-600">
+                Provide rejection reason for payment to{" "}
+                <span className="font-bold text-slate-900">
+                  {rejectPaymentTarget.recipientName || rejectPaymentTarget.party?.name || "Recipient"}
+                </span>
+                .
+              </p>
+              <form onSubmit={executeRejectPayment} className="space-y-3">
+                <textarea
+                  required
+                  rows={3}
+                  value={rejectPaymentReason}
+                  onChange={(e) => setRejectPaymentReason(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                />
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setRejectPaymentTarget(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={approvalActionSubmitting || !rejectPaymentReason.trim()}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                  >
+                    {approvalActionSubmitting ? "Rejecting..." : "Reject Payment"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

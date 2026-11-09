@@ -175,6 +175,7 @@ export default function ProjectsPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingDeleteProject, setPendingDeleteProject] = useState<{ id: string; name: string } | null>(null);
 
   const loadData = (siteIdFilter?: string) => {
     setLoading(true);
@@ -236,9 +237,10 @@ export default function ProjectsPage() {
         setShowCreateSiteModal(false);
         setShowDailyReportModal(false);
         setShowDeleteSiteModal(false);
+        setPendingDeleteProject(null);
       }
     };
-    if (showCreateModal || showCreateSiteModal || showDailyReportModal || showDeleteSiteModal) {
+    if (showCreateModal || showCreateSiteModal || showDailyReportModal || showDeleteSiteModal || pendingDeleteProject) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -246,7 +248,7 @@ export default function ProjectsPage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [showCreateModal, showCreateSiteModal, showDailyReportModal, showDeleteSiteModal]);
+  }, [showCreateModal, showCreateSiteModal, showDailyReportModal, showDeleteSiteModal, pendingDeleteProject]);
 
   const initiateDeleteSite = (site: any) => {
     setErrorMessage(null);
@@ -325,8 +327,14 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleDeleteProject = async (id: string, projectName: string) => {
-    if (!confirm(`Are you sure you want to delete project "${projectName}"?`)) return;
+  const handleDeleteProject = (id: string, projectName: string) => {
+    setPendingDeleteProject({ id, name: projectName });
+  };
+
+  const executeDeleteProject = async () => {
+    if (!pendingDeleteProject) return;
+    const { id, name: projectName } = pendingDeleteProject;
+    setSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
     try {
@@ -334,14 +342,18 @@ export default function ProjectsPage() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to delete project");
+        setPendingDeleteProject(null);
         return;
       }
       setStatusMessage(`Project "${projectName}" deleted successfully.`);
-      // Optimistically remove from state immediately so UI updates without refreshing
       setProjects((prev) => prev.filter((p) => p.id !== id));
+      setPendingDeleteProject(null);
       loadData();
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to delete project"}`);
+      setPendingDeleteProject(null);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -958,7 +970,7 @@ export default function ProjectsPage() {
                 showSearch={true}
                 showExport={true}
               />
-              <div className="overflow-x-auto min-h-[400px]">
+              <div className="overflow-x-auto md:min-h-[400px]">
                 <table className="w-full text-left text-sm min-w-[750px]">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
@@ -1020,7 +1032,7 @@ export default function ProjectsPage() {
         {/* Modal: Create Site */}
         {showCreateSiteModal && canManageSites && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-amber-500" />
@@ -1104,7 +1116,7 @@ export default function ProjectsPage() {
         {/* Modal: Create Project */}
         {showCreateModal && canWriteProjects && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <FolderKanban className="w-5 h-5 text-amber-500" />
@@ -1179,7 +1191,7 @@ export default function ProjectsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Start Date
@@ -1243,7 +1255,7 @@ export default function ProjectsPage() {
         {/* Modal: Delete Site Confirmation & Active Projects Transfer */}
         {showDeleteSiteModal && siteToDelete && canManageSites && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   {activeProjectsForSite.length > 0 ? (
@@ -1391,7 +1403,7 @@ export default function ProjectsPage() {
         {/* Modal: Submit Daily Site Report */}
         {showDailyReportModal && canSubmitDailyReport && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <ClipboardList className="w-5 h-5 text-amber-500" />
@@ -1495,6 +1507,39 @@ export default function ProjectsPage() {
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
                 >
                   {submitting ? "Submitting..." : "Submit Daily Report"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {pendingDeleteProject && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setPendingDeleteProject(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="font-bold text-slate-900 text-base">Delete Project?</div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete project <strong className="text-slate-900">{pendingDeleteProject.name}</strong>?
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteProject(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={executeDeleteProject}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
+                >
+                  {submitting ? "Deleting..." : "Delete Project"}
                 </button>
               </div>
             </div>

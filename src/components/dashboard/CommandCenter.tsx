@@ -253,7 +253,7 @@ function HeroStat({
         {format(shown)}
       </div>
       {sub && <div className="mt-0.5 text-xs text-slate-400 line-clamp-2">{sub}</div>}
-      <ArrowUpRight className="absolute right-3 bottom-3 w-4 h-4 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden />
+      <ArrowUpRight className="absolute right-3 bottom-3 w-4 h-4 text-slate-400 lg:text-slate-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity" aria-hidden />
     </Link>
   );
 }
@@ -339,6 +339,8 @@ function CashTrend({ trend, hi }: { trend: Overview["finance"]["trend"]; hi: boo
                 width={slot}
                 height={H + 18}
                 fill="transparent"
+                className="cursor-pointer"
+                onClick={() => setHover((prev) => (prev === i ? null : i))}
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
               >

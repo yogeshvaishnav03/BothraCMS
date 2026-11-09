@@ -71,7 +71,7 @@ export default function LoginPage() {
     platform === "ios" ? "iOS App" : platform === "android" ? "APK / App" : "iOS & Android";
 
   return (
-    <div className="relative min-h-screen bg-gradient-chrome flex flex-col justify-center items-center p-4 pt-safe pb-safe overflow-hidden selection:bg-amber-500 selection:text-slate-950">
+    <div className="relative min-h-dvh bg-gradient-chrome flex flex-col justify-center items-center p-4 pt-safe pb-safe overflow-hidden selection:bg-amber-500 selection:text-slate-950">
       {/* Ambient blueprint grid and glow */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.07]"

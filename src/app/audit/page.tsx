@@ -418,7 +418,7 @@ export default function AuditPage() {
               showSearch={true}
               showExport={true}
             />
-            <div className="overflow-x-auto min-h-[400px]">
+            <div className="overflow-x-auto md:min-h-[400px]">
               <table className="w-full text-left text-sm min-w-[750px]">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
@@ -520,7 +520,7 @@ export default function AuditPage() {
               onClick={() => setSelectedEvent(null)}
             >
               <div
-                className="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+                className="bg-white rounded-2xl max-w-2xl w-full max-h-[88dvh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
@@ -684,7 +684,7 @@ export default function AuditPage() {
 
                   {activeTab === "json" && (
                     <div className="relative">
-                      <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 max-h-[45vh]">
+                      <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800 max-h-[45dvh]">
                         {rawJsonString}
                       </pre>
                     </div>

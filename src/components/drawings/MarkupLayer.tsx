@@ -89,7 +89,7 @@ export default function MarkupLayer({
   mine: Shape[];
   others: { name: string; shapes: Shape[] }[];
   onChange: (shapes: Shape[]) => void;
-  onAskText: () => string | null;
+  onAskText: () => Promise<string | null> | string | null;
 }) {
   const [draft, setDraft] = useState<Shape | null>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -104,8 +104,14 @@ export default function MarkupLayer({
     e.preventDefault();
     const p = at(e);
     if (tool === "text") {
-      const text = onAskText();
-      if (text?.trim()) onChange([...mine, { type: "text", color, points: [p], text: text.trim().slice(0, 300) }]);
+      const result = onAskText();
+      if (result && typeof (result as any).then === "function") {
+        (result as Promise<string | null>).then((text) => {
+          if (text?.trim()) onChange([...mine, { type: "text", color, points: [p], text: text.trim().slice(0, 300) }]);
+        });
+      } else if (typeof result === "string" && result.trim()) {
+        onChange([...mine, { type: "text", color, points: [p], text: result.trim().slice(0, 300) }]);
+      }
       return;
     }
     (e.target as Element).setPointerCapture?.(e.pointerId);

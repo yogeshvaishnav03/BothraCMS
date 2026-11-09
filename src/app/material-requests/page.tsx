@@ -71,6 +71,14 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   const setItem = (i: number, patch: Partial<(typeof items)[number]>) => setItems(items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
 
   const submit = async (e: React.FormEvent) => {
@@ -110,7 +118,7 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-t-2xl bg-white shadow-xl animate-scale-in sm:rounded-2xl"
+        className="flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-2xl bg-white shadow-xl animate-scale-in sm:rounded-2xl"
       >
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
@@ -220,7 +228,7 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
             <Zap className="h-4 w-4 text-rose-500" /> Urgent: work will stop without it
           </label>
         </div>
-        <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">
+        <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-3">
           <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">
             Cancel
           </button>
@@ -245,6 +253,14 @@ function OrderModal({ request, item, vendors, materials, onClose, onDone }: any)
   const qty = item.approvedQty ?? item.quantity;
   const total = rate ? Number(rate) * qty * 100 : 0;
 
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -264,8 +280,8 @@ function OrderModal({ request, item, vendors, materials, onClose, onDone }: any)
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4 backdrop-blur-sm overflow-y-auto animate-fade-in" onClick={onClose}>
-      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 shadow-xl max-h-[90vh] overflow-y-auto animate-scale-in">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 pb-safe sm:p-4 backdrop-blur-sm overflow-y-auto animate-fade-in" onClick={onClose}>
+      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-xl max-h-[90dvh] overflow-y-auto animate-scale-in">
         <div>
           <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
             <ShoppingCart className="h-5 w-5 text-amber-500" /> Place order
@@ -329,6 +345,9 @@ function OrderModal({ request, item, vendors, materials, onClose, onDone }: any)
 
 function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any; highlight: boolean; onChange: (r: any) => void; onOrder: (item: any) => void }) {
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [qty, setQty] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -340,6 +359,8 @@ function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any;
     try {
       onChange(await fn());
       setApproving(false);
+      setRejecting(false);
+      setConfirmCancel(false);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -354,8 +375,9 @@ function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any;
         post({ action: "APPROVE", items: r.items.map((i: any) => ({ id: i.id, approvedQty: qty[i.id] !== undefined ? Number(qty[i.id]) : i.quantity })) })
       )
     );
-  const reject = () => {
-    const note = window.prompt("Why is this request rejected?");
+  const submitReject = (e: React.FormEvent) => {
+    e.preventDefault();
+    const note = rejectNote.trim();
     if (!note) return;
     act(() => api(`/api/material-requests/${r.id}/review`, post({ action: "REJECT", note })));
   };
@@ -389,19 +411,19 @@ function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any;
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {r.status === "PENDING" && r.canManage && !approving && (
+          {r.status === "PENDING" && r.canManage && !approving && !rejecting && (
             <>
-              <button onClick={() => setApproving(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800">
+              <button onClick={() => { setConfirmCancel(false); setApproving(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800">
                 <Check className="h-3.5 w-3.5" /> Review
               </button>
-              <button onClick={reject} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-700">
+              <button onClick={() => { setConfirmCancel(false); setRejectNote(""); setRejecting(true); }} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-700">
                 <XCircle className="h-3.5 w-3.5" /> Reject
               </button>
             </>
           )}
-          {r.status === "PENDING" && r.requestedBy.id === me?.id && (
+          {r.status === "PENDING" && r.requestedBy.id === me?.id && !confirmCancel && (
             <button
-              onClick={() => window.confirm("Cancel this request?") && act(() => api(`/api/material-requests/${r.id}/cancel`, post({})))}
+              onClick={() => { setRejecting(false); setConfirmCancel(true); }}
               disabled={busy}
               className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
             >
@@ -419,7 +441,108 @@ function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any;
       )}
       {error && <div className="mt-3 rounded-lg bg-rose-50 p-2.5 text-xs font-medium text-rose-700">{error}</div>}
 
-      <div className="mt-3 overflow-x-auto rounded-xl border border-slate-100">
+      {rejecting && (
+        <form onSubmit={submitReject} className="mt-3 rounded-xl border border-rose-200 bg-rose-50/60 p-3 space-y-2">
+          <label className="block text-xs font-bold text-rose-900">Why is this request rejected?</label>
+          <input
+            type="text"
+            required
+            autoFocus
+            value={rejectNote}
+            onChange={(e) => setRejectNote(e.target.value)}
+            placeholder="e.g. Stock already available at site"
+            className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm"
+          />
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setRejecting(false)} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white">
+              Cancel
+            </button>
+            <button type="submit" disabled={busy || !rejectNote.trim()} className="rounded-lg bg-rose-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">
+              Confirm Reject
+            </button>
+          </div>
+        </form>
+      )}
+
+      {confirmCancel && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs">
+          <span className="font-semibold text-amber-950">Cancel this material request?</span>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setConfirmCancel(false)} className="rounded-lg px-3 py-1.5 font-semibold text-slate-600 hover:bg-white">
+              Keep
+            </button>
+            <button
+              type="button"
+              onClick={() => act(() => api(`/api/material-requests/${r.id}/cancel`, post({})))}
+              disabled={busy}
+              className="rounded-lg bg-slate-900 px-3 py-1.5 font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Yes, Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Item Cards */}
+      <div className="mt-3 space-y-2 sm:hidden">
+        {r.items.map((i: any) => {
+          const enough = i.stockAtSite !== null && i.stockAtSite >= i.quantity;
+          return (
+            <div key={i.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 space-y-2 text-xs">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-slate-900 text-sm">{i.description}</div>
+                  {!i.materialId && <div className="text-[10px] text-slate-400">Not in catalogue</div>}
+                </div>
+                <span className="whitespace-nowrap rounded-md bg-white px-2 py-0.5 font-bold tabular-nums text-slate-800 ring-1 ring-slate-200">
+                  Asked {fmtQty(i.quantity)} {i.unitCode}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                <span className={enough ? "font-semibold text-emerald-700" : ""}>
+                  At site: {i.stockAtSite === null ? "—" : fmtQty(i.stockAtSite)}
+                </span>
+                {approving ? (
+                  <label className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
+                    <span>Approve qty:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={qty[i.id] ?? String(i.quantity)}
+                      onChange={(e) => setQty({ ...qty, [i.id]: e.target.value })}
+                      className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-sm"
+                    />
+                  </label>
+                ) : (
+                  <span>
+                    Approved: <strong className="text-slate-900 tabular-nums">{fmtQty(i.approvedQty)}</strong>
+                  </span>
+                )}
+              </div>
+              {i.purchaseOrder ? (
+                <div className="flex items-center justify-between gap-2 border-t border-slate-200/70 pt-2">
+                  <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                    <PackageCheck className="h-3.5 w-3.5" /> {i.purchaseOrder.orderNumber}
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    {i.purchaseOrder.vendor?.name} · {i.purchaseOrder.status.replace(/_/g, " ").toLowerCase()}
+                  </span>
+                </div>
+              ) : r.canManage && ["APPROVED", "PARTLY_ORDERED"].includes(r.status) && (i.approvedQty ?? 0) > 0 ? (
+                <div className="flex justify-end border-t border-slate-200/70 pt-2">
+                  <button onClick={() => onOrder(i)} className="rounded-lg bg-gradient-brand px-3 py-1.5 text-xs font-bold text-slate-950">
+                    Order
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop Item Table */}
+      <div className="mt-3 hidden sm:block overflow-x-auto compact-table rounded-xl border border-slate-100">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-[11px] text-slate-500">
             <tr>
@@ -575,13 +698,13 @@ export default function MaterialRequestsPage() {
         {error && <Alert tone="error" onDismiss={() => setError(null)}>{error}</Alert>}
         {notice && <Alert tone="success" onDismiss={() => setNotice(null)}>{notice}</Alert>}
 
-        <div className="grid grid-cols-3 gap-3 stagger">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 stagger">
           {[
             { label: "Waiting for approval", value: counts.waiting, tone: "text-amber-600" },
             { label: "Urgent", value: counts.urgent, tone: "text-rose-600" },
             { label: "Approved, not ordered", value: counts.toOrder, tone: "text-blue-600" },
-          ].map((x) => (
-            <div key={x.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+          ].map((x, idx) => (
+            <div key={x.label} className={cn("rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs", idx === 2 && "col-span-2 sm:col-span-1")}>
               <div className={cn("font-display text-2xl font-extrabold tabular-nums", x.tone)}>{requests ? x.value : "–"}</div>
               <div className="text-xs text-slate-500">{x.label}</div>
             </div>
