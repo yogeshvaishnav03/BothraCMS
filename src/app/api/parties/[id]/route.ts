@@ -34,14 +34,14 @@ export async function GET(
         bills: hasFinanceAccess
           ? {
               where: { isArchived: false },
-              orderBy: { billDate: "desc" },
+              orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
               take: 20,
             }
           : false,
         payments: hasFinanceAccess
           ? {
               where: { isArchived: false },
-              orderBy: { paymentDate: "desc" },
+              orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
               take: 20,
             }
           : false,

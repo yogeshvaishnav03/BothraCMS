@@ -2,7 +2,7 @@
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo } from "react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Shell from "@/components/layout/Shell";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import {
@@ -451,7 +451,7 @@ export default function AuditPage() {
                       </td>
                     </tr>
                   ) : (
-                    excelAudit.filteredData.map((e) => (
+                    excelAudit.paginatedData.map((e) => (
                     <tr key={e.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap font-mono">
                         {formatDateTime(e.createdAt)}
@@ -499,6 +499,17 @@ export default function AuditPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelAudit.currentPage}
+              totalPages={excelAudit.totalPages}
+              totalItems={excelAudit.filteredCount}
+              totalUnfiltered={excelAudit.totalRecords}
+              pageSize={excelAudit.pageSize}
+              startItem={excelAudit.startItem}
+              endItem={excelAudit.endItem}
+              onPageChange={excelAudit.setCurrentPage}
+              itemLabel="audit logs"
+            />
           </div>
         )}
 

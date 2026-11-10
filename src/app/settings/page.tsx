@@ -6,7 +6,7 @@ import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { useLanguage, LanguageCode } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   Building2,
   Users,
@@ -784,7 +784,7 @@ export default function SettingsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {excelUsers.filteredData.map((u) => (
+                      {excelUsers.paginatedData.map((u) => (
                         <tr key={u.id} className="hover:bg-slate-50/60">
                           <td className="py-3 px-4 font-bold text-slate-900">{u.name}</td>
                           <td className="py-3 px-4 text-slate-600 font-mono text-xs">{u.email}</td>
@@ -817,6 +817,17 @@ export default function SettingsPage() {
                     </tbody>
                   </table>
                 </div>
+                <TablePagination
+                  currentPage={excelUsers.currentPage}
+                  totalPages={excelUsers.totalPages}
+                  totalItems={excelUsers.filteredCount}
+                  totalUnfiltered={excelUsers.totalRecords}
+                  pageSize={excelUsers.pageSize}
+                  startItem={excelUsers.startItem}
+                  endItem={excelUsers.endItem}
+                  onPageChange={excelUsers.setCurrentPage}
+                  itemLabel="members"
+                />
               </div>
               )}
             </div>

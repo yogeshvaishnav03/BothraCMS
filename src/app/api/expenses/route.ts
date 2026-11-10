@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: { paymentDate: "desc" },
+      orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
       take: 200,
     });
 

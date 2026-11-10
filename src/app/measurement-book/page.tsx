@@ -6,6 +6,7 @@ import { formatCurrency, formatQuantity, rupeesToPaise } from "@/lib/formatters"
 import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
 import { canUser } from "@/lib/permissions";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import {
@@ -170,6 +171,352 @@ function getKpiAmountClass(text: string): string {
     return "text-sm sm:text-base md:text-lg lg:text-sm xl:text-base";
   }
   return "text-base sm:text-lg md:text-xl";
+}
+
+function MeasurementSubgroupEntries({
+  entries,
+  subgroupName,
+  canManageMeasurements,
+  canWriteFinance,
+  getStatusBadge,
+  openImagesModal,
+  openEditModal,
+  openDuplicateMeasurementModal,
+  openHistoryModal,
+  handleStatusChange,
+  openConvertBillModal,
+  openDeleteModal,
+}: {
+  entries: MeasurementEntryItem[];
+  subgroupName: string;
+  canManageMeasurements: boolean;
+  canWriteFinance: boolean;
+  getStatusBadge: (status: string) => React.ReactNode;
+  openImagesModal: (entry: MeasurementEntryItem) => void;
+  openEditModal: (entry: MeasurementEntryItem) => void;
+  openDuplicateMeasurementModal: (entry: MeasurementEntryItem) => void;
+  openHistoryModal: (entryId?: string) => Promise<void> | void;
+  handleStatusChange: (entryId: string, newStatus: "VERIFIED" | "APPROVED" | "REJECTED") => Promise<void> | void;
+  openConvertBillModal: (entry: MeasurementEntryItem) => void;
+  openDeleteModal: (entry: MeasurementEntryItem) => void;
+}) {
+  const pagination = useTablePagination(entries);
+
+  if (entries.length === 0) {
+    return (
+      <div className="p-5 text-center text-xs text-slate-400">
+        No measurements recorded in {subgroupName} yet. Click &quot;+ Add Wall&quot; to create one.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/40">
+        <ShowEntriesControl
+          pageSize={pagination.pageSize}
+          onPageSizeChange={pagination.setPageSize}
+        />
+        <span className="text-[11px] text-slate-500">
+          {pagination.filteredCount} {pagination.filteredCount === 1 ? "measurement" : "measurements"}
+        </span>
+      </div>
+      <div className="lg:hidden divide-y divide-slate-100">
+        {pagination.paginatedData.map((entry) => {
+          const photosCount = (entry.attachments || []).filter((a) => !a.isDeleted).length;
+          return (
+            <div key={`m-${entry.id}`} className="p-3.5 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-bold text-sm text-slate-900">{entry.entryName || "Wall 1"}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{entry.itemDescription}</div>
+                  {entry.referenceNumber && (
+                    <div className="text-[11px] text-slate-400 font-mono mt-0.5">Ref: {entry.referenceNumber}</div>
+                  )}
+                </div>
+                <div className="shrink-0">{getStatusBadge(entry.status)}</div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                  {entry.measurementType.replace(/_/g, " ")}
+                </span>
+                <span className="px-2 py-0.5 rounded font-mono bg-slate-50 text-slate-600 border border-slate-200">
+                  {entry.formula}: {entry.count} × {entry.length}
+                  {entry.breadth !== null && entry.breadth !== undefined ? ` × ${entry.breadth}` : ""}
+                  {entry.depth !== null && entry.depth !== undefined ? ` × ${entry.depth}` : ""}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-2.5 text-xs">
+                <div>
+                  <div className="text-[10px] text-slate-500 uppercase">Net Qty</div>
+                  <div className="font-mono font-bold text-slate-900">
+                    {formatQuantity(entry.quantity)} {entry.unit}
+                  </div>
+                  {entry.deduction > 0 && (
+                    <div className="text-[10px] font-mono text-rose-600">
+                      Gross {formatQuantity(entry.grossQuantity)} − {formatQuantity(entry.deduction)}
+                    </div>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-500 uppercase">Amount ({formatCurrency(entry.unitRate)}/{entry.unit})</div>
+                  <div className="font-mono font-bold text-slate-900">{formatCurrency(entry.totalAmount)}</div>
+                  {entry.measurementDate && (
+                    <div className="text-[10px] text-slate-400">{entry.measurementDate.split("T")[0]}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <button
+                  onClick={() => openImagesModal(entry)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    photosCount > 0
+                      ? "bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  {photosCount > 0 ? `${photosCount} Evidence` : "+ Add Evidence"}
+                </button>
+
+                <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+                  {canManageMeasurements && entry.status !== "BILLED" && (
+                    <button onClick={() => openEditModal(entry)} className="p-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200" title="Edit">
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {canManageMeasurements && (
+                    <button onClick={() => openDuplicateMeasurementModal(entry)} className="p-2 rounded-lg text-slate-600 hover:text-amber-600 hover:bg-amber-50 border border-slate-200" title="Duplicate">
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button onClick={() => openHistoryModal(entry.id)} className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200" title="History">
+                    <History className="w-3.5 h-3.5" />
+                  </button>
+                  {canManageMeasurements && entry.status === "SUBMITTED" && (
+                    <button onClick={() => handleStatusChange(entry.id, "VERIFIED")} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      Verify
+                    </button>
+                  )}
+                  {canWriteFinance && entry.status === "VERIFIED" && (
+                    <button onClick={() => handleStatusChange(entry.id, "APPROVED")} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Approve
+                    </button>
+                  )}
+                  {canWriteFinance && entry.status === "APPROVED" && !entry.billId && (
+                    <button onClick={() => openConvertBillModal(entry)} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
+                      <Receipt className="w-3 h-3" /> Bill
+                    </button>
+                  )}
+                  {canManageMeasurements && entry.status !== "BILLED" && (
+                    <button onClick={() => openDeleteModal(entry)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 border border-rose-200" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="hidden lg:block overflow-x-auto">
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold uppercase tracking-wider text-[11px]">
+              <th className="py-2.5 px-3">Ref & Wall / Item</th>
+              <th className="py-2.5 px-3">Type</th>
+              <th className="py-2.5 px-3">Formula</th>
+              <th className="py-2.5 px-3 text-right">Dimensions (N × L × B × H)</th>
+              <th className="py-2.5 px-3 text-right">Gross Qty</th>
+              <th className="py-2.5 px-3 text-right">Deduction</th>
+              <th className="py-2.5 px-3 text-right font-bold text-slate-900">Net Qty</th>
+              <th className="py-2.5 px-3">Unit</th>
+              <th className="py-2.5 px-3 text-right">Rate</th>
+              <th className="py-2.5 px-3 text-right font-bold text-slate-900">Amount</th>
+              <th className="py-2.5 px-3">Date</th>
+              <th className="py-2.5 px-3">Status</th>
+              <th className="py-2.5 px-3 text-center">Evidence</th>
+              <th className="py-2.5 px-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {pagination.paginatedData.map((entry) => {
+              const photosCount = (entry.attachments || []).filter((a) => !a.isDeleted).length;
+
+              return (
+                <tr key={entry.id} className="hover:bg-amber-50/40 transition">
+                  <td className="py-2.5 px-3">
+                    <div className="font-bold text-slate-900">
+                      {entry.entryName || "Wall 1"}
+                    </div>
+                    <div className="text-[11px] text-slate-500 line-clamp-1">
+                      {entry.itemDescription}
+                    </div>
+                    {entry.referenceNumber && (
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Ref: {entry.referenceNumber}
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="py-2.5 px-3">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
+                      {entry.measurementType.replace(/_/g, " ")}
+                    </span>
+                  </td>
+
+                  <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600">
+                    {entry.formula}
+                  </td>
+
+                  <td className="py-2.5 px-3 text-right font-mono text-[11px] text-slate-700">
+                    {entry.count} × {entry.length}
+                    {entry.breadth !== null && entry.breadth !== undefined ? ` × ${entry.breadth}` : ""}
+                    {entry.depth !== null && entry.depth !== undefined ? ` × ${entry.depth}` : ""}
+                  </td>
+
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">
+                    {formatQuantity(entry.grossQuantity)}
+                  </td>
+
+                  <td className="py-2.5 px-3 text-right font-mono text-rose-600">
+                    {entry.deduction > 0 ? `-${formatQuantity(entry.deduction)}` : "0"}
+                  </td>
+
+                  <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 bg-slate-50/50">
+                    {formatQuantity(entry.quantity)}
+                  </td>
+
+                  <td className="py-2.5 px-3 font-semibold">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${getUnitMetadata(entry.unit).badgeBg}`}>
+                      {entry.unit}
+                    </span>
+                  </td>
+
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-700">
+                    {formatCurrency(entry.unitRate)}
+                  </td>
+
+                  <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-mono">
+                    {formatCurrency(entry.totalAmount)}
+                  </td>
+
+                  <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                    {entry.measurementDate ? entry.measurementDate.split("T")[0] : ""}
+                  </td>
+
+                  <td className="py-2.5 px-3 whitespace-nowrap">
+                    {getStatusBadge(entry.status)}
+                  </td>
+
+                  <td className="py-2.5 px-3 text-center">
+                    <button
+                      onClick={() => openImagesModal(entry)}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition ${
+                        photosCount > 0
+                          ? "bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                      title="Evidence photos & version history"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      {photosCount > 0 ? `${photosCount} Photos` : "+ Add"}
+                    </button>
+                  </td>
+
+                  <td className="py-2.5 px-3 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {canManageMeasurements && entry.status !== "BILLED" && (
+                        <button
+                          onClick={() => openEditModal(entry)}
+                          className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition"
+                          title="Edit with mandatory reason"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {canManageMeasurements && (
+                        <button
+                          onClick={() => openDuplicateMeasurementModal(entry)}
+                          className="p-1 rounded text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition"
+                          title="Duplicate measurement entry"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => openHistoryModal(entry.id)}
+                        className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
+                        title="View audit history & diffs"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+
+                      {canManageMeasurements && entry.status === "SUBMITTED" && (
+                        <button
+                          onClick={() => handleStatusChange(entry.id, "VERIFIED")}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition"
+                          title="Mark as site verified"
+                        >
+                          Verify
+                        </button>
+                      )}
+
+                      {canWriteFinance && entry.status === "VERIFIED" && (
+                        <button
+                          onClick={() => handleStatusChange(entry.id, "APPROVED")}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition"
+                          title="Approve measurement for contractor billing"
+                        >
+                          Approve
+                        </button>
+                      )}
+
+                      {canWriteFinance && entry.status === "APPROVED" && !entry.billId && (
+                        <button
+                          onClick={() => openConvertBillModal(entry)}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition flex items-center gap-1"
+                          title="Generate Contractor Bill"
+                        >
+                          <Receipt className="w-3 h-3" /> Bill
+                        </button>
+                      )}
+
+                      {canManageMeasurements && entry.status !== "BILLED" && (
+                        <button
+                          onClick={() => openDeleteModal(entry)}
+                          className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                          title="Delete with mandatory reason"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <TablePagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.filteredCount}
+        totalUnfiltered={pagination.totalRecords}
+        pageSize={pagination.pageSize}
+        startItem={pagination.startItem}
+        endItem={pagination.endItem}
+        onPageChange={pagination.setCurrentPage}
+        itemLabel="measurements"
+      />
+    </>
+  );
 }
 
 export default function MeasurementBookPage() {
@@ -1993,317 +2340,20 @@ export default function MeasurementBookPage() {
                               {/* LEVEL 3: MEASUREMENT ENTRIES TABLE */}
                               {isSubExpanded && (
                                 <div className="bg-white">
-                                  {entries.length === 0 ? (
-                                    <div className="p-5 text-center text-xs text-slate-400">
-                                      No measurements recorded in {sg.name} yet. Click &quot;+ Add Wall&quot; to create one.
-                                    </div>
-                                  ) : (
-                                    <>
-                                    <div className="lg:hidden divide-y divide-slate-100">
-                                      {entries.map((entry) => {
-                                        const photosCount = (entry.attachments || []).filter((a) => !a.isDeleted).length;
-                                        return (
-                                          <div key={`m-${entry.id}`} className="p-3.5 space-y-2.5">
-                                            <div className="flex items-start justify-between gap-2">
-                                              <div className="min-w-0">
-                                                <div className="font-bold text-sm text-slate-900">{entry.entryName || "Wall 1"}</div>
-                                                <div className="text-xs text-slate-500 mt-0.5">{entry.itemDescription}</div>
-                                                {entry.referenceNumber && (
-                                                  <div className="text-[11px] text-slate-400 font-mono mt-0.5">Ref: {entry.referenceNumber}</div>
-                                                )}
-                                              </div>
-                                              <div className="shrink-0">{getStatusBadge(entry.status)}</div>
-                                            </div>
-
-                                            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                                              <span className="px-2 py-0.5 rounded font-semibold bg-slate-100 text-slate-800 border border-slate-200">
-                                                {entry.measurementType.replace(/_/g, " ")}
-                                              </span>
-                                              <span className="px-2 py-0.5 rounded font-mono bg-slate-50 text-slate-600 border border-slate-200">
-                                                {entry.formula}: {entry.count} × {entry.length}
-                                                {entry.breadth !== null && entry.breadth !== undefined ? ` × ${entry.breadth}` : ""}
-                                                {entry.depth !== null && entry.depth !== undefined ? ` × ${entry.depth}` : ""}
-                                              </span>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-2.5 text-xs">
-                                              <div>
-                                                <div className="text-[10px] text-slate-500 uppercase">Net Qty</div>
-                                                <div className="font-mono font-bold text-slate-900">
-                                                  {formatQuantity(entry.quantity)} {entry.unit}
-                                                </div>
-                                                {entry.deduction > 0 && (
-                                                  <div className="text-[10px] font-mono text-rose-600">
-                                                    Gross {formatQuantity(entry.grossQuantity)} − {formatQuantity(entry.deduction)}
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <div className="text-right">
-                                                <div className="text-[10px] text-slate-500 uppercase">Amount ({formatCurrency(entry.unitRate)}/{entry.unit})</div>
-                                                <div className="font-mono font-bold text-slate-900">{formatCurrency(entry.totalAmount)}</div>
-                                                {entry.measurementDate && (
-                                                  <div className="text-[10px] text-slate-400">{entry.measurementDate.split("T")[0]}</div>
-                                                )}
-                                              </div>
-                                            </div>
-
-                                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                                              <button
-                                                onClick={() => openImagesModal(entry)}
-                                                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${
-                                                  photosCount > 0
-                                                    ? "bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300"
-                                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                                                }`}
-                                              >
-                                                <ImageIcon className="w-3.5 h-3.5" />
-                                                {photosCount > 0 ? `${photosCount} Evidence` : "+ Add Evidence"}
-                                              </button>
-
-                                              <div className="flex flex-wrap items-center gap-1.5 ml-auto">
-                                                {canManageMeasurements && entry.status !== "BILLED" && (
-                                                  <button onClick={() => openEditModal(entry)} className="p-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200" title="Edit">
-                                                    <Edit2 className="w-3.5 h-3.5" />
-                                                  </button>
-                                                )}
-                                                {canManageMeasurements && (
-                                                  <button onClick={() => openDuplicateMeasurementModal(entry)} className="p-2 rounded-lg text-slate-600 hover:text-amber-600 hover:bg-amber-50 border border-slate-200" title="Duplicate">
-                                                    <Copy className="w-3.5 h-3.5" />
-                                                  </button>
-                                                )}
-                                                <button onClick={() => openHistoryModal(entry.id)} className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200" title="History">
-                                                  <History className="w-3.5 h-3.5" />
-                                                </button>
-                                                {canManageMeasurements && entry.status === "SUBMITTED" && (
-                                                  <button onClick={() => handleStatusChange(entry.id, "VERIFIED")} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                                                    Verify
-                                                  </button>
-                                                )}
-                                                {canWriteFinance && entry.status === "VERIFIED" && (
-                                                  <button onClick={() => handleStatusChange(entry.id, "APPROVED")} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                    Approve
-                                                  </button>
-                                                )}
-                                                {canWriteFinance && entry.status === "APPROVED" && !entry.billId && (
-                                                  <button onClick={() => openConvertBillModal(entry)} className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1">
-                                                    <Receipt className="w-3 h-3" /> Bill
-                                                  </button>
-                                                )}
-                                                {canManageMeasurements && entry.status !== "BILLED" && (
-                                                  <button onClick={() => openDeleteModal(entry)} className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 border border-rose-200" title="Delete">
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                  </button>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                    <div className="hidden lg:block overflow-x-auto">
-                                      <table className="w-full text-left border-collapse text-xs">
-                                      <thead>
-                                        <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold uppercase tracking-wider text-[11px]">
-                                          <th className="py-2.5 px-3">Ref & Wall / Item</th>
-                                          <th className="py-2.5 px-3">Type</th>
-                                          <th className="py-2.5 px-3">Formula</th>
-                                          <th className="py-2.5 px-3 text-right">Dimensions (N × L × B × H)</th>
-                                          <th className="py-2.5 px-3 text-right">Gross Qty</th>
-                                          <th className="py-2.5 px-3 text-right">Deduction</th>
-                                          <th className="py-2.5 px-3 text-right font-bold text-slate-900">Net Qty</th>
-                                          <th className="py-2.5 px-3">Unit</th>
-                                          <th className="py-2.5 px-3 text-right">Rate</th>
-                                          <th className="py-2.5 px-3 text-right font-bold text-slate-900">Amount</th>
-                                          <th className="py-2.5 px-3">Date</th>
-                                          <th className="py-2.5 px-3">Status</th>
-                                          <th className="py-2.5 px-3 text-center">Evidence</th>
-                                          <th className="py-2.5 px-3 text-right">Actions</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-slate-100">
-                                        {entries.map((entry) => {
-                                          const photosCount = (entry.attachments || []).filter((a) => !a.isDeleted).length;
-
-                                          return (
-                                            <tr key={entry.id} className="hover:bg-amber-50/40 transition">
-                                              {/* Ref & Wall / Item */}
-                                              <td className="py-2.5 px-3">
-                                                <div className="font-bold text-slate-900">
-                                                  {entry.entryName || "Wall 1"}
-                                                </div>
-                                                <div className="text-[11px] text-slate-500 line-clamp-1">
-                                                  {entry.itemDescription}
-                                                </div>
-                                                {entry.referenceNumber && (
-                                                  <span className="text-[10px] text-slate-400 font-mono">
-                                                    Ref: {entry.referenceNumber}
-                                                  </span>
-                                                )}
-                                              </td>
-
-                                              {/* Measurement Type */}
-                                              <td className="py-2.5 px-3">
-                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
-                                                  {entry.measurementType.replace(/_/g, " ")}
-                                                </span>
-                                              </td>
-
-                                              {/* Formula */}
-                                              <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600">
-                                                {entry.formula}
-                                              </td>
-
-                                              {/* Dimensions */}
-                                              <td className="py-2.5 px-3 text-right font-mono text-[11px] text-slate-700">
-                                                {entry.count} × {entry.length}
-                                                {entry.breadth !== null && entry.breadth !== undefined ? ` × ${entry.breadth}` : ""}
-                                                {entry.depth !== null && entry.depth !== undefined ? ` × ${entry.depth}` : ""}
-                                              </td>
-
-                                              {/* Gross Qty */}
-                                              <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                                                {formatQuantity(entry.grossQuantity)}
-                                              </td>
-
-                                              {/* Deduction */}
-                                              <td className="py-2.5 px-3 text-right font-mono text-rose-600">
-                                                {entry.deduction > 0 ? `-${formatQuantity(entry.deduction)}` : "0"}
-                                              </td>
-
-                                              {/* Net Qty */}
-                                              <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 bg-slate-50/50">
-                                                {formatQuantity(entry.quantity)}
-                                              </td>
-
-                                              {/* Unit */}
-                                              <td className="py-2.5 px-3 font-semibold">
-                                                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${getUnitMetadata(entry.unit).badgeBg}`}>
-                                                  {entry.unit}
-                                                </span>
-                                              </td>
-
-                                              {/* Rate */}
-                                              <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                                                {formatCurrency(entry.unitRate)}
-                                              </td>
-
-                                              {/* Total Amount */}
-                                              <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-mono">
-                                                {formatCurrency(entry.totalAmount)}
-                                              </td>
-
-                                              {/* Date */}
-                                              <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
-                                                {entry.measurementDate ? entry.measurementDate.split("T")[0] : ""}
-                                              </td>
-
-                                              {/* Status */}
-                                              <td className="py-2.5 px-3 whitespace-nowrap">
-                                                {getStatusBadge(entry.status)}
-                                              </td>
-
-                                              {/* Evidence Photos */}
-                                              <td className="py-2.5 px-3 text-center">
-                                                <button
-                                                  onClick={() => openImagesModal(entry)}
-                                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition ${
-                                                    photosCount > 0
-                                                      ? "bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300"
-                                                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                                  }`}
-                                                  title="Evidence photos & version history"
-                                                >
-                                                  <ImageIcon className="w-3.5 h-3.5" />
-                                                  {photosCount > 0 ? `${photosCount} Photos` : "+ Add"}
-                                                </button>
-                                              </td>
-
-                                              {/* Actions Dropdown / Menu */}
-                                              <td className="py-2.5 px-3 text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                  {/* Edit with Reason */}
-                                                  {canManageMeasurements && entry.status !== "BILLED" && (
-                                                    <button
-                                                      onClick={() => openEditModal(entry)}
-                                                      className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition"
-                                                      title="Edit with mandatory reason"
-                                                    >
-                                                      <Edit2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                  )}
-
-                                                  {/* Duplicate */}
-                                                  {canManageMeasurements && (
-                                                    <button
-                                                      onClick={() => openDuplicateMeasurementModal(entry)}
-                                                      className="p-1 rounded text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition"
-                                                      title="Duplicate measurement entry"
-                                                    >
-                                                      <Copy className="w-3.5 h-3.5" />
-                                                    </button>
-                                                  )}
-
-                                                  {/* History */}
-                                                  <button
-                                                    onClick={() => openHistoryModal(entry.id)}
-                                                    className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
-                                                    title="View audit history & diffs"
-                                                  >
-                                                    <History className="w-3.5 h-3.5" />
-                                                  </button>
-
-                                                  {/* Status Verification Actions */}
-                                                  {canManageMeasurements && entry.status === "SUBMITTED" && (
-                                                    <button
-                                                      onClick={() => handleStatusChange(entry.id, "VERIFIED")}
-                                                      className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition"
-                                                      title="Mark as site verified"
-                                                    >
-                                                      Verify
-                                                    </button>
-                                                  )}
-
-                                                  {canWriteFinance && entry.status === "VERIFIED" && (
-                                                    <button
-                                                      onClick={() => handleStatusChange(entry.id, "APPROVED")}
-                                                      className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition"
-                                                      title="Approve measurement for contractor billing"
-                                                    >
-                                                      Approve
-                                                    </button>
-                                                  )}
-
-                                                  {/* Convert to Bill */}
-                                                  {canWriteFinance && entry.status === "APPROVED" && !entry.billId && (
-                                                    <button
-                                                      onClick={() => openConvertBillModal(entry)}
-                                                      className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition flex items-center gap-1"
-                                                      title="Generate Contractor Bill"
-                                                    >
-                                                      <Receipt className="w-3 h-3" /> Bill
-                                                    </button>
-                                                  )}
-
-                                                  {/* Delete with Reason */}
-                                                  {canManageMeasurements && entry.status !== "BILLED" && (
-                                                    <button
-                                                      onClick={() => openDeleteModal(entry)}
-                                                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                                                      title="Delete with mandatory reason"
-                                                    >
-                                                      <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                      </table>
-                                    </div>
-                                    </>
-                                  )}
+                                  <MeasurementSubgroupEntries
+                                    entries={entries}
+                                    subgroupName={sg.name}
+                                    canManageMeasurements={canManageMeasurements}
+                                    canWriteFinance={canWriteFinance}
+                                    getStatusBadge={getStatusBadge}
+                                    openImagesModal={openImagesModal}
+                                    openEditModal={openEditModal}
+                                    openDuplicateMeasurementModal={openDuplicateMeasurementModal}
+                                    openHistoryModal={openHistoryModal}
+                                    handleStatusChange={handleStatusChange}
+                                    openConvertBillModal={openConvertBillModal}
+                                    openDeleteModal={openDeleteModal}
+                                  />
                                 </div>
                               )}
                             </div>

@@ -1818,7 +1818,7 @@ export class MeasurementBookService {
           subgroup: { select: { id: true, name: true, type: true } },
           attachments: { where: { isDeleted: false }, orderBy: { createdAt: "desc" } },
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.measurementGroup.findMany({
         where: groupWhere,

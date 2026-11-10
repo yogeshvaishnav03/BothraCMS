@@ -166,7 +166,7 @@ export async function fetchDayBookData(
         allocations: { include: { bill: { select: { id: true, billNumber: true, totalAmount: true } } } },
         creator: { select: { id: true, name: true } },
       },
-      orderBy: { paymentDate: "desc" },
+      orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
     }),
     prisma.bill.findMany({
       where: billWhere,
@@ -174,7 +174,7 @@ export async function fetchDayBookData(
         party: { select: { id: true, name: true, partyType: true } },
         project: { select: { id: true, code: true, name: true, siteId: true } },
       },
-      orderBy: { billDate: "desc" },
+      orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
     }),
     prisma.stockMovement.findMany({
       where: stockWhere,

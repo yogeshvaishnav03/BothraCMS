@@ -52,7 +52,7 @@ export class UserAdminService {
     return prisma.user.findMany({
       where: { organizationId: actor.organizationId },
       select: PUBLIC_USER_SELECT,
-      orderBy: [{ status: "asc" }, { name: "asc" }],
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     });
   }
 

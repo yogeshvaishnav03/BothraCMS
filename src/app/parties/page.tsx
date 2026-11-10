@@ -4,7 +4,7 @@ import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ContactActions } from "@/components/ui/ContactActions";
 import React, { useEffect, useState, useMemo } from "react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, useTablePagination, ExcelColumnHeader, ExcelTableToolbar, ShowEntriesControl, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatCompactINR, rupeesToPaise, paiseToRupees } from "@/lib/formatters";
@@ -219,7 +219,7 @@ export default function PartiesPage() {
   const [cityFilter, setCityFilter] = useState("");
   const [onlyOutstanding, setOnlyOutstanding] = useState(false);
   const [onlyMissingBank, setOnlyMissingBank] = useState(false);
-  const [sortBy, setSortBy] = useState<"name" | "outstanding" | "rating">("name");
+  const [sortBy, setSortBy] = useState<"recent" | "name" | "outstanding" | "rating">("recent");
   const [view, setView] = useState<"cards" | "table">("cards");
 
   // Register / Edit modal
@@ -458,14 +458,19 @@ export default function PartiesPage() {
         .filter(Boolean)
         .some((v: string) => String(v).toLowerCase().includes(q));
     });
-    return list.sort((a, b) =>
-      sortBy === "outstanding"
-        ? (b.outstandingBalance || 0) - (a.outstandingBalance || 0)
-        : sortBy === "rating"
-        ? (b.rating || 0) - (a.rating || 0)
-        : a.name.localeCompare(b.name)
-    );
+    return list.sort((a, b) => {
+      if (sortBy === "recent") {
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        return tb - ta;
+      }
+      if (sortBy === "outstanding") return (b.outstandingBalance || 0) - (a.outstandingBalance || 0);
+      if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
+      return a.name.localeCompare(b.name);
+    });
   }, [parties, search, typeFilter, categoryFilter, cityFilter, onlyOutstanding, onlyMissingBank, sortBy]);
+
+  const cardsPagination = useTablePagination(filteredParties);
 
   const stats = useMemo(() => {
     const vendors = parties.filter((p) => p.partyType === "VENDOR" || p.partyType === "BOTH").length;
@@ -665,6 +670,7 @@ export default function PartiesPage() {
               ))}
             </select>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+              <option value="recent">Sort: Newest first</option>
               <option value="name">Sort: Name</option>
               <option value="outstanding">Sort: Highest due</option>
               <option value="rating">Sort: Best rated</option>
@@ -687,6 +693,12 @@ export default function PartiesPage() {
             >
               No bank details
             </button>
+            {view === "cards" && (
+              <ShowEntriesControl
+                pageSize={cardsPagination.pageSize}
+                onPageSizeChange={cardsPagination.setPageSize}
+              />
+            )}
             <span className="text-xs text-slate-500 ml-auto">
               {filteredParties.length} of {parties.length}
               {filtersActive && (
@@ -723,8 +735,9 @@ export default function PartiesPage() {
             )}
           </div>
         ) : view === "cards" ? (
+          <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger">
-            {filteredParties.map((p) => {
+            {cardsPagination.paginatedData.map((p) => {
               const style = TYPE_STYLE[p.partyType] || TYPE_STYLE.VENDOR;
               const due = p.outstandingBalance || 0;
               return (
@@ -843,6 +856,20 @@ export default function PartiesPage() {
               );
             })}
           </div>
+          <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
+            <TablePagination
+              currentPage={cardsPagination.currentPage}
+              totalPages={cardsPagination.totalPages}
+              totalItems={cardsPagination.totalItems}
+              totalUnfiltered={parties.length}
+              pageSize={cardsPagination.pageSize}
+              startItem={cardsPagination.startItem}
+              endItem={cardsPagination.endItem}
+              onPageChange={cardsPagination.setCurrentPage}
+              itemLabel="partners"
+            />
+          </div>
+          </div>
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs min-h-[400px]">
             <ExcelTableToolbar table={excelParties} columns={partyColumns} tableName="partners" showSearch={true} showExport={true} />
@@ -875,7 +902,7 @@ export default function PartiesPage() {
                       </td>
                     </tr>
                   ) : (
-                    excelParties.filteredData.map((p) => {
+                    excelParties.paginatedData.map((p) => {
                       const style = TYPE_STYLE[p.partyType] || TYPE_STYLE.VENDOR;
                       return (
                         <tr key={p.id} className="hover:bg-amber-50/40 transition-colors group">
@@ -942,7 +969,7 @@ export default function PartiesPage() {
                   </button>
                 </div>
               ) : (
-                excelParties.filteredData.map((p) => {
+                excelParties.paginatedData.map((p) => {
                   const style = TYPE_STYLE[p.partyType] || TYPE_STYLE.VENDOR;
 
                   return (
@@ -1010,6 +1037,17 @@ export default function PartiesPage() {
                 })
               )}
             </div>
+            <TablePagination
+              currentPage={excelParties.currentPage}
+              totalPages={excelParties.totalPages}
+              totalItems={excelParties.filteredCount}
+              totalUnfiltered={excelParties.totalRecords}
+              pageSize={excelParties.pageSize}
+              startItem={excelParties.startItem}
+              endItem={excelParties.endItem}
+              onPageChange={excelParties.setCurrentPage}
+              itemLabel="partners"
+            />
           </div>
         )}
 

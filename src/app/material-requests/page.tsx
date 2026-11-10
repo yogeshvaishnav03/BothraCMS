@@ -6,6 +6,7 @@ import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { cn } from "@/lib/cn";
 import { formatCompactINR } from "@/lib/formatters";
 import { submitOrQueue } from "@/lib/offline-queue";
@@ -664,11 +665,22 @@ export default function MaterialRequestsPage() {
     api<any[]>("/api/parties").then((d) => setVendors((d || []).filter((p: any) => p.partyType !== "CONTRACTOR"))).catch(() => {});
   }, [refreshUser]);
 
+  const requestsList = useMemo(() => requests || [], [requests]);
+  const requestsPagination = useTablePagination(requestsList);
+
   useEffect(() => {
-    if (highlight && requests?.some((r) => r.id === highlight)) {
+    if (highlight && requests?.length) {
+      const idx = requests.findIndex((r) => r.id === highlight);
+      if (idx >= 0 && requestsPagination.pageSize > 0) {
+        const targetPage = Math.floor(idx / requestsPagination.pageSize) + 1;
+        if (targetPage !== requestsPagination.currentPage) {
+          requestsPagination.setCurrentPage(targetPage);
+          return;
+        }
+      }
       document.getElementById(`req-${highlight}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [highlight, requests]);
+  }, [highlight, requests, requestsPagination]);
 
   const replace = (updated: any) =>
     setRequests((list) => (list || []).map((r) => (r.id === updated.id ? { ...r, ...updated, canManage: r.canManage, items: mergeItems(r.items, updated.items) } : r)));
@@ -749,9 +761,31 @@ export default function MaterialRequestsPage() {
           </div>
         ) : (
           <div className="space-y-3 stagger">
-            {requests.map((r) => (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs">
+              <ShowEntriesControl
+                pageSize={requestsPagination.pageSize}
+                onPageSizeChange={requestsPagination.setPageSize}
+              />
+              <span className="text-xs text-slate-500">
+                Showing {requestsPagination.startItem} to {requestsPagination.endItem} of {requestsPagination.filteredCount} requests
+              </span>
+            </div>
+            {requestsPagination.paginatedData.map((r) => (
               <RequestCard key={r.id} r={r} me={me} highlight={highlight === r.id} onChange={replace} onOrder={(item) => setOrdering({ request: r, item })} />
             ))}
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+              <TablePagination
+                currentPage={requestsPagination.currentPage}
+                totalPages={requestsPagination.totalPages}
+                totalItems={requestsPagination.filteredCount}
+                totalUnfiltered={requestsPagination.totalRecords}
+                pageSize={requestsPagination.pageSize}
+                startItem={requestsPagination.startItem}
+                endItem={requestsPagination.endItem}
+                onPageChange={requestsPagination.setCurrentPage}
+                itemLabel="requests"
+              />
+            </div>
           </div>
         )}
       </div>

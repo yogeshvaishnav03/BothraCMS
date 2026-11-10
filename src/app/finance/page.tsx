@@ -36,7 +36,7 @@ import {
   Edit2,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { canUser } from "@/lib/permissions";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 
@@ -1814,7 +1814,7 @@ export default function FinancePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelPayments.filteredData.map((p) => {
+                    {excelPayments.paginatedData.map((p) => {
                       const isReversed = p.status === "REVERSED";
                       const isPending = p.status === "PENDING_APPROVAL";
                       const isRejected = p.status === "REJECTED";
@@ -2025,7 +2025,7 @@ export default function FinancePage() {
                     <p className="text-xs text-slate-400">Try adjusting your search terms or filters.</p>
                   </div>
                 ) : (
-                  excelPayments.filteredData.map((p) => {
+                  excelPayments.paginatedData.map((p) => {
                     const isReversed = p.status === "REVERSED";
                     const isPending = p.status === "PENDING_APPROVAL";
                     const isRejected = p.status === "REJECTED";
@@ -2159,6 +2159,17 @@ export default function FinancePage() {
                   })
                 )}
               </div>
+              <TablePagination
+                currentPage={excelPayments.currentPage}
+                totalPages={excelPayments.totalPages}
+                totalItems={excelPayments.filteredCount}
+                totalUnfiltered={excelPayments.totalRecords}
+                pageSize={excelPayments.pageSize}
+                startItem={excelPayments.startItem}
+                endItem={excelPayments.endItem}
+                onPageChange={excelPayments.setCurrentPage}
+                itemLabel="payments"
+              />
             </div>
           </div>
         )}
@@ -2237,7 +2248,7 @@ export default function FinancePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelBills.filteredData.map((b) => (
+                    {excelBills.paginatedData.map((b) => (
                       <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-slate-900">
                           {b.billNumber}
@@ -2313,7 +2324,7 @@ export default function FinancePage() {
                     <p className="text-xs text-slate-400">Try adjusting your search terms or filter.</p>
                   </div>
                 ) : (
-                  excelBills.filteredData.map((b) => (
+                  excelBills.paginatedData.map((b) => (
                     <div key={`b-card-${b.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                       {/* Top: Bill Number, Vendor Link & Status Badge */}
                       <div className="flex items-start justify-between gap-2">
@@ -2387,6 +2398,17 @@ export default function FinancePage() {
                   ))
                 )}
               </div>
+              <TablePagination
+                currentPage={excelBills.currentPage}
+                totalPages={excelBills.totalPages}
+                totalItems={excelBills.filteredCount}
+                totalUnfiltered={excelBills.totalRecords}
+                pageSize={excelBills.pageSize}
+                startItem={excelBills.startItem}
+                endItem={excelBills.endItem}
+                onPageChange={excelBills.setCurrentPage}
+                itemLabel="vendor bills"
+              />
             </div>
           </div>
         )}

@@ -58,7 +58,7 @@ export class DrawingService {
     const rows = await prisma.drawing.findMany({
       where,
       include: { project: { select: { id: true, name: true, code: true } }, revisions: { orderBy: { createdAt: "desc" } } },
-      orderBy: [{ discipline: "asc" }, { number: "asc" }],
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     });
     const people = await names(rows.flatMap((d) => d.revisions.flatMap((r) => [r.uploadedBy, r.reviewedBy])));
     const canReviewAny = isOrgOwnerOrAdmin(user) || user.role === "PROJECT_MANAGER";

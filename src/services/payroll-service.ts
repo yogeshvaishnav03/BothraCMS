@@ -1020,7 +1020,7 @@ export class PayrollService {
   }
 
   static async listAdvances(organizationId: string) {
-    const advances = await prisma.payrollAdvance.findMany({ where: { organizationId }, orderBy: { givenOn: "desc" }, take: 200 });
+    const advances = await prisma.payrollAdvance.findMany({ where: { organizationId }, orderBy: [{ givenOn: "desc" }, { createdAt: "desc" }], take: 200 });
     const runIds = Array.from(new Set(advances.map((a) => a.recoveredRunId).filter(Boolean) as string[]));
     const runs = await prisma.payrollRun.findMany({ where: { id: { in: runIds } }, select: { id: true, month: true } });
     const month = new Map(runs.map((r) => [r.id, r.month]));

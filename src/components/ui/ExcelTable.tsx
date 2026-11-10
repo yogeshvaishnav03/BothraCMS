@@ -55,6 +55,101 @@ export interface ExcelColumn<T = any> {
   type?: "text" | "number" | "date" | "currency";
 }
 
+export const DEFAULT_PAGE_SIZE = 10;
+export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 0] as const; // 0 = All
+
+export function getPaginationRange(
+  currentPage: number,
+  totalPages: number
+): Array<number | "..."> {
+  if (totalPages <= 1) return [1];
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const safeCurrent = Math.min(Math.max(1, currentPage), totalPages);
+  const pages: Array<number | "..."> = [1];
+  let windowStart = Math.max(2, safeCurrent - 1);
+  let windowEnd = Math.min(totalPages - 1, safeCurrent + 1);
+
+  if (safeCurrent <= 3) {
+    windowStart = 2;
+    windowEnd = Math.min(totalPages - 1, 5);
+  } else if (safeCurrent >= totalPages - 2) {
+    windowStart = Math.max(2, totalPages - 4);
+    windowEnd = totalPages - 1;
+  }
+
+  if (windowStart > 2) {
+    if (windowStart === 3) pages.push(2);
+    else pages.push("...");
+  }
+
+  for (let p = windowStart; p <= windowEnd; p++) {
+    pages.push(p);
+  }
+
+  if (windowEnd < totalPages - 1) {
+    if (windowEnd === totalPages - 2) pages.push(totalPages - 1);
+    else pages.push("...");
+  }
+
+  pages.push(totalPages);
+  return pages;
+}
+
+/**
+ * Standalone pagination hook for tables/lists that do not use useExcelTable.
+ */
+export function useTablePagination<T = any>(
+  data: T[],
+  initialPageSize: number = DEFAULT_PAGE_SIZE
+) {
+  const [pageSize, setPageSizeState] = useState<number>(initialPageSize);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  const totalItems = data.length;
+  const totalPages =
+    pageSize && pageSize > 0 ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1;
+  const safeCurrentPage =
+    totalItems === 0 ? 1 : Math.min(Math.max(1, currentPage), totalPages);
+
+  useEffect(() => {
+    if (currentPage !== safeCurrentPage) {
+      setCurrentPage(safeCurrentPage);
+    }
+  }, [currentPage, safeCurrentPage]);
+
+  const setPageSize = useCallback((nextSize: number) => {
+    setPageSizeState(nextSize);
+    setCurrentPage(1);
+  }, []);
+
+  const paginatedData = useMemo(() => {
+    if (!pageSize || pageSize <= 0) return data;
+    const start = (safeCurrentPage - 1) * pageSize;
+    return data.slice(start, start + pageSize);
+  }, [data, pageSize, safeCurrentPage]);
+
+  const startItem =
+    totalItems === 0 ? 0 : !pageSize || pageSize <= 0 ? 1 : (safeCurrentPage - 1) * pageSize + 1;
+  const endItem =
+    totalItems === 0 ? 0 : !pageSize || pageSize <= 0 ? totalItems : Math.min(safeCurrentPage * pageSize, totalItems);
+
+  return {
+    paginatedData,
+    pageSize,
+    setPageSize,
+    currentPage: safeCurrentPage,
+    setCurrentPage,
+    totalPages,
+    totalItems,
+    filteredCount: totalItems,
+    totalRecords: totalItems,
+    startItem,
+    endItem,
+  };
+}
+
 export interface ExcelTableProps<T = any> {
   data: T[];
   columns: ExcelColumn<T>[];
@@ -63,8 +158,9 @@ export interface ExcelTableProps<T = any> {
   showGlobalSearch?: boolean;
   showExport?: boolean;
   showToolbar?: boolean;
+  showEntries?: boolean;
   emptyMessage?: string;
-  pageSize?: number; // 0 or undefined for no pagination
+  pageSize?: number; // 0 for all, defaults to 10
   className?: string;
   tableClassName?: string;
   theme?: "lightHeader" | "darkHeader";
@@ -79,7 +175,7 @@ export interface ExcelTableProps<T = any> {
 export function useExcelTable<T = any>({
   data,
   columns,
-  pageSize = 0,
+  pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
 }: {
   data: T[];
   columns: ExcelColumn<T>[];
@@ -97,7 +193,18 @@ export function useExcelTable<T = any>({
   const [activeMegaColumnKey, setActiveMegaColumnKey] = useState<string>(columns[0]?.key || "");
   const [openFilterKey, setOpenFilterKey] = useState<string | null>(null);
   const [filterSearchQueries, setFilterSearchQueries] = useState<Record<string, string>>({});
+  const [pageSize, setPageSizeState] = useState<number>(initialPageSize);
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setPageSizeState(initialPageSize);
+    setCurrentPage(1);
+  }, [initialPageSize]);
+
+  const setPageSize = useCallback((nextSize: number) => {
+    setPageSizeState(nextSize);
+    setCurrentPage(1);
+  }, []);
 
   // Helper to extract raw value for a row and column
   const getCellValue = useMemo(() => {
@@ -274,14 +381,36 @@ export function useExcelTable<T = any>({
     setCurrentPage(1);
   }, [globalSearch, columnFilters, rangeFilters, textFilters, sortColumnKey, sortDirection]);
 
+  const totalPages =
+    pageSize && pageSize > 0 ? Math.max(1, Math.ceil(filteredData.length / pageSize)) : 1;
+  const safeCurrentPage =
+    filteredData.length === 0 ? 1 : Math.min(Math.max(1, currentPage), totalPages);
+
+  useEffect(() => {
+    if (currentPage !== safeCurrentPage) {
+      setCurrentPage(safeCurrentPage);
+    }
+  }, [currentPage, safeCurrentPage]);
+
   // Pagination slice
   const paginatedData = useMemo(() => {
     if (!pageSize || pageSize <= 0) return filteredData;
-    const start = (currentPage - 1) * pageSize;
+    const start = (safeCurrentPage - 1) * pageSize;
     return filteredData.slice(start, start + pageSize);
-  }, [filteredData, currentPage, pageSize]);
+  }, [filteredData, safeCurrentPage, pageSize]);
 
-  const totalPages = pageSize && pageSize > 0 ? Math.ceil(filteredData.length / pageSize) : 1;
+  const startItem =
+    filteredData.length === 0
+      ? 0
+      : !pageSize || pageSize <= 0
+      ? 1
+      : (safeCurrentPage - 1) * pageSize + 1;
+  const endItem =
+    filteredData.length === 0
+      ? 0
+      : !pageSize || pageSize <= 0
+      ? filteredData.length
+      : Math.min(safeCurrentPage * pageSize, filteredData.length);
 
   // Active filter count (checklist filters + active range filters + text filters + global search)
   const activeFiltersCount =
@@ -479,9 +608,13 @@ export function useExcelTable<T = any>({
   return {
     filteredData,
     paginatedData,
-    currentPage,
+    currentPage: safeCurrentPage,
     setCurrentPage,
+    pageSize,
+    setPageSize,
     totalPages,
+    startItem,
+    endItem,
     totalRecords: data.length,
     filteredCount: filteredData.length,
     globalSearch,
@@ -2004,6 +2137,202 @@ export function ExcelTableMegaDrawer<T = any>({
 }
 
 /**
+ * DataTables-style "Show [ 10 ] entries" page-size selector.
+ */
+export function ShowEntriesControl({
+  pageSize,
+  onPageSizeChange,
+  className = "",
+  id,
+}: {
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
+  className?: string;
+  id?: string;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 shrink-0 print:hidden ${className}`}
+    >
+      <span>Show</span>
+      <select
+        id={id}
+        aria-label="Show entries"
+        value={String(pageSize)}
+        onChange={(e) => onPageSizeChange(Number(e.target.value))}
+        className="w-auto min-w-[64px] shrink-0 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-2xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 cursor-pointer"
+      >
+        {PAGE_SIZE_OPTIONS.map((opt) => (
+          <option key={opt} value={String(opt)}>
+            {opt === 0 ? "All" : opt}
+          </option>
+        ))}
+      </select>
+      <span>entries</span>
+    </label>
+  );
+}
+
+/**
+ * DataTables-style footer bar: "Showing X to Y of Z entries" and segmented [« | ‹ | 1 | 2 | › | »].
+ */
+export function TablePagination({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize,
+  startItem,
+  endItem,
+  onPageChange,
+  totalUnfiltered,
+  itemLabel = "entries",
+  className = "",
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize?: number;
+  startItem: number;
+  endItem: number;
+  onPageChange: (page: number) => void;
+  totalUnfiltered?: number;
+  itemLabel?: string;
+  className?: string;
+}) {
+  if (totalItems === 0 && (!totalUnfiltered || totalUnfiltered === 0)) {
+    return null;
+  }
+
+  const resolvedTotalPages = Math.max(1, totalPages || 1);
+  const safeCurrent = Math.min(Math.max(1, currentPage || 1), resolvedTotalPages);
+  const isFirst = safeCurrent <= 1;
+  const isLast = safeCurrent >= resolvedTotalPages;
+  const isFiltered =
+    typeof totalUnfiltered === "number" && totalUnfiltered > totalItems;
+  const range = getPaginationRange(safeCurrent, resolvedTotalPages);
+
+  return (
+    <div
+      className={`px-3 py-2.5 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs print:hidden ${className}`}
+    >
+      <div className="text-slate-600 font-medium">
+        {totalItems === 0 ? (
+          <span>
+            Showing <strong className="text-slate-900 font-semibold">0</strong> of{" "}
+            <strong className="text-slate-900 font-semibold">0</strong> {itemLabel}
+            {isFiltered ? ` (filtered from ${totalUnfiltered} total)` : ""}
+          </span>
+        ) : pageSize === 0 ? (
+          <span>
+            Showing <strong className="text-slate-900 font-semibold">1</strong> to{" "}
+            <strong className="text-slate-900 font-semibold">{totalItems}</strong> of{" "}
+            <strong className="text-slate-900 font-semibold">{totalItems}</strong> {itemLabel}
+            {isFiltered ? ` (filtered from ${totalUnfiltered} total)` : ""}
+          </span>
+        ) : (
+          <span>
+            Showing <strong className="text-slate-900 font-semibold">{startItem}</strong> to{" "}
+            <strong className="text-slate-900 font-semibold">{endItem}</strong> of{" "}
+            <strong className="text-slate-900 font-semibold">{totalItems}</strong> {itemLabel}
+            {isFiltered ? ` (filtered from ${totalUnfiltered} total)` : ""}
+          </span>
+        )}
+      </div>
+
+      <nav
+        aria-label="Table pagination"
+        className="inline-flex flex-wrap items-stretch self-start sm:self-auto rounded-md border border-slate-200 bg-white divide-x divide-slate-200 overflow-hidden shadow-2xs"
+      >
+        <button
+          type="button"
+          onClick={() => onPageChange(1)}
+          disabled={isFirst}
+          aria-label="First page"
+          title="First page"
+          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition ${
+            isFirst
+              ? "text-slate-300 cursor-not-allowed bg-white"
+              : "text-sky-600 hover:bg-slate-50 cursor-pointer"
+          }`}
+        >
+          &laquo;
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, safeCurrent - 1))}
+          disabled={isFirst}
+          aria-label="Previous page"
+          title="Previous page"
+          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition ${
+            isFirst
+              ? "text-slate-300 cursor-not-allowed bg-white"
+              : "text-sky-600 hover:bg-slate-50 cursor-pointer"
+          }`}
+        >
+          &lsaquo;
+        </button>
+
+        {range.map((item, idx) =>
+          item === "..." ? (
+            <span
+              key={`ellipsis-${idx}`}
+              className="min-w-[30px] h-8 px-2 flex items-center justify-center text-xs text-slate-400 select-none bg-white"
+            >
+              &hellip;
+            </span>
+          ) : (
+            <button
+              key={`page-${item}`}
+              type="button"
+              onClick={() => onPageChange(item)}
+              aria-label={`Page ${item}`}
+              aria-current={item === safeCurrent ? "page" : undefined}
+              className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition cursor-pointer ${
+                item === safeCurrent
+                  ? "bg-slate-100 text-slate-900 font-bold"
+                  : "bg-white text-sky-600 hover:bg-slate-50 font-medium"
+              }`}
+            >
+              {item}
+            </button>
+          )
+        )}
+
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(resolvedTotalPages, safeCurrent + 1))}
+          disabled={isLast}
+          aria-label="Next page"
+          title="Next page"
+          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition ${
+            isLast
+              ? "text-slate-300 cursor-not-allowed bg-white"
+              : "text-sky-600 hover:bg-slate-50 cursor-pointer"
+          }`}
+        >
+          &rsaquo;
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(resolvedTotalPages)}
+          disabled={isLast}
+          aria-label="Last page"
+          title="Last page"
+          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition ${
+            isLast
+              ? "text-slate-300 cursor-not-allowed bg-white"
+              : "text-sky-600 hover:bg-slate-50 cursor-pointer"
+          }`}
+        >
+          &raquo;
+        </button>
+      </nav>
+    </div>
+  );
+}
+
+/**
  * Excel Table Active Filter Toolbar
  */
 export function ExcelTableToolbar<T = any>({
@@ -2012,6 +2341,7 @@ export function ExcelTableToolbar<T = any>({
   tableName = "records",
   showSearch = true,
   showExport = true,
+  showEntries = true,
   dateRangeFilter,
 }: {
   table: ReturnType<typeof useExcelTable<T>>;
@@ -2019,6 +2349,7 @@ export function ExcelTableToolbar<T = any>({
   tableName?: string;
   showSearch?: boolean;
   showExport?: boolean;
+  showEntries?: boolean;
   dateRangeFilter?: DateRangeFilterConfig;
 }) {
   const [isDeepModalOpen, setIsDeepModalOpen] = useState(false);
@@ -2216,11 +2547,21 @@ export function ExcelTableToolbar<T = any>({
           )}
         </div>
 
-        {/* Right: Record Counter & Export */}
-        <div className="flex items-center gap-3 shrink-0 self-end md:self-auto">
+        {/* Right: Show Entries, Record Counter & Export */}
+        <div className="flex flex-wrap items-center justify-end gap-3 shrink-0 self-end md:self-auto">
+          {showEntries && (
+            <ShowEntriesControl
+              pageSize={table.pageSize}
+              onPageSizeChange={table.setPageSize}
+            />
+          )}
           <span className="text-slate-500 font-medium">
-            Showing <strong className="text-slate-900 font-bold">{table.filteredCount}</strong> of{" "}
-            <strong className="text-slate-700 font-bold">{table.totalRecords}</strong> {tableName}
+            Showing{" "}
+            <strong className="text-slate-900 font-bold">
+              {table.filteredCount === 0 ? 0 : `${table.startItem}–${table.endItem}`}
+            </strong>{" "}
+            of <strong className="text-slate-700 font-bold">{table.filteredCount}</strong> {tableName}
+            {table.totalRecords > table.filteredCount ? ` (${table.totalRecords} total)` : ""}
           </span>
 
           {showExport && table.filteredCount > 0 && (
@@ -2268,8 +2609,9 @@ export default function ExcelTable<T = any>({
   showGlobalSearch = true,
   showExport = true,
   showToolbar = true,
+  showEntries = true,
   emptyMessage = "No matching records found.",
-  pageSize = 0,
+  pageSize = DEFAULT_PAGE_SIZE,
   className = "",
   tableClassName = "",
   theme = "lightHeader",
@@ -2298,6 +2640,7 @@ export default function ExcelTable<T = any>({
           tableName={tableName}
           showSearch={showGlobalSearch}
           showExport={showExport}
+          showEntries={showEntries}
         />
       )}
 
@@ -2383,33 +2726,18 @@ export default function ExcelTable<T = any>({
         </table>
       </div>
 
-      {/* Pagination Bar (if enabled) */}
-      {pageSize > 0 && table.totalPages > 1 && (
-        <div className="p-3 bg-slate-50/80 border-t border-slate-200 flex items-center justify-between text-xs">
-          <span className="text-slate-500 font-medium">
-            Page <strong className="text-slate-900">{table.currentPage}</strong> of{" "}
-            <strong className="text-slate-900">{table.totalPages}</strong>
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={table.currentPage <= 1}
-              onClick={() => table.setCurrentPage((p) => Math.max(1, p - 1))}
-              className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={table.currentPage >= table.totalPages}
-              onClick={() => table.setCurrentPage((p) => Math.min(table.totalPages, p + 1))}
-              className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Pagination Bar */}
+      <TablePagination
+        currentPage={table.currentPage}
+        totalPages={table.totalPages}
+        totalItems={table.filteredCount}
+        totalUnfiltered={table.totalRecords}
+        pageSize={table.pageSize}
+        startItem={table.startItem}
+        endItem={table.endItem}
+        onPageChange={table.setCurrentPage}
+        itemLabel={tableName}
+      />
     </div>
   );
 }

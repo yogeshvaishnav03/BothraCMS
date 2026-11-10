@@ -7,6 +7,7 @@ import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { Field, Modal, StatTile, Tabs, inputCls } from "@/components/ui/Modal";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { canUser } from "@/lib/permissions";
 import { api, post, patch, put, rupees, shortDate, toPaise } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
@@ -629,6 +630,190 @@ function WorkerRow({ w, canEdit, onSaved }: { w: any; canEdit: boolean; onSaved:
   );
 }
 
+function PayrollRunGroupCard({
+  title,
+  rows,
+  labour,
+  runStatus,
+  canWrite,
+  onEdit,
+}: {
+  title: string;
+  rows: any[];
+  labour: boolean;
+  runStatus: string;
+  canWrite: boolean;
+  onEdit: (line: any) => void;
+}) {
+  const pagination = useTablePagination(rows);
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <h3 className="font-display font-bold text-slate-900">{title}</h3>
+          <span className="text-xs text-slate-500">{rupees(rows.reduce((s: number, l: any) => s + l.net, 0))} net</span>
+        </div>
+        <ShowEntriesControl pageSize={pagination.pageSize} onPageSizeChange={pagination.setPageSize} />
+      </div>
+      <div className="hidden lg:block overflow-x-auto">
+        <table className="w-full min-w-[860px] text-sm">
+          <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <tr>
+              <th className="px-4 py-2 text-left">Name</th>
+              <th className="px-3 py-2 text-right">{labour ? "Days" : "Paid days"}</th>
+              {labour ? <th className="px-3 py-2 text-right">OT hrs</th> : <th className="px-3 py-2 text-right">Leave</th>}
+              <th className="px-3 py-2 text-right">{labour ? "Wage/day" : "Salary"}</th>
+              <th className="px-3 py-2 text-right">Earned</th>
+              <th className="px-3 py-2 text-right">Bonus</th>
+              <th className="px-3 py-2 text-right">Deductions</th>
+              <th className="px-3 py-2 text-right">Net pay</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {pagination.paginatedData.map((l: any) => (
+              <tr key={l.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                <td className="px-4 py-2.5">
+                  <div className="font-semibold text-slate-900">{l.personName}</div>
+                  <div className="text-xs text-slate-500">
+                    {(l.roleLabel || "").toLowerCase()}
+                    {l.projectName && ` · ${l.projectName}`}
+                  </div>
+                  {l.note && <div className="text-xs italic text-slate-500">{l.note}</div>}
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums">
+                  {days(l.payableDays)}
+                  {l.halfDays > 0 && <div className="text-[11px] text-slate-400">{l.halfDays} half</div>}
+                </td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{labour ? l.overtimeHours || "—" : l.leaveDays || "—"}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{rupees(l.rate)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums">{rupees(l.basePay + l.overtimePay)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700">{l.bonus ? rupees(l.bonus) : "—"}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-rose-600">
+                  {(() => {
+                    const statutory = l.pfEmployee + l.esiEmployee + l.professionalTax + l.tds;
+                    const all = l.advanceDeduction + l.otherDeduction + statutory;
+                    return (
+                      <>
+                        {all ? rupees(all) : "—"}
+                        {l.advanceDeduction > 0 && <div className="text-[11px] text-slate-400">advance {rupees(l.advanceDeduction)}</div>}
+                        {statutory > 0 && (
+                          <div className="text-[11px] text-slate-400">
+                            {[l.pfEmployee && `PF ${rupees(l.pfEmployee)}`, l.esiEmployee && `ESI ${rupees(l.esiEmployee)}`, l.professionalTax && `PT ${rupees(l.professionalTax)}`, l.tds && `TDS ${rupees(l.tds)}`]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </td>
+                <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-900">{rupees(l.net)}</td>
+                <td className="px-3 py-2.5">
+                  <div className="flex justify-end gap-1">
+                    {runStatus === "DRAFT" && canWrite && (
+                      <button onClick={() => onEdit(l)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Bonus or deduction">
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+                    <Link href={`/payroll/payslip/${l.id}`} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Payslip">
+                      <FileText className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="lg:hidden divide-y divide-slate-100">
+        {pagination.paginatedData.map((l: any) => {
+          const statutory = l.pfEmployee + l.esiEmployee + l.professionalTax + l.tds;
+          const allDed = l.advanceDeduction + l.otherDeduction + statutory;
+          return (
+            <div key={`m-${l.id}`} className="p-4 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900">{l.personName}</div>
+                  <div className="text-xs text-slate-500">
+                    {(l.roleLabel || "").toLowerCase()}
+                    {l.projectName && ` · ${l.projectName}`}
+                  </div>
+                  {l.note && <div className="text-xs italic text-slate-500 mt-0.5">{l.note}</div>}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-base font-bold tabular-nums text-slate-900">{rupees(l.net)}</div>
+                  <div className="text-[11px] text-slate-400">Net pay</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-xl bg-slate-50 p-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">{labour ? "Days" : "Paid days"}</span>
+                  <span className="font-semibold tabular-nums">{days(l.payableDays)}{l.halfDays > 0 ? ` (${l.halfDays}h)` : ""}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">{labour ? "OT hrs" : "Leave"}</span>
+                  <span className="font-semibold tabular-nums">{labour ? l.overtimeHours || "—" : l.leaveDays || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">{labour ? "Wage/day" : "Salary"}</span>
+                  <span className="font-semibold tabular-nums">{rupees(l.rate)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Earned</span>
+                  <span className="font-semibold tabular-nums">{rupees(l.basePay + l.overtimePay)}</span>
+                </div>
+                {l.bonus > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Bonus</span>
+                    <span className="font-semibold tabular-nums text-emerald-700">{rupees(l.bonus)}</span>
+                  </div>
+                )}
+                {allDed > 0 && (
+                  <div className="flex items-center justify-between col-span-2 pt-1 border-t border-slate-200/70">
+                    <span className="text-slate-500">Deductions</span>
+                    <span className="font-semibold tabular-nums text-rose-600">{rupees(allDed)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                {runStatus === "DRAFT" && canWrite && (
+                  <button
+                    onClick={() => onEdit(l)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Adjust
+                  </button>
+                )}
+                <Link
+                  href={`/payroll/payslip/${l.id}`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Payslip
+                </Link>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <TablePagination
+        currentPage={pagination.currentPage}
+        totalPages={pagination.totalPages}
+        totalItems={pagination.filteredCount}
+        totalUnfiltered={pagination.totalRecords}
+        pageSize={pagination.pageSize}
+        startItem={pagination.startItem}
+        endItem={pagination.endItem}
+        onPageChange={pagination.setCurrentPage}
+        itemLabel={labour ? "workers" : "staff"}
+      />
+    </div>
+  );
+}
+
 export default function PayrollPage() {
   const { refreshUser } = useAppSession();
   const [me, setMe] = useState<any>(null);
@@ -706,6 +891,9 @@ export default function PayrollPage() {
   const labour = run?.lines.filter((l: any) => l.personType === "LABOUR") || [];
   const staffLines = run?.lines.filter((l: any) => l.personType === "STAFF") || [];
   const openAdvances = advances.filter((a) => !a.recoveredRunId);
+  const staffSalaryPagination = useTablePagination(staff);
+  const workerSalaryPagination = useTablePagination(workers);
+  const advancesPagination = useTablePagination(advances);
 
   return (
     <Shell>
@@ -877,160 +1065,20 @@ export default function PayrollPage() {
                 ]
                   .filter((g) => g.rows.length > 0)
                   .map((g) => (
-                    <div key={g.title} className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                        <h3 className="font-display font-bold text-slate-900">{g.title}</h3>
-                        <span className="text-xs text-slate-500">{rupees(g.rows.reduce((s: number, l: any) => s + l.net, 0))} net</span>
-                      </div>
-                      <div className="hidden lg:block overflow-x-auto">
-                        <table className="w-full min-w-[860px] text-sm">
-                          <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                            <tr>
-                              <th className="px-4 py-2 text-left">Name</th>
-                              <th className="px-3 py-2 text-right">{g.labour ? "Days" : "Paid days"}</th>
-                              {g.labour ? <th className="px-3 py-2 text-right">OT hrs</th> : <th className="px-3 py-2 text-right">Leave</th>}
-                              <th className="px-3 py-2 text-right">{g.labour ? "Wage/day" : "Salary"}</th>
-                              <th className="px-3 py-2 text-right">Earned</th>
-                              <th className="px-3 py-2 text-right">Bonus</th>
-                              <th className="px-3 py-2 text-right">Deductions</th>
-                              <th className="px-3 py-2 text-right">Net pay</th>
-                              <th className="px-3 py-2" />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {g.rows.map((l: any) => (
-                              <tr key={l.id} className="border-t border-slate-100 hover:bg-slate-50/60">
-                                <td className="px-4 py-2.5">
-                                  <div className="font-semibold text-slate-900">{l.personName}</div>
-                                  <div className="text-xs text-slate-500">
-                                    {(l.roleLabel || "").toLowerCase()}
-                                    {l.projectName && ` · ${l.projectName}`}
-                                  </div>
-                                  {l.note && <div className="text-xs italic text-slate-500">{l.note}</div>}
-                                </td>
-                                <td className="px-3 py-2.5 text-right tabular-nums">
-                                  {days(l.payableDays)}
-                                  {l.halfDays > 0 && <div className="text-[11px] text-slate-400">{l.halfDays} half</div>}
-                                </td>
-                                <td className="px-3 py-2.5 text-right tabular-nums">{g.labour ? l.overtimeHours || "—" : l.leaveDays || "—"}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{rupees(l.rate)}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums">{rupees(l.basePay + l.overtimePay)}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700">{l.bonus ? rupees(l.bonus) : "—"}</td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-rose-600">
-                                  {(() => {
-                                    const statutory = l.pfEmployee + l.esiEmployee + l.professionalTax + l.tds;
-                                    const all = l.advanceDeduction + l.otherDeduction + statutory;
-                                    return (
-                                      <>
-                                        {all ? rupees(all) : "—"}
-                                        {l.advanceDeduction > 0 && <div className="text-[11px] text-slate-400">advance {rupees(l.advanceDeduction)}</div>}
-                                        {statutory > 0 && (
-                                          <div className="text-[11px] text-slate-400">
-                                            {[l.pfEmployee && `PF ${rupees(l.pfEmployee)}`, l.esiEmployee && `ESI ${rupees(l.esiEmployee)}`, l.professionalTax && `PT ${rupees(l.professionalTax)}`, l.tds && `TDS ${rupees(l.tds)}`]
-                                              .filter(Boolean)
-                                              .join(" · ")}
-                                          </div>
-                                        )}
-                                      </>
-                                    );
-                                  })()}
-                                </td>
-                                <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-900">{rupees(l.net)}</td>
-                                <td className="px-3 py-2.5">
-                                  <div className="flex justify-end gap-1">
-                                    {run.status === "DRAFT" && canWrite && (
-                                      <button onClick={() => setEditing(l)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Bonus or deduction">
-                                        <Pencil className="h-4 w-4" />
-                                      </button>
-                                    )}
-                                    <Link href={`/payroll/payslip/${l.id}`} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Payslip">
-                                      <FileText className="h-4 w-4" />
-                                    </Link>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="lg:hidden divide-y divide-slate-100">
-                        {g.rows.map((l: any) => {
-                          const statutory = l.pfEmployee + l.esiEmployee + l.professionalTax + l.tds;
-                          const allDed = l.advanceDeduction + l.otherDeduction + statutory;
-                          return (
-                            <div key={`m-${l.id}`} className="p-4 space-y-2.5">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="font-semibold text-slate-900">{l.personName}</div>
-                                  <div className="text-xs text-slate-500">
-                                    {(l.roleLabel || "").toLowerCase()}
-                                    {l.projectName && ` · ${l.projectName}`}
-                                  </div>
-                                  {l.note && <div className="text-xs italic text-slate-500 mt-0.5">{l.note}</div>}
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <div className="text-base font-bold tabular-nums text-slate-900">{rupees(l.net)}</div>
-                                  <div className="text-[11px] text-slate-400">Net pay</div>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-xl bg-slate-50 p-2.5 text-xs">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-slate-500">{g.labour ? "Days" : "Paid days"}</span>
-                                  <span className="font-semibold tabular-nums">{days(l.payableDays)}{l.halfDays > 0 ? ` (${l.halfDays}h)` : ""}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-slate-500">{g.labour ? "OT hrs" : "Leave"}</span>
-                                  <span className="font-semibold tabular-nums">{g.labour ? l.overtimeHours || "—" : l.leaveDays || "—"}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-slate-500">{g.labour ? "Wage/day" : "Salary"}</span>
-                                  <span className="font-semibold tabular-nums">{rupees(l.rate)}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-slate-500">Earned</span>
-                                  <span className="font-semibold tabular-nums">{rupees(l.basePay + l.overtimePay)}</span>
-                                </div>
-                                {l.bonus > 0 && (
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-slate-500">Bonus</span>
-                                    <span className="font-semibold tabular-nums text-emerald-700">{rupees(l.bonus)}</span>
-                                  </div>
-                                )}
-                                {allDed > 0 && (
-                                  <div className="flex items-center justify-between col-span-2 pt-1 border-t border-slate-200/70">
-                                    <span className="text-slate-500">Deductions</span>
-                                    <span className="font-semibold tabular-nums text-rose-600">{rupees(allDed)}</span>
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="flex items-center justify-end gap-2">
-                                {run.status === "DRAFT" && canWrite && (
-                                  <button
-                                    onClick={() => setEditing(l)}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" /> Adjust
-                                  </button>
-                                )}
-                                <Link
-                                  href={`/payroll/payslip/${l.id}`}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                >
-                                  <FileText className="h-3.5 w-3.5" /> Payslip
-                                </Link>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <PayrollRunGroupCard
+                      key={g.title}
+                      title={g.title}
+                      rows={g.rows}
+                      labour={g.labour}
+                      runStatus={run.status}
+                      canWrite={canWrite}
+                      onEdit={setEditing}
+                    />
                   ))}
                 {run.lines.length === 0 && (
                   <Alert tone="info">Nobody had attendance or a salary set for {monthLabel(month)}. Set staff salaries in the Staff salaries tab.</Alert>
                 )}
+
               </>
             )}
 
@@ -1060,6 +1108,12 @@ export default function PayrollPage() {
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
               <span>Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workers page, and their PF and ESI are below.</span>
+              {staff.length > 0 && (
+                <ShowEntriesControl
+                  pageSize={staffSalaryPagination.pageSize}
+                  onPageSizeChange={staffSalaryPagination.setPageSize}
+                />
+              )}
               {settings && (
                 <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                   Professional tax
@@ -1097,22 +1151,41 @@ export default function PayrollPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {staff.map((s) => (
+                  {staffSalaryPagination.paginatedData.map((s) => (
                     <SalaryRow key={s.id} s={s} canEdit={canWrite} onSaved={(list) => { setStaff(list); setNotice(`Salary saved for ${s.name}.`); }} />
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="lg:hidden divide-y divide-slate-100">
-              {staff.map((s) => (
+              {staffSalaryPagination.paginatedData.map((s) => (
                 <SalaryMobileCard key={`ms-${s.id}`} s={s} canEdit={canWrite} onSaved={(list) => { setStaff(list); setNotice(`Salary saved for ${s.name}.`); }} />
               ))}
             </div>
+            {staff.length > 0 && (
+              <TablePagination
+                currentPage={staffSalaryPagination.currentPage}
+                totalPages={staffSalaryPagination.totalPages}
+                totalItems={staffSalaryPagination.filteredCount}
+                totalUnfiltered={staffSalaryPagination.totalRecords}
+                pageSize={staffSalaryPagination.pageSize}
+                startItem={staffSalaryPagination.startItem}
+                endItem={staffSalaryPagination.endItem}
+                onPageChange={staffSalaryPagination.setCurrentPage}
+                itemLabel="staff"
+              />
+            )}
             {workers.length > 0 && (
               <>
-                <div className="border-y border-slate-100 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-y border-slate-100 bg-slate-50/60 px-4 py-3 text-sm text-slate-600">
+                  <div className="flex-1 min-w-[220px]">
                   <span className="font-bold text-slate-900">Site workers.</span> Tick PF or ESI for workers who are covered. PF is 12% of wages up to ₹15,000 a month; ESI is 0.75%
                   from the worker and 3.25% from you while 26 days&apos; wages are ₹21,000 or less. Professional tax is not cut from daily wages.
+                  </div>
+                  <ShowEntriesControl
+                    pageSize={workerSalaryPagination.pageSize}
+                    onPageSizeChange={workerSalaryPagination.setPageSize}
+                  />
                 </div>
                 <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full min-w-[760px] text-sm">
@@ -1125,17 +1198,28 @@ export default function PayrollPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {workers.map((w) => (
+                      {workerSalaryPagination.paginatedData.map((w) => (
                         <WorkerRow key={w.id} w={w} canEdit={canWrite} onSaved={(list) => { setWorkers(list); setNotice(`Saved for ${w.name}. Refresh a draft payroll to apply it.`); }} />
                       ))}
                     </tbody>
                   </table>
                 </div>
                 <div className="lg:hidden divide-y divide-slate-100">
-                  {workers.map((w) => (
+                  {workerSalaryPagination.paginatedData.map((w) => (
                     <WorkerMobileCard key={`mw-${w.id}`} w={w} canEdit={canWrite} onSaved={(list) => { setWorkers(list); setNotice(`Saved for ${w.name}. Refresh a draft payroll to apply it.`); }} />
                   ))}
                 </div>
+                <TablePagination
+                  currentPage={workerSalaryPagination.currentPage}
+                  totalPages={workerSalaryPagination.totalPages}
+                  totalItems={workerSalaryPagination.filteredCount}
+                  totalUnfiltered={workerSalaryPagination.totalRecords}
+                  pageSize={workerSalaryPagination.pageSize}
+                  startItem={workerSalaryPagination.startItem}
+                  endItem={workerSalaryPagination.endItem}
+                  onPageChange={workerSalaryPagination.setCurrentPage}
+                  itemLabel="workers"
+                />
               </>
             )}
           </div>
@@ -1143,11 +1227,22 @@ export default function PayrollPage() {
 
         {tab === "ADVANCES" && (
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+            {advances.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
+                <ShowEntriesControl
+                  pageSize={advancesPagination.pageSize}
+                  onPageSizeChange={advancesPagination.setPageSize}
+                />
+                <span className="text-xs text-slate-500">
+                  Showing {advancesPagination.startItem} to {advancesPagination.endItem} of {advancesPagination.filteredCount} advances
+                </span>
+              </div>
+            )}
             <div className="sm:hidden divide-y divide-slate-100">
               {advances.length === 0 ? (
                 <div className="px-4 py-10 text-center text-sm text-slate-500">No advances given yet.</div>
               ) : (
-                advances.map((a) => (
+                advancesPagination.paginatedData.map((a) => (
                   <div key={`ma-${a.id}`} className="p-4 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-semibold text-slate-900 truncate">{a.personName}</div>
@@ -1179,7 +1274,7 @@ export default function PayrollPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {advances.map((a) => (
+                  {advancesPagination.paginatedData.map((a) => (
                     <tr key={a.id} className="border-t border-slate-100">
                       <td className="px-4 py-2.5">
                         <div className="font-semibold text-slate-900">{a.personName}</div>
@@ -1204,6 +1299,19 @@ export default function PayrollPage() {
                 </tbody>
               </table>
             </div>
+            {advances.length > 0 && (
+              <TablePagination
+                currentPage={advancesPagination.currentPage}
+                totalPages={advancesPagination.totalPages}
+                totalItems={advancesPagination.filteredCount}
+                totalUnfiltered={advancesPagination.totalRecords}
+                pageSize={advancesPagination.pageSize}
+                startItem={advancesPagination.startItem}
+                endItem={advancesPagination.endItem}
+                onPageChange={advancesPagination.setCurrentPage}
+                itemLabel="advances"
+              />
+            )}
           </div>
         )}
       </div>

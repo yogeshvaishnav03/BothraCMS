@@ -1107,7 +1107,7 @@ export class FinanceService {
         },
         lines: true,
       },
-      orderBy: { billDate: "asc" },
+      orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
     });
 
     // 2. Fetch payments
@@ -1118,7 +1118,7 @@ export class FinanceService {
           include: { bill: true },
         },
       },
-      orderBy: { paymentDate: "asc" },
+      orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
     });
 
     let totalBilled = 0;

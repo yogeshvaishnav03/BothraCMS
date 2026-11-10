@@ -584,7 +584,7 @@ export class InventoryService {
         task: true,
         creator: { select: { id: true, name: true, email: true } },
       },
-      orderBy: { movementAt: "asc" },
+      orderBy: [{ movementAt: "asc" }, { createdAt: "asc" }],
     });
 
     let runningBalance = 0;
@@ -619,7 +619,7 @@ export class InventoryService {
       currentBalance: runningBalance,
       totalReceived,
       totalIssued,
-      entries: ledgerEntries,
+      entries: ledgerEntries.reverse(),
     };
   }
 
@@ -856,7 +856,7 @@ export class InventoryService {
             include: { store: { include: { site: true } } },
           },
         },
-        orderBy: { name: "asc" },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.site.findMany({
         where: { organizationId, status: "ACTIVE" },

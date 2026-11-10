@@ -3,7 +3,7 @@
 import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo } from "react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, useTablePagination, ExcelColumnHeader, ExcelTableToolbar, ShowEntriesControl, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import Link from "next/link";
@@ -101,8 +101,6 @@ export default function ProjectsPage() {
   const [activeSiteFilter, setActiveSiteFilter] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 8;
 
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
@@ -126,11 +124,17 @@ export default function ProjectsPage() {
     });
   }, [projects, statusFilter, activeSiteFilter, searchQuery]);
 
-  const totalPages = Math.ceil(filteredProjects.length / pageSize) || 1;
-  const paginatedProjects = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredProjects.slice(start, start + pageSize);
-  }, [filteredProjects, currentPage, pageSize]);
+  const {
+    paginatedData: paginatedProjects,
+    pageSize: projectPageSize,
+    setPageSize: setProjectPageSize,
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    totalItems: totalProjectItems,
+    startItem: projectStartItem,
+    endItem: projectEndItem,
+  } = useTablePagination(filteredProjects);
 
   const resetFilters = () => {
     setSearchQuery("");
@@ -673,9 +677,13 @@ export default function ProjectsPage() {
                 </select>
               </div>
 
-              <div className="flex items-center justify-between md:justify-end gap-3 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 text-xs text-slate-500">
+                <ShowEntriesControl
+                  pageSize={projectPageSize}
+                  onPageSizeChange={setProjectPageSize}
+                />
                 <span>
-                  Showing <strong>{paginatedProjects.length}</strong> of <strong>{filteredProjects.length}</strong> projects
+                  Showing <strong>{totalProjectItems === 0 ? 0 : `${projectStartItem}–${projectEndItem}`}</strong> of <strong>{filteredProjects.length}</strong> projects
                 </span>
 
                 {(searchQuery || statusFilter !== "ALL" || activeSiteFilter) && (
@@ -784,29 +792,19 @@ export default function ProjectsPage() {
                   ))}
                 </div>
 
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-xs text-slate-600">
-                    <button
-                      type="button"
-                      disabled={currentPage <= 1}
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 font-semibold"
-                    >
-                      Previous
-                    </button>
-                    <span>
-                      Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      disabled={currentPage >= totalPages}
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 font-semibold"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
+                <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-xs">
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalProjectItems}
+                    totalUnfiltered={projects.length}
+                    pageSize={projectPageSize}
+                    startItem={projectStartItem}
+                    endItem={projectEndItem}
+                    onPageChange={setCurrentPage}
+                    itemLabel="projects"
+                  />
+                </div>
               </>
             )}
           </div>
@@ -985,7 +983,7 @@ export default function ProjectsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelReports.filteredData.map((r) => (
+                    {excelReports.paginatedData.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4 font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
                           {formatDate(r.reportDate)}
@@ -1025,6 +1023,17 @@ export default function ProjectsPage() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination
+                currentPage={excelReports.currentPage}
+                totalPages={excelReports.totalPages}
+                totalItems={excelReports.filteredCount}
+                totalUnfiltered={excelReports.totalRecords}
+                pageSize={excelReports.pageSize}
+                startItem={excelReports.startItem}
+                endItem={excelReports.endItem}
+                onPageChange={excelReports.setCurrentPage}
+                itemLabel="daily site reports"
+              />
             </div>
           )
         )}

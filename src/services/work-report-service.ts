@@ -169,7 +169,7 @@ export class WorkReportService {
     const rows = await prisma.dailyWorkReport.findMany({
       where: { organizationId, userId },
       include: reportInclude,
-      orderBy: { reportDate: "desc" },
+      orderBy: [{ reportDate: "desc" }, { createdAt: "desc" }],
       take: limit,
     });
     return rows.map(shape);

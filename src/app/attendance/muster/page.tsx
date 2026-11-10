@@ -5,6 +5,7 @@ import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { cn } from "@/lib/cn";
 import { submitOrQueue } from "@/lib/offline-queue";
 import { api, rupees } from "@/lib/client-api";
@@ -129,6 +130,7 @@ export default function MusterPage() {
       return showAll || w.usualSite || (marks[w.id]?.mark || "NONE") !== "NONE";
     });
   }, [workers, query, showAll, marks]);
+  const musterPagination = useTablePagination(visible);
   const hiddenCount = workers.length - workers.filter((w) => w.usualSite || (marks[w.id]?.mark || "NONE") !== "NONE").length;
 
   const totals = useMemo(() => {
@@ -298,8 +300,18 @@ export default function MusterPage() {
           </div>
         ) : (
           muster && (
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-              {visible.map((w) => {
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+            <ul className="divide-y divide-slate-100">
+              <li className="flex flex-wrap items-center justify-between gap-2 bg-slate-50/60 px-3 py-2.5 sm:px-4">
+                <ShowEntriesControl
+                  pageSize={musterPagination.pageSize}
+                  onPageSizeChange={musterPagination.setPageSize}
+                />
+                <span className="text-xs text-slate-500">
+                  Showing {musterPagination.startItem} to {musterPagination.endItem} of {musterPagination.filteredCount} workers
+                </span>
+              </li>
+              {musterPagination.paginatedData.map((w) => {
                 const m = marks[w.id] || { mark: "NONE" as Mark, ot: 0 };
                 const dirty = m.mark !== w.mark || m.ot !== w.overtimeHours;
                 return (
@@ -364,6 +376,20 @@ export default function MusterPage() {
                 </li>
               )}
             </ul>
+            {visible.length > 0 && (
+              <TablePagination
+                currentPage={musterPagination.currentPage}
+                totalPages={musterPagination.totalPages}
+                totalItems={musterPagination.filteredCount}
+                totalUnfiltered={musterPagination.totalRecords}
+                pageSize={musterPagination.pageSize}
+                startItem={musterPagination.startItem}
+                endItem={musterPagination.endItem}
+                onPageChange={musterPagination.setCurrentPage}
+                itemLabel="workers"
+              />
+            )}
+            </div>
           )
         )}
       </div>

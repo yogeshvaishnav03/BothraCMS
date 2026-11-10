@@ -5,6 +5,7 @@ import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { Field, Modal, StatTile, inputCls } from "@/components/ui/Modal";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { api, post, shortDate } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
@@ -154,11 +155,22 @@ export default function DrawingsPage() {
       (d: any) => d.project?.siteId === activeSiteId || visibleProjects.some((p) => p.id === d.projectId || p.id === d.project?.id)
     );
   }, [data?.drawings, activeSiteId, visibleProjects]);
+  const drawingsPagination = useTablePagination(visibleDrawings);
   // Coming back from the viewer opens that drawing again.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id");
     if (id) setOpen(id);
   }, []);
+  useEffect(() => {
+    if (!open || visibleDrawings.length === 0 || drawingsPagination.pageSize <= 0) return;
+    const idx = visibleDrawings.findIndex((d: any) => d.id === open);
+    if (idx >= 0) {
+      const targetPage = Math.floor(idx / drawingsPagination.pageSize) + 1;
+      if (targetPage !== drawingsPagination.currentPage) {
+        drawingsPagination.setCurrentPage(targetPage);
+      }
+    }
+  }, [open, visibleDrawings, drawingsPagination]);
   const [adding, setAdding] = useState(false);
   const [revising, setRevising] = useState<any>(null);
   const [rejectTargetRev, setRejectTargetRev] = useState<any>(null);
@@ -258,7 +270,16 @@ export default function DrawingsPage() {
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No drawings yet. Add the first one with its PDF.</div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-            {visibleDrawings.map((d: any) => {
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5 bg-slate-50/50">
+              <ShowEntriesControl
+                pageSize={drawingsPagination.pageSize}
+                onPageSizeChange={drawingsPagination.setPageSize}
+              />
+              <span className="text-xs text-slate-500">
+                Showing {drawingsPagination.startItem} to {drawingsPagination.endItem} of {drawingsPagination.filteredCount} drawings
+              </span>
+            </div>
+            {drawingsPagination.paginatedData.map((d: any) => {
               const isOpen = open === d.id;
               const disc = DISCIPLINES[d.discipline] || DISCIPLINES.OTHER;
               return (
@@ -351,6 +372,17 @@ export default function DrawingsPage() {
                 </div>
               );
             })}
+            <TablePagination
+              currentPage={drawingsPagination.currentPage}
+              totalPages={drawingsPagination.totalPages}
+              totalItems={drawingsPagination.filteredCount}
+              totalUnfiltered={drawingsPagination.totalRecords}
+              pageSize={drawingsPagination.pageSize}
+              startItem={drawingsPagination.startItem}
+              endItem={drawingsPagination.endItem}
+              onPageChange={drawingsPagination.setCurrentPage}
+              itemLabel="drawings"
+            />
           </div>
         )}
       </div>

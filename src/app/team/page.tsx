@@ -5,6 +5,7 @@ import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { ContactActions } from "@/components/ui/ContactActions";
 import { canUser } from "@/lib/permissions";
 import { cn } from "@/lib/cn";
@@ -157,6 +158,8 @@ export default function TeamPage() {
         (!q || [m.name, m.email, m.phone, m.jobTitle].filter(Boolean).some((v) => String(v).toLowerCase().includes(q)))
     );
   }, [members, search, roleFilter, statusFilter]);
+
+  const teamPagination = useTablePagination(filtered);
 
   const counts = useMemo(() => {
     const active = members.filter((m) => m.status === "ACTIVE");
@@ -410,8 +413,18 @@ export default function TeamPage() {
             <p className="text-sm font-semibold text-slate-800 mt-2">No one matches</p>
           </div>
         ) : (
+          <>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs">
+            <ShowEntriesControl
+              pageSize={teamPagination.pageSize}
+              onPageSizeChange={teamPagination.setPageSize}
+            />
+            <span className="text-xs text-slate-500">
+              Showing {teamPagination.startItem} to {teamPagination.endItem} of {teamPagination.filteredCount} team members
+            </span>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger">
-            {filtered.map((m) => {
+            {teamPagination.paginatedData.map((m) => {
               const meta = roleMeta(m.role);
               const isMe = m.id === me?.id;
               const inactive = m.status !== "ACTIVE";
@@ -481,6 +494,20 @@ export default function TeamPage() {
               );
             })}
           </div>
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+            <TablePagination
+              currentPage={teamPagination.currentPage}
+              totalPages={teamPagination.totalPages}
+              totalItems={teamPagination.filteredCount}
+              totalUnfiltered={teamPagination.totalRecords}
+              pageSize={teamPagination.pageSize}
+              startItem={teamPagination.startItem}
+              endItem={teamPagination.endItem}
+              onPageChange={teamPagination.setCurrentPage}
+              itemLabel="team members"
+            />
+          </div>
+          </>
         )}
 
         {/* Add / edit */}

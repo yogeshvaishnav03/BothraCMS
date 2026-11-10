@@ -2,6 +2,7 @@
 
 import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { formatDate } from "@/lib/formatters";
@@ -469,6 +470,8 @@ export default function TasksPage() {
     );
   });
 
+  const tasksPagination = useTablePagination(filteredTasks);
+
   return (
     <Shell>
       <div className="space-y-6">
@@ -576,7 +579,16 @@ export default function TasksPage() {
           </div>
         ) : (
           <div className="space-y-3.5">
-            {filteredTasks.map((t) => {
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 shadow-xs">
+              <ShowEntriesControl
+                pageSize={tasksPagination.pageSize}
+                onPageSizeChange={tasksPagination.setPageSize}
+              />
+              <span className="text-xs text-slate-500">
+                Showing {tasksPagination.startItem} to {tasksPagination.endItem} of {tasksPagination.filteredCount} tasks
+              </span>
+            </div>
+            {tasksPagination.paginatedData.map((t) => {
               const overdue = isTaskOverdue(t);
               const commentCount = t.comments ? t.comments.length : 0;
 
@@ -804,6 +816,19 @@ export default function TasksPage() {
                 </div>
               );
             })}
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+              <TablePagination
+                currentPage={tasksPagination.currentPage}
+                totalPages={tasksPagination.totalPages}
+                totalItems={tasksPagination.filteredCount}
+                totalUnfiltered={tasksPagination.totalRecords}
+                pageSize={tasksPagination.pageSize}
+                startItem={tasksPagination.startItem}
+                endItem={tasksPagination.endItem}
+                onPageChange={tasksPagination.setCurrentPage}
+                itemLabel="tasks"
+              />
+            </div>
           </div>
         )}
 

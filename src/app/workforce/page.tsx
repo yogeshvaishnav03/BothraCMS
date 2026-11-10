@@ -28,7 +28,7 @@ import {
   Check,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 
@@ -940,7 +940,7 @@ export default function WorkforcePage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
-                        {excelHeadcount.filteredData.map((r) => (
+                        {excelHeadcount.paginatedData.map((r) => (
                         <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="font-bold text-slate-900">{formatDate(r.date)}</div>
@@ -1046,7 +1046,7 @@ export default function WorkforcePage() {
                       <p className="text-xs text-slate-400">Try adjusting your filters.</p>
                     </div>
                   ) : (
-                    excelHeadcount.filteredData.map((r) => (
+                    excelHeadcount.paginatedData.map((r) => (
                       <div key={`hc-card-${r.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -1097,6 +1097,17 @@ export default function WorkforcePage() {
                     ))
                   )}
                 </div>
+                <TablePagination
+                  currentPage={excelHeadcount.currentPage}
+                  totalPages={excelHeadcount.totalPages}
+                  totalItems={excelHeadcount.filteredCount}
+                  totalUnfiltered={excelHeadcount.totalRecords}
+                  pageSize={excelHeadcount.pageSize}
+                  startItem={excelHeadcount.startItem}
+                  endItem={excelHeadcount.endItem}
+                  onPageChange={excelHeadcount.setCurrentPage}
+                  itemLabel="headcount records"
+                />
               </div>
               )}
             </div>
@@ -1148,7 +1159,7 @@ export default function WorkforcePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {excelWorkers.filteredData.map((w) => (
+                  {excelWorkers.paginatedData.map((w) => (
                     <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{w.name}</div>
@@ -1178,6 +1189,17 @@ export default function WorkforcePage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelWorkers.currentPage}
+              totalPages={excelWorkers.totalPages}
+              totalItems={excelWorkers.filteredCount}
+              totalUnfiltered={excelWorkers.totalRecords}
+              pageSize={excelWorkers.pageSize}
+              startItem={excelWorkers.startItem}
+              endItem={excelWorkers.endItem}
+              onPageChange={excelWorkers.setCurrentPage}
+              itemLabel="workers"
+            />
           </div>
         )}
 

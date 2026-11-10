@@ -8,7 +8,7 @@ import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   Receipt,
   Plus,
@@ -709,7 +709,7 @@ export default function ExpensesPage() {
                       </td>
                     </tr>
                   ) : (
-                    excelExpenses.filteredData.map((exp) => {
+                    excelExpenses.paginatedData.map((exp) => {
                       const receipt = exp.receipt || (exp.attachments && exp.attachments[0]) || null;
                       const isPending = exp.status === "PENDING_APPROVAL";
 
@@ -869,7 +869,7 @@ export default function ExpensesPage() {
                   </button>
                 </div>
               ) : (
-                excelExpenses.filteredData.map((exp) => {
+                excelExpenses.paginatedData.map((exp) => {
                   const receipt = exp.receipt || (exp.attachments && exp.attachments[0]) || null;
                   const isPending = exp.status === "PENDING_APPROVAL";
 
@@ -1005,6 +1005,17 @@ export default function ExpensesPage() {
                 })
               )}
             </div>
+            <TablePagination
+              currentPage={excelExpenses.currentPage}
+              totalPages={excelExpenses.totalPages}
+              totalItems={excelExpenses.filteredCount}
+              totalUnfiltered={excelExpenses.totalRecords}
+              pageSize={excelExpenses.pageSize}
+              startItem={excelExpenses.startItem}
+              endItem={excelExpenses.endItem}
+              onPageChange={excelExpenses.setCurrentPage}
+              itemLabel="expenses"
+            />
           </div>
         )}
 

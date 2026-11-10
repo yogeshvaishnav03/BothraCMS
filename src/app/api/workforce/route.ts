@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     let workers = await prisma.workforceMember.findMany({
       where,
       include: { defaultSite: true },
-      orderBy: { name: "asc" },
+      orderBy: { createdAt: "desc" },
     });
 
     if (workers.length === 0) {
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
         workers = await prisma.workforceMember.findMany({
           where,
           include: { defaultSite: true },
-          orderBy: { name: "asc" },
+          orderBy: { createdAt: "desc" },
         });
       }
 
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
         workers = await prisma.workforceMember.findMany({
           where: { organizationId: user.organizationId, active: true },
           include: { defaultSite: true },
-          orderBy: { name: "asc" },
+          orderBy: { createdAt: "desc" },
         });
       }
     }

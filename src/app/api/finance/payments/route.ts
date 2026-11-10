@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
           select: { id: true, fileId: true, fileName: true, category: true, mimeType: true },
         },
       },
-      orderBy: { paymentDate: "desc" },
+      orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
     });
 
     return jsonSuccess(payments);

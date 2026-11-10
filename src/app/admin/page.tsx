@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -752,7 +752,7 @@ export default function SuperAdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelOrders.filteredData.map((o) => (
+                    {excelOrders.paginatedData.map((o) => (
                     <tr key={o.id} className="hover:bg-amber-50/40 transition">
                       <td className="py-3.5 px-4">
                         <div className="font-mono font-bold text-slate-900">{o.orderNumber}</div>
@@ -836,6 +836,17 @@ export default function SuperAdminDashboardPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelOrders.currentPage}
+              totalPages={excelOrders.totalPages}
+              totalItems={excelOrders.filteredCount}
+              totalUnfiltered={excelOrders.totalRecords}
+              pageSize={excelOrders.pageSize}
+              startItem={excelOrders.startItem}
+              endItem={excelOrders.endItem}
+              onPageChange={excelOrders.setCurrentPage}
+              itemLabel="purchase orders"
+            />
           </div>
           )}
         </div>
@@ -1007,7 +1018,7 @@ export default function SuperAdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelAdminPayments.filteredData.map((p) => {
+                    {excelAdminPayments.paginatedData.map((p) => {
                     const payee = p.recipientName || p.party?.name || "Recipient";
                     const rType = p.recipientType || (p.party?.type) || "VENDOR";
                     return (
@@ -1095,6 +1106,17 @@ export default function SuperAdminDashboardPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelAdminPayments.currentPage}
+              totalPages={excelAdminPayments.totalPages}
+              totalItems={excelAdminPayments.filteredCount}
+              totalUnfiltered={excelAdminPayments.totalRecords}
+              pageSize={excelAdminPayments.pageSize}
+              startItem={excelAdminPayments.startItem}
+              endItem={excelAdminPayments.endItem}
+              onPageChange={excelAdminPayments.setCurrentPage}
+              itemLabel="disbursements"
+            />
           </div>
           )}
         </div>
@@ -1248,7 +1270,7 @@ export default function SuperAdminDashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  excelTenants.filteredData.map((t) => (
+                  excelTenants.paginatedData.map((t) => (
                     <tr key={t.id} className="hover:bg-slate-50/70">
                       <td className="py-3 px-4 font-bold text-slate-900">{t.name}</td>
                       <td className="py-3 px-4 font-mono text-[11px] text-slate-500">{t.id}</td>
@@ -1311,6 +1333,17 @@ export default function SuperAdminDashboardPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={excelTenants.currentPage}
+            totalPages={excelTenants.totalPages}
+            totalItems={excelTenants.filteredCount}
+            totalUnfiltered={excelTenants.totalRecords}
+            pageSize={excelTenants.pageSize}
+            startItem={excelTenants.startItem}
+            endItem={excelTenants.endItem}
+            onPageChange={excelTenants.setCurrentPage}
+            itemLabel="organizations"
+          />
         </div>
 
         {/* Unified Admin Action Confirmation / Reason Modal */}

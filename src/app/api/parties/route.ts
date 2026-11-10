@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
             },
           }
         : undefined,
-      orderBy: { name: "asc" },
+      orderBy: { createdAt: "desc" },
     });
 
     const enriched = parties.map((p: any) => {

@@ -3,7 +3,7 @@
 import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
@@ -890,7 +890,7 @@ export default function MaterialsPage() {
                       </td>
                     </tr>
                   ) : (
-                    excelMaterials.filteredData.map((m) => {
+                    excelMaterials.paginatedData.map((m) => {
                       const isExpanded = expandedMaterialIds.has(m.id);
                       return (
                         <React.Fragment key={m.id}>
@@ -1186,7 +1186,7 @@ export default function MaterialsPage() {
                   </button>
                 </div>
               ) : (
-                excelMaterials.filteredData.map((m) => {
+                excelMaterials.paginatedData.map((m) => {
                   const isExpanded = expandedMaterialIds.has(m.id);
                   return (
                     <div
@@ -1375,6 +1375,17 @@ export default function MaterialsPage() {
                 })
               )}
             </div>
+            <TablePagination
+              currentPage={excelMaterials.currentPage}
+              totalPages={excelMaterials.totalPages}
+              totalItems={excelMaterials.filteredCount}
+              totalUnfiltered={excelMaterials.totalRecords}
+              pageSize={excelMaterials.pageSize}
+              startItem={excelMaterials.startItem}
+              endItem={excelMaterials.endItem}
+              onPageChange={excelMaterials.setCurrentPage}
+              itemLabel="materials"
+            />
           </div>
         )}
 

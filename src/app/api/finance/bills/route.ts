@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
         lines: { include: { material: true } },
         allocations: { where: { reversedAt: null } },
       },
-      orderBy: { billDate: "desc" },
+      orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
     });
 
     const enriched = bills.map((b: any) => {

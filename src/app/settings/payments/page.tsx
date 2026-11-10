@@ -5,6 +5,7 @@ import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { api, patch, post, rupees } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
 import { ArrowLeft, CheckCircle2, Circle, CreditCard, FlaskConical, Loader2, Save, PlugZap } from "lucide-react";
@@ -73,6 +74,7 @@ export default function PaymentsSettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
   const [origin, setOrigin] = useState("");
+  const logPagination = useTablePagination(log);
 
   const load = async () => {
     const d = await api<{ settings: Settings; log: Row[] }>("/api/organization/payments");
@@ -284,7 +286,15 @@ export default function PaymentsSettingsPage() {
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <h2 className="border-b border-slate-100 px-5 py-3 text-sm font-bold text-slate-900">Recent online payments</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
+                <h2 className="text-sm font-bold text-slate-900">Recent online payments</h2>
+                {log.length > 0 && (
+                  <ShowEntriesControl
+                    pageSize={logPagination.pageSize}
+                    onPageSizeChange={logPagination.setPageSize}
+                  />
+                )}
+              </div>
               {log.length === 0 ? (
                 <p className="px-5 py-6 text-center text-sm text-slate-500">No online payments yet.</p>
               ) : (
@@ -301,7 +311,7 @@ export default function PaymentsSettingsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {log.map((r) => (
+                      {logPagination.paginatedData.map((r) => (
                         <tr key={r.id}>
                           <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{new Date(r.paidAt || r.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</td>
                           <td className="px-4 py-2.5">
@@ -323,6 +333,19 @@ export default function PaymentsSettingsPage() {
                     </tbody>
                   </table>
                 </div>
+              )}
+              {log.length > 0 && (
+                <TablePagination
+                  currentPage={logPagination.currentPage}
+                  totalPages={logPagination.totalPages}
+                  totalItems={logPagination.filteredCount}
+                  totalUnfiltered={logPagination.totalRecords}
+                  pageSize={logPagination.pageSize}
+                  startItem={logPagination.startItem}
+                  endItem={logPagination.endItem}
+                  onPageChange={logPagination.setCurrentPage}
+                  itemLabel="payments"
+                />
               )}
             </section>
           </>

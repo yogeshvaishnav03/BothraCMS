@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
@@ -408,7 +408,7 @@ export default function PartyStatementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {excelMaterialSummaries.filteredData.map((m, idx) => (
+                  {excelMaterialSummaries.paginatedData.map((m, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/80">
                       <td className="py-3 px-4 font-bold text-slate-900">{m.description}</td>
                       <td className="py-3 px-4 text-right font-medium text-slate-700">
@@ -422,6 +422,17 @@ export default function PartyStatementPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelMaterialSummaries.currentPage}
+              totalPages={excelMaterialSummaries.totalPages}
+              totalItems={excelMaterialSummaries.filteredCount}
+              totalUnfiltered={excelMaterialSummaries.totalRecords}
+              pageSize={excelMaterialSummaries.pageSize}
+              startItem={excelMaterialSummaries.startItem}
+              endItem={excelMaterialSummaries.endItem}
+              onPageChange={excelMaterialSummaries.setCurrentPage}
+              itemLabel="material items"
+            />
           </div>
         )}
 
@@ -466,7 +477,7 @@ export default function PartyStatementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {excelBills.filteredData.map((b: any) => (
+                  {excelBills.paginatedData.map((b: any) => (
                     <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
                         {b.billNumber}
@@ -504,6 +515,17 @@ export default function PartyStatementPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelBills.currentPage}
+              totalPages={excelBills.totalPages}
+              totalItems={excelBills.filteredCount}
+              totalUnfiltered={excelBills.totalRecords}
+              pageSize={excelBills.pageSize}
+              startItem={excelBills.startItem}
+              endItem={excelBills.endItem}
+              onPageChange={excelBills.setCurrentPage}
+              itemLabel="bills"
+            />
             </>
           )}
         </div>
@@ -550,7 +572,7 @@ export default function PartyStatementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {excelPayments.filteredData.map((p: any) => (
+                  {excelPayments.paginatedData.map((p: any) => (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4 text-xs font-mono text-slate-600">
                         {formatDate(p.paymentDate)}
@@ -599,6 +621,17 @@ export default function PartyStatementPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelPayments.currentPage}
+              totalPages={excelPayments.totalPages}
+              totalItems={excelPayments.filteredCount}
+              totalUnfiltered={excelPayments.totalRecords}
+              pageSize={excelPayments.pageSize}
+              startItem={excelPayments.startItem}
+              endItem={excelPayments.endItem}
+              onPageChange={excelPayments.setCurrentPage}
+              itemLabel="payments"
+            />
             </>
           )}
         </div>
@@ -659,7 +692,7 @@ export default function PartyStatementPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelOrders.filteredData.map((po: any) => (
+                    {excelOrders.paginatedData.map((po: any) => (
                       <tr key={po.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-xs text-slate-900">
                           {po.orderNumber}
@@ -718,6 +751,17 @@ export default function PartyStatementPage() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination
+                currentPage={excelOrders.currentPage}
+                totalPages={excelOrders.totalPages}
+                totalItems={excelOrders.filteredCount}
+                totalUnfiltered={excelOrders.totalRecords}
+                pageSize={excelOrders.pageSize}
+                startItem={excelOrders.startItem}
+                endItem={excelOrders.endItem}
+                onPageChange={excelOrders.setCurrentPage}
+                itemLabel="purchase orders"
+              />
               </>
             )}
           </div>

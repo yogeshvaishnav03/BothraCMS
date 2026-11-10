@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
@@ -446,7 +446,7 @@ export default function MaterialDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelOrders.filteredData.map((po: any) => (
+                    {excelOrders.paginatedData.map((po: any) => (
                     <tr key={po.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-xs text-slate-900">
                         {po.orderNumber}
@@ -563,6 +563,17 @@ export default function MaterialDetailPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelOrders.currentPage}
+              totalPages={excelOrders.totalPages}
+              totalItems={excelOrders.filteredCount}
+              totalUnfiltered={excelOrders.totalRecords}
+              pageSize={excelOrders.pageSize}
+              startItem={excelOrders.startItem}
+              endItem={excelOrders.endItem}
+              onPageChange={excelOrders.setCurrentPage}
+              itemLabel="purchase orders"
+            />
           </div>
           )}
         </div>
@@ -612,7 +623,7 @@ export default function MaterialDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelLedger.filteredData.map((m: any) => {
+                    {excelLedger.paginatedData.map((m: any) => {
                     const isPositive = m.quantityDelta > 0;
                     return (
                       <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
@@ -683,6 +694,17 @@ export default function MaterialDetailPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelLedger.currentPage}
+              totalPages={excelLedger.totalPages}
+              totalItems={excelLedger.filteredCount}
+              totalUnfiltered={excelLedger.totalRecords}
+              pageSize={excelLedger.pageSize}
+              startItem={excelLedger.startItem}
+              endItem={excelLedger.endItem}
+              onPageChange={excelLedger.setCurrentPage}
+              itemLabel="stock movements"
+            />
           </div>
           )}
         </div>

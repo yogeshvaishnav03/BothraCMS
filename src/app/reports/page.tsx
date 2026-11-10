@@ -2,7 +2,7 @@
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -399,7 +399,7 @@ export default function ReportsPage() {
                         </td>
                       </tr>
                     ) : (
-                      excelStock.filteredData.map((m) => (
+                      excelStock.paginatedData.map((m) => (
                         <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 px-4 font-mono text-xs font-bold text-slate-900">
                             {m.sku}
@@ -429,6 +429,17 @@ export default function ReportsPage() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination
+                currentPage={excelStock.currentPage}
+                totalPages={excelStock.totalPages}
+                totalItems={excelStock.filteredCount}
+                totalUnfiltered={excelStock.totalRecords}
+                pageSize={excelStock.pageSize}
+                startItem={excelStock.startItem}
+                endItem={excelStock.endItem}
+                onPageChange={excelStock.setCurrentPage}
+                itemLabel="stock inventory"
+              />
             </div>
           </div>
         ) : (canReadFinance && reportType === "PAYABLES") ? (
@@ -479,7 +490,7 @@ export default function ReportsPage() {
                         </td>
                       </tr>
                     ) : (
-                      excelPayables.filteredData.map((p) => (
+                      excelPayables.paginatedData.map((p) => (
                         <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 px-4 font-bold text-slate-900">{p.name}</td>
                           <td className="py-3.5 px-4">
@@ -517,6 +528,17 @@ export default function ReportsPage() {
                   )}
                 </table>
               </div>
+              <TablePagination
+                currentPage={excelPayables.currentPage}
+                totalPages={excelPayables.totalPages}
+                totalItems={excelPayables.filteredCount}
+                totalUnfiltered={excelPayables.totalRecords}
+                pageSize={excelPayables.pageSize}
+                startItem={excelPayables.startItem}
+                endItem={excelPayables.endItem}
+                onPageChange={excelPayables.setCurrentPage}
+                itemLabel="payables"
+              />
             </div>
           </div>
         ) : (
@@ -569,7 +591,7 @@ export default function ReportsPage() {
                       </td>
                     </tr>
                   ) : (
-                    excelAttendanceReport.filteredData.map((a) => (
+                    excelAttendanceReport.paginatedData.map((a) => (
                       <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4 text-xs font-mono text-slate-600">
                           {formatDate(a.workDate)}
@@ -598,6 +620,17 @@ export default function ReportsPage() {
                 </tbody>
               </table>
             </div>
+            <TablePagination
+              currentPage={excelAttendanceReport.currentPage}
+              totalPages={excelAttendanceReport.totalPages}
+              totalItems={excelAttendanceReport.filteredCount}
+              totalUnfiltered={excelAttendanceReport.totalRecords}
+              pageSize={excelAttendanceReport.pageSize}
+              startItem={excelAttendanceReport.startItem}
+              endItem={excelAttendanceReport.endItem}
+              onPageChange={excelAttendanceReport.setCurrentPage}
+              itemLabel="attendance records"
+            />
           </div>
         </div>
       )}

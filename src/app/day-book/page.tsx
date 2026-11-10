@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
-import ExcelTable, { ExcelColumn } from "@/components/ui/ExcelTable";
+import ExcelTable, { ExcelColumn, useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 
@@ -653,6 +653,13 @@ export default function DayBookPage() {
       rejectedTotal: rTotal,
     };
   }, [dayData]);
+
+  const moneyInList = useMemo(() => dayData?.moneyIn || [], [dayData?.moneyIn]);
+  const staffAttendanceList = useMemo(() => dayData?.attendance || [], [dayData?.attendance]);
+  const workerAttendanceList = useMemo(() => dayData?.workerAttendance || [], [dayData?.workerAttendance]);
+  const moneyInPagination = useTablePagination(moneyInList);
+  const staffAttPagination = useTablePagination(staffAttendanceList);
+  const workerAttPagination = useTablePagination(workerAttendanceList);
 
   // Print & Filter states
   const [showPrintFilterModal, setShowPrintFilterModal] = useState(false);
@@ -2218,12 +2225,18 @@ export default function DayBookPage() {
             {/* 0. Money in from buyers (Sales receipts) */}
             {canReadFinance && activeTab === "ALL" && (dayData?.moneyIn?.length || 0) > 0 && (
               <div className="bg-white rounded-2xl border border-emerald-200 overflow-hidden shadow-xs">
-                <div className="p-4 bg-emerald-50/60 border-b border-emerald-100 flex items-center justify-between">
+                <div className="p-4 bg-emerald-50/60 border-b border-emerald-100 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
                     <h3 className="text-sm font-black text-slate-900">Money in from customers</h3>
                   </div>
-                  <span className="text-xs font-bold text-emerald-700">{formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}</span>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <ShowEntriesControl
+                      pageSize={moneyInPagination.pageSize}
+                      onPageSizeChange={moneyInPagination.setPageSize}
+                    />
+                    <span className="text-xs font-bold text-emerald-700">{formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}</span>
+                  </div>
                 </div>
                 {/* Desktop Table View (≥ lg screens) */}
                 <div className="hidden lg:block overflow-x-auto">
@@ -2238,7 +2251,7 @@ export default function DayBookPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {dayData!.moneyIn!.map((r: any) => (
+                      {moneyInPagination.paginatedData.map((r: any) => (
                         <tr key={r.id} className="border-t border-slate-100">
                           <td className="px-4 py-2">
                             <Link href={`/sales/receipt/${r.id}`} className="font-mono text-xs font-bold text-slate-900 hover:underline">
@@ -2268,7 +2281,7 @@ export default function DayBookPage() {
 
                 {/* Mobile & Tablet Card View (< lg screens: No horizontal scroll) */}
                 <div className="lg:hidden p-3 bg-slate-50/60 space-y-3">
-                  {dayData!.moneyIn!.map((r: any) => (
+                  {moneyInPagination.paginatedData.map((r: any) => (
                     <div key={`m-in-card-${r.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -2298,6 +2311,17 @@ export default function DayBookPage() {
                     </div>
                   ))}
                 </div>
+                <TablePagination
+                  currentPage={moneyInPagination.currentPage}
+                  totalPages={moneyInPagination.totalPages}
+                  totalItems={moneyInPagination.filteredCount}
+                  totalUnfiltered={moneyInPagination.totalRecords}
+                  pageSize={moneyInPagination.pageSize}
+                  startItem={moneyInPagination.startItem}
+                  endItem={moneyInPagination.endItem}
+                  onPageChange={moneyInPagination.setCurrentPage}
+                  itemLabel="receipts"
+                />
               </div>
             )}
 
@@ -2530,10 +2554,14 @@ export default function DayBookPage() {
                   </div>
                 ) : (
                   <div>
-                    <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                    <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                         Staff Attendance Sessions ({dayData.attendance.length})
                       </span>
+                      <ShowEntriesControl
+                        pageSize={staffAttPagination.pageSize}
+                        onPageSizeChange={staffAttPagination.setPageSize}
+                      />
                     </div>
                     <div className="hidden lg:block overflow-x-auto min-h-[400px]">
                       <table className="w-full text-left text-xs">
@@ -2546,7 +2574,7 @@ export default function DayBookPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {dayData.attendance.map((a) => (
+                          {staffAttPagination.paginatedData.map((a) => (
                             <tr key={a.id} className="hover:bg-slate-50/70 transition">
                               <td className="p-3 font-mono font-bold text-slate-800">
                                 {a.employeeCode || a.workforceMember?.employeeCode || "—"}
@@ -2566,7 +2594,7 @@ export default function DayBookPage() {
 
                     {/* Mobile & Tablet Card List */}
                     <div className="lg:hidden p-3 bg-slate-50/60 space-y-2.5">
-                      {dayData.attendance.map((a) => (
+                      {staffAttPagination.paginatedData.map((a) => (
                         <div key={`staff-att-card-${a.id}`} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition flex flex-wrap items-center justify-between gap-2">
                           <div>
                             <div className="font-bold text-slate-900 text-xs">{a.name || a.workforceMember?.name || "N/A"}</div>
@@ -2580,6 +2608,17 @@ export default function DayBookPage() {
                         </div>
                       ))}
                     </div>
+                    <TablePagination
+                      currentPage={staffAttPagination.currentPage}
+                      totalPages={staffAttPagination.totalPages}
+                      totalItems={staffAttPagination.filteredCount}
+                      totalUnfiltered={staffAttPagination.totalRecords}
+                      pageSize={staffAttPagination.pageSize}
+                      startItem={staffAttPagination.startItem}
+                      endItem={staffAttPagination.endItem}
+                      onPageChange={staffAttPagination.setCurrentPage}
+                      itemLabel="staff"
+                    />
                   </div>
                 )}
               </div>
@@ -2606,11 +2645,15 @@ export default function DayBookPage() {
                 {/* Sub-section 1: Trade Workers Attendance Sessions */}
                 {(dayData?.workerAttendance?.length || 0) > 0 && (
                   <div className="border-b border-slate-100">
-                    <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+                    <div className="p-3 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
                         <HardHat className="w-3.5 h-3.5 text-amber-600" />
                         <span>Daily Trade Workers ({dayData?.workerAttendance?.length || 0})</span>
                       </span>
+                      <ShowEntriesControl
+                        pageSize={workerAttPagination.pageSize}
+                        onPageSizeChange={workerAttPagination.setPageSize}
+                      />
                     </div>
                     <div className="hidden lg:block overflow-x-auto">
                       <table className="w-full text-left text-xs">
@@ -2624,7 +2667,7 @@ export default function DayBookPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {(dayData?.workerAttendance || []).map((w: any) => (
+                          {workerAttPagination.paginatedData.map((w: any) => (
                             <tr key={w.id} className="hover:bg-slate-50/70 transition">
                               <td className="p-3 font-mono font-bold text-slate-800">
                                 {w.workforceMember?.employeeCode || "—"}
@@ -2649,7 +2692,7 @@ export default function DayBookPage() {
 
                     {/* Mobile & Tablet Trade Workers Card List */}
                     <div className="lg:hidden p-3 bg-slate-50/60 space-y-2.5">
-                      {(dayData?.workerAttendance || []).map((w: any) => (
+                      {workerAttPagination.paginatedData.map((w: any) => (
                         <div key={`w-att-card-${w.id}`} className="p-3.5 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 transition flex flex-wrap items-center justify-between gap-2">
                           <div className="min-w-0">
                             <div className="font-bold text-slate-900 text-xs truncate">{w.workforceMember?.name || "Worker"}</div>
@@ -2666,6 +2709,17 @@ export default function DayBookPage() {
                         </div>
                       ))}
                     </div>
+                    <TablePagination
+                      currentPage={workerAttPagination.currentPage}
+                      totalPages={workerAttPagination.totalPages}
+                      totalItems={workerAttPagination.filteredCount}
+                      totalUnfiltered={workerAttPagination.totalRecords}
+                      pageSize={workerAttPagination.pageSize}
+                      startItem={workerAttPagination.startItem}
+                      endItem={workerAttPagination.endItem}
+                      onPageChange={workerAttPagination.setCurrentPage}
+                      itemLabel="workers"
+                    />
                   </div>
                 )}
 

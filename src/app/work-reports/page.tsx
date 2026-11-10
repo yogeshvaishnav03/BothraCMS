@@ -5,6 +5,7 @@ import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
+import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { ContactActions } from "@/components/ui/ContactActions";
 import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
 import { isOffline, submitOrQueue } from "@/lib/offline-queue";
@@ -686,6 +687,8 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
     return list;
   }, [data, filter]);
 
+  const staffPagination = useTablePagination(staff);
+
   const t = data?.totals;
   const tiles = [
     { label: "Reports in", value: t ? `${t.submitted}/${t.expected}` : "–", Icon: ClipboardCheck, tone: "bg-blue-50 text-blue-600 ring-blue-100" },
@@ -698,7 +701,13 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <DateNav date={date} onChange={setDate} />
-        <div className="flex gap-1.5 overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
+          {staff.length > 0 && (
+            <ShowEntriesControl
+              pageSize={staffPagination.pageSize}
+              onPageSizeChange={staffPagination.setPageSize}
+            />
+          )}
           {(
             [
               ["all", "Everyone"],
@@ -746,8 +755,9 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
       ) : staff.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Nobody matches this filter.</div>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 stagger">
-          {staff.map((s: any) => {
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 stagger">
+          {staffPagination.paginatedData.map((s: any) => {
             const r = s.report;
             const a = s.attendance;
             return (
@@ -852,6 +862,22 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
               </article>
             );
           })}
+          </div>
+          {staff.length > 0 && (
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+              <TablePagination
+                currentPage={staffPagination.currentPage}
+                totalPages={staffPagination.totalPages}
+                totalItems={staffPagination.filteredCount}
+                totalUnfiltered={staffPagination.totalRecords}
+                pageSize={staffPagination.pageSize}
+                startItem={staffPagination.startItem}
+                endItem={staffPagination.endItem}
+                onPageChange={staffPagination.setCurrentPage}
+                itemLabel="team members"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -921,6 +947,8 @@ function Register({ canManage }: { canManage: boolean }) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ userId: string; name: string; date: string; status?: string } | null>(null);
+  const membersList = useMemo(() => data?.members || [], [data?.members]);
+  const membersPagination = useTablePagination(membersList);
 
   const load = useCallback(() => {
     setError(null);
@@ -976,6 +1004,12 @@ function Register({ canManage }: { canManage: boolean }) {
           className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
         />
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+          {membersList.length > 0 && (
+            <ShowEntriesControl
+              pageSize={membersPagination.pageSize}
+              onPageSizeChange={membersPagination.setPageSize}
+            />
+          )}
           {Object.entries(ATT_TONE).map(([k, v]) => (
             <span key={k} className="inline-flex items-center gap-1">
               <span className={cn("flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold", v.cell)}>{v.short}</span>
@@ -994,10 +1028,12 @@ function Register({ canManage }: { canManage: boolean }) {
 
       {error && <Alert tone="error">{error}</Alert>}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
         {!data ? (
           <div className="skeleton m-4 h-48 rounded-xl" />
         ) : (
+          <>
+          <div className="overflow-x-auto">
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
@@ -1016,7 +1052,7 @@ function Register({ canManage }: { canManage: boolean }) {
               </tr>
             </thead>
             <tbody>
-              {data.members.map((m: any) => (
+              {membersPagination.paginatedData.map((m: any) => (
                 <tr key={m.user.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                   <td className="sticky left-0 z-[1] bg-white px-3 py-1.5">
                     <div className="truncate font-semibold text-slate-800">{m.user.name}</div>
@@ -1057,6 +1093,21 @@ function Register({ canManage }: { canManage: boolean }) {
               ))}
             </tbody>
           </table>
+          </div>
+          {membersList.length > 0 && (
+            <TablePagination
+              currentPage={membersPagination.currentPage}
+              totalPages={membersPagination.totalPages}
+              totalItems={membersPagination.filteredCount}
+              totalUnfiltered={membersPagination.totalRecords}
+              pageSize={membersPagination.pageSize}
+              startItem={membersPagination.startItem}
+              endItem={membersPagination.endItem}
+              onPageChange={membersPagination.setCurrentPage}
+              itemLabel="staff"
+            />
+          )}
+          </>
         )}
       </div>
 

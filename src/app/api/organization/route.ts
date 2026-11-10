@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
             lastLoginAt: true,
             createdAt: true,
           },
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: "desc" },
         },
         _count: {
           select: {

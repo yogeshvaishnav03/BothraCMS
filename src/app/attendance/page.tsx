@@ -32,7 +32,7 @@ import {
   Save,
   Check,
 } from "lucide-react";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 
@@ -1556,7 +1556,7 @@ export default function AttendancePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
-                    {excelAttendance.filteredData.map((s) => {
+                    {excelAttendance.paginatedData.map((s) => {
                     const dateObj = new Date(s.workDate);
                     const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
                     const isCompleted = Boolean(s.checkOutAt);
@@ -1684,7 +1684,7 @@ export default function AttendancePage() {
 
             {/* Mobile & Tablet Attendance Cards (< lg screens) */}
             <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
-              {excelAttendance.filteredData.map((s) => {
+              {excelAttendance.paginatedData.map((s) => {
                 const dateObj = new Date(s.workDate);
                 const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
                 const isCompleted = Boolean(s.checkOutAt);
@@ -1766,6 +1766,17 @@ export default function AttendancePage() {
                 );
               })}
             </div>
+            <TablePagination
+              currentPage={excelAttendance.currentPage}
+              totalPages={excelAttendance.totalPages}
+              totalItems={excelAttendance.filteredCount}
+              totalUnfiltered={excelAttendance.totalRecords}
+              pageSize={excelAttendance.pageSize}
+              startItem={excelAttendance.startItem}
+              endItem={excelAttendance.endItem}
+              onPageChange={excelAttendance.setCurrentPage}
+              itemLabel="attendance records"
+            />
           </div>
           )}
         </div>

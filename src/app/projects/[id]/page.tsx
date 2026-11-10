@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, ExcelColumn } from "@/components/ui/ExcelTable";
+import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   FolderKanban,
   ArrowLeft,
@@ -774,6 +774,7 @@ export default function ProjectDetailsPage() {
                 No stock issues recorded for this project yet.
               </div>
             ) : (
+              <>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-700 uppercase font-semibold border-b border-slate-200">
@@ -789,7 +790,7 @@ export default function ProjectDetailsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {excelMovements.filteredData.map((m: any) => (
+                    {excelMovements.paginatedData.map((m: any) => (
                       <tr key={m.id} className="hover:bg-slate-50/60">
                         <td className="py-3 px-4 text-slate-600">{formatDate(m.movementAt)}</td>
                         <td className="py-3 px-4 font-bold text-slate-900">{m.material?.name}</td>
@@ -803,6 +804,18 @@ export default function ProjectDetailsPage() {
                   </tbody>
                 </table>
               </div>
+              <TablePagination
+                currentPage={excelMovements.currentPage}
+                totalPages={excelMovements.totalPages}
+                totalItems={excelMovements.filteredCount}
+                totalUnfiltered={excelMovements.totalRecords}
+                pageSize={excelMovements.pageSize}
+                startItem={excelMovements.startItem}
+                endItem={excelMovements.endItem}
+                onPageChange={excelMovements.setCurrentPage}
+                itemLabel="material issues"
+              />
+              </>
             )}
           </div>
         )}
