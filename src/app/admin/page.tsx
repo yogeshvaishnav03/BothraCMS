@@ -5,7 +5,7 @@ import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, E
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
-import { formatCurrency, formatQuantity } from "@/lib/formatters";
+import { formatCurrency, formatQuantity, formatCompactNumber } from "@/lib/formatters";
 import {
   ShieldAlert,
   Building,
@@ -585,7 +585,7 @@ export default function SuperAdminDashboardPage() {
           <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
             <ShieldAlert className="w-8 h-8" />
           </div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight">
+          <h1 className="font-display text-xl font-extrabold text-slate-900 tracking-tight">
             Restricted Platform Administration
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
@@ -616,7 +616,7 @@ export default function SuperAdminDashboardPage() {
             <div className="text-xs text-amber-600 font-bold uppercase tracking-wider flex items-center gap-1.5">
               <ShieldAlert className="w-4 h-4" /> Platform Admin
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-0.5">
+            <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight mt-0.5">
               Super Admin Console
             </h1>
             <p className="text-xs text-slate-500 mt-1">
@@ -1195,7 +1195,7 @@ export default function SuperAdminDashboardPage() {
               </span>
               <Building className="w-5 h-5 text-amber-500" />
             </div>
-            <div className="text-3xl font-black text-slate-900 mt-2">{totalTenants}</div>
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(totalTenants)}>{formatCompactNumber(totalTenants)}</div>
             <div className="text-xs text-slate-500 mt-1">Total provisioned tenant databases</div>
           </div>
 
@@ -1206,7 +1206,7 @@ export default function SuperAdminDashboardPage() {
               </span>
               <CheckCircle2 className="w-5 h-5 text-emerald-500" />
             </div>
-            <div className="text-3xl font-black text-emerald-600 mt-2">{activeTenants}</div>
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(activeTenants)}>{formatCompactNumber(activeTenants)}</div>
             <div className="text-xs text-slate-500 mt-1">Operational with live site traffic</div>
           </div>
 
@@ -1217,7 +1217,7 @@ export default function SuperAdminDashboardPage() {
               </span>
               <XCircle className="w-5 h-5 text-rose-500" />
             </div>
-            <div className="text-3xl font-black text-rose-600 mt-2">{suspendedTenants}</div>
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(suspendedTenants)}>{formatCompactNumber(suspendedTenants)}</div>
             <div className="text-xs text-slate-500 mt-1">Temporarily locked from platform mutation</div>
           </div>
         </div>

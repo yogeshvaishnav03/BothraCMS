@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
-import { formatCurrency, formatDate, formatQuantity, formatDateTime } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatDate, formatQuantity, formatDateTime } from "@/lib/formatters";
 import {
   Building2,
   ArrowLeft,
@@ -238,7 +238,7 @@ export default function PartyStatementPage() {
               <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-2">
                 <span>{isContractor ? "Subcontractor Contract & Statement" : "Material Supplier Financial Statement"}</span>
               </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>{party.name}</span>
                 <span
                   className={`font-mono text-xs px-2.5 py-0.5 rounded font-bold ${
@@ -292,16 +292,16 @@ export default function PartyStatementPage() {
                   <HardHat className="w-4 h-4 text-amber-400" />
                   <span>Subcontractor Contract Milestone Tracking</span>
                 </div>
-                <div className="text-xl font-black mt-1">Sanctioned Value: {formatCurrency(contractVal)}</div>
+                <div className="font-display text-lg sm:text-xl font-extrabold mt-1 tabular-nums" title={formatCurrency(contractVal)}>Sanctioned Value: {formatCompactINR(contractVal)}</div>
               </div>
               <div className="flex items-center gap-6 text-sm">
                 <div>
                   <div className="text-xs text-purple-300">Remaining Contract Balance</div>
-                  <div className="text-lg font-bold text-amber-400">{formatCurrency(remainingContract)}</div>
+                  <div className="font-display text-lg sm:text-xl font-extrabold text-amber-400 tabular-nums" title={formatCurrency(remainingContract)}>{formatCompactINR(remainingContract)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-purple-300">Work Billed %</div>
-                  <div className="text-lg font-bold text-white">{billedPct}%</div>
+                  <div className="font-display text-lg sm:text-xl font-extrabold text-white tabular-nums">{billedPct}%</div>
                 </div>
               </div>
             </div>
@@ -335,8 +335,8 @@ export default function PartyStatementPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               {isContractor ? "Cumulative Work Certified / Billed" : "Total Invoiced Liability"}
             </span>
-            <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-              {formatCurrency(totalBilled)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatCurrency(totalBilled)}>{formatCompactINR(totalBilled)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">
               Sum of all posted bills ({bills.length} bills)
@@ -347,8 +347,8 @@ export default function PartyStatementPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Cumulative Amount Paid
             </span>
-            <div className="text-2xl font-black text-emerald-600 mt-1 tabular-nums">
-              {formatCurrency(totalPaid)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatCurrency(totalPaid)}>{formatCompactINR(totalPaid)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">
               Disbursements released ({payments.length} payments)
@@ -359,8 +359,8 @@ export default function PartyStatementPage() {
             <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
               Current Outstanding Balance
             </span>
-            <div className="text-2xl font-black text-amber-600 mt-1 tabular-nums">
-              {formatCurrency(outstandingBalance)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatCurrency(outstandingBalance)}>{formatCompactINR(outstandingBalance)}</span>
             </div>
             <div className="text-[11px] text-amber-700 font-medium mt-1">
               Net balance payable = Total Billed − Total Paid

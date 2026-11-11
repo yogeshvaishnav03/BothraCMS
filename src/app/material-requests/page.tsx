@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { cn } from "@/lib/cn";
-import { formatCompactINR } from "@/lib/formatters";
+import { formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { submitOrQueue } from "@/lib/offline-queue";
 import {
   Building2,
@@ -717,7 +717,7 @@ export default function MaterialRequestsPage() {
             { label: "Approved, not ordered", value: counts.toOrder, tone: "text-blue-600" },
           ].map((x, idx) => (
             <div key={x.label} className={cn("rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs", idx === 2 && "col-span-2 sm:col-span-1")}>
-              <div className={cn("font-display text-2xl font-extrabold tabular-nums", x.tone)}>{requests ? x.value : "–"}</div>
+              <div className={cn("font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate", x.tone)} title={requests ? String(x.value) : undefined}>{requests ? formatCompactNumber(x.value) : "–"}</div>
               <div className="text-xs text-slate-500">{x.label}</div>
             </div>
           ))}

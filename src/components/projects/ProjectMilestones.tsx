@@ -279,7 +279,7 @@ export default function ProjectMilestones({
                 { v: s.delayed, l: "Late" },
               ].map((x) => (
                 <div key={x.l}>
-                  <div className="font-display text-2xl font-extrabold tabular-nums">{x.v}</div>
+                  <div className="font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight">{x.v}</div>
                   <div className="text-[11px] text-slate-400">{x.l}</div>
                 </div>
               ))}

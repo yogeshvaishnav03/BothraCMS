@@ -339,7 +339,7 @@ export default function SettingsPage() {
     <Shell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <Building2 className="w-6 h-6 text-amber-600" /> {t("settings.title", "Organization Settings")}
           </h1>
           <p className="text-sm text-slate-500 mt-1">

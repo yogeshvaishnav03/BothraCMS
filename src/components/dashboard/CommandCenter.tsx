@@ -33,7 +33,7 @@ import {
 import { ContactActions } from "@/components/ui/ContactActions";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { formatCompactINR, formatCurrency, formatDateTime } from "@/lib/formatters";
+import { formatCompactINR, formatCompactNumber, formatCurrency, formatDateTime } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
 
 type Kind = "PAYMENT" | "MONEY_IN" | "BILL" | "RECEIPT" | "ISSUE" | "ATTENDANCE" | "HEADCOUNT" | "SITE_REPORT";
@@ -249,7 +249,7 @@ function HeroStat({
           <Icon className="w-4 h-4" aria-hidden />
         </span>
       </div>
-      <div className="mt-2 font-display text-2xl sm:text-[28px] font-extrabold text-white tabular-nums tracking-tight">
+      <div className="mt-2 font-display text-2xl sm:text-[28px] font-extrabold text-white tabular-nums tracking-tight truncate">
         {format(shown)}
       </div>
       {sub && <div className="mt-0.5 text-xs text-slate-400 line-clamp-2">{sub}</div>}
@@ -268,7 +268,7 @@ function MiniStat({ label, value, Icon, tone, href }: { label: string; value: st
         <Icon className="w-5 h-5" aria-hidden />
       </span>
       <div className="min-w-0">
-        <div className="font-display text-lg font-extrabold text-slate-900 tabular-nums leading-tight">{value}</div>
+        <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate">{value}</div>
         <div className="text-xs text-slate-500 leading-tight line-clamp-2">{label}</div>
       </div>
     </Link>
@@ -535,7 +535,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
           <HeroStat
             label={hi ? "साइट पर लोग" : "People on site"}
             value={s?.workersPresentCount || 0}
-            format={(n) => Math.round(n).toLocaleString("en-IN")}
+            format={formatCompactNumber}
             sub={`${s?.staffPresentCount || 0} ${hi ? "स्टाफ हाज़िर" : "staff checked in"}`}
             Icon={HardHat}
             tone="bg-amber-500/15 text-amber-300"
@@ -544,7 +544,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
           <HeroStat
             label={hi ? "मंज़ूरी बाकी" : "Waiting approval"}
             value={approvalsCount}
-            format={(n) => Math.round(n).toString()}
+            format={formatCompactNumber}
             sub={
               data
                 ? `${formatCompactINR(data.approvals.paymentsPendingAmount)} ${hi ? "भुगतान" : "in payments"} · ${data.approvals.ordersPendingCount} ${hi ? "ऑर्डर" : "POs"}`
@@ -589,21 +589,21 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
         <MiniStat
           label={hi ? "सामग्री प्राप्त (GRN)" : "Material receipts"}
-          value={String(s?.receiptsCount ?? "–")}
+          value={s ? formatCompactNumber(s.receiptsCount) : "–"}
           Icon={PackagePlus}
           tone="bg-emerald-50 text-emerald-600 ring-emerald-100"
           href="/materials"
         />
         <MiniStat
           label={hi ? "सामग्री जारी" : "Material issues"}
-          value={String(s?.issuesCount ?? "–")}
+          value={s ? formatCompactNumber(s.issuesCount) : "–"}
           Icon={PackageMinus}
           tone="bg-amber-50 text-amber-600 ring-amber-100"
           href="/materials"
         />
         <MiniStat
           label={hi ? "साइट रिपोर्ट" : "Site reports filed"}
-          value={String(s?.reportsCount ?? "–")}
+          value={s ? formatCompactNumber(s.reportsCount) : "–"}
           Icon={ClipboardList}
           tone="bg-indigo-50 text-indigo-600 ring-indigo-100"
           href="/day-book"

@@ -106,13 +106,13 @@ export function Field({ label, children, className }: { label: string; children:
 }
 
 /** A number tile for the top of a page. */
-export function StatTile({ value, label, tone = "slate", hint }: { value: React.ReactNode; label: string; tone?: "slate" | "amber" | "rose" | "emerald" | "blue"; hint?: React.ReactNode }) {
+export function StatTile({ value, label, tone = "slate", hint, title }: { value: React.ReactNode; label: string; tone?: "slate" | "amber" | "rose" | "emerald" | "blue"; hint?: React.ReactNode; title?: string }) {
   const color = { slate: "text-slate-900", amber: "text-amber-600", rose: "text-rose-600", emerald: "text-emerald-600", blue: "text-blue-600" }[tone];
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-      <div className={cn("font-display text-2xl font-extrabold tabular-nums", color)}>{value}</div>
+    <div className="min-w-0 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+      <div className={cn("font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate", color)} title={title}>{value}</div>
       <div className="mt-0.5 text-xs font-medium text-slate-500">{label}</div>
-      {hint && <div className="mt-1 text-[11px] text-slate-400">{hint}</div>}
+      {hint && <div className="mt-1 text-[11px] text-slate-400 truncate">{hint}</div>}
     </div>
   );
 }

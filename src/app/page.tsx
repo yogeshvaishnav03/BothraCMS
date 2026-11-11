@@ -5,7 +5,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
 import {
   FolderKanban,
@@ -1306,7 +1306,7 @@ export default function DashboardPage() {
         return {
           icon: <DollarSign className="w-5 h-5 text-emerald-600" />,
           title: "Paid Today",
-          badge: `${formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)} Paid`,
+          badge: `${formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)} Paid`,
           badgeColor: "bg-emerald-100 text-emerald-800",
           subtitle: "Banking, cash, and online disbursements settled today",
           actionUrl: "/finance",
@@ -1342,7 +1342,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-left sm:text-right shrink-0">
                     <div className="text-[11px] text-slate-500 font-medium">Disbursed</div>
-                    <div className="text-sm font-black text-emerald-700 tabular-nums">
+                    <div className="font-display text-sm font-extrabold text-emerald-700 tabular-nums">
                       {formatCurrency(p.amount || 0)}
                     </div>
                   </div>
@@ -1357,7 +1357,7 @@ export default function DashboardPage() {
         return {
           icon: <TrendingDown className="w-5 h-5 text-amber-700" />,
           title: "Total Outstanding Payables",
-          badge: `${formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)} Outstanding`,
+          badge: `${formatCompactINR(kpi?.totalOutstandingPayablesAmount ?? 0)} Outstanding`,
           badgeColor: "bg-amber-100 text-amber-800",
           subtitle: "Unpaid vendor & contractor invoices and verified bills",
           actionUrl: "/parties",
@@ -1419,7 +1419,7 @@ export default function DashboardPage() {
           {/* Top Row: Title, Site Indicator, Mode Toggle, and Actions */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight">
                 Site Operations Dashboard
               </h1>
               {!activeSiteId ? (
@@ -1698,9 +1698,14 @@ export default function DashboardPage() {
                     <CheckSquare className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-slate-900">
-                  {allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.assignee?.id === currentUser?.id) && t.status !== "COMPLETED" && t.status !== "VERIFIED").length}
-                </div>
+                {(() => {
+                  const count = allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.assignee?.id === currentUser?.id) && t.status !== "COMPLETED" && t.status !== "VERIFIED").length;
+                  return (
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={String(count)}>
+                      {formatCompactNumber(count)}
+                    </div>
+                  );
+                })()}
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                   <span>Assigned to you</span>
                   <span className="text-amber-600 font-medium group-hover:underline">Open List →</span>
@@ -1717,9 +1722,14 @@ export default function DashboardPage() {
                     <AlertTriangle className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-rose-600">
-                  {allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.assignee?.id === currentUser?.id) && t.dueAt && new Date(t.dueAt).getTime() < Date.now() && t.status !== "COMPLETED" && t.status !== "VERIFIED").length}
-                </div>
+                {(() => {
+                  const count = allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.assignee?.id === currentUser?.id) && t.dueAt && new Date(t.dueAt).getTime() < Date.now() && t.status !== "COMPLETED" && t.status !== "VERIFIED").length;
+                  return (
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 tabular-nums tracking-tight leading-tight truncate" title={String(count)}>
+                      {formatCompactNumber(count)}
+                    </div>
+                  );
+                })()}
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                   <span>Needs urgent action</span>
                   <span className="text-rose-600 font-medium group-hover:underline">View →</span>
@@ -1736,9 +1746,14 @@ export default function DashboardPage() {
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-emerald-600">
-                  {allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.completedById === currentUser?.id) && (t.status === "COMPLETED" || t.status === "VERIFIED")).length}
-                </div>
+                {(() => {
+                  const count = allTasks.filter((t: any) => (t.assigneeUserId === currentUser?.id || t.completedById === currentUser?.id) && (t.status === "COMPLETED" || t.status === "VERIFIED")).length;
+                  return (
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 tabular-nums tracking-tight leading-tight truncate" title={String(count)}>
+                      {formatCompactNumber(count)}
+                    </div>
+                  );
+                })()}
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                   <span>Delivered work</span>
                   <span className="text-emerald-700 font-medium group-hover:underline">View →</span>
@@ -1755,9 +1770,14 @@ export default function DashboardPage() {
                     <ShieldCheck className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="text-2xl font-black text-purple-600">
-                  {allTasks.filter((t: any) => t.createdBy === currentUser?.id && t.taskType && t.taskType !== "STANDARD").length}
-                </div>
+                {(() => {
+                  const count = allTasks.filter((t: any) => t.createdBy === currentUser?.id && t.taskType && t.taskType !== "STANDARD").length;
+                  return (
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-purple-600 tabular-nums tracking-tight leading-tight truncate" title={String(count)}>
+                      {formatCompactNumber(count)}
+                    </div>
+                  );
+                })()}
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                   <span>Requests for Owner/Arch</span>
                   <span className="text-purple-600 font-medium group-hover:underline">Track →</span>
@@ -1886,8 +1906,8 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">{t("kpi.activeProjects", "Projects")}</span>
                 <FolderKanban className="w-3.5 h-3.5 text-blue-500 shrink-0" />
               </div>
-              <div className="text-xl font-black text-slate-900">
-                {kpi?.activeProjectsCount ?? 0}
+              <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={String(kpi?.activeProjectsCount ?? 0)}>
+                {formatCompactNumber(kpi?.activeProjectsCount ?? 0)}
               </div>
               <div className="text-[10px] text-slate-400 truncate mt-0.5">
                 {!activeSiteId ? `${sites.length} Active Sites` : "This Site"}
@@ -1904,8 +1924,8 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">{t("kpi.workersOnSite", "On Site")}</span>
                 <HardHat className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
               </div>
-              <div className="text-xl font-black text-slate-900 flex items-baseline gap-1">
-                <span>{displayTotalWorkersOnSite}</span>
+              <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={String(displayTotalWorkersOnSite)}>
+                {formatCompactNumber(displayTotalWorkersOnSite)}
               </div>
               <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5" title={workerSubCategoryFull}>
                 {workerSubCategorySummary}
@@ -1922,8 +1942,8 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">{t("kpi.criticalMaterials", "Low Stock")}</span>
                 <Boxes className={`w-3.5 h-3.5 shrink-0 ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-400"}`} />
               </div>
-              <div className={`text-xl font-black ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-900"}`}>
-                {kpi?.lowStockItemsCount ?? 0}
+              <div className={`font-display text-lg sm:text-xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-900"}`} title={String(kpi?.lowStockItemsCount ?? 0)}>
+                {formatCompactNumber(kpi?.lowStockItemsCount ?? 0)}
               </div>
               <div className="text-[10px] text-slate-400 truncate mt-0.5">
                 Below reorder
@@ -1943,8 +1963,8 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">Overdue</span>
                 <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${(kpi?.tasksOverdueCount || 0) > 0 ? "text-rose-600" : "text-slate-400"}`} />
               </div>
-              <div className={`text-xl font-black ${(kpi?.tasksOverdueCount || 0) > 0 ? "text-rose-600" : "text-slate-900"}`}>
-                {kpi?.tasksOverdueCount ?? 0}
+              <div className={`font-display text-lg sm:text-xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${(kpi?.tasksOverdueCount || 0) > 0 ? "text-rose-600" : "text-slate-900"}`} title={String(kpi?.tasksOverdueCount ?? 0)}>
+                {formatCompactNumber(kpi?.tasksOverdueCount ?? 0)}
               </div>
               <div className="text-[10px] text-rose-600 font-bold truncate mt-0.5">
                 Past deadline
@@ -1964,8 +1984,8 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">Due Today</span>
                 <CheckSquare className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
               </div>
-              <div className="text-xl font-black text-slate-900">
-                {kpi?.tasksDueTodayCount ?? 0}
+              <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={String(kpi?.tasksDueTodayCount ?? 0)}>
+                {formatCompactNumber(kpi?.tasksDueTodayCount ?? 0)}
               </div>
               <div className="text-[10px] text-slate-400 truncate mt-0.5">
                 Today schedule
@@ -1982,8 +2002,8 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">Paid Today</span>
                 <DollarSign className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
               </div>
-              <div className="text-sm font-black text-slate-900 tabular-nums truncate">
-                {formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}
+              <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}>
+                {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
               </div>
               <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">
                 Disbursed
@@ -2000,8 +2020,8 @@ export default function DashboardPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider truncate">Payables</span>
                 <TrendingDown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               </div>
-              <div className="text-sm font-black text-amber-600 tabular-nums truncate">
-                {formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}
+              <div className="font-display text-lg sm:text-xl font-extrabold text-amber-600 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}>
+                {formatCompactINR(kpi?.totalOutstandingPayablesAmount ?? 0)}
               </div>
               <div className="text-[10px] text-slate-400 truncate mt-0.5">
                 Vendor & contractor
@@ -2022,8 +2042,8 @@ export default function DashboardPage() {
                   <FolderKanban className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-slate-900">
-                {kpi?.activeProjectsCount ?? 0}
+              <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={String(kpi?.activeProjectsCount ?? 0)}>
+                {formatCompactNumber(kpi?.activeProjectsCount ?? 0)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>
@@ -2056,9 +2076,9 @@ export default function DashboardPage() {
                   <HardHat className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-slate-900 flex items-baseline gap-2">
-                <span>
-                  {displayTotalWorkersOnSite}
+              <div className="flex items-baseline gap-2 min-w-0">
+                <span className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={String(displayTotalWorkersOnSite)}>
+                  {formatCompactNumber(displayTotalWorkersOnSite)}
                 </span>
                 {kpi?.workforceHeadcount?.isLatestFallback && (
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
@@ -2102,11 +2122,12 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div
-                className={`text-2xl font-black ${
+                className={`font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${
                   (kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-900"
                 }`}
+                title={String(kpi?.lowStockItemsCount ?? 0)}
               >
-                {kpi?.lowStockItemsCount ?? 0}
+                {formatCompactNumber(kpi?.lowStockItemsCount ?? 0)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Items below reorder limit</span>
@@ -2138,11 +2159,12 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div
-                className={`text-2xl font-black ${
+                className={`font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${
                   (kpi?.tasksOverdueCount || 0) > 0 ? "text-rose-600" : "text-slate-900"
                 }`}
+                title={String(kpi?.tasksOverdueCount ?? 0)}
               >
-                {kpi?.tasksOverdueCount ?? 0}
+                {formatCompactNumber(kpi?.tasksOverdueCount ?? 0)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Needs supervisor action</span>
@@ -2174,8 +2196,8 @@ export default function DashboardPage() {
                   <CheckSquare className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-slate-900">
-                {kpi?.tasksDueTodayCount ?? 0}
+              <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={String(kpi?.tasksDueTodayCount ?? 0)}>
+                {formatCompactNumber(kpi?.tasksDueTodayCount ?? 0)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Scheduled completion today</span>
@@ -2204,8 +2226,8 @@ export default function DashboardPage() {
                   <DollarSign className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-xl font-black text-slate-900 tabular-nums">
-                {formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}
+              <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}>
+                {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Posted banking disbursements</span>
@@ -2227,8 +2249,8 @@ export default function DashboardPage() {
                   <TrendingDown className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-black text-amber-600 tabular-nums">
-                {formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}
+              <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}>
+                {formatCompactINR(kpi?.totalOutstandingPayablesAmount ?? 0)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                 <span>Verified across vendor & contractor bills</span>
@@ -2429,8 +2451,8 @@ export default function DashboardPage() {
                         <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
                           <span>Site Projects ({siteProjs.length}):</span>
                           {totalSiteBudget > 0 && (
-                            <span className="text-slate-500 font-mono text-[10px] font-semibold">
-                              Budget: {formatCurrency(totalSiteBudget)}
+                            <span className="text-slate-500 font-mono text-[10px] font-semibold" title={formatCurrency(totalSiteBudget)}>
+                              Budget: {formatCompactINR(totalSiteBudget)}
                             </span>
                           )}
                         </div>
@@ -2447,8 +2469,8 @@ export default function DashboardPage() {
                                 className="flex items-center justify-between text-xs bg-white p-2.5 rounded-lg border border-slate-200 hover:border-amber-400 transition-colors block shadow-2xs"
                               >
                                 <span className="font-bold text-slate-900 truncate max-w-[200px]">{p.name}</span>
-                                <span className="font-black text-slate-900 tabular-nums text-xs">
-                                  {formatCurrency(p.budgetAmount || 0)}
+                                <span className="font-display font-extrabold text-slate-900 tabular-nums text-xs shrink-0" title={formatCurrency(p.budgetAmount || 0)}>
+                                  {formatCompactINR(p.budgetAmount || 0)}
                                 </span>
                               </Link>
                             ))}
@@ -2839,8 +2861,8 @@ export default function DashboardPage() {
                           <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between gap-2 flex-wrap">
                             <span>Active Projects:</span>
                             {totalSiteBudget > 0 && (
-                              <span className="text-slate-500 font-mono text-[10px] font-semibold">
-                                Budget: {formatCurrency(totalSiteBudget)}
+                              <span className="text-slate-500 font-mono text-[10px] font-semibold" title={formatCurrency(totalSiteBudget)}>
+                                Budget: {formatCompactINR(totalSiteBudget)}
                               </span>
                             )}
                           </div>
@@ -2857,8 +2879,8 @@ export default function DashboardPage() {
                                   className="flex items-center justify-between gap-2 text-xs bg-white p-2 rounded-lg border border-slate-200/80 hover:border-amber-400 transition-colors"
                                 >
                                   <span className="font-semibold text-slate-800 truncate min-w-0 flex-1">{p.name}</span>
-                                  <span className="font-black text-slate-900 tabular-nums text-[11px]">
-                                    {formatCurrency(p.budgetAmount || 0)}
+                                  <span className="font-display font-extrabold text-slate-900 tabular-nums text-xs shrink-0" title={formatCurrency(p.budgetAmount || 0)}>
+                                    {formatCompactINR(p.budgetAmount || 0)}
                                   </span>
                                 </Link>
                               ))}

@@ -94,6 +94,32 @@ export function formatCompactINR(amountInPaise: number | null | undefined): stri
   return `${sign}₹${Math.round(abs)}`;
 }
 
+/** Short compact number for KPI and mobile cards (e.g., 950, 12.5K, 3.4M, 9.88B). */
+export function formatCompactNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined || isNaN(value)) return "0";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  const fmt = (n: number) =>
+    n >= 100
+      ? Math.round(n).toString()
+      : n >= 10
+      ? n.toFixed(1).replace(/\.0$/, "")
+      : n.toFixed(2).replace(/\.?0+$/, "");
+  if (abs >= 1e12) return `${sign}${fmt(abs / 1e12)}T`;
+  if (abs >= 1e9) return `${sign}${fmt(abs / 1e9)}B`;
+  if (abs >= 1e6) return `${sign}${fmt(abs / 1e6)}M`;
+  if (abs >= 1e3) return `${sign}${fmt(abs / 1e3)}K`;
+  return `${sign}${Number.isInteger(abs) ? abs : fmt(abs)}`;
+}
+
+/** Short compact quantity with optional unit code for KPI cards (e.g., 12.5K BAG). */
+export function formatCompactQuantity(
+  qty: number | null | undefined,
+  unitCode: string = ""
+): string {
+  return `${formatCompactNumber(qty ?? 0)} ${unitCode}`.trim();
+}
+
 /** Standard human-readable file size formatter (e.g., 512 B, 450 KB, 12.5 MB, 1.8 GB) */
 export function formatFileSize(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined || isNaN(bytes) || bytes <= 0) return "0 B";

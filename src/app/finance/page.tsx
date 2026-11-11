@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatDate } from "@/lib/formatters";
 import {
   DollarSign,
   Plus,
@@ -1111,8 +1111,8 @@ export default function FinancePage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Total Invoiced Liability
             </span>
-            <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-              {formatCurrency(totalBilledAll)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalBilledAll)}>
+              {formatCompactINR(totalBilledAll)}
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Across all posted vendor bills</div>
           </div>
@@ -1121,8 +1121,8 @@ export default function FinancePage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Total Disbursed (Paid)
             </span>
-            <div className="text-2xl font-black text-emerald-600 mt-1 tabular-nums">
-              {formatCurrency(totalPaidAll)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalPaidAll)}>
+              {formatCompactINR(totalPaidAll)}
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Verified non-reversed payments</div>
           </div>
@@ -1131,8 +1131,8 @@ export default function FinancePage() {
             <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
               Total Outstanding Payables
             </span>
-            <div className="text-2xl font-black text-amber-600 mt-1 tabular-nums">
-              {formatCurrency(totalOutstandingAll)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalOutstandingAll)}>
+              {formatCompactINR(totalOutstandingAll)}
             </div>
             <div className="text-[11px] text-amber-700 font-medium mt-1">
               Active company liability
@@ -2093,8 +2093,8 @@ export default function FinancePage() {
                         <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
                           <div>
                             <div className="text-[11px] text-slate-400 font-medium">Payment Amount</div>
-                            <div className="text-base font-black text-slate-900 font-mono tabular-nums">
-                              {formatCurrency(p.amount)}
+                            <div className="font-display text-base font-extrabold text-slate-900 tabular-nums truncate" title={formatCurrency(p.amount)}>
+                              {formatCompactINR(p.amount)}
                             </div>
                           </div>
 
@@ -2360,15 +2360,15 @@ export default function FinancePage() {
                       <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
                         <div>
                           <div className="text-[11px] text-slate-400 font-medium">Pending Balance</div>
-                          <div className={`text-base font-black font-mono tabular-nums ${b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}`}>
-                            {formatCurrency(b.outstandingAmount)}
+                          <div className={`font-display text-base font-extrabold tabular-nums truncate ${b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}`} title={formatCurrency(b.outstandingAmount)}>
+                            {formatCompactINR(b.outstandingAmount)}
                           </div>
                         </div>
 
                         <div className="text-right">
                           <div className="text-[11px] text-slate-400 font-medium">Total Bill</div>
-                          <div className="font-bold text-slate-700 font-mono tabular-nums text-sm">
-                            {formatCurrency(b.totalAmount)}
+                          <div className="font-display text-sm font-extrabold text-slate-700 tabular-nums truncate" title={formatCurrency(b.totalAmount)}>
+                            {formatCompactINR(b.totalAmount)}
                           </div>
                         </div>
                       </div>

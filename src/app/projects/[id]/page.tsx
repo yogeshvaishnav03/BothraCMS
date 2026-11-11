@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatCompactNumber, formatDate } from "@/lib/formatters";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   FolderKanban,
@@ -410,7 +410,7 @@ export default function ProjectDetailsPage() {
                   {project.status}
                 </span>
               </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1 flex items-center gap-2">
+              <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight mt-1 flex items-center gap-2">
                 {project.name}
               </h1>
               <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
@@ -494,8 +494,8 @@ export default function ProjectDetailsPage() {
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Project Budget
             </span>
-            <div className="text-xl font-black text-slate-900 mt-1">
-              {formatCurrency(budget)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatCurrency(budget)}>{formatCompactINR(budget)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Approved financial allocation</div>
           </div>
@@ -504,8 +504,8 @@ export default function ProjectDetailsPage() {
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Total Billed
             </span>
-            <div className="text-xl font-black text-amber-600 mt-1">
-              {formatCurrency(billed)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatCurrency(billed)}>{formatCompactINR(billed)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">
               {project.bills?.length || 0} posted vendor/sub bills
@@ -519,8 +519,8 @@ export default function ProjectDetailsPage() {
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Daily Reports Filed
             </span>
-            <div className="text-xl font-black text-slate-900 mt-1">
-              {project.dailyReports?.length || 0}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={String(project.dailyReports?.length || 0)}>{formatCompactNumber(project.dailyReports?.length || 0)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Supervisor progress logs</div>
           </div>
@@ -529,8 +529,8 @@ export default function ProjectDetailsPage() {
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Active Tasks
             </span>
-            <div className="text-xl font-black text-slate-900 mt-1">
-              {project.tasks?.length || 0}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={String(project.tasks?.length || 0)}>{formatCompactNumber(project.tasks?.length || 0)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Milestones & work orders</div>
           </div>

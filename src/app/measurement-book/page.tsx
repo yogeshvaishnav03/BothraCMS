@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatQuantity, rupeesToPaise } from "@/lib/formatters";
+import { formatCurrency, formatQuantity, formatCompactINR, formatCompactNumber, formatCompactQuantity, rupeesToPaise } from "@/lib/formatters";
 import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
 import { canUser } from "@/lib/permissions";
@@ -161,17 +161,6 @@ const STANDARD_ROOMS = [
   "Boundary Wall / Compound",
   "Basement / Parking",
 ];
-
-function getKpiAmountClass(text: string): string {
-  const len = text.length;
-  if (len >= 16) {
-    return "text-xs sm:text-sm md:text-base lg:text-xs xl:text-sm 2xl:text-base";
-  }
-  if (len >= 12) {
-    return "text-sm sm:text-base md:text-lg lg:text-sm xl:text-base";
-  }
-  return "text-base sm:text-lg md:text-xl";
-}
 
 function MeasurementSubgroupEntries({
   entries,
@@ -1754,7 +1743,7 @@ export default function MeasurementBookPage() {
                 <BookOpen className="w-7 h-7" />
               </span>
               <div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight">
                   Measurement Book (MB Record)
                 </h1>
                 <p className="text-xs md:text-sm text-slate-500 mt-0.5">
@@ -1881,10 +1870,13 @@ export default function MeasurementBookPage() {
                   </div>
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-base sm:text-lg md:text-xl font-black text-slate-900 tabular-nums tracking-tight leading-tight whitespace-nowrap">
-                    {kpis.totalGroups}
+                  <span
+                    className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate"
+                    title={String(kpis.totalGroups)}
+                  >
+                    {formatCompactNumber(kpis.totalGroups)}
                   </span>
-                  <span className="text-xs font-semibold text-slate-500">Groups</span>
+                  <span className="text-xs font-semibold text-slate-500 shrink-0">Groups</span>
                 </div>
                 <div className="text-[10px] sm:text-[11px] text-slate-500 leading-tight">
                   {kpis.totalEntries} measurement {kpis.totalEntries === 1 ? "entry" : "entries"} recorded
@@ -1904,10 +1896,10 @@ export default function MeasurementBookPage() {
                     </div>
                     <div className="my-1 min-w-0">
                       <div
-                        className={`font-black text-emerald-600 tabular-nums tracking-tight leading-tight whitespace-nowrap ${getKpiAmountClass(totalMeasuredFormatted)}`}
+                        className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 tabular-nums tracking-tight leading-tight truncate"
                         title={totalMeasuredFormatted}
                       >
-                        {totalMeasuredFormatted}
+                        {formatCompactINR(kpis.totalPaise)}
                       </div>
                     </div>
                     <div className="text-[10px] sm:text-[11px] text-slate-500 leading-tight">Approved & Pending Works</div>
@@ -1925,16 +1917,19 @@ export default function MeasurementBookPage() {
                 </div>
                 <div className="my-1 min-w-0">
                   {hasUnits ? (
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-base sm:text-lg md:text-xl font-black text-slate-900 tabular-nums tracking-tight leading-tight whitespace-nowrap">
-                        {formatQuantity(primaryQty)}
+                    <div className="flex items-baseline gap-1.5 flex-wrap min-w-0">
+                      <span
+                        className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate"
+                        title={`${formatQuantity(primaryQty)} ${primaryUnit}`}
+                      >
+                        {formatCompactQuantity(primaryQty)}
                       </span>
-                      <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono shrink-0">
                         {primaryUnit}
                       </span>
                     </div>
                   ) : (
-                    <div className="text-base sm:text-lg md:text-xl font-black text-slate-400 tabular-nums tracking-tight leading-tight whitespace-nowrap">0.00</div>
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-400 tabular-nums tracking-tight leading-tight truncate">0.00</div>
                   )}
                 </div>
                 <div className="text-[10px] sm:text-[11px] text-slate-500 leading-tight">
@@ -1959,11 +1954,14 @@ export default function MeasurementBookPage() {
                   </div>
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
-                  <span className="text-base sm:text-lg md:text-xl font-black text-blue-700 tabular-nums tracking-tight leading-tight whitespace-nowrap">
-                    {verifiedOrAbove}
+                  <span
+                    className="font-display text-xl sm:text-2xl font-extrabold text-blue-700 tabular-nums tracking-tight leading-tight truncate"
+                    title={String(verifiedOrAbove)}
+                  >
+                    {formatCompactNumber(verifiedOrAbove)}
                   </span>
-                  <span className="text-xs font-semibold text-slate-500">
-                    / {kpis.totalEntries} Verified
+                  <span className="text-xs font-semibold text-slate-500 shrink-0">
+                    / {formatCompactNumber(kpis.totalEntries)} Verified
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -2000,13 +1998,14 @@ export default function MeasurementBookPage() {
                 </div>
                 <div className="my-1 flex items-baseline gap-1.5 min-w-0">
                   <span
-                    className={`text-base sm:text-lg md:text-xl font-black tabular-nums tracking-tight leading-tight whitespace-nowrap ${
+                    className={`font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${
                       kpis.pendingChangeRequestsCount > 0 ? "text-amber-600" : "text-slate-900"
                     }`}
+                    title={String(kpis.pendingChangeRequestsCount)}
                   >
-                    {kpis.pendingChangeRequestsCount}
+                    {formatCompactNumber(kpis.pendingChangeRequestsCount)}
                   </span>
-                  <span className="text-xs font-semibold text-slate-500">Pending</span>
+                  <span className="text-xs font-semibold text-slate-500 shrink-0">Pending</span>
                 </div>
                 <div className="text-[10px] sm:text-[11px]">
                   {kpis.pendingChangeRequestsCount > 0 ? (

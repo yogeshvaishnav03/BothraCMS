@@ -6,7 +6,7 @@ import Link from "next/link";
 import React, { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
 import {
@@ -108,21 +108,6 @@ const DEFAULT_PRINT_SECTIONS: PrintSectionConfig = {
   reports: true,
   signatures: true,
 };
-
-function getKpiAmountClass(text: string): string {
-  const len = text.length;
-  if (len >= 16) {
-    // 16+ chars (e.g. ₹10,00,00,000.00 / 10 Crores and above):
-    // Scales to fit full number on mobile and narrow cards without "..."
-    return "text-xs sm:text-sm md:text-base lg:text-xs xl:text-sm 2xl:text-base";
-  }
-  if (len >= 12) {
-    // 12-15 chars (e.g. ₹10,00,000.00 to ₹9,99,99,999.00):
-    return "text-sm sm:text-base md:text-lg lg:text-sm xl:text-base";
-  }
-  // Standard amounts (e.g. ₹0.00, ₹28,410.00):
-  return "text-base sm:text-lg md:text-xl";
-}
 
 function SectionCheckboxCard({
   checked,
@@ -1755,7 +1740,7 @@ export default function DayBookPage() {
                 <CalendarDays className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                   {t("daybook.title", "Day Book")}
                 </h1>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -1984,10 +1969,10 @@ export default function DayBookPage() {
                     </div>
                   </div>
                   <div
-                    className={`font-black text-rose-600 tabular-nums tracking-tight leading-tight whitespace-nowrap ${getKpiAmountClass(disbursedFormatted)}`}
+                    className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 tabular-nums tracking-tight leading-tight truncate"
                     title={disbursedFormatted}
                   >
-                    {disbursedFormatted}
+                    {formatCompactINR(dayData ? disbursedTotal : 0)}
                   </div>
                   <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 font-medium leading-tight">
                     {disbursedPayments.length} transaction{disbursedPayments.length === 1 ? "" : "s"} disbursed
@@ -2020,12 +2005,12 @@ export default function DayBookPage() {
                     </div>
                   </div>
                   <div
-                    className={`font-black tabular-nums tracking-tight leading-tight whitespace-nowrap ${
+                    className={`font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${
                       rejectedPayments.length > 0 ? "text-rose-600" : "text-slate-900"
-                    } ${getKpiAmountClass(rejectedFormatted)}`}
+                    }`}
                     title={rejectedFormatted}
                   >
-                    {rejectedFormatted}
+                    {formatCompactINR(dayData ? rejectedTotal : 0)}
                   </div>
                   <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 font-medium leading-tight">
                     {rejectedPayments.length} rejected request{rejectedPayments.length === 1 ? "" : "s"}
@@ -2058,10 +2043,10 @@ export default function DayBookPage() {
                     </div>
                   </div>
                   <div
-                    className={`font-black text-slate-900 tabular-nums tracking-tight leading-tight whitespace-nowrap ${getKpiAmountClass(billsFormatted)}`}
+                    className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate"
                     title={billsFormatted}
                   >
-                    {billsFormatted}
+                    {formatCompactINR(dayData ? dayData.summary.totalBillsAmount : 0)}
                   </div>
                   <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 font-medium leading-tight">
                     {dayData?.summary.billsCount || 0} vendor/contractor bills
@@ -2091,10 +2076,10 @@ export default function DayBookPage() {
                 </div>
               </div>
               <div
-                className="font-black text-slate-900 tabular-nums tracking-tight leading-tight whitespace-nowrap text-base sm:text-lg md:text-xl"
+                className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate"
                 title={String(dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0))}
               >
-                {dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0)}
+                {formatCompactNumber(dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0))}
               </div>
               <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 font-medium leading-tight">
                 {(dayData?.summary?.staffPresentCount || dayData?.attendance?.length || 0) > 0
@@ -2124,10 +2109,10 @@ export default function DayBookPage() {
                 </div>
               </div>
               <div
-                className="font-black text-slate-900 tabular-nums tracking-tight leading-tight whitespace-nowrap text-base sm:text-lg md:text-xl"
+                className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate"
                 title={String(dayData?.summary.reportsCount || 0)}
               >
-                {dayData?.summary.reportsCount || 0}
+                {formatCompactNumber(dayData?.summary.reportsCount || 0)}
               </div>
               <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 font-medium leading-tight">
                 Progress & safety updates
@@ -2292,9 +2277,9 @@ export default function DayBookPage() {
                             {r.booking.unit.unitNumber} · {r.booking.unit.project.name}
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-base font-black font-mono text-emerald-700 tabular-nums">
-                            {formatCurrency(r.amount)}
+                        <div className="text-right shrink-0 min-w-0">
+                          <div className="font-display text-base font-extrabold text-emerald-700 tabular-nums truncate" title={formatCurrency(r.amount)}>
+                            {formatCompactINR(r.amount)}
                           </div>
                           <span className="inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
                             {({ NEFT_RTGS: "NEFT / RTGS", HOME_LOAN: "Home loan", UPI: "UPI", CHEQUE: "Cheque", CASH: "Cash" } as Record<string, string>)[r.mode] || r.mode}
@@ -3815,8 +3800,8 @@ export default function DayBookPage() {
                 <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Payments Disbursed</span>
-                    <div className="text-2xl font-black text-rose-600 font-mono tracking-tight truncate" title={formatCurrency(disbursedTotal)}>
-                      {formatCurrency(disbursedTotal)}
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 tabular-nums tracking-tight truncate" title={formatCurrency(disbursedTotal)}>
+                      {formatCompactINR(disbursedTotal)}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                       Net cash & bank disbursements debited
@@ -3945,8 +3930,8 @@ export default function DayBookPage() {
                 <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Rejected Amount</span>
-                    <div className="text-2xl font-black text-rose-600 font-mono tracking-tight truncate" title={formatCurrency(rejectedTotal)}>
-                      {formatCurrency(rejectedTotal)}
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 tabular-nums tracking-tight truncate" title={formatCurrency(rejectedTotal)}>
+                      {formatCompactINR(rejectedTotal)}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                       Declined requests (excluded from balance & cash outflow)
@@ -4069,10 +4054,10 @@ export default function DayBookPage() {
                 </div>
 
                 <div className="p-4 bg-amber-50/70 border-b border-amber-100 flex items-center justify-between">
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Total Invoices & Bills</span>
-                    <div className="text-2xl font-black text-slate-900">
-                      {dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight truncate" title={dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}>
+                      {formatCompactINR(dayData ? dayData.summary.totalBillsAmount : 0)}
                     </div>
                   </div>
                   {canWriteFinance && (
@@ -4192,21 +4177,21 @@ export default function DayBookPage() {
 
                 <div className="p-4 bg-emerald-50/70 border-b border-emerald-100">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs min-w-0">
                       <span className="text-[10px] uppercase font-bold text-slate-500">Staff Present</span>
-                      <div className="text-xl font-black text-emerald-700">{dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0)}</div>
+                      <div className="font-display text-lg sm:text-xl font-extrabold text-emerald-700 tabular-nums truncate">{formatCompactNumber(dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || 0))}</div>
                     </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs min-w-0">
                       <span className="text-[10px] uppercase font-bold text-slate-500">Present</span>
-                      <div className="text-xl font-black text-slate-900">{dayData?.attendance?.filter((a: any) => a.status === "PRESENT").length || 0}</div>
+                      <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums truncate">{formatCompactNumber(dayData?.attendance?.filter((a: any) => a.status === "PRESENT").length || 0)}</div>
                     </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs min-w-0">
                       <span className="text-[10px] uppercase font-bold text-slate-500">Half Day / Overtime</span>
-                      <div className="text-xl font-black text-slate-900">{dayData?.attendance?.filter((a: any) => ["HALF_DAY", "OVERTIME"].includes(a.status)).length || 0}</div>
+                      <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums truncate">{formatCompactNumber(dayData?.attendance?.filter((a: any) => ["HALF_DAY", "OVERTIME"].includes(a.status)).length || 0)}</div>
                     </div>
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100 shadow-2xs min-w-0">
                       <span className="text-[10px] uppercase font-bold text-slate-500">Total Logged</span>
-                      <div className="text-xl font-black text-slate-900">{dayData?.attendance?.length || 0}</div>
+                      <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums truncate">{formatCompactNumber(dayData?.attendance?.length || 0)}</div>
                     </div>
                   </div>
                 </div>
@@ -4347,8 +4332,8 @@ export default function DayBookPage() {
                 <div className="p-4 bg-blue-50/70 border-b border-blue-100 flex items-center justify-between">
                   <div>
                     <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800">Daily Site Progress Reports</span>
-                    <div className="text-2xl font-black text-blue-900">
-                      {dayData?.summary.reportsCount || 0}
+                    <div className="font-display text-xl sm:text-2xl font-extrabold text-blue-900 tabular-nums tracking-tight truncate" title={String(dayData?.summary.reportsCount || 0)}>
+                      {formatCompactNumber(dayData?.summary.reportsCount || 0)}
                     </div>
                   </div>
                   {canWriteDsr && (

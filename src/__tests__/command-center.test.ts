@@ -148,3 +148,25 @@ describe("formatCompactINR", () => {
     expect(formatCompactINR(null)).toBe("₹0");
   });
 });
+
+describe("formatCompactNumber & formatCompactQuantity", () => {
+  it("shortens large counts and integers cleanly for compact cards", async () => {
+    const { formatCompactNumber } = await import("@/lib/formatters");
+    expect(formatCompactNumber(950)).toBe("950");
+    expect(formatCompactNumber(12_500)).toBe("12.5K");
+    expect(formatCompactNumber(3_400_000)).toBe("3.4M");
+    expect(formatCompactNumber(9_876_543_210)).toBe("9.88B");
+    expect(formatCompactNumber(1_250_000_000_000)).toBe("1.25T");
+    expect(formatCompactNumber(-4_200)).toBe("-4.2K");
+    expect(formatCompactNumber(null)).toBe("0");
+    expect(formatCompactNumber(undefined)).toBe("0");
+  });
+
+  it("formats compact quantities with optional unit codes", async () => {
+    const { formatCompactQuantity } = await import("@/lib/formatters");
+    expect(formatCompactQuantity(12_500, "CUM")).toBe("12.5K CUM");
+    expect(formatCompactQuantity(9_876_543_210, "MT")).toBe("9.88B MT");
+    expect(formatCompactQuantity(42)).toBe("42");
+    expect(formatCompactQuantity(null, "BAG")).toBe("0 BAG");
+  });
+});

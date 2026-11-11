@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatDate } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
@@ -561,8 +561,8 @@ export default function ExpensesPage() {
               <span>Total Claims</span>
               <Wallet className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono">
-              {formatCurrency(metrics.totalAmount)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(metrics.totalAmount)}>
+              {formatCompactINR(metrics.totalAmount)}
             </div>
             <div className="text-[11px] text-slate-400 mt-1">{metrics.totalCount} expense claim(s)</div>
           </div>
@@ -572,8 +572,8 @@ export default function ExpensesPage() {
               <span>Pending Review</span>
               <Clock className="w-4 h-4 text-amber-500" />
             </div>
-            <div className="text-xl sm:text-2xl font-black text-amber-700 font-mono">
-              {formatCurrency(metrics.pendingAmount)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-700 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(metrics.pendingAmount)}>
+              {formatCompactINR(metrics.pendingAmount)}
             </div>
             <div className="text-[11px] text-amber-700 font-medium mt-1">
               {metrics.pendingCount} claim(s) awaiting approval
@@ -585,8 +585,8 @@ export default function ExpensesPage() {
               <span>Approved / Reimbursed</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
             </div>
-            <div className="text-xl sm:text-2xl font-black text-emerald-700 font-mono">
-              {formatCurrency(metrics.approvedAmount)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-700 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(metrics.approvedAmount)}>
+              {formatCompactINR(metrics.approvedAmount)}
             </div>
             <div className="text-[11px] text-emerald-700 font-medium mt-1">
               {metrics.approvedCount} claim(s) approved
@@ -598,8 +598,8 @@ export default function ExpensesPage() {
               <span>Declined</span>
               <XCircle className="w-4 h-4 text-rose-400" />
             </div>
-            <div className="text-xl sm:text-2xl font-black text-slate-700 font-mono">
-              {formatCurrency(metrics.rejectedAmount)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-700 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(metrics.rejectedAmount)}>
+              {formatCompactINR(metrics.rejectedAmount)}
             </div>
             <div className="text-[11px] text-slate-400 mt-1">{metrics.rejectedCount} claim(s) rejected</div>
           </div>
@@ -915,8 +915,8 @@ export default function ExpensesPage() {
                       <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
                         <div>
                           <div className="text-[11px] text-slate-400 font-medium">Amount</div>
-                          <div className="text-base font-black text-slate-900 font-mono tabular-nums">
-                            {formatCurrency(exp.amount)}
+                          <div className="font-display text-base font-extrabold text-slate-900 tabular-nums truncate" title={formatCurrency(exp.amount)}>
+                            {formatCompactINR(exp.amount)}
                           </div>
                         </div>
 

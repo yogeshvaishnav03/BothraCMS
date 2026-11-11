@@ -10,6 +10,7 @@ import { ContactActions } from "@/components/ui/ContactActions";
 import { PhotoPicker, PickedPhoto, splitPhotos } from "@/components/ui/PhotoPicker";
 import { isOffline, submitOrQueue } from "@/lib/offline-queue";
 import { downloadCsv as exportCsvBlob } from "@/lib/csv-download";
+import { formatCompactNumber } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
 import { cn } from "@/lib/cn";
 import { useActiveSite } from "@/hooks/useActiveSite";
@@ -737,7 +738,7 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
               <x.Icon className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <div className="font-display text-xl font-extrabold tabular-nums text-slate-900">{x.value}</div>
+              <div className="font-display text-lg sm:text-xl font-extrabold tabular-nums tracking-tight leading-tight text-slate-900 truncate" title={String(x.value)}>{typeof x.value === "number" ? formatCompactNumber(x.value) : x.value}</div>
               <div className="truncate text-xs text-slate-500">{x.label}</div>
             </div>
           </div>

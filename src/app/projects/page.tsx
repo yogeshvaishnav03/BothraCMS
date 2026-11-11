@@ -8,7 +8,7 @@ import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatCompactNumber, formatDate } from "@/lib/formatters";
 import {
   FolderKanban,
   Plus,
@@ -759,7 +759,7 @@ export default function ProjectsPage() {
                         <div>
                           <div className="text-slate-400 text-[11px]">Approved Budget</div>
                           <div className="font-bold text-slate-900 text-sm tabular-nums">
-                            {formatCurrency(p.budgetAmount)}
+                            <span title={formatCurrency(p.budgetAmount)}>{formatCompactINR(p.budgetAmount)}</span>
                           </div>
                         </div>
 

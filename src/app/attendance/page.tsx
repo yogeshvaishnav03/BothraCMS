@@ -4,7 +4,7 @@ import { Alert } from "@/components/ui/Alert";
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
-import { formatDateTime, formatDate } from "@/lib/formatters";
+import { formatDateTime, formatDate, formatCompactNumber } from "@/lib/formatters";
 import { downloadCsv } from "@/lib/csv-download";
 import {
   Clock,
@@ -851,7 +851,7 @@ export default function AttendancePage() {
                 {isSuperAdmin ? <ShieldCheck className="w-5 h-5 text-amber-400" /> : <Clock className="w-5 h-5" />}
               </div>
               <div>
-                <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                   <span>
                     {isSuperAdmin
                       ? "Staff Attendance & Check-Ins"
@@ -1061,20 +1061,20 @@ export default function AttendancePage() {
 
               {/* Quick Summary Badges */}
               <div className="grid grid-cols-2 gap-3 min-w-[280px]">
-                <div className="bg-slate-800/90 border border-slate-700/80 p-3 rounded-xl">
+                <div className="bg-slate-800/90 border border-slate-700/80 p-3 rounded-xl min-w-0">
                   <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
                     Staff On Site Today
                   </div>
-                  <div className="text-lg font-black text-amber-400 mt-0.5 tabular-nums">
-                    {metrics.totalStaffOnSiteToday} <span className="text-xs font-normal text-slate-400">staff</span>
+                  <div className="font-display text-lg sm:text-xl font-extrabold text-amber-400 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={String(metrics.totalStaffOnSiteToday)}>
+                    {formatCompactNumber(metrics.totalStaffOnSiteToday)} <span className="text-xs font-normal text-slate-400">staff</span>
                   </div>
                 </div>
-                <div className="bg-slate-800/90 border border-slate-700/80 p-3 rounded-xl">
+                <div className="bg-slate-800/90 border border-slate-700/80 p-3 rounded-xl min-w-0">
                   <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
                     Total Hours Logged
                   </div>
-                  <div className="text-lg font-black text-emerald-400 mt-0.5 tabular-nums">
-                    {metrics.totalHoursLogged} <span className="text-xs font-normal text-slate-400">hrs</span>
+                  <div className="font-display text-lg sm:text-xl font-extrabold text-emerald-400 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={String(metrics.totalHoursLogged)}>
+                    {formatCompactNumber(metrics.totalHoursLogged)} <span className="text-xs font-normal text-slate-400">hrs</span>
                   </div>
                 </div>
               </div>
@@ -1331,8 +1331,8 @@ export default function AttendancePage() {
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                 {activeTab === "all" && isPrivileged ? "Total Shifts Logged" : "Days Present (3 Mos)"}
               </div>
-              <div className="text-xl font-black text-slate-900 mt-0.5 tabular-nums">
-                {metrics.totalDaysPresent}{" "}
+              <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={String(metrics.totalDaysPresent)}>
+                {formatCompactNumber(metrics.totalDaysPresent)}{" "}
                 <span className="text-xs font-normal text-slate-400">
                   {activeTab === "all" && isPrivileged ? "shifts" : "days"}
                 </span>
@@ -1348,8 +1348,8 @@ export default function AttendancePage() {
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                 Completed Shifts
               </div>
-              <div className="text-xl font-black text-emerald-600 mt-0.5 tabular-nums">
-                {metrics.completedShifts} <span className="text-xs font-normal text-slate-400">shifts</span>
+              <div className="font-display text-lg sm:text-xl font-extrabold text-emerald-600 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={String(metrics.completedShifts)}>
+                {formatCompactNumber(metrics.completedShifts)} <span className="text-xs font-normal text-slate-400">shifts</span>
               </div>
             </div>
           </div>
@@ -1362,8 +1362,8 @@ export default function AttendancePage() {
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                 Total Hours Logged
               </div>
-              <div className="text-xl font-black text-blue-600 mt-0.5 tabular-nums">
-                {metrics.totalHoursLogged} <span className="text-xs font-normal text-slate-400">hrs</span>
+              <div className="font-display text-lg sm:text-xl font-extrabold text-blue-600 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={String(metrics.totalHoursLogged)}>
+                {formatCompactNumber(metrics.totalHoursLogged)} <span className="text-xs font-normal text-slate-400">hrs</span>
               </div>
             </div>
           </div>
@@ -1376,15 +1376,18 @@ export default function AttendancePage() {
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                 {activeTab === "all" && isPrivileged ? "Staff On Site Today" : "Avg Daily Hours"}
               </div>
-              <div className="text-xl font-black text-purple-600 mt-0.5 tabular-nums">
+              <div
+                className="font-display text-lg sm:text-xl font-extrabold text-purple-600 mt-0.5 tabular-nums tracking-tight leading-tight truncate"
+                title={String(activeTab === "all" && isPrivileged ? metrics.totalStaffOnSiteToday : metrics.averageDailyHours)}
+              >
                 {activeTab === "all" && isPrivileged ? (
                   <>
-                    {metrics.totalStaffOnSiteToday}{" "}
+                    {formatCompactNumber(metrics.totalStaffOnSiteToday)}{" "}
                     <span className="text-xs font-normal text-slate-400">active</span>
                   </>
                 ) : (
                   <>
-                    {metrics.averageDailyHours}{" "}
+                    {formatCompactNumber(metrics.averageDailyHours)}{" "}
                     <span className="text-xs font-normal text-slate-400">hrs/day</span>
                   </>
                 )}

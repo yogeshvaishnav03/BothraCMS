@@ -189,7 +189,7 @@ export default function ProjectBudget({ projectId, canEdit }: { projectId: strin
         {tiles.map((x) => (
           <div key={x.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
             <div className="text-xs font-semibold text-slate-500">{x.label}</div>
-            <div className={cn("mt-1 font-display text-2xl font-extrabold tabular-nums text-slate-900", x.tone)}>{x.value}</div>
+            <div className={cn("mt-1 font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight text-slate-900 truncate", x.tone)}>{x.value}</div>
             <div className="mt-0.5 truncate text-[11px] text-slate-400">{x.sub}</div>
           </div>
         ))}

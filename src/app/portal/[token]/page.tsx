@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Building2, CalendarClock, CheckCircle2, Camera, Receipt, Phone } from "lucide-react";
 import { SalesService } from "@/services/sales-service";
 import { rupees, shortDate } from "@/lib/client-api";
+import { formatCompactINR } from "@/lib/formatters";
 import { requireBuyerAccess } from "@/lib/buyer-gate";
 import { BuyerSignOut } from "@/components/sales/BuyerSignOut";
 import { PayNowButton } from "@/components/sales/PayNowButton";
@@ -58,7 +59,7 @@ export default async function BuyerPortal({ params, searchParams }: { params: { 
         <section className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
             <div className="text-xs font-semibold text-slate-500">Construction</div>
-            <div className="mt-1 font-display text-2xl font-extrabold text-slate-900">{view.progress === null ? "—" : `${view.progress}%`}</div>
+            <div className="mt-1 font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight text-slate-900 truncate">{view.progress === null ? "—" : `${view.progress}%`}</div>
             <div className="mt-2 h-1.5 rounded-full bg-slate-100">
               <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${view.progress ?? 0}%` }} />
             </div>
@@ -66,7 +67,7 @@ export default async function BuyerPortal({ params, searchParams }: { params: { 
           </div>
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
             <div className="text-xs font-semibold text-slate-500">Paid so far</div>
-            <div className="mt-1 font-display text-2xl font-extrabold text-slate-900">{rupees(view.received)}</div>
+            <div className="mt-1 font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight text-slate-900 truncate" title={rupees(view.received)}>{formatCompactINR(view.received)}</div>
             <div className="mt-2 h-1.5 rounded-full bg-slate-100">
               <div className="h-1.5 rounded-full bg-amber-500" style={{ width: `${paidPct}%` }} />
             </div>
@@ -77,7 +78,7 @@ export default async function BuyerPortal({ params, searchParams }: { params: { 
           </div>
           <div className={`rounded-2xl p-4 shadow-sm ring-1 ${view.dueNow > 0 ? "bg-amber-50 ring-amber-200" : "bg-white ring-slate-200"}`}>
             <div className="text-xs font-semibold text-slate-500">To pay now</div>
-            <div className="mt-1 font-display text-2xl font-extrabold text-slate-900">{rupees(view.dueNow)}</div>
+            <div className="mt-1 font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight text-slate-900 truncate" title={rupees(view.dueNow)}>{formatCompactINR(view.dueNow)}</div>
             <div className="mt-2 text-xs text-slate-600">
               {nextDue ? `${nextDue.label}, due ${shortDate(nextDue.dueDate)}` : "Nothing due right now"}
             </div>

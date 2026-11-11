@@ -6,7 +6,7 @@ import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, E
 import { useActiveSite } from "@/hooks/useActiveSite";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
-import { formatCurrency, formatQuantity, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatQuantity, formatDate } from "@/lib/formatters";
 import { downloadCsv } from "@/lib/csv-download";
 import { canUser } from "@/lib/permissions";
 import {
@@ -447,15 +447,15 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
                 <span className="text-[11px] font-bold text-slate-500 uppercase">Total Billed by Parties</span>
-                <div className="text-lg font-black text-slate-900 mt-0.5">{formatCurrency(totalPayablesBilled)}</div>
+                <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalPayablesBilled)}>{formatCompactINR(totalPayablesBilled)}</div>
               </div>
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
                 <span className="text-[11px] font-bold text-slate-500 uppercase">Total Settled / Paid</span>
-                <div className="text-lg font-black text-emerald-700 mt-0.5">{formatCurrency(totalPayablesPaid)}</div>
+                <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-700 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalPayablesPaid)}>{formatCompactINR(totalPayablesPaid)}</div>
               </div>
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
                 <span className="text-[11px] font-bold text-slate-500 uppercase">Outstanding Liability</span>
-                <div className="text-lg font-black text-rose-600 mt-0.5">{formatCurrency(totalOutstandingLiability)}</div>
+                <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalOutstandingLiability)}>{formatCompactINR(totalOutstandingLiability)}</div>
               </div>
             </div>
 

@@ -7,7 +7,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, useTablePagination, ExcelColumnHeader, ExcelTableToolbar, ShowEntriesControl, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatCompactINR, rupeesToPaise, paiseToRupees } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatCompactNumber, rupeesToPaise, paiseToRupees } from "@/lib/formatters";
 import {
   Building2,
   Plus,
@@ -583,10 +583,10 @@ export default function PartiesPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
           {[
-            { label: "Vendors", value: String(stats.vendors), Icon: Truck, tone: "bg-sky-50 text-sky-600 ring-sky-100", onClick: () => setTypeFilter("VENDOR") },
-            { label: "Contractors", value: String(stats.contractors), Icon: HardHat, tone: "bg-violet-50 text-violet-600 ring-violet-100", onClick: () => setTypeFilter("CONTRACTOR") },
-            { label: "Total due to parties", value: formatCompactINR(stats.outstanding), Icon: IndianRupee, tone: "bg-amber-50 text-amber-600 ring-amber-100", onClick: () => { setOnlyOutstanding(true); setSortBy("outstanding"); } },
-            { label: "Missing bank details", value: String(stats.missingBank), Icon: Landmark, tone: "bg-rose-50 text-rose-600 ring-rose-100", onClick: () => setOnlyMissingBank(true) },
+            { label: "Vendors", value: formatCompactNumber(stats.vendors), title: String(stats.vendors), Icon: Truck, tone: "bg-sky-50 text-sky-600 ring-sky-100", onClick: () => setTypeFilter("VENDOR") },
+            { label: "Contractors", value: formatCompactNumber(stats.contractors), title: String(stats.contractors), Icon: HardHat, tone: "bg-violet-50 text-violet-600 ring-violet-100", onClick: () => setTypeFilter("CONTRACTOR") },
+            { label: "Total due to parties", value: formatCompactINR(stats.outstanding), title: formatCurrency(stats.outstanding), Icon: IndianRupee, tone: "bg-amber-50 text-amber-600 ring-amber-100", onClick: () => { setOnlyOutstanding(true); setSortBy("outstanding"); } },
+            { label: "Missing bank details", value: formatCompactNumber(stats.missingBank), title: String(stats.missingBank), Icon: Landmark, tone: "bg-rose-50 text-rose-600 ring-rose-100", onClick: () => setOnlyMissingBank(true) },
           ].map((s) => (
             <button
               key={s.label}
@@ -598,7 +598,7 @@ export default function PartiesPage() {
                 <s.Icon className="w-5 h-5" />
               </span>
               <span className="min-w-0">
-                <span className="block font-display text-lg font-extrabold text-slate-900 tabular-nums leading-tight">{s.value}</span>
+                <span className="block font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={s.title}>{s.value}</span>
                 <span className="block text-xs text-slate-500 leading-tight">{s.label}</span>
               </span>
             </button>
@@ -782,11 +782,11 @@ export default function PartiesPage() {
                     <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2.5 text-center">
                       <div>
                         <div className="text-[10px] text-slate-500">Billed</div>
-                        <div className="text-sm font-semibold text-slate-800 tabular-nums">{formatCompactINR(p.totalBilled)}</div>
+                        <div className="text-sm font-semibold text-slate-800 tabular-nums truncate" title={formatCurrency(p.totalBilled)}>{formatCompactINR(p.totalBilled)}</div>
                       </div>
                       <div>
                         <div className="text-[10px] text-slate-500">Paid</div>
-                        <div className="text-sm font-semibold text-emerald-600 tabular-nums">{formatCompactINR(p.totalPaid)}</div>
+                        <div className="text-sm font-semibold text-emerald-600 tabular-nums truncate" title={formatCurrency(p.totalPaid)}>{formatCompactINR(p.totalPaid)}</div>
                       </div>
                       <div>
                         <div className="text-[10px] text-slate-500">{due < 0 ? "Advance" : "Due"}</div>

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { Tabs } from "@/components/ui/Modal";
 import { api, rupees, shortDate } from "@/lib/client-api";
+import { formatCompactINR } from "@/lib/formatters";
 import { cn } from "@/lib/cn";
 import { AlertTriangle, ChevronLeft, ChevronRight, Download, FileText, Loader2 } from "lucide-react";
 
@@ -185,18 +186,18 @@ export default function TdsReturnPage() {
             <>
               <div className="grid gap-3 sm:grid-cols-4">
                 {[
-                  { label: k.paid, value: rupees(doc.totals.paid) },
-                  { label: "TDS deducted", value: rupees(doc.totals.tds) },
+                  { label: k.paid, value: formatCompactINR(doc.totals.paid), title: rupees(doc.totals.paid) },
+                  { label: "TDS deducted", value: formatCompactINR(doc.totals.tds), title: rupees(doc.totals.tds) },
                   {
                     label: "TDS deposited",
-                    value: rupees(doc.totals.deposited),
+                    value: formatCompactINR(doc.totals.deposited), title: rupees(doc.totals.deposited),
                     tone: doc.totals.deposited < doc.totals.tds ? "text-rose-600" : "text-emerald-700",
                   },
                   { label: "Return due by", value: shortDate(doc.filingDue) },
                 ].map((t) => (
-                  <div key={t.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+                  <div key={t.label} className="min-w-0 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
                     <div className="text-xs font-semibold text-slate-500">{t.label}</div>
-                    <div className={cn("mt-1 font-display text-2xl font-extrabold tabular-nums text-slate-900", t.tone)}>{t.value}</div>
+                    <div className={cn("mt-1 font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight text-slate-900 truncate", t.tone)} title={"title" in t ? t.title : undefined}>{t.value}</div>
                   </div>
                 ))}
               </div>

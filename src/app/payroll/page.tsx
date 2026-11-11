@@ -10,6 +10,7 @@ import { Field, Modal, StatTile, Tabs, inputCls } from "@/components/ui/Modal";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { canUser } from "@/lib/permissions";
 import { api, post, patch, put, rupees, shortDate, toPaise } from "@/lib/client-api";
+import { formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { cn } from "@/lib/cn";
 import { BadgeCheck, Banknote, Calculator, CheckCircle2, FileText, HandCoins, Loader2, Pencil, Wallet } from "lucide-react";
 
@@ -1029,10 +1030,10 @@ export default function PayrollPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <StatTile value={run.lines.length} label="People paid" hint={`${labour.length} workers · ${staffLines.length} staff`} />
-                  <StatTile value={rupees(run.totalGross)} label="Gross pay" />
+                  <StatTile value={formatCompactNumber(run.lines.length)} title={String(run.lines.length)} label="People paid" hint={`${labour.length} workers · ${staffLines.length} staff`} />
+                  <StatTile value={formatCompactINR(run.totalGross)} title={rupees(run.totalGross)} label="Gross pay" />
                   <StatTile
-                    value={rupees(run.totalDeductions)}
+                    value={formatCompactINR(run.totalDeductions)} title={rupees(run.totalDeductions)}
                     label="Deductions"
                     tone="rose"
                     hint={
@@ -1041,7 +1042,7 @@ export default function PayrollPage() {
                         : "Advances and other"
                     }
                   />
-                  <StatTile value={rupees(run.totalNet)} label="Net to pay" tone="emerald" />
+                  <StatTile value={formatCompactINR(run.totalNet)} title={rupees(run.totalNet)} label="Net to pay" tone="emerald" />
                 </div>
                 {run.statutory && run.statutory.pfEmployer + run.statutory.esiEmployer > 0 && (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-sm shadow-xs">

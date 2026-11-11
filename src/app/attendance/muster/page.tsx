@@ -9,6 +9,7 @@ import { useTablePagination, ShowEntriesControl, TablePagination } from "@/compo
 import { cn } from "@/lib/cn";
 import { submitOrQueue } from "@/lib/offline-queue";
 import { api, rupees } from "@/lib/client-api";
+import { formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { ChevronLeft, ChevronRight, ClipboardCheck, CloudOff, Loader2, Lock, MapPin, Minus, Plus, Save, Search, Users } from "lucide-react";
 
 type Mark = "PRESENT" | "HALF_DAY" | "ABSENT" | "NONE";
@@ -264,7 +265,7 @@ export default function MusterPage() {
               { n: totals.NONE, label: "Not marked", tone: "text-slate-500" },
             ].map((t) => (
               <div key={t.label} className="rounded-xl border border-slate-200/80 bg-white px-1 py-2.5">
-                <div className={cn("font-display text-2xl font-extrabold tabular-nums", t.tone)}>{t.n}</div>
+                <div className={cn("font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate", t.tone)} title={String(t.n)}>{formatCompactNumber(t.n)}</div>
                 <div className="text-[11px] font-semibold text-slate-500">{t.label}</div>
               </div>
             ))}
@@ -399,8 +400,8 @@ export default function MusterPage() {
           <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-xl">
             <div className="min-w-0 flex-1 text-xs">
               <div className="font-semibold text-slate-300">Wages for the day</div>
-              <div className="text-lg font-extrabold tabular-nums">
-                {rupees(totals.wages)}
+              <div className="font-display text-lg sm:text-xl font-extrabold tabular-nums" title={rupees(totals.wages)}>
+                {formatCompactINR(totals.wages)}
                 {totals.ot > 0 && <span className="ml-1.5 whitespace-nowrap text-xs font-semibold text-amber-300">+{totals.ot}h OT</span>}
               </div>
             </div>

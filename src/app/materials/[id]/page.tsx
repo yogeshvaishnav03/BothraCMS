@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
-import { formatCurrency, formatQuantity, formatDateTime, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatQuantity, formatCompactQuantity, formatDateTime, formatDate } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
 import {
   Boxes,
@@ -261,7 +261,7 @@ export default function MaterialDetailPage() {
               <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
                 Material Detail & Stock Ledger
               </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
+              <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2 flex-wrap">
                 <span>{material.name}</span>
                 <span className="font-mono text-xs px-2.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold">
                   {material.sku}
@@ -338,8 +338,8 @@ export default function MaterialDetailPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Current Stock on Hand
             </span>
-            <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-              {formatQuantity(currentBalance, material.unitCode)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatQuantity(currentBalance, material.unitCode)}>{formatCompactQuantity(currentBalance, material.unitCode)}</span>
             </div>
             <div className="text-[11px] text-emerald-600 font-semibold mt-1">
               Authoritative Reconciled Balance
@@ -350,8 +350,8 @@ export default function MaterialDetailPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Total Received to Date
             </span>
-            <div className="text-2xl font-black text-emerald-600 mt-1 tabular-nums">
-              {formatQuantity(totalReceived, material.unitCode)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatQuantity(totalReceived, material.unitCode)}>{formatCompactQuantity(totalReceived, material.unitCode)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">From vendor shipments</div>
           </div>
@@ -360,8 +360,8 @@ export default function MaterialDetailPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Total Issued / Consumed
             </span>
-            <div className="text-2xl font-black text-amber-600 mt-1 tabular-nums">
-              {formatQuantity(totalIssued, material.unitCode)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatQuantity(totalIssued, material.unitCode)}>{formatCompactQuantity(totalIssued, material.unitCode)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Issued to site projects & tasks</div>
           </div>
@@ -370,8 +370,8 @@ export default function MaterialDetailPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Unit Rate (Price)
             </span>
-            <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-              {material.unitPrice ? `₹${Number(material.unitPrice).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={material.unitPrice ? `₹${Number(material.unitPrice).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : undefined}>{material.unitPrice ? formatCompactINR(Math.round(Number(material.unitPrice) * 100)) : "—"}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Standard rate per {material.unitCode}</div>
           </div>
@@ -380,8 +380,8 @@ export default function MaterialDetailPage() {
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Minimum Threshold
             </span>
-            <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-              {formatQuantity(material.minStockQty, material.unitCode)}
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatQuantity(material.minStockQty, material.unitCode)}>{formatCompactQuantity(material.minStockQty, material.unitCode)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Automatic reorder warning level</div>
           </div>

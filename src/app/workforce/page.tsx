@@ -4,7 +4,7 @@ import { Alert } from "@/components/ui/Alert";
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import Shell from "@/components/layout/Shell";
 import { ContactActions } from "@/components/ui/ContactActions";
-import { formatDate, formatDateTime } from "@/lib/formatters";
+import { formatDate, formatDateTime, formatCompactNumber } from "@/lib/formatters";
 import {
   Users,
   HardHat,
@@ -656,7 +656,7 @@ export default function WorkforcePage() {
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>Site Workers & Labor Headcount</span>
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -803,13 +803,18 @@ export default function WorkforcePage() {
             {/* KPI Summary Cards for the Site */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {/* Grand Total */}
-              <div className="col-span-2 sm:col-span-1 bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-xs border border-slate-700">
+              <div className="col-span-2 sm:col-span-1 bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-xs border border-slate-700 min-w-0">
                 <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">
                   Total Site Workers
                 </span>
-                <div className="text-2xl font-black mt-1 tabular-nums">
-                  {selectedSiteTodayRecord ? selectedSiteTodayRecord.grandTotal : siteGrandTotal}
-                  <span className="text-xs font-normal text-slate-400 ml-1">workers</span>
+                <div className="mt-1 flex items-baseline gap-1 min-w-0">
+                  <span
+                    className="font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate"
+                    title={String(selectedSiteTodayRecord ? selectedSiteTodayRecord.grandTotal : siteGrandTotal)}
+                  >
+                    {formatCompactNumber(selectedSiteTodayRecord ? selectedSiteTodayRecord.grandTotal : siteGrandTotal)}
+                  </span>
+                  <span className="text-xs font-normal text-slate-400 shrink-0">workers</span>
                 </div>
                 <div className="text-[11px] text-slate-400 mt-1">
                   {selectedSiteTodayRecord ? "Logged on site today" : "Cumulative logged count"}
@@ -817,15 +822,18 @@ export default function WorkforcePage() {
               </div>
 
               {/* Artisans Card */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Artisans (कारीगर)
                   </span>
                   <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 </div>
-                <div className="text-xl font-black text-slate-900 mt-1 tabular-nums">
-                  {selectedSiteTodayRecord ? (selectedSiteTodayRecord.artisanCount ?? selectedSiteTodayRecord.artisanTotal ?? 0) : siteTotalArtisan}
+                <div
+                  className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate"
+                  title={String(selectedSiteTodayRecord ? (selectedSiteTodayRecord.artisanCount ?? selectedSiteTodayRecord.artisanTotal ?? 0) : siteTotalArtisan)}
+                >
+                  {formatCompactNumber(selectedSiteTodayRecord ? (selectedSiteTodayRecord.artisanCount ?? selectedSiteTodayRecord.artisanTotal ?? 0) : siteTotalArtisan)}
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1 flex items-center gap-1.5">
                   <span className="text-amber-700 font-bold">Direct Count</span>
@@ -835,29 +843,32 @@ export default function WorkforcePage() {
               </div>
 
               {/* Laborers Card */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Laborers (मजदूर)
                   </span>
                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 </div>
-                <div className="text-xl font-black text-slate-900 mt-1 tabular-nums">
-                  {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerTotal : siteTotalLaborer}
+                <div
+                  className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate"
+                  title={String(selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerTotal : siteTotalLaborer)}
+                >
+                  {formatCompactNumber(selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerTotal : siteTotalLaborer)}
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1 flex items-center gap-1.5">
-                  <span>M: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerMale : siteLaborerMale}</span>
+                  <span>M: {formatCompactNumber(selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerMale : siteLaborerMale)}</span>
                   <span>&bull;</span>
-                  <span>F: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerFemale : siteLaborerFemale}</span>
+                  <span>F: {formatCompactNumber(selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerFemale : siteLaborerFemale)}</span>
                 </div>
               </div>
 
               {/* Laborer Gender Split Card */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs min-w-0">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Laborer Gender Split
                 </span>
-                <div className="text-xl font-black text-purple-700 mt-1 tabular-nums">
+                <div className="font-display text-xl sm:text-2xl font-extrabold text-purple-700 mt-1 tabular-nums tracking-tight leading-tight truncate">
                   {laborerMalePercent}% M / {laborerFemalePercent}% F
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1">

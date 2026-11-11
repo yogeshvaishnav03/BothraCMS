@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { Field, StatTile, inputCls } from "@/components/ui/Modal";
 import { api, rupees } from "@/lib/client-api";
+import { formatCompactINR } from "@/lib/formatters";
 import { cn } from "@/lib/cn";
 import { Download, FileSpreadsheet, FileCode2, Landmark } from "lucide-react";
 
@@ -94,10 +95,10 @@ export default function ExportsPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile value={summary ? rupees(summary.bills.amount) : "…"} label={`Supplier bills (${summary?.bills.count ?? "…"})`} />
-          <StatTile value={summary ? rupees(summary.payments.amount) : "…"} label={`Payments made (${summary?.payments.count ?? "…"})`} tone="rose" />
-          <StatTile value={summary ? rupees(summary.receipts.amount) : "…"} label={`Received from customers (${summary?.receipts.count ?? "…"})`} tone="emerald" />
-          <StatTile value={summary ? rupees(summary.receipts.gst) : "…"} label="GST collected on receipts" tone="amber" hint={summary ? `on ${rupees(summary.receipts.taxable)} taxable` : undefined} />
+          <StatTile value={summary ? formatCompactINR(summary.bills.amount) : "…"} title={summary ? rupees(summary.bills.amount) : undefined} label={`Supplier bills (${summary?.bills.count ?? "…"})`} />
+          <StatTile value={summary ? formatCompactINR(summary.payments.amount) : "…"} title={summary ? rupees(summary.payments.amount) : undefined} label={`Payments made (${summary?.payments.count ?? "…"})`} tone="rose" />
+          <StatTile value={summary ? formatCompactINR(summary.receipts.amount) : "…"} title={summary ? rupees(summary.receipts.amount) : undefined} label={`Received from customers (${summary?.receipts.count ?? "…"})`} tone="emerald" />
+          <StatTile value={summary ? formatCompactINR(summary.receipts.gst) : "…"} title={summary ? rupees(summary.receipts.gst) : undefined} label="GST collected on receipts" tone="amber" hint={summary ? `on ${formatCompactINR(summary.receipts.taxable)} taxable` : undefined} />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
