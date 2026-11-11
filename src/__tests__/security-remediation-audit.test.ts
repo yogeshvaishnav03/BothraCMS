@@ -35,6 +35,33 @@ describe("Security Remediation Audit Regressions", () => {
     expect(decoded).toContain("db.prod.example.com");
   });
 
+  it("derives identical production JWT keys across unmutated Edge env and db.ts-mutated Node env", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PHASE", "");
+    vi.stubEnv("SESSION_SECRET", "");
+    vi.stubEnv("POSTGRES_URL_NON_POOLING", "");
+    vi.stubEnv("POSTGRES_URL", "");
+    vi.stubEnv("DIRECT_URL", "");
+    vi.stubEnv("POSTGRES_PRISMA_URL", "");
+    vi.stubEnv(
+      "DATABASE_URL",
+      "postgresql://u:secret@ep-demo-pooler.neon.tech/neondb?sslmode=require&channel_binding=require"
+    );
+    vi.stubEnv("VERCEL_URL", "edge-preview.vercel.app");
+
+    const edgeKey = new TextDecoder().decode(getJwtSecret());
+
+    // Simulate db.ts optimizeDbUrl mutating DATABASE_URL on Node startup and differing VERCEL_URL
+    vi.stubEnv(
+      "DATABASE_URL",
+      "postgresql://u:secret@ep-demo-pooler.neon.tech/neondb?sslmode=require&connect_timeout=30&pool_timeout=30&pgbouncer=true"
+    );
+    vi.stubEnv("VERCEL_URL", "node-prod.vercel.app");
+
+    const nodeKey = new TextDecoder().decode(getJwtSecret());
+    expect(nodeKey).toBe(edgeKey);
+  });
+
   it("disables demo seeding on Vercel production unless ALLOW_DEMO_SEED=true", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("VERCEL", "1");

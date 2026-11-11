@@ -85,26 +85,68 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
   if (!session) return null;
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: {
-        id: true,
-        organizationId: true,
-        email: true,
-        name: true,
-        role: true,
-        status: true,
-        extraPermissionsJson: true,
-        organization: {
-          select: {
-            status: true,
-            name: true,
-            currency: true,
-            timezone: true,
+    let user: {
+      id: string;
+      organizationId: string;
+      email: string;
+      name: string;
+      role: string;
+      status: string;
+      extraPermissionsJson?: string | null;
+      organization: {
+        status: string;
+        name: string;
+        currency: string;
+        timezone: string;
+      } | null;
+    } | null = null;
+
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          id: true,
+          organizationId: true,
+          email: true,
+          name: true,
+          role: true,
+          status: true,
+          extraPermissionsJson: true,
+          organization: {
+            select: {
+              status: true,
+              name: true,
+              currency: true,
+              timezone: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (colErr: any) {
+      if (colErr?.code !== "P2022" && !String(colErr?.message || "").includes("extraPermissionsJson")) {
+        throw colErr;
+      }
+      // Graceful fallback when schema migration is still rolling out
+      user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          id: true,
+          organizationId: true,
+          email: true,
+          name: true,
+          role: true,
+          status: true,
+          organization: {
+            select: {
+              status: true,
+              name: true,
+              currency: true,
+              timezone: true,
+            },
+          },
+        },
+      });
+    }
 
     if (
       user &&

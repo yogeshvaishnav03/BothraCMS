@@ -38,6 +38,45 @@ function getRuntimeRandomFallback(): string {
   return globalForJwt.__ephemeralProdFallbackSecret;
 }
 
+function getCanonicalPostgresSecret(): string | null {
+  // Prefer direct/pooled variables that db.ts never mutates at Node module load,
+  // and strip query parameters so optimizeDbUrl() edits never cause Node API
+  // routes and Edge middleware to compute different signing keys.
+  const candidates = [
+    process.env.POSTGRES_URL_NON_POOLING,
+    process.env.POSTGRES_URL,
+    process.env.DIRECT_URL,
+    process.env.POSTGRES_PRISMA_URL,
+    process.env.DATABASE_URL,
+  ];
+  for (const raw of candidates) {
+    const trimmed = raw?.trim();
+    if (!trimmed) continue;
+    if (/^postgres(ql)?:\/\//i.test(trimmed)) {
+      return trimmed.split("?")[0].replace(/\/+$/, "");
+    }
+  }
+  return null;
+}
+
+function getOtherDeploymentSecret(): string | null {
+  const candidates = [
+    process.env.CRON_SECRET,
+    process.env.BLOB_READ_WRITE_TOKEN,
+    process.env.AWS_SECRET_ACCESS_KEY,
+    process.env.RAZORPAY_KEY_SECRET,
+    process.env.WHATSAPP_APP_SECRET,
+    process.env.VAPID_PRIVATE_KEY,
+  ];
+  for (const raw of candidates) {
+    const trimmed = raw?.trim();
+    if (trimmed && trimmed.length >= 16) {
+      return `bothra-jwt-dep:${trimmed}`;
+    }
+  }
+  return null;
+}
+
 export function getJwtSecret(): Uint8Array {
   const explicit = strong(process.env.SESSION_SECRET);
   if (explicit) {
@@ -48,16 +87,17 @@ export function getJwtSecret(): Uint8Array {
   const isProdRuntime = process.env.NODE_ENV === "production" && !isBuildPhase;
 
   if (isProdRuntime) {
-    const dbUrl =
-      process.env.DATABASE_URL ||
-      process.env.POSTGRES_PRISMA_URL ||
-      process.env.POSTGRES_URL ||
-      process.env.POSTGRES_URL_NON_POOLING ||
-      "";
-    if (dbUrl.trim()) {
-      const salt = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL || "bothra-prod";
-      return new TextEncoder().encode(`bothra-jwt-key:${salt}:${dbUrl.trim()}`);
+    const pgBase = getCanonicalPostgresSecret();
+    if (pgBase) {
+      return new TextEncoder().encode(`bothra-jwt-key:${pgBase}`);
     }
+    const depSecret = getOtherDeploymentSecret();
+    if (depSecret) {
+      return new TextEncoder().encode(depSecret);
+    }
+    console.error(
+      "[JWT_SECRET] Production SESSION_SECRET and database/deployment secrets are missing; Node and Edge runtimes cannot share ephemeral keys."
+    );
     return new TextEncoder().encode(getRuntimeRandomFallback());
   }
 
