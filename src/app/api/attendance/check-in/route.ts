@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       attachmentIds: data.attachmentIds,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(session, 201);

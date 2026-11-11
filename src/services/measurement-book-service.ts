@@ -1,10 +1,11 @@
 import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/db";
-import { assertPermission, Role } from "@/lib/permissions";
+import { assertPermission, hasPermission, Permission, Role } from "@/lib/permissions";
 import { FinanceService } from "./finance-service";
 import { roundQuantity, roundPaise } from "@/lib/financial-math";
 import { autoMigrateDatabase } from "@/lib/db-auto-migrate";
+import { isSafeMediaUrl, sanitizeFileName } from "@/lib/upload-validation";
 
 function syncLegacyJson(entry: any) {
   lastVerifiedJsonStat = null;
@@ -61,12 +62,13 @@ function checkAndHealLegacyJsonBackup() {
   } catch {}
 }
 
-function assertCanRecordMeasurements(role: Role) {
+function assertCanRecordMeasurements(role: Role, permissions?: Permission[]) {
   if (
     role === "SUPER_ADMIN" ||
     role === "ORG_ADMIN" ||
     role === "PROJECT_MANAGER" ||
-    role === "SITE_SUPERVISOR"
+    role === "SITE_SUPERVISOR" ||
+    hasPermission({ role, permissions }, "projects:write")
   ) {
     return;
   }
@@ -357,8 +359,9 @@ export class MeasurementBookService {
     description?: string;
     userId: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<MeasurementGroupItem> {
-    if (input.role === "SITE_SUPERVISOR") {
+    if (input.role === "SITE_SUPERVISOR" && !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")) {
       const assignment = await prisma.projectAssignment.findFirst({
         where: {
           organizationId: input.organizationId,
@@ -371,7 +374,7 @@ export class MeasurementBookService {
         throw new Error("Forbidden: Role SITE_SUPERVISOR lacks required permission 'projects:write' or assignment to this project.");
       }
     } else {
-      assertPermission(input.role, "projects:write");
+      assertPermission({ role: input.role, permissions: input.permissions }, "projects:write");
     }
 
     const project = await prisma.project.findFirst({
@@ -467,6 +470,7 @@ export class MeasurementBookService {
     remarks?: string;
     userId: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<MeasurementSubgroupItem> {
     if (!input.name || !input.name.trim()) {
       throw new Error("InvalidInput: Subgroup name is required (e.g., Drawing Room, Ground Floor)");
@@ -479,7 +483,7 @@ export class MeasurementBookService {
       throw new Error("NotFound: Measurement Main Group not found");
     }
 
-    if (input.role === "SITE_SUPERVISOR") {
+    if (input.role === "SITE_SUPERVISOR" && !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")) {
       const assignment = await prisma.projectAssignment.findFirst({
         where: {
           organizationId: input.organizationId,
@@ -492,7 +496,7 @@ export class MeasurementBookService {
         throw new Error("Forbidden: Role SITE_SUPERVISOR lacks required permission 'projects:write' or assignment to this project.");
       }
     } else {
-      assertPermission(input.role, "projects:write");
+      assertPermission({ role: input.role, permissions: input.permissions }, "projects:write");
     }
 
     const validTypes = ["ROOM", "FLOOR", "AREA", "LOCATION", "WORK_SECTION", "CUSTOM"];
@@ -531,9 +535,10 @@ export class MeasurementBookService {
     organizationId: string;
     groupId: string;
     role: Role;
+    permissions?: Permission[];
     userId: string;
   }): Promise<{ success: boolean; deletedCount: number }> {
-    assertPermission(input.role, "projects:write");
+    assertPermission({ role: input.role, permissions: input.permissions }, "projects:write");
 
     const group = await prisma.measurementGroup.findFirst({
       where: { id: input.groupId, organizationId: input.organizationId },
@@ -575,9 +580,10 @@ export class MeasurementBookService {
     organizationId: string;
     subgroupId: string;
     role: Role;
+    permissions?: Permission[];
     userId: string;
   }): Promise<{ success: boolean; deletedCount: number }> {
-    assertPermission(input.role, "projects:write");
+    assertPermission({ role: input.role, permissions: input.permissions }, "projects:write");
 
     const subgroup = await prisma.measurementSubgroup.findFirst({
       where: { id: input.subgroupId, organizationId: input.organizationId },
@@ -638,6 +644,7 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<MeasurementEntry> {
     try {
       return await this._doCreateEntry(input);
@@ -685,8 +692,9 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<MeasurementEntry> {
-    if (input.role === "SITE_SUPERVISOR") {
+    if (input.role === "SITE_SUPERVISOR" && !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")) {
       const assignment = await prisma.projectAssignment.findFirst({
         where: {
           organizationId: input.organizationId,
@@ -699,7 +707,7 @@ export class MeasurementBookService {
         throw new Error("Forbidden: Role SITE_SUPERVISOR lacks required permission 'projects:write' or assignment to this project.");
       }
     } else {
-      assertPermission(input.role, "projects:write");
+      assertPermission({ role: input.role, permissions: input.permissions }, "projects:write");
     }
 
     const project = await prisma.project.findFirst({
@@ -905,8 +913,9 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<{ changeRequestCreated: boolean; entry?: MeasurementEntry; changeRequest?: any }> {
-    assertCanRecordMeasurements(input.role);
+    assertCanRecordMeasurements(input.role, input.permissions);
 
     if (!input.reason || !input.reason.trim()) {
       throw new Error("InvalidInput: A mandatory reason is strictly required to update a measurement entry.");
@@ -1066,8 +1075,9 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<{ changeRequestCreated: boolean; success: boolean; changeRequest?: any }> {
-    assertCanRecordMeasurements(input.role);
+    assertCanRecordMeasurements(input.role, input.permissions);
 
     if (!input.reason || !input.reason.trim()) {
       throw new Error("InvalidInput: A mandatory reason is strictly required to delete a measurement entry.");
@@ -1154,8 +1164,13 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<MeasurementAttachmentItem> {
-    assertCanRecordMeasurements(input.role);
+    assertCanRecordMeasurements(input.role, input.permissions);
+    if (!isSafeMediaUrl(input.fileUrl)) {
+      throw new Error("InvalidInput: Evidence URL must reference an internal upload");
+    }
+    const safeFileName = sanitizeFileName(input.fileName);
 
     const entry = await prisma.measurementBookEntry.findFirst({
       where: { id: input.entryId, organizationId: input.organizationId, isDeleted: false },
@@ -1167,8 +1182,8 @@ export class MeasurementBookService {
         data: {
           organizationId: input.organizationId,
           entryId: entry.id,
-          fileName: input.fileName,
-          fileUrl: input.fileUrl,
+          fileName: safeFileName,
+          fileUrl: input.fileUrl.trim(),
           fileSize: input.fileSize || null,
           mimeType: input.mimeType || null,
           caption: input.caption?.trim() || null,
@@ -1227,8 +1242,13 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<MeasurementAttachmentItem> {
-    assertCanRecordMeasurements(input.role);
+    assertCanRecordMeasurements(input.role, input.permissions);
+    if (!isSafeMediaUrl(input.fileUrl)) {
+      throw new Error("InvalidInput: Evidence URL must reference an internal upload");
+    }
+    const safeFileName = sanitizeFileName(input.fileName);
 
     if (!input.reason || !input.reason.trim()) {
       throw new Error("InvalidInput: A mandatory reason is strictly required to replace evidence image.");
@@ -1246,8 +1266,8 @@ export class MeasurementBookService {
         data: {
           organizationId: input.organizationId,
           entryId: input.entryId,
-          fileName: input.fileName,
-          fileUrl: input.fileUrl,
+          fileName: safeFileName,
+          fileUrl: input.fileUrl.trim(),
           fileSize: input.fileSize || null,
           mimeType: input.mimeType || null,
           caption: input.caption?.trim() || existingAtt.caption,
@@ -1315,8 +1335,9 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<{ success: boolean }> {
-    assertCanRecordMeasurements(input.role);
+    assertCanRecordMeasurements(input.role, input.permissions);
 
     if (!input.reason || !input.reason.trim()) {
       throw new Error("InvalidInput: A mandatory reason is strictly required to remove an evidence photo.");
@@ -1370,9 +1391,15 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<any> {
-    // Only Admin / Super Admin or authorized manager can approve changes
-    if (input.role !== "SUPER_ADMIN" && input.role !== "ORG_ADMIN" && input.role !== "PROJECT_MANAGER") {
+    // Only Admin / Super Admin or authorized manager (or user with projects:write) can approve changes
+    if (
+      input.role !== "SUPER_ADMIN" &&
+      input.role !== "ORG_ADMIN" &&
+      input.role !== "PROJECT_MANAGER" &&
+      !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")
+    ) {
       throw new Error("Forbidden: Only project managers or administrators can approve change requests.");
     }
 
@@ -1563,10 +1590,11 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }): Promise<MeasurementEntry> {
     if (input.status === "APPROVED") {
-      assertPermission(input.role, "finance:write");
-    } else if (input.role === "SITE_SUPERVISOR") {
+      assertPermission({ role: input.role, permissions: input.permissions }, "finance:write");
+    } else if (input.role === "SITE_SUPERVISOR" && !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")) {
       const entry = await prisma.measurementBookEntry.findFirst({
         where: { id: input.entryId, organizationId: input.organizationId },
         select: { projectId: true },
@@ -1584,7 +1612,7 @@ export class MeasurementBookService {
         throw new Error("Forbidden: Role SITE_SUPERVISOR lacks assignment to this project.");
       }
     } else {
-      assertPermission(input.role, "projects:write");
+      assertPermission({ role: input.role, permissions: input.permissions }, "projects:write");
     }
 
     return await prisma.$transaction(async (tx) => {
@@ -1644,8 +1672,9 @@ export class MeasurementBookService {
     userId: string;
     userName?: string;
     role: Role;
+    permissions?: Permission[];
   }) {
-    assertPermission(input.role, "finance:write");
+    assertPermission({ role: input.role, permissions: input.permissions }, "finance:write");
 
     const entry = await prisma.measurementBookEntry.findFirst({
       where: { id: input.entryId, organizationId: input.organizationId, isDeleted: false },

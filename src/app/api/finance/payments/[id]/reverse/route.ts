@@ -27,6 +27,7 @@ export async function POST(
       reason,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(reversed);

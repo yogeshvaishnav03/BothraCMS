@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       notes: data.notes,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(session);

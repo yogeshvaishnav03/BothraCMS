@@ -60,9 +60,9 @@ export async function GET(req: NextRequest) {
 
     // Role-based visibility scoping:
     // - SUPER_ADMIN, ORG_ADMIN, ACCOUNTANT: see all org expenses
-    // - SITE_SUPERVISOR, PROJECT_MANAGER: see own expenses, or when filtering by their site
+    // - Non-executives (SITE_SUPERVISOR, PROJECT_MANAGER, STOREKEEPER): see only their own expenses
     const isExecutive = ["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT"].includes(user.role);
-    if (mineOnly || (!isExecutive && !siteId && !projectId)) {
+    if (mineOnly || !isExecutive) {
       where.createdBy = user.userId;
     }
 
@@ -189,32 +189,42 @@ export async function POST(req: NextRequest) {
 
     const data = createExpenseSchema.parse(body);
 
-    // Resolve project and site
+    // Resolve and tenant-scope project and site
     let targetProjectId = data.projectId || undefined;
-    if (!targetProjectId && data.siteId) {
+    if (targetProjectId) {
+      const project = await prisma.project.findFirst({
+        where: { id: targetProjectId, organizationId: user.organizationId, isArchived: false },
+        select: { id: true },
+      });
+      if (!project) {
+        return jsonError("Project not found or outside organization scope", "PROJECT_NOT_FOUND", 404);
+      }
+    } else if (data.siteId) {
+      const site = await prisma.site.findFirst({
+        where: { id: data.siteId, organizationId: user.organizationId, status: "ACTIVE" },
+        select: { id: true, name: true, code: true },
+      });
+      if (!site) {
+        return jsonError("Site not found or outside organization scope", "SITE_NOT_FOUND", 404);
+      }
+
       let siteProject = await prisma.project.findFirst({
-        where: { siteId: data.siteId, organizationId: user.organizationId },
+        where: { siteId: site.id, organizationId: user.organizationId },
         select: { id: true },
       });
       if (!siteProject) {
-        const site = await prisma.site.findUnique({
-          where: { id: data.siteId },
-          select: { id: true, name: true, code: true },
+        siteProject = await prisma.project.create({
+          data: {
+            organizationId: user.organizationId,
+            siteId: site.id,
+            name: `${site.name} — General Operations`,
+            code: `${site.code || "SITE"}-GEN`,
+            status: "IN_PROGRESS",
+          },
+          select: { id: true },
         });
-        if (site) {
-          siteProject = await prisma.project.create({
-            data: {
-              organizationId: user.organizationId,
-              siteId: site.id,
-              name: `${site.name} — General Operations`,
-              code: `${site.code || "SITE"}-GEN`,
-              status: "IN_PROGRESS",
-            },
-            select: { id: true },
-          });
-        }
       }
-      targetProjectId = siteProject?.id;
+      targetProjectId = siteProject.id;
     }
 
     // Convert Rupees to paise

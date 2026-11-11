@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { assertPermission, Role } from "@/lib/permissions";
+import { assertPermission, Permission, Role } from "@/lib/permissions";
 import { roundQuantity, safeAddQuantity, safeSubtractQuantity } from "@/lib/financial-math";
 
 export interface GoodsReceiptItem {
@@ -21,6 +21,7 @@ export interface ReceiveGoodsInput {
   attachmentIds?: string[];
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export interface IssueGoodsInput {
@@ -34,6 +35,7 @@ export interface IssueGoodsInput {
   notes?: string;
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export interface TransferGoodsInput {
@@ -46,6 +48,7 @@ export interface TransferGoodsInput {
   notes?: string;
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export interface AdjustStockInput {
@@ -56,6 +59,7 @@ export interface AdjustStockInput {
   reason: string;
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export class InventoryService {
@@ -63,7 +67,7 @@ export class InventoryService {
    * Goods Receipt: atomically inserts positive stock movements and updates balances
    */
   static async receiveGoods(input: ReceiveGoodsInput) {
-    assertPermission(input.role, "inventory:receipt");
+    assertPermission({ role: input.role, permissions: input.permissions }, "inventory:receipt");
 
     if (!input.items || input.items.length === 0) {
       throw new Error("Goods receipt requires at least one item");
@@ -211,7 +215,7 @@ export class InventoryService {
    * Material Issue: checks stock availability and atomically records consumption
    */
   static async issueGoods(input: IssueGoodsInput) {
-    assertPermission(input.role, "inventory:issue");
+    assertPermission({ role: input.role, permissions: input.permissions }, "inventory:issue");
 
     if (input.quantity <= 0) {
       throw new Error(`Quantity must be strictly positive for issue: requested ${input.quantity}`);
@@ -317,7 +321,7 @@ export class InventoryService {
    * Inter-store Transfer: atomically decrements source and increments target store
    */
   static async transferGoods(input: TransferGoodsInput) {
-    assertPermission(input.role, "inventory:transfer");
+    assertPermission({ role: input.role, permissions: input.permissions }, "inventory:transfer");
 
     if (input.quantity <= 0) {
       throw new Error(`Quantity must be strictly positive: requested ${input.quantity}`);
@@ -459,7 +463,7 @@ export class InventoryService {
    * Stock Adjustment: handles verified physical count discrepancy with mandatory reason
    */
   static async adjustStock(input: AdjustStockInput) {
-    assertPermission(input.role, "inventory:adjust");
+    assertPermission({ role: input.role, permissions: input.permissions }, "inventory:adjust");
 
     if (!input.reason || input.reason.trim().length < 5) {
       throw new Error("A detailed justification reason is mandatory for stock adjustments");

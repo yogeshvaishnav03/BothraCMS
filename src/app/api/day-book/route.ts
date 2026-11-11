@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     // Days with no activity simply return empty data. Demo data is only
     // ever created through the explicit Super Admin POST below.
     const data = await fetchDayBookData(orgId, from, to, siteId);
-    const hasFinance = hasPermission(user.role, "finance:read");
+    const hasFinance = hasPermission(user, "finance:read");
     if (!hasFinance) {
       data.payments = [];
       data.bills = [];
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       data.summary.totalRejectedPaymentsAmount = 0;
     }
     // Customer receipts are for people who see sales or finance.
-    if (!hasFinance && !hasPermission(user.role, "sales:read")) {
+    if (!hasFinance && !hasPermission(user, "sales:read")) {
       data.moneyIn = [];
       data.summary.totalMoneyInAmount = 0;
       data.summary.moneyInCount = 0;

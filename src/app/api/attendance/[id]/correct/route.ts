@@ -35,6 +35,7 @@ export async function POST(
       reason: data.reason,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(updated);

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { getUserContext } from "@/lib/auth";
+import { requireUserContext } from "@/lib/server-auth";
 import { InventoryService } from "@/services/inventory-service";
-import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { jsonSuccess, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +10,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getUserContext(req);
-    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    const user = await requireUserContext(req, "inventory:read");
 
     const { searchParams } = new URL(req.url);
     const storeId = searchParams.get("storeId") || undefined;

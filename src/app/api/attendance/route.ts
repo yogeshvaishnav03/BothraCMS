@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
       reason: data.reason,
       actorUserId: user.userId,
       actorRole: user.role,
+      actorPermissions: user.permissions,
     });
 
     return jsonSuccess({

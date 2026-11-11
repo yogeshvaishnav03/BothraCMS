@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       remarks: data.remarks,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(subgroup, 201);

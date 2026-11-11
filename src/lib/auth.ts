@@ -3,7 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { prisma } from "./db";
-import { Role } from "./permissions";
+import { computeEffectivePermissions, normalizeExtraPermissions, Permission, Role } from "./permissions";
 
 import { getJwtSecret } from "./jwt-secret";
 export { getJwtSecret };
@@ -22,6 +22,8 @@ export interface UserContext extends SessionPayload {
   organizationName: string;
   currency: string;
   timezone: string;
+  extraPermissions?: Permission[];
+  permissions?: Permission[];
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -92,6 +94,7 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
         name: true,
         role: true,
         status: true,
+        extraPermissionsJson: true,
         organization: {
           select: {
             status: true,
@@ -110,6 +113,8 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
       user.organization.status === "ACTIVE" &&
       user.organizationId === session.organizationId
     ) {
+      const extraPermissions = normalizeExtraPermissions(user.extraPermissionsJson);
+      const permissions = computeEffectivePermissions(user.role, extraPermissions);
       return {
         userId: user.id,
         organizationId: user.organizationId,
@@ -119,6 +124,8 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
         organizationName: user.organization.name,
         currency: user.organization.currency,
         timezone: user.organization.timezone,
+        extraPermissions,
+        permissions,
       };
     }
 

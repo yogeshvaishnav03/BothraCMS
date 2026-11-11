@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     return jsonError("Unauthorized", "UNAUTHORIZED", 401);
   }
 
-  const permissions = ROLE_PERMISSIONS[user.role] || [];
+  const permissions = user.permissions || ROLE_PERMISSIONS[user.role] || [];
 
   return jsonSuccess({
     user: {
@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
       organizationName: user.organizationName,
       currency: user.currency,
       timezone: user.timezone,
+      extraPermissions: user.extraPermissions || [],
       permissions,
     },
   });

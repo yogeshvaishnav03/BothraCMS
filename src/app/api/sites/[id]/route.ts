@@ -75,7 +75,7 @@ export async function DELETE(
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user.role, "sites:manage");
+    assertPermission(user, "sites:manage");
 
     // Check optional transferToSiteId from query or body
     let transferToSiteId: string | undefined =

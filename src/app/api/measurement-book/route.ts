@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
         userId: user.userId,
         userName: (user as any).name || (user as any).email || "User",
         role: user.role,
+        permissions: user.permissions,
       });
 
       return jsonSuccess(entry, 201);
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
         userId: user.userId,
         userName: (user as any).name || (user as any).email || "User",
         role: user.role,
+        permissions: user.permissions,
       });
 
       return jsonSuccess(updated);
@@ -149,6 +151,7 @@ export async function POST(req: NextRequest) {
         userId: user.userId,
         userName: (user as any).name || (user as any).email || "User",
         role: user.role,
+        permissions: user.permissions,
       });
 
       return jsonSuccess(result, 201);

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { alertStaffNow } from "@/services/staff-alerts";
 import { notifyPeople } from "@/lib/notify";
@@ -32,6 +33,9 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    if (!hasPermission(user, "inventory:read") && !hasPermission(user, "finance:read")) {
+      return jsonError("Forbidden: Role cannot view purchase orders", "FORBIDDEN", 403);
+    }
 
     const { searchParams } = new URL(req.url);
     const materialId = searchParams.get("materialId");
@@ -125,6 +129,9 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    if (!hasPermission(user, "inventory:receipt") && !hasPermission(user, "projects:write")) {
+      return jsonError("Forbidden: Role cannot raise purchase orders", "FORBIDDEN", 403);
+    }
 
     const body = await req.json();
     const parsed = placeOrderSchema.safeParse(body);
@@ -285,7 +292,7 @@ export async function POST(req: NextRequest) {
           ? `Purchase Order ${orderNumber} Placed`
           : `New Order Query: ${orderNumber} (${material.name})`,
         message: `${user.name} created purchase order ${orderNumber} for ${quantity} ${material.unitCode} of ${material.name} (₹${(((totalAmountPaise || 0) / 100)).toLocaleString("en-IN")}) at ${purchaseOrder.site?.name || "Site"}.`,
-        href: "/orders",
+        href: shouldApproveImmediately ? `/materials/${material.id}` : "/admin",
         entityType: "PURCHASE_ORDER",
         entityId: purchaseOrder.id,
         severity: shouldApproveImmediately ? "INFO" : "WARNING",

@@ -93,6 +93,7 @@ export async function PUT(
       userId: user.userId,
       userName: (user as any).name || (user as any).email || "User",
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(result);
@@ -119,6 +120,7 @@ export async function DELETE(
       userId: user.userId,
       userName: (user as any).name || (user as any).email || "User",
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(result);

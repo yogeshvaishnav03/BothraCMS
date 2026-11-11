@@ -156,13 +156,13 @@ export class LocalStorageProvider implements IStorageProvider {
       }
     }
 
-    // Fallback 1: If exact file name not found, search directories for any file containing safeKey
+    // Fallback 1: If exact file name not found, search directories for exact filename or org-prefixed match
     const dirs = [primaryDir, path.join(process.cwd(), "storage", "uploads", "private"), path.join(os.tmpdir(), "storage", "uploads", "private")];
     for (const d of dirs) {
       try {
         if (fs.existsSync(d)) {
           const files = await fs.promises.readdir(d);
-          const match = files.find((f) => f.includes(safeKey));
+          const match = files.find((f) => f === safeKey || f.endsWith(`_${safeKey}`));
           if (match) {
             return await fs.promises.readFile(path.join(d, match));
           }
@@ -207,6 +207,7 @@ export class LocalStorageProvider implements IStorageProvider {
       if (record?.responseBodyJson) {
         const buffer = Buffer.from(record.responseBodyJson, "base64");
         try {
+          ensureLocalStorageDir();
           await fs.promises.writeFile(target, buffer);
         } catch {}
         return buffer;

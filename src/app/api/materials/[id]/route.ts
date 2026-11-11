@@ -52,7 +52,7 @@ export async function PATCH(
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user.role, "inventory:adjust");
+    assertPermission(user, "inventory:adjust");
 
     const material = await prisma.material.findFirst({
       where: { id: params.id, organizationId: user.organizationId },
@@ -118,7 +118,7 @@ export async function DELETE(
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user.role, "inventory:adjust");
+    assertPermission(user, "inventory:adjust");
 
     const material = await prisma.material.findFirst({
       where: { id: params.id, organizationId: user.organizationId },

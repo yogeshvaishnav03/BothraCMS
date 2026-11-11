@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { PushToggle } from "@/components/layout/PushToggle";
 import { NotificationBanner } from "@/components/layout/NotificationBanner";
+import { unsubscribeCurrentDevicePush } from "@/lib/push-client";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -191,6 +192,7 @@ export default function Shell({ children }: ShellProps) {
 
   const performLogout = async () => {
     setLogoutConfirmCount(null);
+    await unsubscribeCurrentDevicePush(false).catch(() => {});
     await clearQueue().catch(() => {});
     // Pages kept for offline use belong to this login.
     if ("caches" in window) await caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => {});
@@ -236,7 +238,7 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.money",
       label: "Money",
       items: [
-        ...(user?.role && ["SITE_SUPERVISOR", "PROJECT_MANAGER", "ACCOUNTANT", "ORG_ADMIN", "SUPER_ADMIN", "STOREKEEPER"].includes(user.role)
+        ...((user?.role && ["SITE_SUPERVISOR", "PROJECT_MANAGER", "ACCOUNTANT", "ORG_ADMIN", "SUPER_ADMIN", "STOREKEEPER"].includes(user.role)) || canUser(user, "finance:write") || canUser(user, "tasks:write")
           ? [{ key: "nav.expenses", defaultLabel: "Out-of-Pocket Expenses", href: "/expenses", icon: Receipt }]
           : []),
         ...(canUser(user, "finance:read") ? [{ key: "nav.finance", defaultLabel: "Payments & Bills", href: "/finance", icon: DollarSign }] : []),
@@ -260,7 +262,7 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.admin",
       label: "Admin",
       items: [
-        ...(user?.role === "SUPER_ADMIN" || user?.role === "ORG_ADMIN"
+        ...(user?.role === "SUPER_ADMIN" || user?.role === "ORG_ADMIN" || canUser(user, "users:manage")
           ? [{ key: "nav.team", defaultLabel: "Team & Access", href: "/team", icon: UserCog }]
           : []),
         ...(canUser(user, "audit:read")

@@ -121,6 +121,7 @@ async function handleUpdate(req: NextRequest, billId: string) {
       reason: data.reason,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess({

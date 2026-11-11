@@ -81,28 +81,17 @@ async function bootstrapAllUsers() {
 
     const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
-    console.log(`⚡ [USER_BOOTSTRAP] Upserting authoritative role accounts with password '${DEFAULT_PASSWORD}'...`);
+    console.log("⚡ [USER_BOOTSTRAP] Ensuring missing demo role accounts are created (existing accounts left untouched)...");
     for (const u of USERS) {
       const normalizedEmail = u.email.toLowerCase().trim();
       const existingUser = await prisma.user.findFirst({
         where: {
-          organizationId: org.id,
           email: normalizedEmail,
         },
       });
 
       if (existingUser) {
-        await prisma.user.update({
-          where: { id: existingUser.id },
-          data: {
-            name: existingUser.name || u.name,
-            role: u.role,
-            passwordHash,
-            status: "ACTIVE",
-            jobTitle: existingUser.jobTitle || u.jobTitle,
-          },
-        });
-        console.log(`  ✓ Updated ${u.role}: ${normalizedEmail}`);
+        console.log(`  ✓ Preserved existing ${u.role}: ${normalizedEmail}`);
       } else {
         await prisma.user.create({
           data: {

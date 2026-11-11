@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { istDateKey, istDayBounds } from "@/lib/ist-date";
+import { notifyPeople } from "@/lib/notify";
 import { statusLabel } from "@/lib/task-notifications";
 import { parsePhotoUrls } from "@/services/task-timeline-service";
 import { hoursBetween, isReportingRole } from "@/services/staff-attendance-service";
@@ -141,24 +142,21 @@ export class WorkReportService {
         });
 
     if (!existing || existing.status === "NEEDS_INFO") {
-      const admins = await prisma.user.findMany({
-        where: { organizationId, status: "ACTIVE", role: { in: ["SUPER_ADMIN", "ORG_ADMIN"] }, id: { not: userId } },
-        select: { id: true },
-      });
-      if (admins.length) {
-        await prisma.notification.createMany({
-          data: admins.map((a) => ({
-            organizationId,
-            userId: a.id,
-            type: "WORK_REPORT",
-            title: `${report.user.name} ${existing ? "updated" : "filed"} the work report for ${input.reportDate}`,
-            message: data.summary.length > 200 ? `${data.summary.slice(0, 197)}...` : data.summary,
-            severity: data.blockers ? "WARNING" : "INFO",
-            entityType: "WORK_REPORT",
-            entityId: report.id,
-            href: `/work-reports?tab=team&date=${input.reportDate}`,
-          })),
+      try {
+        await notifyPeople({
+          organizationId,
+          actorUserId: userId,
+          includeAdmins: true,
+          type: "WORK_REPORT",
+          title: `${report.user.name} ${existing ? "updated" : "filed"} the work report for ${input.reportDate}`,
+          message: data.summary,
+          href: `/work-reports?tab=team&date=${input.reportDate}`,
+          entityType: "WORK_REPORT",
+          entityId: report.id,
+          severity: data.blockers ? "WARNING" : "INFO",
         });
+      } catch (err) {
+        console.warn("[WorkReportService] Submit notification failed:", err);
       }
     }
 
@@ -233,22 +231,25 @@ export class WorkReportService {
       include: reportInclude,
     });
 
-    await prisma.notification.create({
-      data: {
+    try {
+      await notifyPeople({
         organizationId,
-        userId: report.userId,
+        actorUserId: reviewerId,
+        userIds: [report.userId],
         type: "WORK_REPORT",
         title:
           input.status === "REVIEWED"
             ? `Your work report for ${report.reportDate} was reviewed`
             : `More detail needed on your work report for ${report.reportDate}`,
         message: input.note?.trim() || (input.status === "REVIEWED" ? "Marked as reviewed." : "Please add more detail."),
-        severity: input.status === "NEEDS_INFO" ? "WARNING" : "INFO",
+        href: `/work-reports?date=${report.reportDate}`,
         entityType: "WORK_REPORT",
         entityId: report.id,
-        href: `/work-reports?date=${report.reportDate}`,
-      },
-    });
+        severity: input.status === "NEEDS_INFO" ? "WARNING" : "INFO",
+      });
+    } catch (err) {
+      console.warn("[WorkReportService] Review notification failed:", err);
+    }
 
     return shape(updated);
   }

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission, requireProjectAccess } from "@/lib/server-auth";
 import { FinanceService } from "@/services/finance-service";
 import { alertStaffNow } from "@/services/staff-alerts";
+import { pushToPeople } from "@/lib/push";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -122,13 +123,40 @@ export async function POST(req: NextRequest) {
       notes: data.notes,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
       autoApprove: data.autoApprove,
       allocations: data.allocations,
       tds: data.tds,
     });
 
-    // Tell the admins on WhatsApp that a payment is waiting for them.
-    if (!result.idempotentReplay && result.payment.status === "PENDING_APPROVAL") await alertStaffNow(user.organizationId);
+    // Tell admins on mobile push & WhatsApp that a payment is waiting for approval.
+    if (!result.idempotentReplay && result.payment.status === "PENDING_APPROVAL") {
+      try {
+        const admins = await prisma.user.findMany({
+          where: {
+            organizationId: user.organizationId,
+            status: "ACTIVE",
+            role: { in: ["SUPER_ADMIN", "ORG_ADMIN"] },
+            id: { not: user.userId },
+          },
+          select: { id: true },
+        });
+        const adminIds = admins.map((a) => a.id);
+        if (adminIds.length > 0) {
+          const payee = result.payment.recipientName || result.payment.party?.name || "payee";
+          const amountRupees = Math.round(result.payment.amount / 100).toLocaleString("en-IN");
+          await pushToPeople(user.organizationId, adminIds, {
+            title: `Payment Approval: ₹${amountRupees}`,
+            body: `${user.name} submitted payment to ${payee} awaiting approval.`,
+            href: "/admin",
+            tag: `PAYMENT:${result.payment.id}`,
+          });
+        }
+      } catch (pushErr) {
+        console.warn("[payments] Push notification warning:", pushErr);
+      }
+      await alertStaffNow(user.organizationId);
+    }
 
     return jsonSuccess(result, result.idempotentReplay ? 200 : 201);
   } catch (error) {

@@ -8,11 +8,14 @@ import {
   requireFolderAccess,
   canReadFinance,
 } from "@/lib/server-auth";
+import {
+  FINANCIAL_CATEGORIES,
+  PRESIGN_ALLOWED_MIME_TYPES,
+  sanitizeFileName,
+} from "@/lib/upload-validation";
 import { verifyObjectExists } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
-
-const FINANCIAL_CATEGORIES = new Set(["INVOICE", "BILL", "PAYMENT", "RECEIPT"]);
 
 const CompleteUploadSchema = z.object({
   fileId: z.string().min(1),
@@ -80,6 +83,11 @@ export async function POST(req: NextRequest) {
 
     // If storage reports actual byte size, use the verified storage byte size
     const finalSizeBytes = verified.size || sizeBytes;
+    const resolvedMimeType = (verified.mimeType || mimeType).toLowerCase();
+    if (!PRESIGN_ALLOWED_MIME_TYPES.has(resolvedMimeType)) {
+      return jsonError("Unsupported uploaded media type", "UNSUPPORTED_MEDIA_TYPE", 415);
+    }
+    const safeFileName = sanitizeFileName(fileName);
 
     const attachment = await prisma.attachment.create({
       data: {
@@ -87,9 +95,9 @@ export async function POST(req: NextRequest) {
         entityType: entityType.toUpperCase(),
         entityId: entityId || "DIRECT_UPLOAD",
         fileId,
-        fileName,
+        fileName: safeFileName,
         fileSize: finalSizeBytes,
-        mimeType: verified.mimeType || mimeType,
+        mimeType: resolvedMimeType,
         category: category.toUpperCase(),
         diskFileName: storageKey,
         projectId: projectId || null,
@@ -111,7 +119,7 @@ export async function POST(req: NextRequest) {
           attachmentId: attachment.id,
           fileId,
           storageKey,
-          fileName,
+          fileName: safeFileName,
           sizeBytes: finalSizeBytes,
           category,
           projectId,

@@ -205,7 +205,11 @@ export default function AttendancePage() {
 
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
   const isAdmin = currentUser?.role === "ORG_ADMIN";
-  const isPrivileged = isSuperAdmin || isAdmin || ["HR_VIEWER", "AUDITOR"].includes(currentUser?.role);
+  const isPrivileged =
+    isSuperAdmin ||
+    isAdmin ||
+    ["HR_VIEWER", "AUDITOR"].includes(currentUser?.role) ||
+    canUser(currentUser, "attendance:correct");
 
   const loadData = async (scopeOverride?: "all" | "self") => {
     setLoading(true);
@@ -216,7 +220,7 @@ export default function AttendancePage() {
         scopeOverride ||
         (u?.role === "SUPER_ADMIN"
           ? "all"
-          : activeTab === "all" && ["ORG_ADMIN", "HR_VIEWER", "AUDITOR"].includes(u?.role)
+          : activeTab === "all" && (["ORG_ADMIN", "HR_VIEWER", "AUDITOR"].includes(u?.role) || canUser(u, "attendance:correct"))
           ? "all"
           : "self");
 
@@ -900,7 +904,7 @@ export default function AttendancePage() {
               </>
             )}
 
-            {["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR", "HR_VIEWER"].includes(currentUser?.role) && (
+            {(["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR", "HR_VIEWER"].includes(currentUser?.role) || canUser(currentUser, "attendance:write")) && (
               <Link
                 href="/attendance/muster"
                 className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-slate-800"

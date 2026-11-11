@@ -52,6 +52,7 @@ export async function POST(
         userId: user.userId,
         userName: (user as any).name || (user as any).email || "User",
         role: user.role,
+        permissions: user.permissions,
       });
 
       return jsonSuccess(replaced, 201);
@@ -69,6 +70,7 @@ export async function POST(
       userId: user.userId,
       userName: (user as any).name || (user as any).email || "User",
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(uploaded, 201);
@@ -96,6 +98,7 @@ export async function DELETE(
       userId: user.userId,
       userName: (user as any).name || (user as any).email || "User",
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(result);

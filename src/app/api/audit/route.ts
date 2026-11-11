@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user.role, "audit:read");
+    assertPermission(user, "audit:read");
 
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "200"), 500);

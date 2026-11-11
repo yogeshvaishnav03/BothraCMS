@@ -31,13 +31,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Targeted account rate limiting (max 5 attempts per minute per account)
+    // 2. Targeted IP + account rate limiting (max 5 attempts per minute per IP + account)
     const normalizedEmail = email.toLowerCase().trim();
     const acctRateLimitKey = `login-acct:${clientIp}:${normalizedEmail}`;
     const acctLimit = await checkRateLimitAsync(acctRateLimitKey, 5, 60000);
     if (!acctLimit.allowed) {
       return jsonError(
         `Too many failed login attempts for this account. Please wait ${acctLimit.retryAfterSeconds} seconds before trying again.`,
+        "TOO_MANY_REQUESTS",
+        429
+      );
+    }
+
+    // 3. Global per-account rate limiting across all IPs (defends against IP-header rotation / distributed brute-force)
+    const globalAcctKey = `login-email:${normalizedEmail}`;
+    const globalAcctLimit = await checkRateLimitAsync(globalAcctKey, 15, 5 * 60000);
+    if (!globalAcctLimit.allowed) {
+      return jsonError(
+        `Too many failed login attempts for this account. Please wait ${globalAcctLimit.retryAfterSeconds} seconds before trying again.`,
         "TOO_MANY_REQUESTS",
         429
       );
@@ -72,6 +83,7 @@ export async function POST(req: NextRequest) {
 
     // Reset rate limiters on successful authentication
     await resetRateLimitAsync(acctRateLimitKey);
+    await resetRateLimitAsync(globalAcctKey);
     await resetRateLimitAsync(ipRateLimitKey);
 
     // Update last login timestamp in database

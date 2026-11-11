@@ -8,6 +8,9 @@ import { PrismaClient } from "@prisma/client";
  */
 
 const POSTGRES_COLUMNS: string[] = [
+  // Custom per-employee extra accessibility permissions
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "extraPermissionsJson" TEXT;`,
+
   // Phase 7: Workforce compliance
   `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "pfApplicable" BOOLEAN DEFAULT false;`,
   `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "esiApplicable" BOOLEAN DEFAULT false;`,

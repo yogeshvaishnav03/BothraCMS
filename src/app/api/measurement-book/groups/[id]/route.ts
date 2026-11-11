@@ -17,6 +17,7 @@ export async function DELETE(
       organizationId: user.organizationId,
       groupId: params.id,
       role: user.role,
+      permissions: user.permissions,
       userId: user.userId,
     });
 

@@ -111,7 +111,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           type: "PURCHASE_ORDER",
           title: `Order ${updated.orderNumber} Approved`,
           message: `Your purchase order for ${updated.quantity} ${updated.material.name} has been approved by ${user.name}.`,
-          href: "/orders",
+          href: `/materials/${updated.materialId}`,
           entityType: "PURCHASE_ORDER",
           entityId: updated.id,
           severity: "INFO",

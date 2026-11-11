@@ -1,51 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
 import crypto from "crypto";
 import { getUserContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { backupFileToDatabase, getStorageProvider } from "@/lib/storage";
+import {
+  STANDARD_ALLOWED_MIME_TYPES as ALLOWED_MIME_TYPES,
+  STANDARD_EXTENSION_MAP as EXTENSION_MAP,
+  isValidMagicBytes,
+  sanitizeFileName,
+} from "@/lib/upload-validation";
 
 export const dynamic = "force-dynamic";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-]);
-
-const EXTENSION_MAP: Record<string, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-  "application/pdf": ".pdf",
-};
-
-function isValidMagicBytes(buffer: Buffer, mimeType: string): boolean {
-  if (buffer.length < 4) return false;
-  // PNG: 89 50 4E 47
-  if (mimeType === "image/png") {
-    return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
-  }
-  // JPEG: FF D8 FF
-  if (mimeType === "image/jpeg") {
-    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
-  }
-  // PDF: 25 50 44 46 (%PDF)
-  if (mimeType === "application/pdf") {
-    return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
-  }
-  // WEBP: RIFF ... WEBP
-  if (mimeType === "image/webp") {
-    if (buffer.length < 12) return false;
-    const isRiff = buffer.toString("ascii", 0, 4) === "RIFF";
-    const isWebp = buffer.toString("ascii", 8, 12) === "WEBP";
-    return isRiff && isWebp;
-  }
-  return false;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -96,7 +64,7 @@ export async function POST(req: NextRequest) {
     const diskFileName = `${user.organizationId}_${fileId}${safeExt}`;
 
     // Sanitize user provided filename to prevent header injection and path traversal
-    const sanitizedOriginalName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const sanitizedOriginalName = sanitizeFileName(file.name);
 
     // Save to storage provider (S3 / R2 / Local)
     const storage = getStorageProvider();

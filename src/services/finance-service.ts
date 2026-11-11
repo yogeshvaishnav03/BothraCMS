@@ -3,7 +3,7 @@ import { contractorPan, fyStartOf, partySection, paymentSection, sectionsOf, tds
 import { istDateKey, istDayBounds } from "@/lib/ist-date";
 import { fyMonths } from "@/lib/income-tax";
 import { challanProblems, returnDueDate, tdsChallans } from "@/services/tds-challans";
-import { assertPermission, Role } from "@/lib/permissions";
+import { assertPermission, Permission, Role } from "@/lib/permissions";
 import { roundPaise } from "@/lib/financial-math";
 import { companyProfile, gstStateCode } from "@/lib/company";
 
@@ -31,6 +31,7 @@ export interface UpdateBillInput {
   reason: string;
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export interface CreateBillInput {
@@ -51,6 +52,7 @@ export interface CreateBillInput {
   gst?: { rate?: number | null; interState?: boolean | null; itcEligible?: boolean; reverseCharge?: boolean } | null;
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export const BILL_GST_RATES = [0, 5, 12, 18, 28];
@@ -90,6 +92,7 @@ export interface RecordPaymentInput {
   costHead?: string | null;
   userId: string;
   role: Role;
+  permissions?: Permission[];
   autoApprove?: boolean;
   status?: string;
   /** TDS on a contractor payment: worked out (AUTO, the default), none with a reason, or typed in. */
@@ -102,6 +105,7 @@ export interface ReversePaymentInput {
   reason: string;
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 const TDS_PARTY = "Income Tax Department (TDS)";
@@ -324,7 +328,7 @@ export class FinanceService {
    * Create a posted Bill with lines
    */
   static async createBill(input: CreateBillInput) {
-    assertPermission(input.role, "finance:write");
+    assertPermission({ role: input.role, permissions: input.permissions }, "finance:write");
 
     if (!input.lines || input.lines.length === 0) {
       throw new Error("Bill must contain at least one line item");
@@ -466,7 +470,7 @@ export class FinanceService {
    * payment disbursement guard, and immutable audit event.
    */
   static async updateBill(input: UpdateBillInput) {
-    assertPermission(input.role, "finance:write");
+    assertPermission({ role: input.role, permissions: input.permissions }, "finance:write");
 
     if (!input.reason || input.reason.trim().length < 5) {
       throw new Error("A justification reason of at least 5 characters is mandatory for modifying an official bill record");
@@ -611,7 +615,7 @@ export class FinanceService {
     const isQuerySubmission = input.autoApprove === false || Boolean(input.approvalQuery);
     const isStaffQuery = isQuerySubmission && (input.role === "SITE_SUPERVISOR" || input.role === "PROJECT_MANAGER");
     if (!isStaffQuery) {
-      assertPermission(input.role, "finance:write");
+      assertPermission({ role: input.role, permissions: input.permissions }, "finance:write");
     }
 
     if (input.amount <= 0) {
@@ -1027,7 +1031,7 @@ export class FinanceService {
    * Reverse a posted payment, restoring the bill balances
    */
   static async reversePayment(input: ReversePaymentInput) {
-    assertPermission(input.role, "finance:reverse");
+    assertPermission({ role: input.role, permissions: input.permissions }, "finance:reverse");
 
     if (!input.reason || input.reason.trim().length < 5) {
       throw new Error("A detailed reason is mandatory for payment reversal");

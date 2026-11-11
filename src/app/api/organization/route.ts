@@ -80,8 +80,8 @@ export async function GET(req: NextRequest) {
 
     const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
 
-    // WhatsApp, SMS and Razorpay keys stay on the server; Settings → Messages and Online payments have their own routes.
-    const { messaging: _messaging, payments: _payments, ...settings } = parsedSettings as any;
+    // WhatsApp, SMS, Razorpay and VAPID push private keys stay on the server.
+    const { messaging: _messaging, payments: _payments, push: _push, ...settings } = parsedSettings as any;
     return jsonSuccess({
       ...organization,
       users: isAdmin ? organization.users : [],
@@ -99,7 +99,7 @@ export async function PATCH(req: NextRequest) {
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
     // Only ORG_ADMIN or SUPER_ADMIN can modify organization settings
-    assertPermission(user.role, "users:manage");
+    assertPermission(user, "users:manage");
 
     const body = await req.json();
     const data = updateOrgSchema.parse(body);
@@ -147,7 +147,7 @@ export async function PATCH(req: NextRequest) {
             name: saved.name,
             currency: saved.currency,
             timezone: saved.timezone,
-            settings: { ...mergedSettings, messaging: undefined, payments: undefined },
+            settings: { ...mergedSettings, messaging: undefined, payments: undefined, push: undefined },
           }),
         },
       });
@@ -155,7 +155,7 @@ export async function PATCH(req: NextRequest) {
       return saved;
     });
 
-    const { messaging: _messaging, payments: _payments, ...settings } = mergedSettings;
+    const { messaging: _messaging, payments: _payments, push: _push, ...settings } = mergedSettings;
     return jsonSuccess({
       ...updated,
       settingsJson: undefined,

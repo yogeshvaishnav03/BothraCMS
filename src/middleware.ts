@@ -89,12 +89,12 @@ function isValidOriginOrReferer(
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. Allow public paths and static assets
+  // 1. Allow public paths and static assets (never bypass auth/CSRF on /api/* via file extensions)
   if (
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
-    pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|webp|apk|webmanifest|json)$/)
+    (!pathname.startsWith("/api/") && pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|webp|apk|webmanifest|json)$/))
   ) {
     // If user is already authenticated and visits /login, redirect to dashboard
     if (pathname === "/login") {

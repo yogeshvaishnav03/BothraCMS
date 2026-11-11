@@ -2,14 +2,35 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { hashPassword, UserContext } from "@/lib/auth";
 import { AuthorizationError } from "@/lib/server-auth";
-import { ROLE_PERMISSIONS, Role } from "@/lib/permissions";
+import {
+  ALL_PERMISSIONS,
+  hasPermission,
+  normalizeExtraPermissions,
+  Permission,
+  ROLE_PERMISSIONS,
+  Role,
+} from "@/lib/permissions";
 
 /**
- * Staff accounts for one company: add people, change their role, deactivate
- * them and reset passwords. Every change is written to the audit log.
+ * Staff accounts for one company: add people, change their role, grant extra
+ * module accessibility, deactivate them and reset passwords. Every change is
+ * written to the audit log.
  */
 
 export const ASSIGNABLE_ROLES = Object.keys(ROLE_PERMISSIONS) as Role[];
+
+const STAFF_LINKED_WORKER_TYPES = [
+  "SITE_ENGINEER",
+  "SITE_SUPERVISOR",
+  "SUPERVISOR",
+  "PROJECT_MANAGER",
+  "STAFF",
+  "OFFICE_STAFF",
+  "ACCOUNTANT",
+  "ADMIN",
+  "HR_VIEWER",
+  "AUDITOR",
+];
 
 const PUBLIC_USER_SELECT = {
   id: true,
@@ -19,9 +40,34 @@ const PUBLIC_USER_SELECT = {
   status: true,
   phone: true,
   jobTitle: true,
+  extraPermissionsJson: true,
   lastLoginAt: true,
   createdAt: true,
 } as const;
+
+function formatPublicUser<T extends { extraPermissionsJson?: string | null }>(row: T) {
+  const { extraPermissionsJson, ...rest } = row;
+  return {
+    ...rest,
+    extraPermissions: normalizeExtraPermissions(extraPermissionsJson),
+  };
+}
+
+function validateAndSanitizeExtraPermissions(actor: UserContext, requested: string[]): Permission[] {
+  const validSet = new Set<string>(ALL_PERMISSIONS);
+  const isAdmin = actor.role === "SUPER_ADMIN" || actor.role === "ORG_ADMIN";
+  const cleaned = new Set<Permission>();
+  for (const p of requested) {
+    if (!validSet.has(p)) {
+      throw new AuthorizationError(`Validation error: extraPermissions — Unknown permission '${p}'`, 422, "VALIDATION_ERROR");
+    }
+    if (!isAdmin && !hasPermission(actor, p as Permission)) {
+      throw new AuthorizationError(`Forbidden: Cannot grant permission '${p}' that you do not hold`, 403, "FORBIDDEN");
+    }
+    cleaned.add(p as Permission);
+  }
+  return Array.from(cleaned);
+}
 
 /** Readable one-time password: 3 groups plus a digit and symbol so it passes any policy. */
 export function generateTemporaryPassword(): string {
@@ -49,16 +95,24 @@ async function findInOrg(actor: UserContext, userId: string) {
 
 export class UserAdminService {
   static async list(actor: UserContext) {
-    return prisma.user.findMany({
+    const rows = await prisma.user.findMany({
       where: { organizationId: actor.organizationId },
       select: PUBLIC_USER_SELECT,
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     });
+    return rows.map(formatPublicUser);
   }
 
   static async create(
     actor: UserContext,
-    input: { name: string; email: string; role: string; phone?: string | null; jobTitle?: string | null }
+    input: {
+      name: string;
+      email: string;
+      role: string;
+      phone?: string | null;
+      jobTitle?: string | null;
+      extraPermissions?: string[];
+    }
   ) {
     assertCanAssignRole(actor, input.role);
     const email = input.email.trim().toLowerCase();
@@ -69,8 +123,13 @@ export class UserAdminService {
       throw new AuthorizationError("Validation error: email — A user with this email already exists", 409, "CONFLICT");
     }
 
+    const extraPermissions =
+      input.extraPermissions !== undefined
+        ? validateAndSanitizeExtraPermissions(actor, input.extraPermissions)
+        : [];
+
     const temporaryPassword = generateTemporaryPassword();
-    const user = await prisma.user.create({
+    const rawUser = await prisma.user.create({
       data: {
         organizationId: actor.organizationId,
         name: input.name.trim(),
@@ -78,10 +137,12 @@ export class UserAdminService {
         role: input.role,
         phone: input.phone?.trim() || null,
         jobTitle: input.jobTitle?.trim() || null,
+        extraPermissionsJson: extraPermissions.length > 0 ? JSON.stringify(extraPermissions) : null,
         passwordHash: await hashPassword(temporaryPassword),
       },
       select: PUBLIC_USER_SELECT,
     });
+    const user = formatPublicUser(rawUser);
 
     await prisma.auditEvent.create({
       data: {
@@ -90,7 +151,12 @@ export class UserAdminService {
         action: "USER_CREATED",
         entityType: "USER",
         entityId: user.id,
-        afterJson: JSON.stringify({ name: user.name, email: user.email, role: user.role }),
+        afterJson: JSON.stringify({
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          extraPermissions: user.extraPermissions,
+        }),
         reason: `Added ${user.name} as ${user.role}`,
       },
     });
@@ -101,7 +167,15 @@ export class UserAdminService {
   static async update(
     actor: UserContext,
     userId: string,
-    input: { name?: string; role?: string; status?: "ACTIVE" | "INACTIVE"; phone?: string | null; jobTitle?: string | null; password?: string }
+    input: {
+      name?: string;
+      role?: string;
+      status?: "ACTIVE" | "INACTIVE";
+      phone?: string | null;
+      jobTitle?: string | null;
+      password?: string;
+      extraPermissions?: string[];
+    }
   ) {
     const target = await findInOrg(actor, userId);
     const isSelf = target.id === actor.userId;
@@ -139,6 +213,13 @@ export class UserAdminService {
     if (input.status !== undefined) data.status = input.status;
     if (input.phone !== undefined) data.phone = input.phone?.trim() || null;
     if (input.jobTitle !== undefined) data.jobTitle = input.jobTitle?.trim() || null;
+    if (input.extraPermissions !== undefined) {
+      if (isSelf && actor.role !== "SUPER_ADMIN" && actor.role !== "ORG_ADMIN") {
+        throw new AuthorizationError("Forbidden: You cannot modify your own permissions", 403, "FORBIDDEN");
+      }
+      const nextExtras = validateAndSanitizeExtraPermissions(actor, input.extraPermissions);
+      data.extraPermissionsJson = nextExtras.length > 0 ? JSON.stringify(nextExtras) : null;
+    }
     if (input.password !== undefined && input.password.trim()) {
       const trimmedPwd = input.password.trim();
       if (trimmedPwd.length < 6) {
@@ -147,7 +228,41 @@ export class UserAdminService {
       data.passwordHash = await hashPassword(trimmedPwd);
     }
 
-    const updated = await prisma.user.update({ where: { id: target.id }, data, select: PUBLIC_USER_SELECT });
+    const updatedRaw = await prisma.user.update({ where: { id: target.id }, data, select: PUBLIC_USER_SELECT });
+    const updated = formatPublicUser(updatedRaw);
+
+    // Sync renamed staff names into linked WorkforceMember and headcount records so
+    // Day Book, Command Center timeline, and Attendance views immediately show the new name.
+    if (input.name !== undefined && updated.name) {
+      const empCode = `USR-${target.id.slice(-6).toUpperCase()}`;
+      await Promise.all([
+        prisma.workforceMember
+          .updateMany({
+            where: {
+              organizationId: actor.organizationId,
+              OR: [
+                { employeeCode: empCode },
+                {
+                  name: target.name,
+                  OR: [
+                    { employeeCode: { startsWith: "USR-" } },
+                    { employeeCode: { startsWith: "STF-" } },
+                    { workerType: { in: STAFF_LINKED_WORKER_TYPES } },
+                  ],
+                },
+              ],
+            },
+            data: { name: updated.name },
+          })
+          .catch(() => {}),
+        prisma.workforceHeadcount
+          .updateMany({
+            where: { organizationId: actor.organizationId, supervisorId: target.id },
+            data: { supervisorName: updated.name },
+          })
+          .catch(() => {}),
+      ]);
+    }
 
     const action =
       input.status && input.status !== target.status
@@ -158,6 +273,7 @@ export class UserAdminService {
         ? "ROLE_CHANGED"
         : "USER_UPDATED";
 
+    const beforeExtras = normalizeExtraPermissions((target as { extraPermissionsJson?: string | null }).extraPermissionsJson);
     await prisma.auditEvent.create({
       data: {
         organizationId: actor.organizationId,
@@ -165,8 +281,22 @@ export class UserAdminService {
         action,
         entityType: "USER",
         entityId: target.id,
-        beforeJson: JSON.stringify({ name: target.name, role: target.role, status: target.status, phone: target.phone, jobTitle: target.jobTitle }),
-        afterJson: JSON.stringify({ name: updated.name, role: updated.role, status: updated.status, phone: updated.phone, jobTitle: updated.jobTitle }),
+        beforeJson: JSON.stringify({
+          name: target.name,
+          role: target.role,
+          status: target.status,
+          phone: target.phone,
+          jobTitle: target.jobTitle,
+          extraPermissions: beforeExtras,
+        }),
+        afterJson: JSON.stringify({
+          name: updated.name,
+          role: updated.role,
+          status: updated.status,
+          phone: updated.phone,
+          jobTitle: updated.jobTitle,
+          extraPermissions: updated.extraPermissions,
+        }),
         reason: `${action.replace(/_/g, " ").toLowerCase()}: ${updated.name}`,
       },
     });

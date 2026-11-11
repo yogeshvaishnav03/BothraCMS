@@ -58,12 +58,15 @@ const isProductionLike =
   process.env.VERCEL_ENV === "production" ||
   ((rawDbUrl.startsWith("postgres://") || rawDbUrl.startsWith("postgresql://")) &&
     !rawDbUrl.includes("localhost"));
-const allowDemoSeed = process.env.ALLOW_DEMO_SEED !== "false";
+const allowDemoSeed = isProductionLike
+  ? process.env.ALLOW_DEMO_SEED === "true"
+  : process.env.ALLOW_DEMO_SEED !== "false";
 
-// Ensure SESSION_SECRET is guaranteed in process.env across all environments
-if (!process.env.SESSION_SECRET) {
-  process.env.SESSION_SECRET = "6408226079c6bbff3b018b3cb3063f25c889f07fe3cf5e672ee6b3c9789b7cf3";
-  console.log("⚡ Configured default production-grade SESSION_SECRET fallback.");
+if (isProductionLike && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.trim().length < 32)) {
+  console.warn("⚠️ [SECURITY] SESSION_SECRET is missing or < 32 chars in a production-like environment.");
+} else if (!isProductionLike && !process.env.SESSION_SECRET) {
+  process.env.SESSION_SECRET = crypto.randomBytes(32).toString("hex");
+  console.log("⚡ Generated ephemeral local SESSION_SECRET for development preparation.");
 }
 
 function sanitizeDbUrl(url) {
@@ -246,20 +249,20 @@ if (!allowDemoSeed) {
   } catch (poErr) {
     console.warn("Notice: Projects and orders seed completed or skipped:", poErr.message);
   }
-}
 
-// Always ensure all authoritative role accounts from Pass.txt are present with Password123!
-try {
-  console.log("⚡ Bootstrapping authoritative role accounts from Pass.txt configuration...");
-  execSync("node scripts/bootstrap-all-users.js", {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: directUrl || dbUrl,
-    },
-  });
-} catch (userErr) {
-  console.warn("Notice: User bootstrap notice:", userErr.message);
+  // Bootstrap demo/role accounts ONLY when demo seeding is explicitly enabled
+  try {
+    console.log("⚡ Ensuring demo role accounts exist (without overwriting existing passwords)...");
+    execSync("node scripts/bootstrap-all-users.js", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: directUrl || dbUrl,
+      },
+    });
+  } catch (userErr) {
+    console.warn("Notice: User bootstrap notice:", userErr.message);
+  }
 }
 
 // Synchronize prisma/dev.db to prisma/prisma/dev.db

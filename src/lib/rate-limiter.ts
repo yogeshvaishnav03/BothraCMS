@@ -144,16 +144,24 @@ export function getClientIp(req: NextRequest): string {
     return (req as any).ip;
   }
 
-  // 2. Cloudflare verified connecting IP
-  const cfIp = req.headers.get("cf-connecting-ip");
-  if (cfIp && isValidIp(cfIp.trim())) {
-    return cfIp.trim();
+  // 2. Vercel / reverse-proxy verified client IP (checked before CF header to prevent spoofing on non-CF proxies)
+  const vercelIp = req.headers.get("x-vercel-forwarded-for");
+  if (vercelIp) {
+    const first = vercelIp.split(",")[0]?.trim();
+    if (first && isValidIp(first)) {
+      return first;
+    }
   }
 
-  // 3. Vercel / AWS API Gateway verified client IP
   const realIp = req.headers.get("x-real-ip");
   if (realIp && isValidIp(realIp.trim())) {
     return realIp.trim();
+  }
+
+  // 3. Cloudflare verified connecting IP
+  const cfIp = req.headers.get("cf-connecting-ip");
+  if (cfIp && isValidIp(cfIp.trim())) {
+    return cfIp.trim();
   }
 
   // 4. Standard X-Forwarded-For: Take the first well-formed IP in the chain

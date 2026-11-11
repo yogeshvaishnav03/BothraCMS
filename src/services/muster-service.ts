@@ -53,7 +53,7 @@ function checkDate(user: UserContext, workDate: string) {
   if (!isDateKey(workDate)) throw new MusterError("Pick a valid date.");
   const today = istDateKey();
   if (workDate > today) throw new MusterError("The muster cannot be filled for a day that has not come yet.");
-  if (daysBetween(workDate, today) > MUSTER_BACK_DAYS && !hasPermission(user.role, "attendance:correct")) {
+  if (daysBetween(workDate, today) > MUSTER_BACK_DAYS && !hasPermission(user, "attendance:correct")) {
     throw new MusterError(`Only the last ${MUSTER_BACK_DAYS} days can be filled. Ask an admin to correct older days.`, 403, "TOO_OLD");
   }
 }
@@ -106,8 +106,8 @@ export class MusterService {
       project: { id: project.id, name: project.name, site: project.site.name },
       workDate,
       today: istDateKey(),
-      canEdit: hasPermission(user.role, "attendance:write"),
-      backDays: hasPermission(user.role, "attendance:correct") ? null : MUSTER_BACK_DAYS,
+      canEdit: hasPermission(user, "attendance:write"),
+      backDays: hasPermission(user, "attendance:correct") ? null : MUSTER_BACK_DAYS,
       workers: rows,
     };
   }

@@ -12,6 +12,7 @@ const createUserSchema = z.object({
   role: z.string().min(1),
   phone: z.string().trim().max(20).nullable().optional(),
   jobTitle: z.string().trim().max(80).nullable().optional(),
+  extraPermissions: z.array(z.string()).max(40).optional(),
 });
 
 export async function GET(req: NextRequest) {

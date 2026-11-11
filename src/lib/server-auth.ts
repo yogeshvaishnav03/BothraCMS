@@ -36,7 +36,7 @@ export async function requireUserContext(
  * 2. Require Role / Permission
  */
 export function requirePermission(user: UserContext, permission: Permission): void {
-  if (!hasPermission(user.role, permission)) {
+  if (!hasPermission(user, permission)) {
     throw new AuthorizationError(
       `Forbidden: Role ${user.role} lacks required permission '${permission}'`,
       403,
@@ -49,7 +49,7 @@ export function requirePermission(user: UserContext, permission: Permission): vo
  * 3. Financial Data Access Check
  */
 export function canReadFinance(user: UserContext): boolean {
-  return hasPermission(user.role, "finance:read");
+  return hasPermission(user, "finance:read");
 }
 
 export function requireFinanceRead(user: UserContext): void {

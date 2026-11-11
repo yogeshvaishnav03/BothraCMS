@@ -30,6 +30,7 @@ export async function POST(
       userId: user.userId,
       userName: (user as any).name || (user as any).email || "Reviewer",
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(result);

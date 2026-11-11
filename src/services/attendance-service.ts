@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { assertPermission, Role } from "@/lib/permissions";
+import { assertPermission, Permission, Role } from "@/lib/permissions";
 
 export interface CheckInInput {
   organizationId: string;
@@ -14,6 +14,7 @@ export interface CheckInInput {
   attachmentIds?: string[];
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export interface CheckOutInput {
@@ -25,6 +26,7 @@ export interface CheckOutInput {
   notes?: string;
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export interface CorrectAttendanceInput {
@@ -37,6 +39,7 @@ export interface CorrectAttendanceInput {
   reason: string;
   userId: string;
   role: Role;
+  permissions?: Permission[];
 }
 
 export interface RecordOrAlterStaffAttendanceInput {
@@ -52,6 +55,7 @@ export interface RecordOrAlterStaffAttendanceInput {
   reason: string;
   actorUserId: string;
   actorRole: Role;
+  actorPermissions?: Permission[];
 }
 
 export class AttendanceService {
@@ -62,7 +66,7 @@ export class AttendanceService {
     let member: any = null;
 
     if (input.workforceMemberId) {
-      assertPermission(input.role, "attendance:write");
+      assertPermission({ role: input.role, permissions: input.permissions }, "attendance:write");
       member = await prisma.workforceMember.findFirst({
         where: { id: input.workforceMemberId, organizationId: input.organizationId },
       });
@@ -78,27 +82,33 @@ export class AttendanceService {
         throw new Error("NotFound: User not found");
       }
 
-      // Check if user already has an associated workforce member
-      member = await prisma.workforceMember.findFirst({
-        where: {
-          organizationId: input.organizationId,
-          OR: [
-            { employeeCode: `USR-${user.id.slice(-6).toUpperCase()}` },
-            { name: user.name },
-          ],
-        },
-      });
+      // Prioritize deterministic USR- code so renamed users keep the same profile and update cleanly
+      const empCode = `USR-${user.id.slice(-6).toUpperCase()}`;
+      member =
+        (await prisma.workforceMember.findFirst({
+          where: { organizationId: input.organizationId, employeeCode: empCode },
+        })) ||
+        (user.name
+          ? await prisma.workforceMember.findFirst({
+              where: { organizationId: input.organizationId, name: user.name },
+            })
+          : null);
 
       if (!member) {
         member = await prisma.workforceMember.create({
           data: {
             organizationId: input.organizationId,
-            employeeCode: `USR-${user.id.slice(-6).toUpperCase()}`,
+            employeeCode: empCode,
             name: user.name || "Staff Member",
             workerType: user.role === "SITE_SUPERVISOR" ? "FOREMAN" : "SITE_ENGINEER",
             defaultSiteId: input.siteId || undefined,
             active: true,
           },
+        });
+      } else if (member.employeeCode === empCode && user.name && member.name !== user.name) {
+        member = await prisma.workforceMember.update({
+          where: { id: member.id },
+          data: { name: user.name },
         });
       }
     }
@@ -217,20 +227,21 @@ export class AttendanceService {
       }
       // If user is checking out someone else, verify permission
       if (session.createdBy !== input.userId) {
-        assertPermission(input.role, "attendance:write");
+        assertPermission({ role: input.role, permissions: input.permissions }, "attendance:write");
       }
     } else {
       // Self-checkout: find open session for today belonging to user's workforce member
       const user = await prisma.user.findUnique({ where: { id: input.userId } });
-      const member = await prisma.workforceMember.findFirst({
-        where: {
-          organizationId: input.organizationId,
-          OR: [
-            { employeeCode: `USR-${input.userId.slice(-6).toUpperCase()}` },
-            ...(user?.name ? [{ name: user.name }] : []),
-          ],
-        },
-      });
+      const empCode = `USR-${input.userId.slice(-6).toUpperCase()}`;
+      const member =
+        (await prisma.workforceMember.findFirst({
+          where: { organizationId: input.organizationId, employeeCode: empCode },
+        })) ||
+        (user?.name
+          ? await prisma.workforceMember.findFirst({
+              where: { organizationId: input.organizationId, name: user.name },
+            })
+          : null);
 
       if (!member) {
         throw new Error("NotFound: No workforce record found for this user");
@@ -274,7 +285,7 @@ export class AttendanceService {
    * Correct attendance with mandatory supervisor justification
    */
   static async correctAttendance(input: CorrectAttendanceInput) {
-    assertPermission(input.role, "attendance:correct");
+    assertPermission({ role: input.role, permissions: input.permissions }, "attendance:correct");
 
     if (!input.reason || input.reason.trim().length < 5) {
       throw new Error("A detailed justification is required for attendance correction");
@@ -338,7 +349,7 @@ export class AttendanceService {
    */
   static async recordOrAlterStaffAttendance(input: RecordOrAlterStaffAttendanceInput) {
     if (input.actorRole !== "SUPER_ADMIN" && input.actorRole !== "ORG_ADMIN") {
-      assertPermission(input.actorRole, "attendance:write");
+      assertPermission({ role: input.actorRole, permissions: input.actorPermissions }, "attendance:write");
     }
 
     if (!input.reason || input.reason.trim().length < 5) {
@@ -359,27 +370,33 @@ export class AttendanceService {
       throw new Error("NotFound: Site not found in organization.");
     }
 
-    // Resolve or create workforce member for target user
-    let member = await prisma.workforceMember.findFirst({
-      where: {
-        organizationId: input.organizationId,
-        OR: [
-          { employeeCode: `USR-${targetUser.id.slice(-6).toUpperCase()}` },
-          { name: targetUser.name },
-        ],
-      },
-    });
+    // Resolve or create workforce member for target user (prefer deterministic USR- code and keep name synced)
+    const targetEmpCode = `USR-${targetUser.id.slice(-6).toUpperCase()}`;
+    let member =
+      (await prisma.workforceMember.findFirst({
+        where: { organizationId: input.organizationId, employeeCode: targetEmpCode },
+      })) ||
+      (targetUser.name
+        ? await prisma.workforceMember.findFirst({
+            where: { organizationId: input.organizationId, name: targetUser.name },
+          })
+        : null);
 
     if (!member) {
       member = await prisma.workforceMember.create({
         data: {
           organizationId: input.organizationId,
-          employeeCode: `USR-${targetUser.id.slice(-6).toUpperCase()}`,
+          employeeCode: targetEmpCode,
           name: targetUser.name || "Staff Member",
           workerType: targetUser.role === "SITE_SUPERVISOR" ? "FOREMAN" : "SITE_ENGINEER",
           defaultSiteId: input.siteId,
           active: true,
         },
+      });
+    } else if (member.employeeCode === targetEmpCode && targetUser.name && member.name !== targetUser.name) {
+      member = await prisma.workforceMember.update({
+        where: { id: member.id },
+        data: { name: targetUser.name },
       });
     }
 

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,11 @@ export async function GET(req: NextRequest) {
 
     const isSuperAdmin = user.role === "SUPER_ADMIN";
     const isAdmin = user.role === "ORG_ADMIN";
-    const isPrivileged = isSuperAdmin || isAdmin || ["HR_VIEWER", "AUDITOR"].includes(user.role);
+    const isPrivileged =
+      isSuperAdmin ||
+      isAdmin ||
+      ["HR_VIEWER", "AUDITOR"].includes(user.role) ||
+      hasPermission(user, "attendance:correct");
 
     // If Super Admin: default scope is "all". If Org Admin: allow scope "all" or "self" (default "all")
     const fetchAll = isPrivileged && (scopeParam === "all" || (!scopeParam && (isSuperAdmin || isAdmin)));
@@ -29,17 +34,17 @@ export async function GET(req: NextRequest) {
     const startDateStr = startDate.toISOString().split("T")[0];
     const todayStr = new Date().toISOString().split("T")[0];
 
-    // Resolve associated workforce member for the logged-in user
+    // Resolve associated workforce member for the logged-in user (prefer exact USR- code)
     const userEmpCode = `USR-${user.userId.slice(-6).toUpperCase()}`;
-    const member = await prisma.workforceMember.findFirst({
-      where: {
-        organizationId: user.organizationId,
-        OR: [
-          { employeeCode: userEmpCode },
-          ...(user.name ? [{ name: user.name }] : []),
-        ],
-      },
-    });
+    const member =
+      (await prisma.workforceMember.findFirst({
+        where: { organizationId: user.organizationId, employeeCode: userEmpCode },
+      })) ||
+      (user.name
+        ? await prisma.workforceMember.findFirst({
+            where: { organizationId: user.organizationId, name: user.name },
+          })
+        : null);
 
     // Query logged-in user's today session (for check-in / check-out state)
     const todaySessionRaw = await prisma.attendanceSession.findFirst({
@@ -113,17 +118,27 @@ export async function GET(req: NextRequest) {
       sessionWhere.OR = personalConditions;
     }
 
-    // Fetch past attendance sessions
-    const sessions = await prisma.attendanceSession.findMany({
-      where: sessionWhere,
-      include: {
-        site: { select: { id: true, name: true, code: true } },
-        project: { select: { id: true, name: true, code: true } },
-        workforceMember: { select: { id: true, name: true, employeeCode: true, workerType: true } },
-        creator: { select: { id: true, name: true, email: true, role: true } },
-      },
-      orderBy: [{ workDate: "desc" }, { checkInAt: "desc" }],
-    });
+    // Fetch past attendance sessions and org users to resolve USR- linked live names
+    const [sessions, orgUsers] = await Promise.all([
+      prisma.attendanceSession.findMany({
+        where: sessionWhere,
+        include: {
+          site: { select: { id: true, name: true, code: true } },
+          project: { select: { id: true, name: true, code: true } },
+          workforceMember: { select: { id: true, name: true, employeeCode: true, workerType: true } },
+          creator: { select: { id: true, name: true, email: true, role: true } },
+        },
+        orderBy: [{ workDate: "desc" }, { checkInAt: "desc" }],
+      }),
+      prisma.user.findMany({
+        where: { organizationId: user.organizationId },
+        select: { id: true, name: true, email: true, role: true },
+      }),
+    ]);
+
+    const userByEmpCode = new Map(
+      orgUsers.map((u) => [`USR-${u.id.slice(-6).toUpperCase()}`, u])
+    );
 
     // Enrich sessions with formatted hours, duration, and staff details
     const enrichedSessions = sessions.map((s) => {
@@ -149,8 +164,13 @@ export async function GET(req: NextRequest) {
           ? "0m"
           : "In Progress";
 
-      const employeeName = s.creator?.name || s.workforceMember?.name || "Staff Member";
-      const employeeRole = s.creator?.role || s.workforceMember?.workerType || "STAFF";
+      const linkedUser = s.workforceMember?.employeeCode
+        ? userByEmpCode.get(s.workforceMember.employeeCode)
+        : undefined;
+      const employeeName =
+        linkedUser?.name || s.workforceMember?.name || s.creator?.name || "Staff Member";
+      const employeeRole =
+        linkedUser?.role || s.workforceMember?.workerType || s.creator?.role || "STAFF";
       const employeeCode =
         s.workforceMember?.employeeCode || (s.creator ? `USR-${s.creator.id.slice(-6).toUpperCase()}` : "N/A");
 
@@ -169,12 +189,12 @@ export async function GET(req: NextRequest) {
         durationHours: parseFloat((durationMinutes / 60).toFixed(1)),
         site: s.site,
         project: s.project,
-        workforceMember: s.workforceMember,
+        workforceMember: s.workforceMember ? { ...s.workforceMember, name: linkedUser?.name || s.workforceMember.name } : null,
         creator: s.creator,
         employeeName,
         employeeRole,
         employeeCode,
-        employeeEmail: s.creator?.email || null,
+        employeeEmail: linkedUser?.email || s.creator?.email || null,
         notes: s.notes,
         correctionReason: s.correctionReason,
         isToday: s.workDate === todayStr,

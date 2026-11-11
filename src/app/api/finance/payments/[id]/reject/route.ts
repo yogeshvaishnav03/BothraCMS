@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getUserContext } from "@/lib/auth";
 import { FinanceService } from "@/services/finance-service";
+import { notifyPeople } from "@/lib/notify";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       rejectorName: user.name,
       reason,
     });
+
+    try {
+      if (updatedPayment.createdBy) {
+        const payee = updatedPayment.recipientName || updatedPayment.party?.name || "recipient";
+        const amountRupees = Math.round(updatedPayment.amount / 100).toLocaleString("en-IN");
+        await notifyPeople({
+          organizationId: updatedPayment.organizationId,
+          actorUserId: user.userId,
+          userIds: [updatedPayment.createdBy],
+          type: "PAYMENT_APPROVAL",
+          title: `Payment Declined: ₹${amountRupees}`,
+          message: `Payment of ₹${amountRupees} to ${payee} was declined by ${user.name}: ${reason}`,
+          href: "/finance",
+          entityType: "PAYMENT",
+          entityId: updatedPayment.id,
+          severity: "WARNING",
+        });
+      }
+    } catch (notifErr) {
+      console.warn("[payments/reject] Notification warning:", notifErr);
+    }
 
     return jsonSuccess({
       payment: updatedPayment,

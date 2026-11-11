@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
       lines: data.lines,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(bill, 201);

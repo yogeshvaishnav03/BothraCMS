@@ -21,7 +21,7 @@ export async function PATCH(
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user.role, "tasks:write");
+    assertPermission(user, "tasks:write");
 
     const body = await req.json();
     const { status, note } = updateStatusSchema.parse(body);

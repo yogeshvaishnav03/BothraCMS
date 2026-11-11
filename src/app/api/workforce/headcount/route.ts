@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user.role, "attendance:write");
+    assertPermission(user, "attendance:write");
 
     const body = await req.json();
     const data = saveHeadcountSchema.parse(body);
@@ -82,7 +82,7 @@ export async function DELETE(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user.role, "attendance:write");
+    assertPermission(user, "attendance:write");
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

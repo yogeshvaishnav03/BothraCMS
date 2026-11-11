@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { isSafeMediaUrl } from "@/lib/upload-validation";
+import { pushToPeople } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -148,6 +150,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const now = new Date();
     const textContent = (parsed.data.content || "").trim();
     const imageUrl = parsed.data.imageUrl ? parsed.data.imageUrl.trim() : null;
+    if (imageUrl && !isSafeMediaUrl(imageUrl)) {
+      return jsonError("Invalid image URL: only verified upload URLs or raster images are allowed", "INVALID_MEDIA_URL", 400);
+    }
 
     // Create the message
     const message = await prisma.chatMessage.create({
@@ -180,6 +185,44 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
       data: { lastReadAt: readTimestamp },
     });
+
+    // Push Web Push notifications to other active participants so mobile phones alert when app is backgrounded/closed
+    try {
+      const conv = await prisma.conversation.findUnique({
+        where: { id: params.id },
+        select: {
+          type: true,
+          name: true,
+          participants: {
+            where: { userId: { not: user.userId } },
+            select: {
+              userId: true,
+              user: { select: { status: true } },
+            },
+          },
+        },
+      });
+      const recipientIds = (conv?.participants || [])
+        .filter((p) => p.user?.status === "ACTIVE")
+        .map((p) => p.userId);
+      if (recipientIds.length > 0) {
+        const senderName = message.sender?.name || user.name || "Team Member";
+        const convName = conv?.type === "GROUP" ? conv.name || "Group Chat" : "";
+        const title =
+          conv?.type === "GROUP"
+            ? `New message in "${convName}" from ${senderName}`
+            : `New message from ${senderName}`;
+        const bodyText = textContent || (imageUrl ? "📷 [Photo]" : "New message");
+        await pushToPeople(user.organizationId, recipientIds, {
+          title,
+          body: bodyText,
+          href: "/chat",
+          tag: `chat:${message.id}`,
+        });
+      }
+    } catch (pushErr) {
+      console.warn("[chat] Push notification dispatch failed:", pushErr);
+    }
 
     return jsonSuccess({
       message: {

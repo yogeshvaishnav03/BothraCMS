@@ -21,9 +21,6 @@ const nextConfig = {
     // Ensure Vercel fails only on real typecheck errors, which we run locally
     ignoreBuildErrors: false,
   },
-  env: {
-    ALLOW_DEMO_SEED: process.env.ALLOW_DEMO_SEED ?? "true",
-  },
   async rewrites() {
     return [
       {
@@ -33,6 +30,20 @@ const nextConfig = {
     ];
   },
   async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://*.blob.vercel-storage.com",
+      "connect-src 'self' https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://*.vercel-storage.com https://*.blob.vercel-storage.com",
+      "worker-src 'self' blob:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join("; ");
+
     return [
       {
         source: "/.well-known/assetlinks.json",
@@ -62,6 +73,7 @@ const nextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(self)",
           },
+          { key: "Content-Security-Policy", value: csp },
         ],
       },
     ];

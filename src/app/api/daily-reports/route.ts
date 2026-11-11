@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+import { notifyPeople } from "@/lib/notify";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -156,6 +157,24 @@ export async function POST(req: NextRequest) {
 
       return created;
     });
+
+    try {
+      await notifyPeople({
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        userIds: project.managerUserId ? [project.managerUserId] : [],
+        includeAdmins: true,
+        type: "DAILY_REPORT",
+        title: `Daily Site Report: ${project.name} (${data.reportDate})`,
+        message: `${user.name} submitted DSR: ${data.progress}`,
+        href: "/day-book",
+        entityType: "DAILY_SITE_REPORT",
+        entityId: report.id,
+        severity: data.blockers ? "WARNING" : "INFO",
+      });
+    } catch (notifErr) {
+      console.warn("[daily-reports] Notification warning:", notifErr);
+    }
 
     return jsonSuccess(report, 201);
   } catch (error) {

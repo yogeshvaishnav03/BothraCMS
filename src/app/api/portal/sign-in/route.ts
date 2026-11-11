@@ -11,6 +11,10 @@ export async function POST(req: NextRequest) {
   try {
     if (!(await checkRateLimitAsync(`buyer-code:${getClientIp(req)}`, 10, 15 * 60_000)).allowed) return jsonError("Too many tries. Wait 15 minutes.", "TOO_MANY", 429);
     const { phone } = z.object({ phone: z.string().min(10).max(20) }).parse(await req.json());
+    const phoneDigits = phone.replace(/\D/g, "").slice(-10);
+    if (phoneDigits.length === 10 && !(await checkRateLimitAsync(`buyer-code-phone:${phoneDigits}`, 5, 15 * 60_000)).allowed) {
+      return jsonError("Too many tries for this mobile number. Wait 15 minutes.", "TOO_MANY", 429);
+    }
     return jsonSuccess(await requestCode(phone));
   } catch (error) {
     return handleApiError(error);

@@ -1,13 +1,25 @@
 import { NextRequest } from "next/server";
-import path from "path";
-import { getUserContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { backupFileToDatabase, getStorageProvider } from "@/lib/storage";
+import {
+  STANDARD_ALLOWED_MIME_TYPES,
+  FINANCIAL_CATEGORIES,
+  isValidMagicBytes,
+  sanitizeFileName,
+} from "@/lib/upload-validation";
 
-import { requireUserContext, requireProjectAccess, requireFolderAccess, isOrgOwnerOrAdmin } from "@/lib/server-auth";
+import {
+  requireUserContext,
+  requireProjectAccess,
+  requireFolderAccess,
+  requireFinanceRead,
+  isOrgOwnerOrAdmin,
+} from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export async function PUT(
   req: NextRequest,
@@ -31,7 +43,17 @@ export async function PUT(
       await requireProjectAccess(user, attachment.projectId);
     }
     if (attachment.folderId) {
-      await requireFolderAccess(user, attachment.folderId, "upload");
+      await requireFolderAccess(user, attachment.folderId, "edit");
+    }
+    if (FINANCIAL_CATEGORIES.has(attachment.category.toUpperCase())) {
+      requireFinanceRead(user);
+    }
+    if (
+      !isOrgOwnerOrAdmin(user) &&
+      user.role !== "PROJECT_MANAGER" &&
+      attachment.uploadedById !== user.userId
+    ) {
+      return jsonError("Forbidden: Insufficient privileges to replace this attachment", "FORBIDDEN", 403);
     }
 
     const formData = await req.formData();
@@ -40,8 +62,28 @@ export async function PUT(
       return jsonError("No replacement file provided", "MISSING_FILE", 400);
     }
 
+    if (!STANDARD_ALLOWED_MIME_TYPES.has(file.type)) {
+      return jsonError(
+        `Invalid file format '${file.type}'. Supported formats: JPEG, PNG, WEBP, PDF`,
+        "INVALID_FILE_TYPE",
+        400
+      );
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return jsonError(
+        `File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds limit of 10 MB`,
+        "FILE_TOO_LARGE",
+        400
+      );
+    }
+
     const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const sanitizedOriginalName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
+    if (!isValidMagicBytes(fileBuffer, file.type)) {
+      return jsonError("File signature verification failed", "MIME_SPOOFING_DETECTED", 400);
+    }
+
+    const sanitizedOriginalName = sanitizeFileName(file.name);
 
     // Put file into storage backend
     const storage = getStorageProvider();

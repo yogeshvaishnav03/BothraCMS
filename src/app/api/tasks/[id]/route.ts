@@ -87,7 +87,20 @@ export async function PATCH(
     if (data.title !== undefined) updateData.title = data.title.trim();
     if (data.description !== undefined) updateData.description = data.description;
     if (data.priority !== undefined) updateData.priority = data.priority;
-    if (data.assigneeUserId !== undefined) updateData.assigneeUserId = data.assigneeUserId || null;
+    if (data.assigneeUserId !== undefined) {
+      if (data.assigneeUserId) {
+        const targetAssignee = await prisma.user.findFirst({
+          where: { id: data.assigneeUserId, organizationId: user.organizationId, status: "ACTIVE" },
+          select: { id: true },
+        });
+        if (!targetAssignee) {
+          return jsonError("Assignee not found in this organization", "NOT_FOUND", 404);
+        }
+        updateData.assigneeUserId = targetAssignee.id;
+      } else {
+        updateData.assigneeUserId = null;
+      }
+    }
     if (data.taskType !== undefined) updateData.taskType = data.taskType;
     if (data.dueAt !== undefined) updateData.dueAt = data.dueAt ? new Date(data.dueAt) : null;
     if (data.reminderAt !== undefined) {

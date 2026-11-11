@@ -41,17 +41,36 @@ export async function pushKeys(organizationId: string): Promise<Keys> {
   return keys;
 }
 
+function safeHttpOrMailtoSubject(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("mailto:")) {
+    return /^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(trimmed) ? trimmed : null;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Who the push services can contact about our messages: the site's address, or an admin's email. */
 async function contact(organizationId: string) {
-  if (process.env.VAPID_SUBJECT) return process.env.VAPID_SUBJECT;
+  const fromEnv = safeHttpOrMailtoSubject(process.env.VAPID_SUBJECT);
+  if (fromEnv) return fromEnv;
   const settings = await readSettings(organizationId);
-  const site = settings.messaging?.siteUrl;
-  if (typeof site === "string" && site.startsWith("https://")) return site;
-  if (process.env.APP_URL && process.env.APP_URL.startsWith("https://")) return process.env.APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  const fromSite = safeHttpOrMailtoSubject(settings.messaging?.siteUrl);
+  if (fromSite) return fromSite;
+  const fromAppUrl = safeHttpOrMailtoSubject(process.env.APP_URL);
+  if (fromAppUrl) return fromAppUrl;
+  const fromVercel = process.env.VERCEL_URL ? safeHttpOrMailtoSubject(`https://${process.env.VERCEL_URL}`) : null;
+  if (fromVercel) return fromVercel;
   const admin = await prisma.user.findFirst({ where: { organizationId, role: { in: ["SUPER_ADMIN", "ORG_ADMIN"] }, status: "ACTIVE" }, select: { email: true } });
-  if (admin?.email && admin.email.includes("@") && !admin.email.endsWith(".local") && !admin.email.endsWith("@localhost")) {
-    return `mailto:${admin.email}`;
+  const email = admin?.email?.trim();
+  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !email.endsWith(".local") && !email.endsWith("@localhost")) {
+    return `mailto:${email}`;
   }
   return "mailto:admin@bothracms.com";
 }
@@ -84,12 +103,18 @@ export async function pushToPeople(organizationId: string, userIds: string[], me
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, {
           vapidDetails: { subject, publicKey: keys.publicKey, privateKey: keys.privateKey },
           TTL: 12 * 3600,
+          urgency: "high",
         });
         sent++;
         await prisma.pushSubscription.update({ where: { id: s.id }, data: { failures: 0, lastSentAt: new Date() } });
       } catch (err: any) {
         failed++;
         const gone = err?.statusCode === 404 || err?.statusCode === 410 || s.failures + 1 >= 5;
+        let host = "push-service";
+        try {
+          host = new URL(s.endpoint).hostname;
+        } catch {}
+        console.warn(`[pushToPeople] Delivery failed (${err?.statusCode || err?.message || "unknown"}) to ${host}; ${gone ? "removing subscription" : `failures=${s.failures + 1}`}`);
         if (gone) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
         else await prisma.pushSubscription.update({ where: { id: s.id }, data: { failures: { increment: 1 } } }).catch(() => {});
       }

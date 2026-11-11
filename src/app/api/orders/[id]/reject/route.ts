@@ -90,7 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           type: "PURCHASE_ORDER",
           title: `Order ${updated.orderNumber} Rejected`,
           message: `Your purchase order for ${updated.material.name} was rejected by ${user.name}: ${reason}`,
-          href: "/orders",
+          href: `/materials/${updated.materialId}`,
           entityType: "PURCHASE_ORDER",
           entityId: updated.id,
           severity: "WARNING",

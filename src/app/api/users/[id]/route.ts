@@ -13,6 +13,7 @@ const updateUserSchema = z.object({
   phone: z.string().trim().max(20).nullable().optional(),
   jobTitle: z.string().trim().max(80).nullable().optional(),
   password: z.string().min(6, "Password must be at least 6 characters").optional(),
+  extraPermissions: z.array(z.string()).max(40).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

@@ -81,7 +81,7 @@ const addDays = (date: string, days: number) => {
 
 /** Projects the user can see sales for; null means all. Accounts staff see every project, to record receipts. */
 async function scope(user: UserContext) {
-  if (hasPermission(user.role, "finance:read")) return null;
+  if (hasPermission(user, "finance:read")) return null;
   return getUserAccessibleProjectIds(user);
 }
 

@@ -5,7 +5,7 @@
  * - Data API calls go straight to the network without service-worker cloning/cache writes.
  * - Alerts pushed by the server show as phone notifications; tapping one opens its page.
  */
-const VERSION = "bothra-v8";
+const VERSION = "bothra-v9";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const SHELL = [
@@ -105,35 +105,71 @@ self.addEventListener("push", (event) => {
     data = { body: event.data ? event.data.text() : "" };
   }
   const title = data.title || "Bothra CMS";
+  const cleanTag = typeof data.tag === "string" && data.tag.trim().length > 0 ? data.tag.trim() : undefined;
+  const targetHref = typeof data.href === "string" && data.href.startsWith("/") ? data.href : "/";
   const options = {
     body: data.body || "",
-    tag: data.tag || undefined,
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
     vibrate: [200, 100, 200],
-    renotify: true,
     requireInteraction: false,
-    data: { href: data.href || "/" },
+    data: { href: targetHref },
     actions: [{ action: "open", title: "View Details" }],
+    // Chromium throws TypeError if renotify: true is passed without a non-empty tag.
+    ...(cleanTag ? { tag: cleanTag, renotify: true } : {}),
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, options).catch(() =>
+      self.registration.showNotification(title, {
+        body: options.body,
+        icon: options.icon,
+        data: options.data,
+        ...(cleanTag ? { tag: cleanTag } : {}),
+      })
+    )
+  );
 });
 
 // Tapping an alert opens its page, in the app window if one is already open.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetHref = (event.notification.data && event.notification.data.href) || "/";
-  const href = new URL(targetHref, self.location.origin);
+  const rawHref = (event.notification.data && event.notification.data.href) || "/";
+  let href;
+  try {
+    href = new URL(rawHref, self.location.origin);
+  } catch {
+    href = new URL("/", self.location.origin);
+  }
   if (href.origin !== self.location.origin) return;
+
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
-      const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
+    (async () => {
+      const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const sameOriginWins = wins.filter((w) => {
+        try {
+          return new URL(w.url).origin === self.location.origin;
+        } catch {
+          return false;
+        }
+      });
+      const win = sameOriginWins.find((w) => w.focused) || sameOriginWins[0];
       if (win) {
-        if ("focus" in win) win.focus();
-        if ("navigate" in win) return win.navigate(href.href);
-        return;
+        try {
+          if ("focus" in win) await win.focus();
+        } catch {}
+        if ("navigate" in win) {
+          try {
+            return await win.navigate(href.href);
+          } catch {}
+        }
+        try {
+          win.postMessage({ type: "BOTHRA_NAVIGATE", href: href.pathname + href.search + href.hash });
+          return;
+        } catch {}
       }
-      return self.clients.openWindow(href.href);
-    })
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(href.href);
+      }
+    })()
   );
 });

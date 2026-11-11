@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { showDeviceNotification } from "@/lib/push-client";
 
 const USER_CACHE_KEY = "buildtrack_session_user_v1";
 const SITES_CACHE_KEY = "buildtrack_session_sites_v1";
@@ -268,7 +269,8 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
           const newChatCount = res.data.unreadChatCount || 0;
           setUnreadChatCount(newChatCount);
 
-          if (newChatCount > prevChatCountRef.current && res.data.latestChatMessage) {
+          const hasNewChat = newChatCount > prevChatCountRef.current && Boolean(res.data.latestChatMessage);
+          if (hasNewChat && res.data.latestChatMessage) {
             if (pathnameRef.current !== "/chat") {
               setChatToast(res.data.latestChatMessage);
             }
@@ -294,25 +296,27 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
               });
               playAlertChime();
 
-              if (
-                typeof window !== "undefined" &&
-                "Notification" in window &&
-                Notification.permission === "granted" &&
-                document.hidden
-              ) {
-                try {
-                  const n = new Notification(latest.title, {
-                    body: latest.message,
-                    icon: "/icons/icon-192.png",
-                    badge: "/icons/icon-192.png",
-                    tag: latest.id,
-                  });
-                  n.onclick = () => {
-                    window.focus();
-                    if (latest.href) router.push(latest.href);
-                    n.close();
-                  };
-                } catch {}
+              if (typeof document !== "undefined" && document.hidden) {
+                const tag =
+                  latest.type === "CHAT_MESSAGE" && res.data.latestChatMessage?.id
+                    ? `chat:${res.data.latestChatMessage.id}`
+                    : latest.id;
+                void showDeviceNotification({
+                  title: latest.title,
+                  body: latest.message,
+                  href: latest.href || "/",
+                  tag,
+                });
+              }
+            } else if (hasNewChat && res.data.latestChatMessage && pathnameRef.current !== "/chat") {
+              playAlertChime();
+              if (typeof document !== "undefined" && document.hidden) {
+                void showDeviceNotification({
+                  title: `New message from ${res.data.latestChatMessage.senderName}`,
+                  body: res.data.latestChatMessage.content,
+                  href: "/chat",
+                  tag: `chat:${res.data.latestChatMessage.id}`,
+                });
               }
             }
             prevAlertIdsRef.current = new Set(currentAlerts.map((a: any) => a.id));
@@ -467,12 +471,21 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
     window.addEventListener("refreshNotifications", handleRefresh);
     document.addEventListener("visibilitychange", handleVisibility);
 
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === "BOTHRA_NAVIGATE" && typeof event.data.href === "string" && event.data.href.startsWith("/")) {
+        router.push(event.data.href);
+      }
+    };
+    const swContainer = typeof navigator !== "undefined" && "serviceWorker" in navigator ? navigator.serviceWorker : null;
+    swContainer?.addEventListener("message", handleSwMessage);
+
     return () => {
       clearInterval(interval);
       window.removeEventListener("refreshNotifications", handleRefresh);
       document.removeEventListener("visibilitychange", handleVisibility);
+      swContainer?.removeEventListener("message", handleSwMessage);
     };
-  }, [sessionActive, refreshNotifications]);
+  }, [sessionActive, refreshNotifications, router]);
 
   return (
     <AppSessionContext.Provider

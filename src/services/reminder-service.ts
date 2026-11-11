@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { alertStaffNow } from "@/services/staff-alerts";
+import { pushToPeople } from "@/lib/push";
 
 export class ReminderService {
   /**
@@ -30,8 +31,17 @@ export class ReminderService {
     });
 
     let deliveredCount = 0;
+    const deliveredReminders: Array<{
+      organizationId: string;
+      userIds: string[];
+      title: string;
+      body: string;
+      href: string;
+      tag: string;
+    }> = [];
 
     for (const task of dueTasks) {
+      let committedPayload: (typeof deliveredReminders)[number] | null = null;
       await prisma.$transaction(async (tx: any) => {
         // Double check within transaction to prevent race conditions
         const freshTask = await tx.task.findUnique({
@@ -65,6 +75,7 @@ export class ReminderService {
 
         const title = `Task Reminder: ${task.title}`;
         const message = `Reminder for task "${task.title}" in project "${task.project.name}". Due: ${dueFormatted}. Priority: ${task.priority}.`;
+        const href = `/tasks?projectId=${task.projectId}`;
 
         for (const recipientId of Array.from(recipients)) {
           await tx.notification.create({
@@ -77,7 +88,7 @@ export class ReminderService {
               severity: task.priority === "CRITICAL" || task.priority === "HIGH" ? "WARNING" : "INFO",
               entityType: "TASK",
               entityId: task.id,
-              href: `/tasks?projectId=${task.projectId}`,
+              href,
               deliveredAt: now,
             },
           });
@@ -89,11 +100,34 @@ export class ReminderService {
         });
 
         deliveredCount++;
+        committedPayload = {
+          organizationId: task.organizationId,
+          userIds: Array.from(recipients),
+          title,
+          body: message,
+          href,
+          tag: `TASK_REMINDER:${task.id}`,
+        };
       });
+      if (committedPayload) {
+        deliveredReminders.push(committedPayload);
+      }
     }
 
-    // WhatsApp the reminders too, where staff alerts are on.
+    // Push & WhatsApp the reminders so mobile devices alert immediately.
     if (deliveredCount > 0) {
+      await Promise.all(
+        deliveredReminders.map((r) =>
+          pushToPeople(r.organizationId, r.userIds, {
+            title: r.title,
+            body: r.body,
+            href: r.href,
+            tag: r.tag,
+          }).catch((err) => {
+            console.warn("[ReminderService] Push notification delivery failed:", err);
+          })
+        )
+      );
       for (const orgId of new Set(dueTasks.map((t: any) => t.organizationId as string))) await alertStaffNow(orgId);
     }
 

@@ -87,7 +87,7 @@ export class DrawingService {
     });
     return {
       drawings,
-      canUpload: hasPermission(user.role, "projects:write"),
+      canUpload: hasPermission(user, "projects:write"),
       canReview: canReviewAny,
       summary: {
         total: drawings.length,

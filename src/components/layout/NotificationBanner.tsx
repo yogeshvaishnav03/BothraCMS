@@ -2,67 +2,44 @@
 
 import { useEffect, useState } from "react";
 import { Bell, X, CheckCircle2, Loader2, Share } from "lucide-react";
-import { keyBytes, isIos, isMobile, isInstalled } from "@/components/layout/PushToggle";
+import { isIos, isMobile, isInstalled } from "@/components/layout/PushToggle";
+import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { shouldShowIosPushInstallPrompt } from "@/lib/device-platform";
+import { subscribeBrowserPush, syncExistingPushSubscription } from "@/lib/push-client";
 
-let hasAutoSyncedPushThisSession = false;
+let hasAutoSyncedPushThisSession: string | false = false;
 
 export function NotificationBanner() {
+  const { user } = useAppSession();
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIosPrompt, setIsIosPrompt] = useState(false);
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || !user?.id) {
       return;
     }
 
     const hasNotificationApi = "Notification" in window;
     const hasServiceWorker = "serviceWorker" in navigator;
 
-    // 1. Silent Background Auto-Sync if permission is already granted (once per document load)
+    // 1. Silent Background Auto-Sync if permission is already granted (re-runs if signed-in user switches)
     if (hasNotificationApi && hasServiceWorker && Notification.permission === "granted") {
-      if (hasAutoSyncedPushThisSession) {
+      setShowPrompt(false);
+      if (hasAutoSyncedPushThisSession === user.id) {
         return;
       }
-      hasAutoSyncedPushThisSession = true;
+      hasAutoSyncedPushThisSession = user.id;
       (async () => {
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          let sub = await reg.pushManager.getSubscription();
-          const { data } = await fetch("/api/push", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
-          if (!data?.publicKey) return;
-
-          if (sub && sub.options.applicationServerKey) {
-            const current = new Uint8Array(sub.options.applicationServerKey);
-            const wanted = keyBytes(data.publicKey);
-            if (current.length !== wanted.length || current.some((b, i) => b !== wanted[i])) {
-              await sub.unsubscribe();
-              sub = null;
-            }
+        const res = await syncExistingPushSubscription();
+        if (!res.synced) {
+          // Allow retry on next mount/navigation if transient failure prevented sync
+          if (hasAutoSyncedPushThisSession === user.id) {
+            hasAutoSyncedPushThisSession = false;
           }
-
-          if (!sub) {
-            sub = await reg.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: keyBytes(data.publicKey),
-            });
-          }
-
-          const check = await fetch(`/api/push?endpoint=${encodeURIComponent(sub.endpoint)}`, { cache: "no-store" })
-            .then((r) => r.json())
-            .catch(() => null);
-
-          if (!check?.data?.thisDevice) {
-            await fetch("/api/push", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...sub.toJSON() }),
-            });
-          }
-        } catch (err) {
-          console.debug("[NotificationBanner] Auto-sync notice:", err);
+          console.debug("[NotificationBanner] Auto-sync notice:", res.error);
         }
       })();
       return;
@@ -95,7 +72,7 @@ export function NotificationBanner() {
     if (hasNotificationApi && hasServiceWorker && Notification.permission === "default") {
       setShowPrompt(true);
     }
-  }, []);
+  }, [user?.id]);
 
   const handleDismiss = (days = 3) => {
     try {
@@ -106,43 +83,25 @@ export function NotificationBanner() {
 
   const handleEnable = async () => {
     setBusy(true);
+    setErrorMsg("");
     try {
       const permission = await Notification.requestPermission();
       if (permission === "granted") {
-        const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register("/sw.js"));
-        await navigator.serviceWorker.ready;
-        const { data } = await fetch("/api/push", { cache: "no-store" }).then((r) => r.json());
-        let sub = await reg.pushManager.getSubscription();
-
-        if (sub && sub.options.applicationServerKey) {
-          const current = new Uint8Array(sub.options.applicationServerKey);
-          const wanted = keyBytes(data.publicKey);
-          if (current.length !== wanted.length || current.some((b, i) => b !== wanted[i])) {
-            await sub.unsubscribe();
-            sub = null;
-          }
+        const res = await subscribeBrowserPush({ test: true });
+        if (res.ok) {
+          if (user?.id) hasAutoSyncedPushThisSession = user.id;
+          setSuccess(true);
+          setTimeout(() => setShowPrompt(false), 3500);
+        } else {
+          setErrorMsg(res.error || "Could not finish push setup on this device. Tap Retry or open Alerts.");
         }
-
-        if (!sub) {
-          sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: keyBytes(data.publicKey),
-          });
-        }
-
-        await fetch("/api/push", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...sub.toJSON(), test: true }),
-        });
-
-        setSuccess(true);
-        setTimeout(() => setShowPrompt(false), 3500);
+      } else if (permission === "denied") {
+        handleDismiss(7);
       } else {
-        handleDismiss(1);
+        setErrorMsg("Permission prompt was dismissed. Tap Enable Alerts when ready.");
       }
     } catch {
-      handleDismiss(1);
+      setErrorMsg("Could not enable push alerts right now. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -181,6 +140,9 @@ export function NotificationBanner() {
                 <p className="text-slate-300 text-xs mt-0.5">
                   Get instant alerts for material orders, expenses, site reports, and approvals.
                 </p>
+                {errorMsg && (
+                  <p className="text-rose-300 text-[11px] font-medium mt-1">{errorMsg}</p>
+                )}
               </div>
             )}
           </div>

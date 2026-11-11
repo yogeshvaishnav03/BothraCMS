@@ -5,6 +5,9 @@
 const { PrismaClient } = require("@prisma/client");
 
 const POSTGRES_COLUMNS = [
+  // Custom per-employee extra accessibility permissions
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "extraPermissionsJson" TEXT;`,
+
   // Material unit price
   `ALTER TABLE "Material" ADD COLUMN IF NOT EXISTS "unitPrice" DOUBLE PRECISION DEFAULT 0;`,
 

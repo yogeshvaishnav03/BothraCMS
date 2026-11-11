@@ -199,8 +199,9 @@ export default function WorkforcePage() {
     setIsCustomContractor(false);
   };
 
-  // Modal: Register Individual Worker
+  // Modal: Register / Edit Individual Worker
   const [showRegisterWorkerModal, setShowRegisterWorkerModal] = useState(false);
+  const [editingWorker, setEditingWorker] = useState<WorkerRosterItem | null>(null);
   const [workerName, setWorkerName] = useState("");
   const [employeeCode, setEmployeeCode] = useState("");
   const [workerType, setWorkerType] = useState("MASON");
@@ -462,6 +463,26 @@ export default function WorkforcePage() {
   };
 
   // Register worker submit handler
+  const openCreateWorkerModal = () => {
+    setEditingWorker(null);
+    setWorkerName("");
+    setEmployeeCode("");
+    setWorkerType("MASON");
+    setWorkerPhone("");
+    setWorkerDailyWage("");
+    setShowRegisterWorkerModal(true);
+  };
+
+  const openEditWorkerModal = (w: WorkerRosterItem) => {
+    setEditingWorker(w);
+    setWorkerName(w.name || "");
+    setEmployeeCode(w.employeeCode || "");
+    setWorkerType(w.workerType || "MASON");
+    setWorkerPhone(w.phone || "");
+    setWorkerDailyWage(w.dailyWageRate ? String(w.dailyWageRate / 100) : "");
+    setShowRegisterWorkerModal(true);
+  };
+
   const handleRegisterWorker = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!workerName.trim() || !employeeCode.trim()) {
@@ -474,25 +495,39 @@ export default function WorkforcePage() {
     setStatusMessage(null);
 
     try {
+      const payload: Record<string, unknown> = {
+        name: workerName.trim(),
+        employeeCode: employeeCode.trim(),
+        workerType,
+        phone: workerPhone.trim() || (editingWorker ? null : undefined),
+        defaultSiteId: selectedSiteId || (editingWorker ? editingWorker.defaultSiteId ?? null : undefined),
+        dailyWageRate: workerDailyWage
+          ? Math.round(parseFloat(workerDailyWage) * 100)
+          : editingWorker
+          ? null
+          : undefined, // stored in paise
+      };
+      if (editingWorker) {
+        payload.id = editingWorker.id;
+      }
+
       const res = await fetch("/api/workforce", {
-        method: "POST",
+        method: editingWorker ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: workerName.trim(),
-          employeeCode: employeeCode.trim(),
-          workerType,
-          phone: workerPhone.trim() || undefined,
-          defaultSiteId: selectedSiteId || undefined,
-          dailyWageRate: workerDailyWage ? Math.round(parseFloat(workerDailyWage) * 100) : undefined, // stored in paise
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to register worker");
+        setErrorMessage(data.error?.message || `Failed to ${editingWorker ? "update" : "register"} worker`);
       } else {
-        setStatusMessage(`Worker ${data.data.name} (${data.data.employeeCode}) registered!`);
+        setStatusMessage(
+          editingWorker
+            ? `Worker ${data.data.name} (${data.data.employeeCode}) updated!`
+            : `Worker ${data.data.name} (${data.data.employeeCode}) registered!`
+        );
         setShowRegisterWorkerModal(false);
+        setEditingWorker(null);
         setWorkerName("");
         setEmployeeCode("");
         setWorkerPhone("");
@@ -500,7 +535,7 @@ export default function WorkforcePage() {
         await loadData();
       }
     } catch {
-      setErrorMessage("Network error registering worker");
+      setErrorMessage(`Network error ${editingWorker ? "updating" : "registering"} worker`);
     } finally {
       setSubmitting(false);
     }
@@ -1139,7 +1174,7 @@ export default function WorkforcePage() {
 
               {canWrite && (
                 <button
-                  onClick={() => setShowRegisterWorkerModal(true)}
+                  onClick={openCreateWorkerModal}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
@@ -1167,6 +1202,7 @@ export default function WorkforcePage() {
                         theme="darkHeader"
                       />
                     ))}
+                    {canWrite && <th className="py-3 px-4 text-right">Edit</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
@@ -1202,6 +1238,18 @@ export default function WorkforcePage() {
                         {w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "—"}
                       </td>
                       <td className="py-3 px-4 text-slate-600">{w.defaultSite?.name || "Main Site"}</td>
+                      {canWrite && (
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => openEditWorkerModal(w)}
+                            title={`Edit ${w.name}`}
+                            className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center justify-center"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                   )}
@@ -1700,10 +1748,13 @@ export default function WorkforcePage() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-base flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-amber-500" />
-                  <span>Register Worker</span>
+                  <span>{editingWorker ? `Edit ${editingWorker.name}` : "Register Worker"}</span>
                 </div>
                 <button
-                  onClick={() => setShowRegisterWorkerModal(false)}
+                  onClick={() => {
+                    setShowRegisterWorkerModal(false);
+                    setEditingWorker(null);
+                  }}
                   className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
                 >
                   <X className="w-4 h-4" />
@@ -1791,7 +1842,10 @@ export default function WorkforcePage() {
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => setShowRegisterWorkerModal(false)}
+                    onClick={() => {
+                      setShowRegisterWorkerModal(false);
+                      setEditingWorker(null);
+                    }}
                     className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition"
                   >
                     Cancel
@@ -1801,7 +1855,7 @@ export default function WorkforcePage() {
                     disabled={submitting}
                     className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition disabled:opacity-50"
                   >
-                    {submitting ? "Saving..." : "Register Worker"}
+                    {submitting ? "Saving..." : editingWorker ? "Save Changes" : "Register Worker"}
                   </button>
                 </div>
               </form>

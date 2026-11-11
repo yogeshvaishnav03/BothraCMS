@@ -247,12 +247,14 @@ export class CommandCenterService {
       });
     }
     for (const a of dayBook.attendance as any[]) {
+      const displayName = a.name || a.workforceMember?.name || "Staff Member";
+      const displaySite = a.site?.name || a.siteName || null;
       timeline.push({
         id: `att-${a.id}`,
         kind: "ATTENDANCE",
         at: resolveTimelineTime(a.checkInAt, 9, 0),
-        title: `${a.workforceMember?.name || "Worker"} checked in`,
-        detail: [a.site?.name, a.checkOutAt ? "checked out" : "on site"].filter(Boolean).join(" · "),
+        title: `${displayName} checked in`,
+        detail: [displaySite, a.checkOutAt ? "checked out" : "on site"].filter(Boolean).join(" · "),
         href: "/attendance",
       });
     }

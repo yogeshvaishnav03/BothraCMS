@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import crypto from "crypto";
-import path from "path";
 import { z } from "zod";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import {
@@ -10,30 +9,16 @@ import {
   canReadFinance,
 } from "@/lib/server-auth";
 import { createPresignedUploadUrl } from "@/lib/storage";
+import {
+  FINANCIAL_CATEGORIES,
+  PRESIGN_ALLOWED_MIME_TYPES as ALLOWED_MIME_TYPES,
+  sanitizeFileName,
+} from "@/lib/upload-validation";
 
 export const dynamic = "force-dynamic";
 
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/msword",
-  "text/plain",
-  "text/csv",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-]);
-
 const MAX_STANDARD_SIZE = 25 * 1024 * 1024; // 25 MB
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100 MB for site evidence video
-
-const FINANCIAL_CATEGORIES = new Set(["INVOICE", "BILL", "PAYMENT", "RECEIPT"]);
 
 const PresignRequestSchema = z.object({
   fileName: z.string().min(1).max(255),
@@ -92,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     // Build tamper-proof, non-colliding object key scoped to tenant & project
     const fileId = crypto.randomUUID();
-    const sanitizedName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const sanitizedName = sanitizeFileName(fileName);
     const projectFolder = projectId ? `proj_${projectId}` : "general";
     const storageKey = `org_${user.organizationId}/${projectFolder}/${fileId}_${sanitizedName}`;
 

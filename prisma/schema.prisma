@@ -75,9 +75,10 @@ model User {
   passwordHash   String
   role           String    @default("SITE_SUPERVISOR") // SUPER_ADMIN, ORG_ADMIN, PROJECT_MANAGER, SITE_SUPERVISOR, ACCOUNTANT, STOREKEEPER, HR_VIEWER, AUDITOR
   status         String    @default("ACTIVE") // ACTIVE, INACTIVE
-  phone          String?   // mobile, used for WhatsApp / call buttons
-  jobTitle       String?   // e.g. Site Engineer, Architect, Accounts Head
-  lastLoginAt    DateTime?
+  phone                String?   // mobile, used for WhatsApp / call buttons
+  jobTitle             String?   // e.g. Site Engineer, Architect, Accounts Head
+  extraPermissionsJson String?   // Optional JSON array of additional Permission keys granted on top of role
+  lastLoginAt          DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

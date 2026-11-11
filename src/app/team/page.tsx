@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { ContactActions } from "@/components/ui/ContactActions";
-import { canUser } from "@/lib/permissions";
+import { canUser, EXTRA_ACCESS_MODULES, Permission, ROLE_PERMISSIONS, Role } from "@/lib/permissions";
 import { cn } from "@/lib/cn";
 import {
   Check,
@@ -36,6 +36,7 @@ interface TeamMember {
   status: string;
   phone: string | null;
   jobTitle: string | null;
+  extraPermissions?: Permission[];
   lastLoginAt: string | null;
   createdAt: string;
 }
@@ -71,7 +72,14 @@ function lastSeen(iso: string | null) {
   return `Last seen ${new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
 }
 
-const EMPTY = { name: "", email: "", role: "SITE_SUPERVISOR", phone: "", jobTitle: "" };
+const EMPTY: {
+  name: string;
+  email: string;
+  role: string;
+  phone: string;
+  jobTitle: string;
+  extraPermissions: Permission[];
+} = { name: "", email: "", role: "SITE_SUPERVISOR", phone: "", jobTitle: "", extraPermissions: [] };
 
 export default function TeamPage() {
   const { refreshUser } = useAppSession();
@@ -179,8 +187,36 @@ export default function TeamPage() {
     setEditing(m);
     setEditPassword("");
     setShowEditPasswordText(false);
-    setForm({ name: m.name, email: m.email, role: m.role, phone: m.phone || "", jobTitle: m.jobTitle || "" });
+    setForm({
+      name: m.name,
+      email: m.email,
+      role: m.role,
+      phone: m.phone || "",
+      jobTitle: m.jobTitle || "",
+      extraPermissions: m.extraPermissions || [],
+    });
     setShowForm(true);
+  };
+
+  const roleIncludedSet = useMemo(
+    () => new Set<Permission>(ROLE_PERMISSIONS[form.role as Role] || []),
+    [form.role]
+  );
+
+  const toggleExtraModule = (modulePermissions: readonly Permission[]) => {
+    setForm((prev) => {
+      const baseSet = new Set<Permission>(ROLE_PERMISSIONS[prev.role as Role] || []);
+      const extraOnly = modulePermissions.filter((p) => !baseSet.has(p));
+      if (extraOnly.length === 0) return prev;
+      const current = new Set<Permission>(prev.extraPermissions || []);
+      const allSelected = extraOnly.every((p) => current.has(p));
+      if (allSelected) {
+        extraOnly.forEach((p) => current.delete(p));
+      } else {
+        extraOnly.forEach((p) => current.add(p));
+      }
+      return { ...prev, extraPermissions: Array.from(current) };
+    });
   };
 
   const openPasswordModal = (m: TeamMember) => {
@@ -239,16 +275,23 @@ export default function TeamPage() {
     setError(null);
     try {
       if (editing) {
+        const baseSet = new Set<Permission>(ROLE_PERMISSIONS[form.role as Role] || []);
+        const extraPermissions = (form.extraPermissions || []).filter((p) => !baseSet.has(p));
         const patchPayload: any = {
           name: form.name,
           role: form.role,
           phone: form.phone || null,
           jobTitle: form.jobTitle || null,
+          extraPermissions,
         };
         if (editPassword.trim()) {
           patchPayload.password = editPassword.trim();
         }
         await call(`/api/users/${editing.id}`, "PATCH", patchPayload);
+        if (editing.id === me?.id) {
+          const fresh = await refreshUser(true);
+          if (fresh) setMe(fresh);
+        }
         if (editPassword.trim()) {
           setCredentials({
             name: form.name,
@@ -262,12 +305,15 @@ export default function TeamPage() {
           setNotice(`${form.name} updated.`);
         }
       } else {
+        const baseSet = new Set<Permission>(ROLE_PERMISSIONS[form.role as Role] || []);
+        const extraPermissions = (form.extraPermissions || []).filter((p) => !baseSet.has(p));
         const data = await call("/api/users", "POST", {
           name: form.name,
           email: form.email,
           role: form.role,
           phone: form.phone || null,
           jobTitle: form.jobTitle || null,
+          extraPermissions,
         });
         setCredentials({ name: data.user.name, email: data.user.email, password: data.temporaryPassword, isNew: true });
         setShowCredentialPassword(true);
@@ -453,6 +499,20 @@ export default function TeamPage() {
                       {m.jobTitle && <div className="text-xs text-slate-500 truncate">{m.jobTitle}</div>}
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1", meta.tone)}>{meta.label}</span>
+                        {(() => {
+                          const base = new Set<Permission>(ROLE_PERMISSIONS[m.role as Role] || []);
+                          const extraModulesCount = EXTRA_ACCESS_MODULES.filter((mod) => {
+                            const extraForMod = mod.permissions.filter((p) => !base.has(p));
+                            return extraForMod.length > 0 && extraForMod.every((p) => (m.extraPermissions || []).includes(p));
+                          }).length;
+                          if (extraModulesCount === 0 && !(m.extraPermissions && m.extraPermissions.length > 0)) return null;
+                          const labelCount = extraModulesCount > 0 ? extraModulesCount : m.extraPermissions!.length;
+                          return (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1 bg-violet-50 text-violet-700 ring-violet-200">
+                              +{labelCount} extra access
+                            </span>
+                          );
+                        })()}
                         {inactive && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1 bg-rose-50 text-rose-700 ring-rose-200">Deactivated</span>}
                       </div>
                     </div>
@@ -610,6 +670,80 @@ export default function TeamPage() {
                         <div className="text-[11px] text-slate-500 leading-snug mt-0.5">{r.hint}</div>
                       </label>
                     ))}
+                  </div>
+                </div>
+
+                {/* Extra Accessibility Modules beyond the primary role */}
+                <div className="pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className={cn(labelCls, "mb-0")}>Extra Accessibility (Beyond Role)</label>
+                    {(form.extraPermissions || []).filter((p) => !roleIncludedSet.has(p)).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, extraPermissions: [] }))}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-rose-600 transition"
+                      >
+                        Clear extras
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-2.5 leading-snug">
+                    Grant additional module access to this employee without changing their primary role (e.g., let an Accountant mark Attendance or receive Stock).
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {EXTRA_ACCESS_MODULES.map((mod) => {
+                      const includedInRole = mod.permissions.every((p) => roleIncludedSet.has(p));
+                      const extraPermsForMod = mod.permissions.filter((p) => !roleIncludedSet.has(p));
+                      const activeExtra =
+                        !includedInRole &&
+                        extraPermsForMod.length > 0 &&
+                        extraPermsForMod.every((p) => (form.extraPermissions || []).includes(p));
+                      const isLockedSelf =
+                        editing?.id === me?.id && me?.role !== "SUPER_ADMIN" && me?.role !== "ORG_ADMIN";
+                      const disabled = includedInRole || isLockedSelf;
+
+                      return (
+                        <button
+                          key={mod.key}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => toggleExtraModule(mod.permissions)}
+                          className={cn(
+                            "text-left rounded-xl p-2.5 ring-1 transition flex items-start gap-2",
+                            includedInRole
+                              ? "ring-slate-200 bg-slate-50/80 opacity-75 cursor-default"
+                              : activeExtra
+                              ? "ring-2 ring-amber-400 bg-amber-50/60"
+                              : "ring-slate-200 hover:ring-slate-300 bg-white",
+                            isLockedSelf && !includedInRole && "opacity-60 cursor-not-allowed"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ring-1",
+                              includedInRole
+                                ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
+                                : activeExtra
+                                ? "bg-amber-500 text-slate-950 ring-amber-500"
+                                : "bg-white text-transparent ring-slate-300"
+                            )}
+                          >
+                            <Check className="w-3 h-3" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-semibold text-slate-900 flex items-center justify-between gap-1">
+                              <span className="truncate">{mod.label}</span>
+                              {includedInRole && (
+                                <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-slate-200/80 text-slate-600 shrink-0">
+                                  In role
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500 leading-snug mt-0.5">{mod.hint}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

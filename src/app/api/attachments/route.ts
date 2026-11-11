@@ -1,10 +1,16 @@
 import { NextRequest } from "next/server";
 import crypto from "crypto";
-import path from "path";
 import { getUserContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { backupFileToDatabase, getStorageProvider } from "@/lib/storage";
+import {
+  STANDARD_ALLOWED_MIME_TYPES as ALLOWED_MIME_TYPES,
+  STANDARD_EXTENSION_MAP as EXTENSION_MAP,
+  FINANCIAL_CATEGORIES,
+  isValidMagicBytes,
+  sanitizeFileName,
+} from "@/lib/upload-validation";
 
 import {
   requireUserContext,
@@ -21,42 +27,6 @@ export const dynamic = "force-dynamic";
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB limit for project documents/photos
 
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-]);
-
-const EXTENSION_MAP: Record<string, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-  "application/pdf": ".pdf",
-};
-
-const FINANCIAL_CATEGORIES = new Set(["INVOICE", "BILL", "PAYMENT", "RECEIPT"]);
-
-function isValidMagicBytes(buffer: Buffer, mimeType: string): boolean {
-  if (buffer.length < 4) return false;
-  if (mimeType === "image/png") {
-    return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
-  }
-  if (mimeType === "image/jpeg") {
-    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
-  }
-  if (mimeType === "application/pdf") {
-    return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
-  }
-  if (mimeType === "image/webp") {
-    if (buffer.length < 12) return false;
-    const isRiff = buffer.toString("ascii", 0, 4) === "RIFF";
-    const isWebp = buffer.toString("ascii", 8, 12) === "WEBP";
-    return isRiff && isWebp;
-  }
-  return false;
-}
-
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
@@ -69,7 +39,9 @@ export async function GET(req: NextRequest) {
     const stockMovementId = searchParams.get("stockMovementId");
     const attendanceSessionId = searchParams.get("attendanceSessionId");
     const category = searchParams.get("category");
-    const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!) : 50;
+    const rawLimit = searchParams.get("limit");
+    const parsedLimit = rawLimit ? Number.parseInt(rawLimit, 10) : 50;
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 50;
 
     // Check project access if specified
     if (projectId) {
@@ -224,7 +196,7 @@ export async function POST(req: NextRequest) {
     const safeExt = EXTENSION_MAP[file.type] || ".bin";
     const fileId = crypto.randomUUID();
     const diskFileName = `${user.organizationId}_${fileId}${safeExt}`;
-    const sanitizedOriginalName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const sanitizedOriginalName = sanitizeFileName(file.name);
 
     // Put file in storage backend
     const storage = getStorageProvider();

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import {
   formatNotificationMessage,
@@ -23,6 +24,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   try {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    if (!hasPermission(user, "inventory:read") && !hasPermission(user, "finance:read")) {
+      return jsonError("Forbidden: Role cannot view purchase orders", "FORBIDDEN", 403);
+    }
 
     const where: any = { id: params.id };
     if (user.role !== "SUPER_ADMIN") {
@@ -93,6 +97,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+    if (!hasPermission(user, "inventory:receipt") && !hasPermission(user, "projects:write")) {
+      return jsonError("Forbidden: Role cannot update purchase orders", "FORBIDDEN", 403);
+    }
 
     const body = await req.json();
     const parsed = updateOrderSchema.safeParse(body);
@@ -117,6 +124,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (!canApprove) {
         return jsonError("Only Super Admin or Org Admin can approve or reject orders", "FORBIDDEN", 403);
       }
+    } else if (
+      requestedStatus &&
+      ["PLACED", "CONFIRMED", "DELIVERED"].includes(requestedStatus) &&
+      ["PENDING_APPROVAL", "REJECTED", "CANCELLED"].includes(existing.status)
+    ) {
+      return jsonError("Purchase order must be approved before marking as placed, confirmed, or delivered", "FORBIDDEN", 403);
     }
 
     const updateData: any = {};

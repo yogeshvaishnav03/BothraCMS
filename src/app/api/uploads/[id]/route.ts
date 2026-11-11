@@ -4,6 +4,11 @@ import { prisma } from "@/lib/db";
 import { jsonError, handleApiError } from "@/lib/api-response";
 import { getStorageProvider, getS3Client, createPresignedDownloadUrl } from "@/lib/storage";
 import {
+  escapeXml,
+  FINANCIAL_CATEGORIES,
+  SAFE_INLINE_RASTER_MIMES,
+} from "@/lib/upload-validation";
+import {
   requireUserContext,
   requireProjectAccess,
   requireFolderAccess,
@@ -12,8 +17,6 @@ import {
 } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
-
-const FINANCIAL_CATEGORIES = new Set(["INVOICE", "BILL", "PAYMENT", "RECEIPT"]);
 
 export async function GET(
   req: NextRequest,
@@ -172,10 +175,13 @@ export async function GET(
 
           isConfidential = true;
 
-          // If stored as inline base64 data URL, return buffer directly with private no-store headers
+          // If stored as inline base64 data URL, return buffer directly for safe raster types only
           if (chatMsg.imageUrl && chatMsg.imageUrl.startsWith("data:image/")) {
             const [metaPart, base64Part] = chatMsg.imageUrl.split(",");
-            const detectedMime = metaPart.split(";")[0].replace("data:", "") || "image/jpeg";
+            const detectedMime = metaPart.split(";")[0].replace("data:", "").toLowerCase();
+            if (!SAFE_INLINE_RASTER_MIMES.has(detectedMime) || !base64Part) {
+              return jsonError("Unsupported inline image format", "UNSUPPORTED_MEDIA_TYPE", 415);
+            }
             const buffer = Buffer.from(base64Part, "base64");
             return new NextResponse(new Uint8Array(buffer), {
               status: 200,
@@ -185,7 +191,7 @@ export async function GET(
                 "Cache-Control": "private, no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
                 "X-Content-Type-Options": "nosniff",
-                "Content-Security-Policy": "default-src 'self' data: blob:; img-src 'self' data: blob:;",
+                "Content-Security-Policy": "default-src 'none'; img-src 'self'",
               },
             });
           }
@@ -325,7 +331,7 @@ export async function GET(
               <circle cx="240" cy="115" r="22" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
               <circle cx="240" cy="115" r="9" fill="#f59e0b"/>
               <text x="240" y="176" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="800" fill="#ffffff" letter-spacing="1">SITE PHOTOGRAPH</text>
-              <text x="240" y="198" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#cbd5e1">${cleanName}</text>
+              <text x="240" y="198" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#cbd5e1">${escapeXml(cleanName)}</text>
               <rect x="160" y="215" width="160" height="22" rx="11" fill="#334155"/>
               <text x="240" y="230" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" fill="#f59e0b">VERIFIED SITE RECORD</text>
             </svg>`;

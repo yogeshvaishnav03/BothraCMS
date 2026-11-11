@@ -14,11 +14,14 @@ export function ServiceWorkerRegister() {
         window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
     );
 
-    // Register service worker on production or non-localhost
+    // Skip on localhost dev server (Shell clears dev service workers to avoid stale bundles)
+    if (isLocalhost) return;
+
     const registerSW = () => {
       navigator.serviceWorker
         .register("/sw.js")
         .then((registration) => {
+          registration.update().catch(() => {});
           registration.onupdatefound = () => {
             const installing = registration.installing;
             if (!installing) return;

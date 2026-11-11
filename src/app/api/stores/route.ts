@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user.role, "sites:manage");
+    assertPermission(user, "sites:manage");
 
     const body = await req.json();
     const data = createStoreSchema.parse(body);

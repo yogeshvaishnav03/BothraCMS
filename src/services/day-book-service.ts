@@ -155,6 +155,7 @@ export async function fetchDayBookData(
     attendanceSessionsRaw,
     allHeadcountRecords,
     orgSites,
+    orgUsers,
     dailyReportsRaw,
     moneyIn,
   ] = await Promise.all([
@@ -219,6 +220,12 @@ export async function fetchDayBookData(
       .findMany({
         where: { organizationId: orgId },
         select: { id: true, name: true, code: true },
+      })
+      .catch(() => []),
+    prisma.user
+      .findMany({
+        where: { organizationId: orgId },
+        select: { id: true, name: true, role: true, jobTitle: true },
       })
       .catch(() => []),
     prisma.dailySiteReport.findMany({
@@ -364,12 +371,21 @@ export async function fetchDayBookData(
   const staffRecords: any[] = [];
   const seenStaffIds = new Set<string>();
 
+  // Build map from user employeeCode (`USR-${idLast6}`) -> canonical User record
+  // so renamed team members immediately display their latest User.name even on
+  // existing attendance sessions whose linked WorkforceMember had an older name.
+  const userByEmpCode = new Map<string, (typeof orgUsers)[number]>();
+  for (const u of orgUsers) {
+    userByEmpCode.set(`USR-${u.id.slice(-6).toUpperCase()}`, u);
+  }
+
   // 4a. Add registered staff members from StaffAttendance
   for (const sa of staffAttendanceRaw) {
     if (!sa.user) continue;
     seenStaffIds.add(sa.userId);
     const roleLabel = sa.user.jobTitle || formatStaffRole(sa.user.role);
     const code = `USR-${sa.user.id.slice(-6).toUpperCase()}`;
+    const resolvedSiteName = sa.checkInSiteId ? siteMap.get(sa.checkInSiteId) || null : null;
     staffRecords.push({
       id: sa.id,
       userId: sa.userId,
@@ -383,7 +399,8 @@ export async function fetchDayBookData(
       checkInAt: sa.checkInAt ? sa.checkInAt.toISOString() : null,
       checkOutAt: sa.checkOutAt ? sa.checkOutAt.toISOString() : null,
       siteId: sa.checkInSiteId,
-      siteName: sa.checkInSiteId ? siteMap.get(sa.checkInSiteId) || null : null,
+      siteName: resolvedSiteName,
+      site: resolvedSiteName ? { id: sa.checkInSiteId, name: resolvedSiteName } : null,
       isStaff: true,
       workforceMember: {
         id: sa.userId,
@@ -400,40 +417,50 @@ export async function fetchDayBookData(
   for (const a of attendanceSessionsRaw) {
     const workerType = (a.workforceMember?.workerType || "").toUpperCase();
     const isWorkerTrade = WORKER_TRADE_TYPES.has(workerType);
+    const empCode = a.workforceMember?.employeeCode || "";
+    const linkedUser = empCode ? userByEmpCode.get(empCode) : undefined;
     const isExplicitStaff =
-      Boolean(a.workforceMember?.employeeCode?.startsWith("USR-")) ||
-      Boolean(a.workforceMember?.employeeCode?.startsWith("STF-")) ||
+      Boolean(linkedUser) ||
+      empCode.startsWith("USR-") ||
+      empCode.startsWith("STF-") ||
       ["SITE_ENGINEER", "SITE_SUPERVISOR", "SUPERVISOR", "PROJECT_MANAGER", "STAFF", "OFFICE_STAFF", "ACCOUNTANT", "ADMIN", "HR_VIEWER", "AUDITOR"].includes(workerType);
 
     if (!isWorkerTrade && isExplicitStaff) {
-      const creatorId = a.creator?.id;
-      if (!creatorId || !seenStaffIds.has(creatorId)) {
-        if (creatorId) seenStaffIds.add(creatorId);
-        const roleLabel = a.workforceMember?.workerType
+      const staffUserId = linkedUser?.id || (empCode.startsWith("USR-") ? undefined : a.creator?.id);
+      if (!staffUserId || !seenStaffIds.has(staffUserId)) {
+        if (staffUserId) seenStaffIds.add(staffUserId);
+        const roleLabel = linkedUser?.jobTitle
+          ? linkedUser.jobTitle
+          : linkedUser?.role
+          ? formatStaffRole(linkedUser.role)
+          : a.workforceMember?.workerType
           ? formatStaffRole(a.workforceMember.workerType)
           : a.creator?.role
           ? formatStaffRole(a.creator.role)
           : "Staff";
-        const code = a.workforceMember?.employeeCode || `USR-${a.id.slice(-6).toUpperCase()}`;
+        const code = empCode || `USR-${a.id.slice(-6).toUpperCase()}`;
+        const displayName =
+          linkedUser?.name || a.workforceMember?.name || a.creator?.name || "Staff Member";
         staffRecords.push({
           id: a.id,
-          userId: creatorId || a.id,
+          userId: staffUserId || a.id,
           workDate: a.workDate,
           employeeCode: code,
-          name: a.workforceMember?.name || a.creator?.name || "Staff Member",
+          name: displayName,
           email: null,
           role: roleLabel,
-          rawRole: a.workforceMember?.workerType || a.creator?.role || "STAFF",
+          rawRole: linkedUser?.role || a.workforceMember?.workerType || a.creator?.role || "STAFF",
           status: a.status,
           checkInAt: a.checkInAt ? (typeof a.checkInAt === "string" ? a.checkInAt : a.checkInAt.toISOString()) : null,
           checkOutAt: a.checkOutAt ? (typeof a.checkOutAt === "string" ? a.checkOutAt : a.checkOutAt.toISOString()) : null,
           siteId: a.siteId,
           siteName: a.site?.name || null,
+          site: a.site || null,
           isStaff: true,
           workforceMember: {
             id: a.workforceMember?.id || a.id,
             employeeCode: code,
-            name: a.workforceMember?.name || a.creator?.name || "Staff Member",
+            name: displayName,
             workerType: roleLabel,
           },
         });

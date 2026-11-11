@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { hasPermission } from "@/lib/permissions";
 import {
   requireUserContext,
   requireProjectAccess,
-  requirePermission,
   canReadFinance,
   isOrgOwnerOrAdmin,
 } from "@/lib/server-auth";
@@ -127,13 +127,26 @@ export async function PATCH(
     if (name !== undefined) updateData.name = name.trim();
     if (budgetAmount !== undefined) {
       // Modifying budget requires finance:write permission
-      if (!canReadFinance(user)) {
-        return jsonError("Forbidden: Modifying budget requires financial permissions", "FORBIDDEN", 403);
+      if (!hasPermission(user, "finance:write")) {
+        return jsonError("Forbidden: Modifying budget requires financial write permissions", "FORBIDDEN", 403);
       }
       updateData.budgetAmount = Number(budgetAmount);
     }
     if (status !== undefined) updateData.status = status;
-    if (managerUserId !== undefined) updateData.managerUserId = managerUserId || null;
+    if (managerUserId !== undefined) {
+      if (managerUserId) {
+        const manager = await prisma.user.findFirst({
+          where: { id: String(managerUserId), organizationId: user.organizationId, status: "ACTIVE" },
+          select: { id: true },
+        });
+        if (!manager) {
+          return jsonError("Assigned manager not found in this organization", "NOT_FOUND", 404);
+        }
+        updateData.managerUserId = manager.id;
+      } else {
+        updateData.managerUserId = null;
+      }
+    }
     if (notes !== undefined) updateData.notes = notes;
 
     const updated = await prisma.project.update({
@@ -182,7 +195,7 @@ export async function DELETE(
 ) {
   try {
     const user = await requireUserContext(req);
-    requirePermission(user, "projects:write");
+    await requireProjectAccess(user, params.id, "projects:write");
 
     const project = await prisma.project.findFirst({
       where: {

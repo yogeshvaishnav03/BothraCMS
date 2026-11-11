@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
       description: data.description,
       userId: user.userId,
       role: user.role,
+      permissions: user.permissions,
     });
 
     return jsonSuccess(group, 201);
