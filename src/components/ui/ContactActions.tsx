@@ -41,7 +41,7 @@ export function ContactActions({
 }: ContactActionsProps) {
   const wa = whatsappLink(whatsappNumber || phone, message);
   const tel = telLink(phone || whatsappNumber);
-  const pad = size === "sm" ? "h-8 px-2.5 text-xs" : "h-9 px-3 text-sm";
+  const pad = size === "sm" ? "h-8 w-8 sm:w-auto sm:px-2.5 text-xs" : "h-9 w-9 sm:w-auto sm:px-3 text-sm";
   const icon = size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4";
 
   if (!wa && !tel && !email && !chatUserId) return null;
@@ -55,9 +55,10 @@ export function ContactActions({
           rel="noopener noreferrer"
           className={cn(base, pad, "bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-500 hover:text-white hover:ring-emerald-500")}
           title="Chat on WhatsApp"
+          aria-label="Chat on WhatsApp"
         >
           <WhatsAppIcon className={icon} />
-          <span>WhatsApp</span>
+          <span className="hidden sm:inline">WhatsApp</span>
         </a>
       )}
       {tel && (
@@ -85,9 +86,10 @@ export function ContactActions({
           href={`/chat?with=${encodeURIComponent(chatUserId)}`}
           className={cn(base, pad, "bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-500 hover:text-slate-950 hover:ring-amber-500")}
           title="Message in Bothra CMS"
+          aria-label="Chat in Bothra CMS"
         >
           <MessageSquare className={icon} />
-          <span>Chat</span>
+          <span className="hidden sm:inline">Chat</span>
         </Link>
       )}
     </div>

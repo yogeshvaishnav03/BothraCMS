@@ -1186,12 +1186,12 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                   <div className="text-xs font-semibold text-slate-700 mb-2">{hi ? "रिपोर्ट बाकी" : "Not filed yet"}</div>
                   <ul className="space-y-2">
                     {data.people.missing.map((m) => (
-                      <li key={m.userId} className="flex items-center justify-between gap-2">
-                        <span className="text-sm text-slate-800 truncate">{m.name}</span>
+                      <li key={m.userId} className="flex items-center justify-between gap-2 min-w-0">
+                        <span className="text-sm text-slate-800 truncate min-w-0 flex-1">{m.name}</span>
                         <ContactActions
                           phone={m.phone}
                           chatUserId={m.userId}
-                          message={`Hi ${m.name.split(" ")[0]}, please file your daily work report in Bothra CMS (Daily Work).`}
+                          message={`Hi ${m.name.split(" ")[0]}, please file your daily work report in Bothra CMS (Daily Work).`} className="shrink-0 flex-nowrap"
                         />
                       </li>
                     ))}

@@ -1100,11 +1100,11 @@ export default function ChatPage() {
                         )}
                         <button
                           onClick={() => handleStartDirectChat(emp.id)}
-                          className="px-2.5 py-1.5 bg-gradient-brand text-slate-950 font-bold rounded-lg text-xs transition shrink-0 flex items-center gap-1 hover:brightness-110"
-                          title={`Chat with ${emp.name || "Employee"}`}
+                          className="p-1.5 sm:px-2.5 sm:py-1.5 bg-gradient-brand text-slate-950 font-bold rounded-lg text-xs transition shrink-0 flex items-center gap-1 hover:brightness-110"
+                          title={`Chat with ${emp.name || "Employee"}`} aria-label={`Chat with ${emp.name || "Employee"}`}
                         >
-                          <MessageSquare className="w-3 h-3" />
-                          <span>Chat</span>
+                          <MessageSquare className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
+                          <span className="hidden sm:inline">Chat</span>
                         </button>
                       </div>
                     </div>
