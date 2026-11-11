@@ -2333,14 +2333,22 @@ export default function DayBookPage() {
             {/* 1. Payments Table (Disbursed Only) */}
             {canReadFinance && (activeTab === "ALL" || activeTab === "PAYMENTS") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className="p-3.5 sm:p-4 bg-slate-50/60 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpRight className="w-4 h-4 text-rose-500 shrink-0" />
-                    <h3 className="text-sm font-black text-slate-900">Payments & Cash Outflow</h3>
+                <div className="p-3.5 sm:p-4 bg-slate-50/60 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ArrowUpRight className="w-4 h-4 text-rose-500 shrink-0" />
+                      <h3 className="text-sm font-black text-slate-900 whitespace-nowrap">Payments &amp; Cash Out</h3>
+                    </div>
+                    <span
+                      className="sm:hidden text-xs font-bold text-rose-600 font-mono tabular-nums whitespace-nowrap"
+                      title={dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
+                    >
+                      {dayData ? formatCompactINR(disbursedTotal) : "₹0"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <span
-                      className="text-xs font-bold text-rose-600 font-mono tabular-nums whitespace-nowrap"
+                      className="hidden sm:inline text-xs font-bold text-rose-600 font-mono tabular-nums whitespace-nowrap"
                       title={dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
                     >
                       {dayData ? formatCompactINR(disbursedTotal) : "₹0"}
@@ -2354,10 +2362,10 @@ export default function DayBookPage() {
                     </button>
                     <Link
                       href="/expenses"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 rounded-lg text-xs font-bold transition"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 sm:py-1 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 rounded-lg text-xs font-bold whitespace-nowrap transition"
                       title="Supervisors can log personal site expenses with mandatory receipt photos"
                     >
-                      <Receipt className="w-3.5 h-3.5 text-amber-600" />
+                      <Receipt className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                       <span className="sm:hidden">Expense</span>
                       <span className="hidden sm:inline">Out-of-Pocket Expense</span>
                     </Link>
@@ -2367,9 +2375,9 @@ export default function DayBookPage() {
                           setModalMode("PAYMENT");
                           setShowLogModal(true);
                         }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold transition"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 sm:py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold whitespace-nowrap transition"
                       >
-                        <PlusCircle className="w-3.5 h-3.5" />
+                        <PlusCircle className="w-3.5 h-3.5 shrink-0" />
                         <span>Add Payment</span>
                       </button>
                     )}
@@ -2470,14 +2478,25 @@ export default function DayBookPage() {
             {/* 2. Bills Table */}
             {canReadFinance && (activeTab === "ALL" || activeTab === "BILLS") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className="p-3.5 sm:p-4 bg-slate-50/60 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-amber-500 shrink-0" />
-                    <h3 className="text-sm font-black text-slate-900">Vendor & Contractor Bills Logged</h3>
+                <div className="p-3.5 sm:p-4 bg-slate-50/60 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-4 h-4 text-amber-500 shrink-0" />
+                      <h3 className="text-sm font-black text-slate-900 truncate">
+                        <span className="sm:hidden">Bills Logged</span>
+                        <span className="hidden sm:inline">Vendor &amp; Contractor Bills Logged</span>
+                      </h3>
+                    </div>
+                    <span
+                      className="sm:hidden text-xs font-bold text-slate-900 tabular-nums whitespace-nowrap"
+                      title={dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}
+                    >
+                      {dayData ? formatCompactINR(dayData.summary.totalBillsAmount) : "₹0"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span
-                      className="text-xs font-bold text-slate-900 tabular-nums whitespace-nowrap"
+                      className="hidden sm:inline text-xs font-bold text-slate-900 tabular-nums whitespace-nowrap"
                       title={dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}
                     >
                       {dayData ? formatCompactINR(dayData.summary.totalBillsAmount) : "₹0"}
@@ -2495,9 +2514,9 @@ export default function DayBookPage() {
                           setModalMode("BILL");
                           setShowLogModal(true);
                         }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-lg text-xs font-bold transition"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 sm:py-1 bg-amber-50 text-amber-800 hover:bg-amber-100 rounded-lg text-xs font-bold whitespace-nowrap transition"
                       >
-                        <PlusCircle className="w-3.5 h-3.5" />
+                        <PlusCircle className="w-3.5 h-3.5 shrink-0" />
                         <span>Add Bill</span>
                       </button>
                     )}
