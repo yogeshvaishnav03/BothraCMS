@@ -384,6 +384,9 @@ describe("Staff/Workforce Name Synchronization & Per-Employee Extra Accessibilit
     expect(schema).toContain("extraPermissionsJson");
     expect(migration).toContain("extraPermissionsJson");
     expect(teamPage).toContain("EXTRA_ACCESS_MODULES");
+    expect(teamPage).toContain("VIEW_ONLY_PERMISSIONS");
+    expect(teamPage).toContain("View Only (All)");
+    expect(teamPage).toContain("Full Access (All)");
     expect(teamPage).toContain("Extra Accessibility");
     expect(teamPage).toContain("refreshUser(true)");
     expect(workforcePage).toContain("openEditWorkerModal");

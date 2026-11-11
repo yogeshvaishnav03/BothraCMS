@@ -7,7 +7,16 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { ContactActions } from "@/components/ui/ContactActions";
-import { canUser, EXTRA_ACCESS_MODULES, Permission, ROLE_PERMISSIONS, Role } from "@/lib/permissions";
+import {
+  ALL_PERMISSIONS,
+  canUser,
+  EXTRA_ACCESS_MODULES,
+  ExtraAccessModule,
+  Permission,
+  ROLE_PERMISSIONS,
+  Role,
+  VIEW_ONLY_PERMISSIONS,
+} from "@/lib/permissions";
 import { cn } from "@/lib/cn";
 import {
   Check,
@@ -203,12 +212,72 @@ export default function TeamPage() {
     [form.role]
   );
 
-  const toggleExtraModule = (modulePermissions: readonly Permission[]) => {
+  const extraOnlyPermissions = useMemo(
+    () => (form.extraPermissions || []).filter((p) => !roleIncludedSet.has(p)),
+    [form.extraPermissions, roleIncludedSet]
+  );
+
+  const isViewOnlyPresetActive = useMemo(() => {
+    const viewExtras = VIEW_ONLY_PERMISSIONS.filter((p) => !roleIncludedSet.has(p));
+    if (viewExtras.length === 0) return false;
+    const viewSet = new Set<Permission>(VIEW_ONLY_PERMISSIONS);
+    const hasAllView = viewExtras.every((p) => extraOnlyPermissions.includes(p));
+    const hasOnlyView = extraOnlyPermissions.every((p) => viewSet.has(p));
+    return hasAllView && hasOnlyView;
+  }, [extraOnlyPermissions, roleIncludedSet]);
+
+  const isFullAccessPresetActive = useMemo(() => {
+    const fullExtras = ALL_PERMISSIONS.filter((p) => !roleIncludedSet.has(p));
+    return fullExtras.length > 0 && fullExtras.every((p) => extraOnlyPermissions.includes(p));
+  }, [extraOnlyPermissions, roleIncludedSet]);
+
+  const applyAccessPreset = (preset: "VIEW_ONLY" | "FULL_ACCESS" | "CLEAR") => {
     setForm((prev) => {
       const baseSet = new Set<Permission>(ROLE_PERMISSIONS[prev.role as Role] || []);
-      const extraOnly = modulePermissions.filter((p) => !baseSet.has(p));
+      if (preset === "CLEAR") {
+        return { ...prev, extraPermissions: [] };
+      }
+      const targetList = preset === "VIEW_ONLY" ? VIEW_ONLY_PERMISSIONS : ALL_PERMISSIONS;
+      const targetExtras = targetList.filter((p) => !baseSet.has(p));
+      const current = prev.extraPermissions || [];
+      const currentExtras = current.filter((p) => !baseSet.has(p));
+      const targetSet = new Set<Permission>(targetList);
+      const alreadyMatches =
+        targetExtras.length > 0 &&
+        targetExtras.every((p) => currentExtras.includes(p)) &&
+        currentExtras.every((p) => targetSet.has(p));
+      return {
+        ...prev,
+        extraPermissions: alreadyMatches ? [] : targetExtras,
+      };
+    });
+  };
+
+  const toggleExtraModule = (mod: ExtraAccessModule) => {
+    setForm((prev) => {
+      const baseSet = new Set<Permission>(ROLE_PERMISSIONS[prev.role as Role] || []);
+      const extraOnly = mod.permissions.filter((p) => !baseSet.has(p));
       if (extraOnly.length === 0) return prev;
       const current = new Set<Permission>(prev.extraPermissions || []);
+
+      if (mod.accessLevel === "VIEW") {
+        // Check if the Full Access sibling in the same group is currently active
+        const siblingFull = EXTRA_ACCESS_MODULES.find(
+          (m) => m.group === mod.group && m.accessLevel === "FULL"
+        );
+        const siblingExtras = siblingFull
+          ? siblingFull.permissions.filter((p) => !baseSet.has(p) && !mod.permissions.includes(p))
+          : [];
+        const hasFullSiblingActive = siblingExtras.some((p) => current.has(p));
+
+        if (hasFullSiblingActive) {
+          // Downgrade cleanly from Full Access to View Only for this module
+          siblingExtras.forEach((p) => current.delete(p));
+          extraOnly.forEach((p) => current.add(p));
+          return { ...prev, extraPermissions: Array.from(current) };
+        }
+      }
+
       const allSelected = extraOnly.every((p) => current.has(p));
       if (allSelected) {
         extraOnly.forEach((p) => current.delete(p));
@@ -501,12 +570,14 @@ export default function TeamPage() {
                         <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1", meta.tone)}>{meta.label}</span>
                         {(() => {
                           const base = new Set<Permission>(ROLE_PERMISSIONS[m.role as Role] || []);
-                          const extraModulesCount = EXTRA_ACCESS_MODULES.filter((mod) => {
-                            const extraForMod = mod.permissions.filter((p) => !base.has(p));
-                            return extraForMod.length > 0 && extraForMod.every((p) => (m.extraPermissions || []).includes(p));
-                          }).length;
-                          if (extraModulesCount === 0 && !(m.extraPermissions && m.extraPermissions.length > 0)) return null;
-                          const labelCount = extraModulesCount > 0 ? extraModulesCount : m.extraPermissions!.length;
+                          const activeGroups = new Set(
+                            EXTRA_ACCESS_MODULES.filter((mod) => {
+                              const extraForMod = mod.permissions.filter((p) => !base.has(p));
+                              return extraForMod.length > 0 && extraForMod.every((p) => (m.extraPermissions || []).includes(p));
+                            }).map((mod) => mod.group)
+                          );
+                          if (activeGroups.size === 0 && !(m.extraPermissions && m.extraPermissions.length > 0)) return null;
+                          const labelCount = activeGroups.size > 0 ? activeGroups.size : m.extraPermissions!.length;
                           return (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1 bg-violet-50 text-violet-700 ring-violet-200">
                               +{labelCount} extra access
@@ -674,78 +745,143 @@ export default function TeamPage() {
                 </div>
 
                 {/* Extra Accessibility Modules beyond the primary role */}
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <label className={cn(labelCls, "mb-0")}>Extra Accessibility (Beyond Role)</label>
-                    {(form.extraPermissions || []).filter((p) => !roleIncludedSet.has(p)).length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setForm((prev) => ({ ...prev, extraPermissions: [] }))}
-                        className="text-[11px] font-semibold text-slate-500 hover:text-rose-600 transition"
-                      >
-                        Clear extras
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 mb-2.5 leading-snug">
-                    Grant additional module access to this employee without changing their primary role (e.g., let an Accountant mark Attendance or receive Stock).
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {EXTRA_ACCESS_MODULES.map((mod) => {
-                      const includedInRole = mod.permissions.every((p) => roleIncludedSet.has(p));
-                      const extraPermsForMod = mod.permissions.filter((p) => !roleIncludedSet.has(p));
-                      const activeExtra =
-                        !includedInRole &&
-                        extraPermsForMod.length > 0 &&
-                        extraPermsForMod.every((p) => (form.extraPermissions || []).includes(p));
-                      const isLockedSelf =
-                        editing?.id === me?.id && me?.role !== "SUPER_ADMIN" && me?.role !== "ORG_ADMIN";
-                      const disabled = includedInRole || isLockedSelf;
+                {(() => {
+                  const isLockedSelf =
+                    editing?.id === me?.id && me?.role !== "SUPER_ADMIN" && me?.role !== "ORG_ADMIN";
+                  const canGrantViewPreset = VIEW_ONLY_PERMISSIONS.some((p) => !roleIncludedSet.has(p));
+                  const canGrantFullPreset = ALL_PERMISSIONS.some((p) => !roleIncludedSet.has(p));
 
-                      return (
-                        <button
-                          key={mod.key}
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => toggleExtraModule(mod.permissions)}
-                          className={cn(
-                            "text-left rounded-xl p-2.5 ring-1 transition flex items-start gap-2",
-                            includedInRole
-                              ? "ring-slate-200 bg-slate-50/80 opacity-75 cursor-default"
-                              : activeExtra
-                              ? "ring-2 ring-amber-400 bg-amber-50/60"
-                              : "ring-slate-200 hover:ring-slate-300 bg-white",
-                            isLockedSelf && !includedInRole && "opacity-60 cursor-not-allowed"
-                          )}
-                        >
-                          <div
-                            className={cn(
-                              "mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ring-1",
-                              includedInRole
-                                ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
-                                : activeExtra
-                                ? "bg-amber-500 text-slate-950 ring-amber-500"
-                                : "bg-white text-transparent ring-slate-300"
-                            )}
+                  return (
+                    <div className="pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <label className={cn(labelCls, "mb-0")}>Extra Accessibility (Beyond Role)</label>
+                        {extraOnlyPermissions.length > 0 && (
+                          <button
+                            type="button"
+                            disabled={isLockedSelf}
+                            onClick={() => applyAccessPreset("CLEAR")}
+                            className="text-[11px] font-semibold text-slate-500 hover:text-rose-600 transition disabled:opacity-50"
                           >
-                            <Check className="w-3 h-3" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-semibold text-slate-900 flex items-center justify-between gap-1">
-                              <span className="truncate">{mod.label}</span>
-                              {includedInRole && (
-                                <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-slate-200/80 text-slate-600 shrink-0">
-                                  In role
-                                </span>
+                            Clear extras
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-2.5 leading-snug">
+                        Choose quick presets or pick <strong>View only</strong> / <strong>Full access</strong> per module without changing their primary role.
+                      </p>
+
+                      {/* Quick Presets: View Only (All) & Full Access (All) */}
+                      {(canGrantViewPreset || canGrantFullPreset) && (
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                          {canGrantViewPreset && (
+                            <button
+                              type="button"
+                              disabled={isLockedSelf}
+                              onClick={() => applyAccessPreset("VIEW_ONLY")}
+                              className={cn(
+                                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ring-1 transition",
+                                isViewOnlyPresetActive
+                                  ? "ring-2 ring-sky-400 bg-sky-50 text-sky-800"
+                                  : "ring-slate-200 bg-white text-slate-700 hover:bg-sky-50/50 hover:ring-sky-300",
+                                isLockedSelf && "opacity-60 cursor-not-allowed"
                               )}
-                            </div>
-                            <div className="text-[10px] text-slate-500 leading-snug mt-0.5">{mod.hint}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                            >
+                              <Eye className="w-3.5 h-3.5 text-sky-600" />
+                              <span>View Only (All)</span>
+                            </button>
+                          )}
+                          {canGrantFullPreset && (
+                            <button
+                              type="button"
+                              disabled={isLockedSelf}
+                              onClick={() => applyAccessPreset("FULL_ACCESS")}
+                              className={cn(
+                                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ring-1 transition",
+                                isFullAccessPresetActive
+                                  ? "ring-2 ring-amber-400 bg-amber-50 text-amber-900"
+                                  : "ring-slate-200 bg-white text-slate-700 hover:bg-amber-50/50 hover:ring-amber-300",
+                                isLockedSelf && "opacity-60 cursor-not-allowed"
+                              )}
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Full Access (All)</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {EXTRA_ACCESS_MODULES.map((mod) => {
+                          const includedInRole = mod.permissions.every((p) => roleIncludedSet.has(p));
+                          const extraPermsForMod = mod.permissions.filter((p) => !roleIncludedSet.has(p));
+                          const activeExtra =
+                            !includedInRole &&
+                            extraPermsForMod.length > 0 &&
+                            extraPermsForMod.every((p) => (form.extraPermissions || []).includes(p));
+                          const disabled = includedInRole || isLockedSelf;
+                          const isViewLevel = mod.accessLevel === "VIEW";
+
+                          return (
+                            <button
+                              key={mod.key}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => toggleExtraModule(mod)}
+                              className={cn(
+                                "text-left rounded-xl p-2.5 ring-1 transition flex items-start gap-2",
+                                includedInRole
+                                  ? "ring-slate-200 bg-slate-50/80 opacity-75 cursor-default"
+                                  : activeExtra
+                                  ? isViewLevel
+                                    ? "ring-2 ring-sky-400 bg-sky-50/60"
+                                    : "ring-2 ring-amber-400 bg-amber-50/60"
+                                  : "ring-slate-200 hover:ring-slate-300 bg-white",
+                                isLockedSelf && !includedInRole && "opacity-60 cursor-not-allowed"
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ring-1",
+                                  includedInRole
+                                    ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
+                                    : activeExtra
+                                    ? isViewLevel
+                                      ? "bg-sky-500 text-white ring-sky-500"
+                                      : "bg-amber-500 text-slate-950 ring-amber-500"
+                                    : "bg-white text-transparent ring-slate-300"
+                                )}
+                              >
+                                <Check className="w-3 h-3" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-semibold text-slate-900 flex items-center justify-between gap-1">
+                                  <span className="truncate">{mod.label}</span>
+                                  {includedInRole ? (
+                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-600 shrink-0">
+                                      In role
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={cn(
+                                        "text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ring-1 shrink-0",
+                                        isViewLevel
+                                          ? "bg-sky-50 text-sky-700 ring-sky-200"
+                                          : "bg-amber-50 text-amber-800 ring-amber-200"
+                                      )}
+                                    >
+                                      {isViewLevel ? "View only" : "Full access"}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-500 leading-snug mt-0.5">{mod.hint}</div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
                 <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors">

@@ -61,69 +61,145 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   "sales:write",
 ] as const;
 
-export const EXTRA_ACCESS_MODULES: readonly {
+export const VIEW_ONLY_PERMISSIONS: readonly Permission[] = [
+  "projects:read",
+  "tasks:read",
+  "inventory:read",
+  "finance:read",
+  "attendance:read",
+  "reports:read",
+  "audit:read",
+  "payroll:read",
+  "sales:read",
+] as const;
+
+export interface ExtraAccessModule {
   key: string;
+  group: string;
+  accessLevel: "VIEW" | "FULL";
   label: string;
   hint: string;
   permissions: readonly Permission[];
-}[] = [
+}
+
+export const EXTRA_ACCESS_MODULES: readonly ExtraAccessModule[] = [
+  {
+    key: "attendance_view",
+    group: "attendance",
+    accessLevel: "VIEW",
+    label: "Attendance & Workers",
+    hint: "View attendance history, muster roll & worker roster (view only)",
+    permissions: ["attendance:read"],
+  },
   {
     key: "attendance_manage",
+    group: "attendance",
+    accessLevel: "FULL",
     label: "Attendance & Workers",
-    hint: "View team attendance, Site Master, register workers & fix shifts",
+    hint: "Mark attendance, register/edit workers & fix shifts",
     permissions: ["attendance:read", "attendance:write", "attendance:correct"],
   },
   {
-    key: "inventory_manage",
+    key: "inventory_view",
+    group: "inventory",
+    accessLevel: "VIEW",
     label: "Materials, Stock & Orders",
-    hint: "Receive/issue/transfer stock, place orders & manage materials",
+    hint: "View materials, store stock levels & purchase orders (view only)",
+    permissions: ["inventory:read"],
+  },
+  {
+    key: "inventory_manage",
+    group: "inventory",
+    accessLevel: "FULL",
+    label: "Materials, Stock & Orders",
+    hint: "Receive/issue/transfer stock, adjust balances & place orders",
     permissions: ["inventory:read", "inventory:receipt", "inventory:issue", "inventory:transfer", "inventory:adjust"],
   },
   {
-    key: "projects_manage",
+    key: "projects_view",
+    group: "projects",
+    accessLevel: "VIEW",
     label: "Projects, Drawings & MB",
-    hint: "Create/edit projects, upload drawings, measurement book & tasks",
+    hint: "View projects, drawings, measurement book & tasks (view only)",
+    permissions: ["projects:read", "tasks:read"],
+  },
+  {
+    key: "projects_manage",
+    group: "projects",
+    accessLevel: "FULL",
+    label: "Projects, Drawings & MB",
+    hint: "Create/edit projects, upload drawings, MB & tasks",
     permissions: ["projects:read", "projects:write", "tasks:read", "tasks:write"],
   },
   {
     key: "finance_view",
-    label: "View Finance & Day Book",
-    hint: "See payments, bills, Day Book totals & accounts exports",
+    group: "finance",
+    accessLevel: "VIEW",
+    label: "Finance & Day Book",
+    hint: "See payments, bills, Day Book totals & accounts exports (view only)",
     permissions: ["finance:read"],
   },
   {
     key: "finance_manage",
-    label: "Payments, Bills & Vendor Bank",
-    hint: "Record bills/payments, edit party bank details & reverse entries",
+    group: "finance",
+    accessLevel: "FULL",
+    label: "Payments, Bills & Bank",
+    hint: "Record bills/payments, edit vendor bank details & reverse entries",
     permissions: ["finance:read", "finance:write", "finance:reverse"],
   },
   {
     key: "payroll_view",
-    label: "View Payroll & Salaries",
-    hint: "Inspect monthly payroll runs, deductions & payslips",
+    group: "payroll",
+    accessLevel: "VIEW",
+    label: "Payroll & Salaries",
+    hint: "Inspect monthly payroll runs, deductions & payslips (view only)",
     permissions: ["payroll:read"],
   },
   {
     key: "payroll_manage",
-    label: "Manage & Approve Payroll",
+    group: "payroll",
+    accessLevel: "FULL",
+    label: "Payroll & Approvals",
     hint: "Edit salaries, issue advances & approve monthly payroll",
     permissions: ["payroll:read", "payroll:write"],
   },
   {
+    key: "sales_view",
+    group: "sales",
+    accessLevel: "VIEW",
+    label: "Sales & Bookings",
+    hint: "View leads, flat bookings, demand letters & receipts (view only)",
+    permissions: ["sales:read"],
+  },
+  {
     key: "sales_manage",
-    label: "Sales, Bookings & Customer Receipts",
+    group: "sales",
+    accessLevel: "FULL",
+    label: "Sales & Customer Receipts",
     hint: "Manage leads, flat bookings, demand letters & receipts",
     permissions: ["sales:read", "sales:write"],
   },
   {
+    key: "reports_view",
+    group: "reports",
+    accessLevel: "VIEW",
+    label: "Reports & Analytics",
+    hint: "View operational reports, summaries & exports (view only)",
+    permissions: ["reports:read"],
+  },
+  {
     key: "audit_view",
+    group: "audit",
+    accessLevel: "VIEW",
     label: "Activity & Audit Log",
-    hint: "Review audit history of changes across the company",
+    hint: "Review audit history of changes across the company (view only)",
     permissions: ["audit:read"],
   },
   {
     key: "team_settings",
-    label: "Team, Sites & Company Settings",
+    group: "team",
+    accessLevel: "FULL",
+    label: "Team, Sites & Settings",
     hint: "Manage staff access, construction sites & company settings",
     permissions: ["users:manage", "org:settings", "sites:manage"],
   },
