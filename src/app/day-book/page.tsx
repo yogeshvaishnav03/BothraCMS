@@ -1731,32 +1731,32 @@ export default function DayBookPage() {
 
   return (
     <Shell>
-      <div className="screen-only-section space-y-6 print:hidden">
+      <div className="screen-only-section space-y-4 sm:space-y-6 print:hidden">
         {/* Header Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 pb-4 sm:pb-5">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl">
-                <CalendarDays className="w-6 h-6" />
+              <div className="p-2 sm:p-2.5 bg-amber-500/10 text-amber-600 rounded-xl shrink-0">
+                <CalendarDays className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                   {t("daybook.title", "Day Book")}
                 </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
                   {t("daybook.subtitle", "Daily record of money in and out, materials moved, labor attendance, and site work.")}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Populate Demo Data Button (Super Admin only) */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            {/* Populate Demo Data Button (Super Admin only - desktop) */}
             {isSuperAdmin && (
               <button
                 onClick={handleSeedDemoData}
                 disabled={actionLoading}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-800 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-800 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
                 title="Add sample entries to see how Day Book works"
               >
                 <Sparkles className="w-4 h-4 text-amber-600" />
@@ -1770,28 +1770,28 @@ export default function DayBookPage() {
                 onClick={() => {
                   setShowLogModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition"
+                className="w-full sm:w-auto justify-center inline-flex items-center gap-1.5 px-3.5 py-2.5 sm:py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition"
               >
                 <PlusCircle className="w-4 h-4" />
                 <span>{t("daybook.addEntry", "Add Day Book Entry")}</span>
               </button>
             )}
 
-            {/* Export CSV */}
+            {/* Export CSV (desktop) */}
             <button
               onClick={exportDayBookCSV}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition"
               title="Download CSV"
             >
               <Download className="w-4 h-4 text-slate-500" />
               <span>{t("action.export", "Export CSV")}</span>
             </button>
 
-            {/* Print */}
+            {/* Print (desktop) */}
             <button
               onClick={() => openPrintModal()}
               disabled={loading || !dayData}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed group"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed group"
               title="Filter sections and print official Day Book statement"
             >
               <Printer className="w-4 h-4 text-slate-500 group-hover:text-amber-600 transition" />
@@ -1802,18 +1802,18 @@ export default function DayBookPage() {
         </div>
 
         {/* Date Navigator & Filters Bar */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+        <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs space-y-2.5 sm:space-y-3">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2.5 sm:gap-3">
             {/* Presets & Mode Selector */}
-            <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
-              <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
+            <div className="flex items-center gap-1.5 w-full lg:w-auto overflow-x-auto sm:flex-wrap [scrollbar-width:none] pb-0.5 sm:pb-0">
+              <span className="hidden sm:flex text-xs font-bold text-slate-500 mr-1 items-center gap-1 shrink-0">
                 <CalendarDays className="w-3.5 h-3.5" />
                 Filter:
               </span>
               <button
                 type="button"
                 onClick={() => handleApplyPreset("today")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${
+                className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border transition ${
                   dateFilterMode === "SINGLE" && selectedDate === todayStr
                     ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
                     : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
@@ -1824,45 +1824,58 @@ export default function DayBookPage() {
               <button
                 type="button"
                 onClick={() => handleApplyPreset("yesterday")}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
               >
                 Yesterday
               </button>
               <button
                 type="button"
                 onClick={() => handleApplyPreset("last7")}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
               >
-                Last 7 Days
+                <span className="sm:hidden">7D</span>
+                <span className="hidden sm:inline">Last 7 Days</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleApplyPreset("thisMonth")}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
               >
-                This Month
+                <span className="sm:hidden">Month</span>
+                <span className="hidden sm:inline">This Month</span>
               </button>
               <button
                 type="button"
                 onClick={() => setDateFilterMode(dateFilterMode === "SINGLE" ? "RANGE" : "SINGLE")}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${
+                className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border transition ${
                   dateFilterMode === "RANGE"
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                 }`}
               >
-                {dateFilterMode === "RANGE" ? "Switch to Single Day" : "Custom Date Range"}
+                {dateFilterMode === "RANGE" ? (
+                  <>
+                    <span className="sm:hidden">Single Day</span>
+                    <span className="hidden sm:inline">Switch to Single Day</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="sm:hidden">Range</span>
+                    <span className="hidden sm:inline">Custom Date Range</span>
+                  </>
+                )}
               </button>
             </div>
 
             {/* Site Filter */}
             <div className="flex items-center gap-2 w-full lg:w-auto">
-              <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="text-xs font-semibold text-slate-500 shrink-0">Site:</span>
+              <Filter className="hidden sm:block w-4 h-4 text-slate-400 shrink-0" />
+              <span className="hidden sm:inline text-xs font-semibold text-slate-500 shrink-0">Site:</span>
               <select
                 value={selectedSiteId}
                 onChange={(e) => handleSiteChange(e.target.value)}
-                className="w-full lg:w-auto px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 transition"
+                aria-label="Filter by site"
+                className="w-full lg:w-auto min-w-0 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 transition"
               >
                 <option value="">All Sites</option>
                 {sites.map((s) => (
@@ -1875,14 +1888,15 @@ export default function DayBookPage() {
           </div>
 
           {/* Date Picker Inputs */}
-          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
             {dateFilterMode === "SINGLE" ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => shiftDate(-1)}
-                  className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition"
+                  className="shrink-0 w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-700 transition"
                   title="Previous Day"
+                  aria-label="Previous Day"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -1891,46 +1905,47 @@ export default function DayBookPage() {
                   type="date"
                   value={selectedDate}
                   onChange={(e) => handleDateChange(e.target.value, e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition"
+                  className="flex-1 min-w-0 sm:flex-none px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:border-amber-500 transition"
                 />
 
                 <button
                   type="button"
                   onClick={() => shiftDate(1)}
-                  className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition"
+                  className="shrink-0 w-9 h-9 flex items-center justify-center border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-700 transition"
                   title="Next Day"
+                  aria-label="Next Day"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
-                <span className="text-xs font-semibold text-slate-600 ml-2">
+                <span className="hidden sm:inline text-xs font-semibold text-slate-600 ml-2 whitespace-nowrap">
                   Showing: <strong className="text-slate-900">{formatDate(selectedDate)}</strong>
                 </span>
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 <span className="text-xs font-semibold text-slate-500">From:</span>
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                  className="flex-1 min-w-0 sm:flex-none px-2.5 sm:px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
                 />
                 <span className="text-xs font-semibold text-slate-500">To:</span>
                 <input
                   type="date"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                  className="flex-1 min-w-0 sm:flex-none px-2.5 sm:px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
                 />
                 <button
                   type="button"
                   onClick={() => handleDateChange(selectedDate, toDate)}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition shadow-2xs"
+                  className="w-full sm:w-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition shadow-2xs"
                 >
                   Apply Range
                 </button>
-                <span className="text-xs font-semibold text-slate-600 ml-2">
+                <span className="hidden sm:inline text-xs font-semibold text-slate-600 ml-2">
                   Period: <strong className="text-slate-900">{formatDate(selectedDate)} to {formatDate(toDate)}</strong>
                 </span>
               </div>
@@ -1978,7 +1993,7 @@ export default function DayBookPage() {
                     {disbursedPayments.length} payment{disbursedPayments.length === 1 ? "" : "s"} paid out
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
+                <div className="hidden sm:flex mt-2.5 pt-2 border-t border-slate-100 items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
                   <span>View details</span>
                   <span>&rarr;</span>
                 </div>
@@ -2016,7 +2031,7 @@ export default function DayBookPage() {
                     {rejectedPayments.length} declined request{rejectedPayments.length === 1 ? "" : "s"}
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
+                <div className="hidden sm:flex mt-2.5 pt-2 border-t border-slate-100 items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
                   <span>View details</span>
                   <span>&rarr;</span>
                 </div>
@@ -2052,7 +2067,7 @@ export default function DayBookPage() {
                     {dayData?.summary.billsCount || 0} vendor/contractor bills
                   </div>
                 </div>
-                <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-amber-600 transition">
+                <div className="hidden sm:flex mt-2.5 pt-2 border-t border-slate-100 items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-amber-600 transition">
                   <span>View details</span>
                   <span>&rarr;</span>
                 </div>
@@ -2087,7 +2102,7 @@ export default function DayBookPage() {
                   : "No staff logged today"}
               </div>
             </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-emerald-600 transition">
+            <div className="hidden sm:flex mt-2.5 pt-2 border-t border-slate-100 items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-emerald-600 transition">
               <span>View details</span>
               <span>&rarr;</span>
             </div>
@@ -2118,7 +2133,7 @@ export default function DayBookPage() {
                 Progress & safety updates
               </div>
             </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-blue-600 transition">
+            <div className="hidden sm:flex mt-2.5 pt-2 border-t border-slate-100 items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-blue-600 transition">
               <span>View details</span>
               <span>&rarr;</span>
             </div>
@@ -2318,12 +2333,12 @@ export default function DayBookPage() {
             {/* 1. Payments Table (Disbursed Only) */}
             {canReadFinance && (activeTab === "ALL" || activeTab === "PAYMENTS") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between">
+                <div className="p-3.5 sm:p-4 bg-slate-50/60 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <ArrowUpRight className="w-4 h-4 text-rose-500" />
+                    <ArrowUpRight className="w-4 h-4 text-rose-500 shrink-0" />
                     <h3 className="text-sm font-black text-slate-900">Payments & Cash Outflow</h3>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <span
                       className="text-xs font-bold text-rose-600 font-mono tabular-nums whitespace-nowrap"
                       title={dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
@@ -2332,7 +2347,7 @@ export default function DayBookPage() {
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("payments")}
-                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      className="hidden sm:inline-flex p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                       title="Print Approved Payments only"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -2343,7 +2358,8 @@ export default function DayBookPage() {
                       title="Supervisors can log personal site expenses with mandatory receipt photos"
                     >
                       <Receipt className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Out-of-Pocket Expense</span>
+                      <span className="sm:hidden">Expense</span>
+                      <span className="hidden sm:inline">Out-of-Pocket Expense</span>
                     </Link>
                     {canWriteFinance && (
                       <button
@@ -2405,11 +2421,11 @@ export default function DayBookPage() {
             {/* 1B. Rejected Payments Table */}
             {canReadFinance && (activeTab === "REJECTED" || (activeTab === "ALL" && rejectedPayments.length > 0)) && (
               <div className="bg-white rounded-2xl border border-rose-200 overflow-hidden shadow-xs">
-                <div className="p-4 bg-rose-50/60 border-b border-rose-200 flex items-center justify-between">
+                <div className="p-3.5 sm:p-4 bg-rose-50/60 border-b border-rose-200 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <XCircle className="w-4 h-4 text-rose-600" />
+                    <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
                     <h3 className="text-sm font-black text-slate-900">Declined Payments & Claims</h3>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 whitespace-nowrap">
                       {rejectedPayments.length} Declined
                     </span>
                   </div>
@@ -2422,7 +2438,7 @@ export default function DayBookPage() {
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("rejected")}
-                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      className="hidden sm:inline-flex p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                       title="Print Declined Claims only"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -2454,12 +2470,12 @@ export default function DayBookPage() {
             {/* 2. Bills Table */}
             {canReadFinance && (activeTab === "ALL" || activeTab === "BILLS") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between">
+                <div className="p-3.5 sm:p-4 bg-slate-50/60 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-amber-500" />
+                    <FileText className="w-4 h-4 text-amber-500 shrink-0" />
                     <h3 className="text-sm font-black text-slate-900">Vendor & Contractor Bills Logged</h3>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <span
                       className="text-xs font-bold text-slate-900 tabular-nums whitespace-nowrap"
                       title={dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}
@@ -2468,7 +2484,7 @@ export default function DayBookPage() {
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("bills")}
-                      className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                      className="hidden sm:inline-flex p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                       title="Print Vendor Bills only"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -2535,7 +2551,7 @@ export default function DayBookPage() {
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("attendance")}
-                      className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                      className="hidden sm:inline-flex p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
                       title="Print Staff Attendance only"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -2626,16 +2642,16 @@ export default function DayBookPage() {
             {/* 3b. Site Workers & Contractor Labour (Trade workers & contractor deployment) */}
             {(activeTab === "ALL" || activeTab === "ATTENDANCE") && ((dayData?.workerAttendance?.length || 0) > 0 || (dayData?.headcount?.length || 0) > 0) && (
               <div className="bg-white rounded-2xl border border-amber-200/80 overflow-hidden shadow-xs">
-                <div className="p-4 bg-amber-50/50 border-b border-amber-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-amber-600" />
-                    <div>
+                <div className="p-3.5 sm:p-4 bg-amber-50/50 border-b border-amber-100 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Users className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div className="min-w-0">
                       <h3 className="text-sm font-black text-slate-900">Site Workers & Contractor Labour</h3>
-                      <p className="text-[11px] text-slate-500">Daily trade workers (Masons, Carpenters, Helpers, Electricians) & contractor headcount</p>
+                      <p className="hidden sm:block text-[11px] text-slate-500">Daily trade workers (Masons, Carpenters, Helpers, Electricians) & contractor headcount</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-amber-700 bg-amber-100/70 px-2.5 py-1 rounded-lg">
+                    <span className="text-xs font-bold text-amber-700 bg-amber-100/70 px-2.5 py-1 rounded-lg whitespace-nowrap">
                       {dayData?.summary?.workersPresentCount || 0} Total Workers
                     </span>
                   </div>
