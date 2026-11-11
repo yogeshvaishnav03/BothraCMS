@@ -6,7 +6,7 @@
  * AppSessionProvider, and Shell logout.
  */
 
-export function keyBytes(base64url: string): Uint8Array {
+export function keyBytes(base64url: string) {
   const pad = "=".repeat((4 - (base64url.length % 4)) % 4);
   const raw = atob((base64url + pad).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));

@@ -35,6 +35,7 @@ import {
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
+import { canUser } from "@/lib/permissions";
 
 interface AttendanceRecord {
   id: string;
