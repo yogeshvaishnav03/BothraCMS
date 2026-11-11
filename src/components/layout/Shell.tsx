@@ -65,6 +65,7 @@ export default function Shell({ children }: ShellProps) {
   const isAppInstalled = useIsAppInstalled();
   const [devicePlatform, setDevicePlatform] = useState<DevicePlatform>("desktop");
   const pathname = usePathname();
+  const isChatPage = pathname === "/chat" || pathname.startsWith("/chat/");
   const router = useRouter();
   const { language, setLanguage, t, languages } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -363,7 +364,13 @@ export default function Shell({ children }: ShellProps) {
   );
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row overflow-x-clip">
+    <div
+      className={
+        isChatPage
+          ? "h-[100dvh] flex flex-col lg:flex-row overflow-hidden"
+          : "min-h-screen flex flex-col lg:flex-row overflow-x-clip"
+      }
+    >
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[260px] bg-gradient-chrome text-slate-200 shrink-0 lg:sticky lg:top-0 lg:h-screen border-r border-white/5 print:hidden no-print">
         <div className="px-5 pt-5 pb-4 flex items-center gap-3 min-w-0">
@@ -447,7 +454,7 @@ export default function Shell({ children }: ShellProps) {
       </aside>
 
       {/* Mobile Top Header */}
-      <header className="lg:hidden glass-dark text-white px-4 py-3 mobile-header-safe flex items-center justify-between sticky top-0 z-40 border-b border-white/10 print:hidden no-print">
+      <header className="lg:hidden glass-dark text-white px-4 py-3 mobile-header-safe flex items-center justify-between sticky top-0 z-40 shrink-0 border-b border-white/10 print:hidden no-print">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-gradient-brand flex items-center justify-center font-display font-extrabold text-slate-950 text-base shadow-glow shrink-0">
             B
@@ -576,9 +583,15 @@ export default function Shell({ children }: ShellProps) {
       )}
 
       {/* Main Content Area */}
-      <main className="app-main flex-1 min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:pb-8">
+      <main
+        className={`app-main flex-1 min-w-0 ${
+          isChatPage
+            ? "flex flex-col min-h-0 overflow-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] lg:pb-6"
+            : "pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:pb-8"
+        }`}
+      >
         {/* Desktop top bar */}
-        <div className="hidden lg:block sticky top-0 z-30 glass border-b border-slate-200/70 print:hidden no-print">
+        <div className="hidden lg:block shrink-0 sticky top-0 z-30 glass border-b border-slate-200/70 print:hidden no-print">
           <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-[11px] text-slate-500">
@@ -658,28 +671,34 @@ export default function Shell({ children }: ShellProps) {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:px-8 lg:py-6 space-y-4">
+        <div
+          className={
+            isChatPage
+              ? "w-full max-w-7xl mx-auto flex-1 min-h-0 flex flex-col p-2.5 sm:p-5 lg:px-8 lg:py-6 gap-2.5 sm:gap-4"
+              : "max-w-7xl mx-auto p-4 sm:p-6 lg:px-8 lg:py-6 space-y-4"
+          }
+        >
           {/* Mobile helper bar: site, guide, language */}
-          <div className="lg:hidden flex items-center justify-between gap-2 bg-white/80 ring-1 ring-slate-200 px-3 py-2 rounded-2xl shadow-xs print:hidden no-print">
-            <span className="flex items-center gap-2 min-w-0 text-xs font-semibold text-slate-800">
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${activeSiteId ? "bg-emerald-500" : "bg-amber-400"}`}
-              />
-              <span className="truncate">
-                {sites.find((s) => s.id === activeSiteId)?.name ||
-                  (language === "hi" ? "सभी सक्रिय साइट्स" : "All active sites")}
+          {!isChatPage && (
+            <div className="lg:hidden flex items-center justify-between gap-2 bg-white/80 ring-1 ring-slate-200 px-3 py-2 rounded-2xl shadow-xs print:hidden no-print">
+              <span className="flex items-center gap-2 min-w-0 text-xs font-semibold text-slate-800">
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${activeSiteId ? "bg-emerald-500" : "bg-amber-400"}`}
+                />
+                <span className="truncate">
+                  {sites.find((s) => s.id === activeSiteId)?.name ||
+                    (language === "hi" ? "सभी सक्रिय साइट्स" : "All active sites")}
+                </span>
               </span>
-            </span>
-            <div className="flex items-center gap-2 shrink-0">
-              {languageToggle("sm")}
-              <InteractiveGuideModal />
+              <div className="flex items-center gap-2 shrink-0">
+                {languageToggle("sm")}
+                <InteractiveGuideModal />
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="print:hidden no-print">
-            <OfflineBar />
-          </div>
-          <div className="page-enter">
+          <div className={isChatPage ? "print:hidden no-print shrink-0 [&:empty]:hidden" : "print:hidden no-print"}><OfflineBar /></div>
+          <div className={isChatPage ? "page-enter flex-1 min-h-0 flex flex-col" : "page-enter"}>
             {children}
           </div>
         </div>
