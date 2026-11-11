@@ -1681,9 +1681,12 @@ export default function FinancePage() {
                     <strong className="text-slate-900 font-bold">{payments.length}</strong> payments
                   </span>
                   {filteredPayments.length > 0 && (
-                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs shadow-xs flex items-center gap-1">
+                    <span
+                      className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs shadow-xs flex items-center gap-1 whitespace-nowrap tabular-nums"
+                      title={formatCurrency(filteredPaymentsTotal)}
+                    >
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <span>Filtered Total: {formatCurrency(filteredPaymentsTotal)}</span>
+                      <span>Filtered Total: {formatCompactINR(filteredPaymentsTotal)}</span>
                     </span>
                   )}
                 </div>

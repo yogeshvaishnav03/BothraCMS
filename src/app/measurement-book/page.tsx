@@ -250,8 +250,15 @@ function MeasurementSubgroupEntries({
                   )}
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] text-slate-500 uppercase">Amount ({formatCurrency(entry.unitRate)}/{entry.unit})</div>
-                  <div className="font-mono font-bold text-slate-900">{formatCurrency(entry.totalAmount)}</div>
+                  <div
+                    className="text-[10px] text-slate-500 uppercase truncate"
+                    title={`${formatCurrency(entry.unitRate)}/${entry.unit}`}
+                  >
+                    Amount ({formatCompactINR(entry.unitRate)}/{entry.unit})
+                  </div>
+                  <div className="font-mono font-bold text-slate-900 tabular-nums" title={formatCurrency(entry.totalAmount)}>
+                    {formatCompactINR(entry.totalAmount)}
+                  </div>
                   {entry.measurementDate && (
                     <div className="text-[10px] text-slate-400">{entry.measurementDate.split("T")[0]}</div>
                   )}
@@ -2229,10 +2236,13 @@ export default function MeasurementBookPage() {
                       </div>
 
                       {/* Group Total Amount */}
-                      <div className="text-right">
-                        <div className="text-xs text-slate-400 font-semibold uppercase">Group Total</div>
-                        <div className="text-sm md:text-base font-black text-emerald-400">
-                          {formatCurrency(grp.totalAmount || 0)}
+                      <div className="text-right shrink-0">
+                        <div className="text-xs text-slate-400 font-semibold uppercase whitespace-nowrap">Group Total</div>
+                        <div
+                          className="text-sm md:text-base font-black text-emerald-400 tabular-nums whitespace-nowrap"
+                          title={formatCurrency(grp.totalAmount || 0)}
+                        >
+                          {formatCompactINR(grp.totalAmount || 0)}
                         </div>
                       </div>
 
@@ -2317,9 +2327,12 @@ export default function MeasurementBookPage() {
                                     ))}
                                   </div>
 
-                                  <div className="text-right">
-                                    <span className="text-xs font-bold text-slate-800">
-                                      {formatCurrency(sg.totalAmount || 0)}
+                                  <div className="text-right shrink-0">
+                                    <span
+                                      className="text-xs font-bold text-slate-800 tabular-nums whitespace-nowrap"
+                                      title={formatCurrency(sg.totalAmount || 0)}
+                                    >
+                                      {formatCompactINR(sg.totalAmount || 0)}
                                     </span>
                                   </div>
 

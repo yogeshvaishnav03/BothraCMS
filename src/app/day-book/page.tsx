@@ -2220,7 +2220,12 @@ export default function DayBookPage() {
                       pageSize={moneyInPagination.pageSize}
                       onPageSizeChange={moneyInPagination.setPageSize}
                     />
-                    <span className="text-xs font-bold text-emerald-700">{formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}</span>
+                    <span
+                      className="text-xs font-bold text-emerald-700 tabular-nums whitespace-nowrap"
+                      title={formatCurrency(dayData?.summary.totalMoneyInAmount || 0)}
+                    >
+                      {formatCompactINR(dayData?.summary.totalMoneyInAmount || 0)}
+                    </span>
                   </div>
                 </div>
                 {/* Desktop Table View (≥ lg screens) */}
@@ -2319,8 +2324,11 @@ export default function DayBookPage() {
                     <h3 className="text-sm font-black text-slate-900">Payments & Cash Outflow</h3>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-rose-600 font-mono">
-                      {dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
+                    <span
+                      className="text-xs font-bold text-rose-600 font-mono tabular-nums whitespace-nowrap"
+                      title={dayData ? formatCurrency(disbursedTotal) : "₹0.00"}
+                    >
+                      {dayData ? formatCompactINR(disbursedTotal) : "₹0"}
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("payments")}
@@ -2406,8 +2414,11 @@ export default function DayBookPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-rose-600 font-mono">
-                      Total Declined: {formatCurrency(rejectedTotal)}
+                    <span
+                      className="text-xs font-bold text-rose-600 font-mono tabular-nums whitespace-nowrap"
+                      title={formatCurrency(rejectedTotal)}
+                    >
+                      Total Declined: {formatCompactINR(rejectedTotal)}
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("rejected")}
@@ -2449,8 +2460,11 @@ export default function DayBookPage() {
                     <h3 className="text-sm font-black text-slate-900">Vendor & Contractor Bills Logged</h3>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-slate-900">
-                      {dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}
+                    <span
+                      className="text-xs font-bold text-slate-900 tabular-nums whitespace-nowrap"
+                      title={dayData ? formatCurrency(dayData.summary.totalBillsAmount) : "₹0.00"}
+                    >
+                      {dayData ? formatCompactINR(dayData.summary.totalBillsAmount) : "₹0"}
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("bills")}

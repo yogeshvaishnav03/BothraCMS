@@ -308,9 +308,13 @@ export default function PartyStatementPage() {
 
             {/* Progress Bars */}
             <div className="pt-3 space-y-2">
-              <div className="flex justify-between text-xs text-purple-200">
-                <span>Progress Billed: {formatCurrency(totalBilled)} ({billedPct}%)</span>
-                <span>Total Paid: {formatCurrency(totalPaid)} ({paidPct}%)</span>
+              <div className="flex justify-between gap-2 text-xs text-purple-200">
+                <span className="tabular-nums truncate" title={formatCurrency(totalBilled)}>
+                  Progress Billed: {formatCompactINR(totalBilled)} ({billedPct}%)
+                </span>
+                <span className="tabular-nums shrink-0 whitespace-nowrap" title={formatCurrency(totalPaid)}>
+                  Total Paid: {formatCompactINR(totalPaid)} ({paidPct}%)
+                </span>
               </div>
               <div className="w-full h-3 bg-purple-950/60 rounded-full overflow-hidden flex">
                 <div

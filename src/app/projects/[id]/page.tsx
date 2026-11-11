@@ -541,7 +541,9 @@ export default function ProjectDetailsPage() {
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-700">
             <span>Budget used: {budgetUtilization}% billed so far</span>
-            <span>{formatCurrency(billed)} of {formatCurrency(budget)}</span>
+            <span className="tabular-nums whitespace-nowrap" title={`${formatCurrency(billed)} of ${formatCurrency(budget)}`}>
+              {formatCompactINR(billed)} of {formatCompactINR(budget)}
+            </span>
           </div>
           <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
             <div

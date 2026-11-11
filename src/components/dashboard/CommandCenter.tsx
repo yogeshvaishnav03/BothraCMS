@@ -737,12 +737,13 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                             {typeof e.amount === "number" ? (
                               <div
                                 className={cn(
-                                  "text-sm font-bold tabular-nums",
+                                  "text-sm font-bold tabular-nums whitespace-nowrap",
                                   e.kind === "PAYMENT" ? "text-rose-600" : "text-slate-900"
                                 )}
+                                title={formatCurrency(e.amount)}
                               >
                                 {e.kind === "PAYMENT" ? "−" : ""}
-                                {formatCurrency(e.amount)}
+                                {formatCompactINR(e.amount)}
                               </div>
                             ) : e.kind === "HEADCOUNT" ? (
                               <div className="text-[11px] font-bold text-orange-800 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md inline-block">

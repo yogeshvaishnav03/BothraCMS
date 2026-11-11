@@ -891,8 +891,8 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-left sm:text-right shrink-0">
                     <div className="text-[11px] text-slate-500 font-medium">Budget</div>
-                    <div className="text-sm font-black text-slate-900 tabular-nums">
-                      {formatCurrency(p.budgetAmount || 0)}
+                    <div className="text-sm font-black text-slate-900 tabular-nums whitespace-nowrap" title={formatCurrency(p.budgetAmount || 0)}>
+                      {formatCompactINR(p.budgetAmount || 0)}
                     </div>
                   </div>
                 </div>
@@ -1342,8 +1342,8 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-left sm:text-right shrink-0">
                     <div className="text-[11px] text-slate-500 font-medium">Paid</div>
-                    <div className="font-display text-sm font-extrabold text-emerald-700 tabular-nums">
-                      {formatCurrency(p.amount || 0)}
+                    <div className="font-display text-sm font-extrabold text-emerald-700 tabular-nums whitespace-nowrap" title={formatCurrency(p.amount || 0)}>
+                      {formatCompactINR(p.amount || 0)}
                     </div>
                   </div>
                 </div>
@@ -1380,7 +1380,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
                       <span>
-                        Total Bill: <strong className="text-slate-700">{formatCurrency(b.totalAmount || 0)}</strong>
+                        Total Bill: <strong className="text-slate-700 tabular-nums" title={formatCurrency(b.totalAmount || 0)}>{formatCompactINR(b.totalAmount || 0)}</strong>
                       </span>
                       {b.dueDate && (
                         <span>
@@ -1391,8 +1391,8 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-left sm:text-right shrink-0">
                     <div className="text-[11px] text-slate-500 font-medium">Remaining Balance</div>
-                    <div className="text-sm font-black text-amber-600 tabular-nums">
-                      {formatCurrency(b.remainingAmount || 0)}
+                    <div className="text-sm font-black text-amber-600 tabular-nums whitespace-nowrap" title={formatCurrency(b.remainingAmount || 0)}>
+                      {formatCompactINR(b.remainingAmount || 0)}
                     </div>
                   </div>
                 </div>
@@ -2969,10 +2969,10 @@ export default function DashboardPage() {
                           {p.code}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-500 flex items-center justify-between">
-                        <span>Site: {p.site?.name || "Main Site"}</span>
-                        <span className="font-semibold text-slate-700 tabular-nums">
-                          Budget: {formatCurrency(p.budgetAmount)}
+                      <div className="text-xs text-slate-500 flex items-center justify-between gap-2">
+                        <span className="truncate">Site: {p.site?.name || "Main Site"}</span>
+                        <span className="font-semibold text-slate-700 tabular-nums shrink-0" title={formatCurrency(p.budgetAmount || 0)}>
+                          Budget: {formatCompactINR(p.budgetAmount || 0)}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
