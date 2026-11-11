@@ -162,6 +162,10 @@ export default function TdsReturnPage() {
           </div>
         </PageHeader>
 
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-relaxed text-slate-600 shadow-xs">
+          <strong className="text-slate-900">How this quarterly TDS helper works:</strong> Form <strong>24Q</strong> covers salary TDS for staff; Form <strong>26Q</strong> covers TDS deducted from contractors, professionals, rent, and high-value suppliers. Each quarter shows monthly tax deposits (<strong>Challans</strong>), payee totals, and downloadable Form 16/16A drafts.
+        </div>
+
         <Tabs<Kind>
           value={kind}
           onChange={(v) => {
@@ -414,7 +418,7 @@ export default function TdsReturnPage() {
                           <th className="px-4 py-2 text-right">Taxable</th>
                           <th className="px-4 py-2 text-right">Tax</th>
                           <th className="px-4 py-2 text-right">TDS cut</th>
-                          <th className="px-4 py-2 text-right">Short</th>
+                          <th className="px-4 py-2 text-right">Shortfall (Due)</th>
                           <th className="px-4 py-2" />
                         </tr>
                       </thead>
@@ -448,9 +452,7 @@ export default function TdsReturnPage() {
               )}
 
               <p className="text-xs leading-relaxed text-slate-500">
-                This page gathers what the return needs. File it with the NSDL Return Preparation Utility (RPU): copy these rows in, check them with the File
-                Validation Utility (FVU), and upload the result on the income-tax portal or at a TIN facilitation centre. The app does not make the FVU file
-                itself. Form 16 Part A is then downloaded from TRACES; Part B for each person is under &quot;Form 16&quot; in the fourth quarter.
+                Glossary: <strong>RPU</strong> (NSDL Return Preparation Utility) is the free government software to prepare your quarterly return, <strong>FVU</strong> (File Validation Utility) checks it for errors before uploading, <strong>Challans</strong> are bank tax payment receipts, and <strong>TRACES</strong> is the Income Tax portal where official Form 16 / 16A PDFs are generated after filing. This app exports your numbers for RPU, and Part B of Form 16 appears under &quot;Form 16&quot; in Q4.
               </p>
             </>
           )

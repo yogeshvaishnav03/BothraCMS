@@ -66,7 +66,7 @@ export default function ProjectsPage() {
       },
       {
         key: "blockers",
-        label: "Blockers",
+        label: "Delays / Issues",
         accessor: (r) => r.blockers || "None",
         type: "text",
       },
@@ -297,7 +297,7 @@ export default function ProjectsPage() {
           setErrorMessage(data.error.message);
           return;
         }
-        setErrorMessage(data.error?.message || "Failed to delete site");
+        setErrorMessage(data.error?.message || "Could not delete site. Please check if any active projects are linked to it.");
         return;
       }
 
@@ -325,7 +325,7 @@ export default function ProjectsPage() {
       if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("sitesUpdated"));
       loadData(targetId || (activeSiteId === siteToDelete.id ? "" : activeSiteId));
     } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to delete site"}`);
+      setErrorMessage(`Network error while deleting site. Check your connection and try again.${err.message ? ` (${err.message})` : ""}`);
     } finally {
       setDeletingSite(false);
     }
@@ -345,7 +345,7 @@ export default function ProjectsPage() {
       const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to delete project");
+        setErrorMessage(data.error?.message || "Could not delete project. Please try again.");
         setPendingDeleteProject(null);
         return;
       }
@@ -354,7 +354,7 @@ export default function ProjectsPage() {
       setPendingDeleteProject(null);
       loadData();
     } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to delete project"}`);
+      setErrorMessage(`Network error while deleting project. Check your connection and try again.${err.message ? ` (${err.message})` : ""}`);
       setPendingDeleteProject(null);
     } finally {
       setSubmitting(false);
@@ -390,7 +390,7 @@ export default function ProjectsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to create project");
+        setErrorMessage(data.error?.message || "Could not create project. Please check the project code and name.");
       } else {
         const createdProject = data.data;
         setStatusMessage(`Project "${createdProject.name}" created successfully!`);
@@ -423,7 +423,7 @@ export default function ProjectsPage() {
         loadData(activeSiteFilter && activeSiteFilter !== siteToUse ? siteToUse : undefined);
       }
     } catch {
-      setErrorMessage("Network error during project creation");
+      setErrorMessage("Network error while creating project. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -447,7 +447,7 @@ export default function ProjectsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to create site");
+        setErrorMessage(data.error?.message || "Could not add site. Please check the site name and code.");
       } else {
         setStatusMessage(`Site "${data.data.name}" created successfully with default main store!`);
         setShowCreateSiteModal(false);
@@ -458,7 +458,7 @@ export default function ProjectsPage() {
         loadData();
       }
     } catch {
-      setErrorMessage("Network error during site creation");
+      setErrorMessage("Network error while adding site. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -467,11 +467,11 @@ export default function ProjectsPage() {
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportProjectId) {
-      setErrorMessage("Please select a target project");
+      setErrorMessage("Please select a project for this daily report.");
       return;
     }
     if (!reportProgress.trim()) {
-      setErrorMessage("Work progress summary is required");
+      setErrorMessage("Please enter a summary of work completed today.");
       return;
     }
 
@@ -494,9 +494,9 @@ export default function ProjectsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to submit daily report");
+        setErrorMessage(data.error?.message || "Could not submit daily report. Please try again.");
       } else {
-        setStatusMessage(`Daily site report for ${reportDate} submitted and recorded in audit log!`);
+        setStatusMessage(`Daily site report for ${reportDate} submitted and saved to Change History.`);
         setShowDailyReportModal(false);
         setReportProgress("");
         setReportBlockers("");
@@ -506,7 +506,7 @@ export default function ProjectsPage() {
         loadData();
       }
     } catch {
-      setErrorMessage("Network error during daily report submission");
+      setErrorMessage("Network error while submitting daily report. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -525,7 +525,7 @@ export default function ProjectsPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 shadow-sm transition-all"
               >
                 <Building2 className="w-4 h-4 text-amber-600" />
-                <span>+ Add Site</span>
+                <span>Add Site</span>
               </button>
             )}
             {canSubmitDailyReport && (
@@ -537,7 +537,7 @@ export default function ProjectsPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
               >
                 <ClipboardList className="w-4 h-4 text-amber-400" />
-                <span>+ Submit Daily Report</span>
+                <span>Submit Daily Report</span>
               </button>
             )}
             {canWriteProjects && (
@@ -549,7 +549,7 @@ export default function ProjectsPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Create Project</span>
+                <span>Create Project</span>
               </button>
             )}
           </div>
@@ -712,7 +712,7 @@ export default function ProjectsPage() {
                 <div className="text-xs text-slate-400 mt-1 mb-4">
                   {searchQuery || statusFilter !== "ALL" || activeSiteFilter
                     ? "No projects matched your active filters. Try resetting the filters or searching with different terms."
-                    : "No projects exist yet. Click '+ Create Project' to get started."}
+                    : "No projects exist yet. Click \"Create Project\" above to get started."}
                 </div>
                 {(searchQuery || statusFilter !== "ALL" || activeSiteFilter) && (
                   <button
@@ -830,7 +830,7 @@ export default function ProjectsPage() {
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-xs transition shrink-0 cursor-pointer"
                 >
                   <Building2 className="w-4 h-4" />
-                  <span>+ Add New Site</span>
+                  <span>Add New Site</span>
                 </button>
               )}
             </div>
@@ -840,7 +840,7 @@ export default function ProjectsPage() {
                 <Building2 className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                 <div className="text-sm font-bold text-slate-700">No active sites found</div>
                 <div className="text-xs text-slate-400 mt-1 mb-3">
-                  Click &quot;+ Add New Site&quot; to create your first construction site.
+                  Click &quot;Add New Site&quot; above to add your first construction site.
                 </div>
               </div>
             ) : (
@@ -882,7 +882,7 @@ export default function ProjectsPage() {
 
                         <h3 className="font-bold text-slate-900 text-base">{site.name}</h3>
                         <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                          {site.address || "No physical address specified"}
+                          {site.address || "No address added"}
                         </p>
 
                         <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
@@ -955,8 +955,8 @@ export default function ProjectsPage() {
               <div className="text-sm font-bold text-slate-700">No daily site reports filed yet</div>
               <div className="text-xs text-slate-400 mt-1">
                 {canSubmitDailyReport
-                  ? 'Click "+ Submit Daily Report" above to file supervisor progress and site blocker notes.'
-                  : "Supervisor progress and site blocker notes will appear here once submitted."}
+                  ? 'Click "Submit Daily Report" above to record daily progress, safety notes, and any site delays.'
+                  : "Daily supervisor progress, safety notes, and any site delays will appear here once submitted."}
               </div>
             </div>
           ) : (
@@ -1475,7 +1475,7 @@ export default function ProjectsPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Blockers, Bottlenecks & Delays
+                    Delays / Issues (Optional)
                   </label>
                   <input
                     type="text"

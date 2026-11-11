@@ -1322,11 +1322,11 @@ export default function DayBookPage() {
       return;
     }
     if (!paymentPartyId) {
-      setStatusMessage("❌ Please select a recipient / party for this payment");
+      setStatusMessage("❌ Please select a vendor, contractor, or recipient for this payment.");
       return;
     }
     if (!paymentRef.trim()) {
-      setStatusMessage("❌ Ref / Voucher No is mandatory when recording a payment");
+      setStatusMessage("❌ Please enter a Reference / Receipt No. before saving this payment.");
       return;
     }
 
@@ -1335,7 +1335,7 @@ export default function DayBookPage() {
       if (selectedBill) {
         const pendingRupees = (selectedBill.outstandingAmount ?? selectedBill.totalAmount) / 100;
         if (Number(paymentAmount) > pendingRupees) {
-          setStatusMessage(`❌ Payment amount (${formatCurrency(Number(paymentAmount))}) exceeds bill outstanding balance (${formatCurrency(pendingRupees)})`);
+          setStatusMessage(`❌ Payment amount (${formatCurrency(Number(paymentAmount))}) exceeds this bill's unpaid balance (${formatCurrency(pendingRupees)}).`);
           return;
         }
       }
@@ -1404,10 +1404,10 @@ export default function DayBookPage() {
         loadDayBook(selectedDate, toDate, selectedSiteId);
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
-        setStatusMessage(`❌ Error: ${data.error?.message || "Could not record payment"}`);
+        setStatusMessage(`❌ Could not save payment: ${data.error?.message || "Please check your entries and try again."}`);
       }
     } catch {
-      setStatusMessage("❌ Server error while saving payment.");
+      setStatusMessage("❌ Network error while saving payment. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -1485,10 +1485,10 @@ export default function DayBookPage() {
         loadDayBook(selectedDate, toDate, selectedSiteId);
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
-        setStatusMessage(`❌ Error: ${data.error?.message || "Could not enter bill"}`);
+        setStatusMessage(`❌ Could not save bill: ${data.error?.message || "Please check the bill details and try again."}`);
       }
     } catch {
-      setStatusMessage("❌ Server error while saving bill.");
+      setStatusMessage("❌ Network error while saving bill. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -1509,7 +1509,7 @@ export default function DayBookPage() {
     const total = artisans + craftsmen + laborerMale + laborerFemale;
 
     if (total <= 0) {
-      setStatusMessage("❌ Please enter at least 1 worker for the site master");
+      setStatusMessage("❌ Please enter at least 1 worker to save today's count.");
       return;
     }
 
@@ -1546,10 +1546,10 @@ export default function DayBookPage() {
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
-        setStatusMessage(`❌ Error: ${data.error?.message || "Could not save headcount"}`);
+        setStatusMessage(`❌ Could not save worker count: ${data.error?.message || "Please try again."}`);
       }
     } catch {
-      setStatusMessage("❌ Server error while saving workers master.");
+      setStatusMessage("❌ Network error while saving worker count. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -1620,10 +1620,10 @@ export default function DayBookPage() {
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
-        setStatusMessage(`❌ Error: ${data.error?.message || "Could not log progress"}`);
+        setStatusMessage(`❌ Could not save daily report: ${data.error?.message || "Please try again."}`);
       }
     } catch {
-      setStatusMessage("❌ Server error while saving daily report.");
+      setStatusMessage("❌ Network error while saving daily report. Check your connection and try again.");
     } finally {
       setActionLoading(false);
       setUploadingPhotosCount(0);
@@ -1641,15 +1641,15 @@ export default function DayBookPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setStatusMessage("✅ Demo records generated successfully for Day Book!");
+        setStatusMessage("✅ Sample entries added to Day Book!");
         loadDayBook(selectedDate, toDate, selectedSiteId);
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
-        setStatusMessage(`❌ Error: ${data.error?.message || "Could not load demo data"}`);
+        setStatusMessage(`❌ Could not load sample entries: ${data.error?.message || "Please try again."}`);
       }
     } catch {
-      setStatusMessage("❌ Server error while loading demo data.");
+      setStatusMessage("❌ Network error while loading sample entries. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -1757,10 +1757,10 @@ export default function DayBookPage() {
                 onClick={handleSeedDemoData}
                 disabled={actionLoading}
                 className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-800 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
-                title="Generate complete realistic demo records for Day Book"
+                title="Add sample entries to see how Day Book works"
               >
                 <Sparkles className="w-4 h-4 text-amber-600" />
-                <span>{actionLoading ? "Loading..." : "Load Demo Data"}</span>
+                <span>{actionLoading ? "Loading..." : "Load Sample Data"}</span>
               </button>
             )}
 
@@ -1773,7 +1773,7 @@ export default function DayBookPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>{t("daybook.addEntry", "+ Log Day Entry")}</span>
+                <span>{t("daybook.addEntry", "Add Day Book Entry")}</span>
               </button>
             )}
 
@@ -1781,7 +1781,7 @@ export default function DayBookPage() {
             <button
               onClick={exportDayBookCSV}
               className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition"
-              title="Download CSV Statement"
+              title="Download CSV"
             >
               <Download className="w-4 h-4 text-slate-500" />
               <span>{t("action.export", "Export CSV")}</span>
@@ -1864,7 +1864,7 @@ export default function DayBookPage() {
                 onChange={(e) => handleSiteChange(e.target.value)}
                 className="w-full lg:w-auto px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 transition"
               >
-                <option value="">All Operational Sites</option>
+                <option value="">All Sites</option>
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.code})
@@ -1959,7 +1959,7 @@ export default function DayBookPage() {
                 className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0"
                 role="button"
                 tabIndex={0}
-                title="Click to view Payments breakdown popup"
+                title="Click to view payment details"
               >
                 <div className="min-w-0">
                   <div className="flex items-center justify-between mb-2 gap-1.5">
@@ -1975,11 +1975,11 @@ export default function DayBookPage() {
                     {formatCompactINR(dayData ? disbursedTotal : 0)}
                   </div>
                   <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 font-medium leading-tight">
-                    {disbursedPayments.length} transaction{disbursedPayments.length === 1 ? "" : "s"} disbursed
+                    {disbursedPayments.length} payment{disbursedPayments.length === 1 ? "" : "s"} paid out
                   </div>
                 </div>
                 <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
-                  <span>View details popup</span>
+                  <span>View details</span>
                   <span>&rarr;</span>
                 </div>
               </div>
@@ -1995,11 +1995,11 @@ export default function DayBookPage() {
                 className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-rose-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0"
                 role="button"
                 tabIndex={0}
-                title="Click to view Rejected Payments popup"
+                title="Click to view declined payments"
               >
                 <div className="min-w-0">
                   <div className="flex items-center justify-between mb-2 gap-1.5">
-                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-rose-600 transition leading-tight">Rejected Payments</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-rose-600 transition leading-tight">Declined Payments</span>
                     <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition shrink-0">
                       <XCircle className="w-4 h-4" />
                     </div>
@@ -2013,11 +2013,11 @@ export default function DayBookPage() {
                     {formatCompactINR(dayData ? rejectedTotal : 0)}
                   </div>
                   <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 font-medium leading-tight">
-                    {rejectedPayments.length} rejected request{rejectedPayments.length === 1 ? "" : "s"}
+                    {rejectedPayments.length} declined request{rejectedPayments.length === 1 ? "" : "s"}
                   </div>
                 </div>
                 <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-rose-600 transition">
-                  <span>View details popup</span>
+                  <span>View details</span>
                   <span>&rarr;</span>
                 </div>
               </div>
@@ -2033,11 +2033,11 @@ export default function DayBookPage() {
                 className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group active:scale-[0.99] flex flex-col justify-between min-w-0"
                 role="button"
                 tabIndex={0}
-                title="Click to view Bills breakdown popup"
+                title="Click to view bills breakdown"
               >
                 <div className="min-w-0">
                   <div className="flex items-center justify-between mb-2 gap-1.5">
-                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-amber-600 transition leading-tight">Bills Incurred</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-amber-600 transition leading-tight">Bills Recorded</span>
                     <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition shrink-0">
                       <FileText className="w-4 h-4" />
                     </div>
@@ -2053,7 +2053,7 @@ export default function DayBookPage() {
                   </div>
                 </div>
                 <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-amber-600 transition">
-                  <span>View details popup</span>
+                  <span>View details</span>
                   <span>&rarr;</span>
                 </div>
               </div>
@@ -2088,7 +2088,7 @@ export default function DayBookPage() {
               </div>
             </div>
             <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-emerald-600 transition">
-              <span>View details popup</span>
+              <span>View details</span>
               <span>&rarr;</span>
             </div>
           </div>
@@ -2119,7 +2119,7 @@ export default function DayBookPage() {
               </div>
             </div>
             <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 group-hover:text-blue-600 transition">
-              <span>View details popup</span>
+              <span>View details</span>
               <span>&rarr;</span>
             </div>
           </div>
@@ -2154,7 +2154,7 @@ export default function DayBookPage() {
                   activeTab === "REJECTED" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
-                <span>Rejected Payments</span>
+                <span>Declined Payments</span>
                 <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${
                   rejectedPayments.length > 0 ? "bg-rose-600 text-white font-bold" : "bg-slate-200 text-slate-700"
                 }`}>
@@ -2167,7 +2167,7 @@ export default function DayBookPage() {
                   activeTab === "BILLS" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
-                <span>Bills Incurred</span>
+                <span>Bills Recorded</span>
                 <span className="px-1.5 py-0.2 bg-slate-200 text-slate-800 text-[10px] rounded-full">
                   {dayData?.bills.length || 0}
                 </span>
@@ -2325,7 +2325,7 @@ export default function DayBookPage() {
                     <button
                       onClick={() => openPrintModalForSection("payments")}
                       className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                      title="Print Disbursed Payments only"
+                      title="Print Approved Payments only"
                     >
                       <Printer className="w-3.5 h-3.5" />
                     </button>
@@ -2335,7 +2335,7 @@ export default function DayBookPage() {
                       title="Supervisors can log personal site expenses with mandatory receipt photos"
                     >
                       <Receipt className="w-3.5 h-3.5 text-amber-600" />
-                      <span>+ Out-of-Pocket Expense</span>
+                      <span>Out-of-Pocket Expense</span>
                     </Link>
                     {canWriteFinance && (
                       <button
@@ -2357,7 +2357,7 @@ export default function DayBookPage() {
                     <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mb-2">
                       <ArrowUpRight className="w-5 h-5" />
                     </div>
-                    <p className="text-xs font-bold text-slate-700">No disbursed payments recorded on this date.</p>
+                    <p className="text-xs font-bold text-slate-700">No payments recorded on this date.</p>
                     <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Record contractor advances, petty cash expenses, and vendor payments directly into Day Book.</p>
                     <div className="flex items-center gap-2 flex-wrap justify-center">
                       <Link
@@ -2365,7 +2365,7 @@ export default function DayBookPage() {
                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition shadow-xs"
                       >
                         <Receipt className="w-4 h-4" />
-                        <span>+ Out-of-Pocket Expense</span>
+                        <span>Out-of-Pocket Expense</span>
                       </Link>
                       {canWriteFinance && (
                         <button
@@ -2376,7 +2376,7 @@ export default function DayBookPage() {
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition shadow-xs"
                         >
                           <PlusCircle className="w-4 h-4" />
-                          <span>+ Record Payment</span>
+                          <span>Record Payment</span>
                         </button>
                       )}
                     </div>
@@ -2400,19 +2400,19 @@ export default function DayBookPage() {
                 <div className="p-4 bg-rose-50/60 border-b border-rose-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <XCircle className="w-4 h-4 text-rose-600" />
-                    <h3 className="text-sm font-black text-slate-900">Rejected Payments & Claims</h3>
+                    <h3 className="text-sm font-black text-slate-900">Declined Payments & Claims</h3>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
-                      {rejectedPayments.length} Rejected
+                      {rejectedPayments.length} Declined
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-rose-600 font-mono">
-                      Total Rejected: {formatCurrency(rejectedTotal)}
+                      Total Declined: {formatCurrency(rejectedTotal)}
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("rejected")}
                       className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                      title="Print Rejected Claims only"
+                      title="Print Declined Claims only"
                     >
                       <Printer className="w-3.5 h-3.5" />
                     </button>
@@ -2424,14 +2424,14 @@ export default function DayBookPage() {
                     <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 mb-2">
                       <CheckCircle2 className="w-5 h-5" />
                     </div>
-                    <p className="text-xs font-bold text-slate-700">No rejected payments on this date.</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">All payment vouchers were approved and processed.</p>
+                    <p className="text-xs font-bold text-slate-700">No declined payments on this date.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">All submitted payments were approved.</p>
                   </div>
                 ) : (
                   <ExcelTable
                     data={rejectedPayments}
                     columns={rejectedPaymentColumns}
-                    tableName="Rejected Payments"
+                    tableName="Declined Payments"
                     showGlobalSearch={true}
                     showExport={true}
                     showToolbar={true}
@@ -2490,7 +2490,7 @@ export default function DayBookPage() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition shadow-xs"
                       >
                         <PlusCircle className="w-4 h-4" />
-                        <span>+ Enter Bill</span>
+                        <span>Record Bill</span>
                       </button>
                     )}
                   </div>
@@ -2775,7 +2775,7 @@ export default function DayBookPage() {
                       <Layers className="w-5 h-5" />
                     </div>
                     <p className="text-xs font-bold text-slate-700">No daily site reports logged for this date.</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Record work executed, site challenges, weather blockers, and safety notes.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Record work completed, any site delays, and safety notes.</p>
                     {canWriteDsr && (
                       <button
                         onClick={() => {
@@ -2785,7 +2785,7 @@ export default function DayBookPage() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition shadow-xs"
                       >
                         <PlusCircle className="w-4 h-4" />
-                        <span>+ Log Daily Progress (DSR)</span>
+                        <span>Submit Daily Site Report</span>
                       </button>
                     )}
                   </div>
@@ -2807,7 +2807,7 @@ export default function DayBookPage() {
                         {r.blockers && (
                           <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-medium flex items-center gap-2">
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                            <span><strong>Blockers:</strong> {r.blockers}</span>
+                            <span><strong>Delays / Issues:</strong> {r.blockers}</span>
                           </div>
                         )}
                         {r.safetyNotes && (
@@ -2994,7 +2994,7 @@ export default function DayBookPage() {
                           className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
                         >
                           {parties.length === 0 ? (
-                            <option value="">No vendors found (create one under Parties)</option>
+                            <option value="">No vendors yet (add one under Vendors & Contractors)</option>
                           ) : (
                             parties.map((p) => (
                               <option key={p.id} value={p.id}>
@@ -3052,7 +3052,7 @@ export default function DayBookPage() {
                           }}
                           className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
                         >
-                          <option value="">General Advance / Site Expense (No Specific Bill)</option>
+                          <option value="">Advance / General Expense (Not linked to a bill)</option>
                           {pendingPartyBills.map((b) => (
                             <option key={b.id} value={b.id}>
                               Bill #{b.billNumber} — Pending: {formatCurrency(b.outstandingAmount ?? b.totalAmount)}
@@ -3101,7 +3101,7 @@ export default function DayBookPage() {
 
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Ref / Voucher No *
+                          Reference / Receipt No. *
                         </label>
                         <input
                           type="text"
@@ -3245,7 +3245,7 @@ export default function DayBookPage() {
                           className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
                         >
                           {parties.length === 0 ? (
-                            <option value="">No vendors found (create one under Parties)</option>
+                            <option value="">No vendors yet (add one under Vendors & Contractors)</option>
                           ) : (
                             parties.map((p) => (
                               <option key={p.id} value={p.id}>
@@ -3525,7 +3525,7 @@ export default function DayBookPage() {
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                        <span className="font-bold text-slate-600">Total Worker Master:</span>
+                        <span className="font-bold text-slate-600">Total Workers:</span>
                         <span className="font-black text-emerald-700 text-sm">
                           {(Number(wfArtisans) || 0) +
                             (Number(wfCraftsmen) || 0) +
@@ -3577,7 +3577,7 @@ export default function DayBookPage() {
                         disabled={actionLoading}
                         className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm"
                       >
-                        {actionLoading ? "Saving..." : "Save Worker Master"}
+                        {actionLoading ? "Saving..." : "Save Worker Count"}
                       </button>
                     </div>
                   </form>
@@ -3620,7 +3620,7 @@ export default function DayBookPage() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Blockers / Delays (Optional)
+                        Delays / Issues (Optional)
                       </label>
                       <input
                         type="text"
@@ -3784,7 +3784,7 @@ export default function DayBookPage() {
                     <div>
                       <h3 className="font-black text-base leading-tight">Payments Out — Details</h3>
                       <p className="text-xs text-rose-100">
-                        {formatDate(selectedDate)} · {disbursedPayments.length} transaction{disbursedPayments.length === 1 ? "" : "s"} disbursed
+                        {formatDate(selectedDate)} · {disbursedPayments.length} payment{disbursedPayments.length === 1 ? "" : "s"} paid out
                       </p>
                     </div>
                   </div>
@@ -3799,12 +3799,12 @@ export default function DayBookPage() {
 
                 <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Payments Disbursed</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Paid Out</span>
                     <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 tabular-nums tracking-tight truncate" title={formatCurrency(disbursedTotal)}>
                       {formatCompactINR(disbursedTotal)}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-                      Net cash & bank disbursements debited
+                      Total cash, UPI, cheque, and bank payments made
                     </p>
                   </div>
                   {canWriteFinance && (
@@ -3817,7 +3817,7 @@ export default function DayBookPage() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
                     >
                       <PlusCircle className="w-4 h-4" />
-                      <span>+ Record Payment</span>
+                      <span>Record Payment</span>
                     </button>
                   )}
                 </div>
@@ -3826,7 +3826,7 @@ export default function DayBookPage() {
                   {disbursedPayments.length === 0 ? (
                     <div className="text-center py-10 text-slate-400">
                       <ArrowUpRight className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                      <p className="text-xs font-semibold text-slate-600">No disbursed payments on this date.</p>
+                      <p className="text-xs font-semibold text-slate-600">No payments recorded on this date.</p>
                       <p className="text-[11px] text-slate-400 mt-1">Cash, UPI, and bank transfers recorded today will appear here.</p>
                     </div>
                   ) : (
@@ -3912,9 +3912,9 @@ export default function DayBookPage() {
                       <XCircle className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-black text-base leading-tight">Rejected Payments — Details</h3>
+                      <h3 className="font-black text-base leading-tight">Declined Payments — Details</h3>
                       <p className="text-xs text-rose-100">
-                        {formatDate(selectedDate)} · {rejectedPayments.length} rejected request{rejectedPayments.length === 1 ? "" : "s"}
+                        {formatDate(selectedDate)} · {rejectedPayments.length} declined request{rejectedPayments.length === 1 ? "" : "s"}
                       </p>
                     </div>
                   </div>
@@ -3929,7 +3929,7 @@ export default function DayBookPage() {
 
                 <div className="p-4 bg-rose-50/70 border-b border-rose-100 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Rejected Amount</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Declined Amount</span>
                     <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 tabular-nums tracking-tight truncate" title={formatCurrency(rejectedTotal)}>
                       {formatCompactINR(rejectedTotal)}
                     </div>
@@ -3938,7 +3938,7 @@ export default function DayBookPage() {
                     </p>
                   </div>
                   <span className="px-2.5 py-1 bg-rose-100 text-rose-800 text-xs font-bold rounded-lg border border-rose-200">
-                    {rejectedPayments.length} Rejected
+                    {rejectedPayments.length} Declined
                   </span>
                 </div>
 
@@ -3946,8 +3946,8 @@ export default function DayBookPage() {
                   {rejectedPayments.length === 0 ? (
                     <div className="text-center py-10 text-slate-400">
                       <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                      <p className="text-xs font-semibold text-slate-700">No rejected payments on this date.</p>
-                      <p className="text-[11px] text-slate-400 mt-1">All payment vouchers were approved and processed.</p>
+                      <p className="text-xs font-semibold text-slate-700">No declined payments on this date.</p>
+                      <p className="text-[11px] text-slate-400 mt-1">All submitted payments were approved.</p>
                     </div>
                   ) : (
                     rejectedPayments.map((p: any, idx: number) => (
@@ -3982,7 +3982,7 @@ export default function DayBookPage() {
                           <div className="mt-1.5 p-2 bg-rose-100/70 rounded-lg border border-rose-200 text-xs text-rose-900 flex items-start gap-1.5">
                             <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
                             <div>
-                              <span className="font-bold">Declined / Rejected:</span>{" "}
+                              <span className="font-bold">Declined Reason:</span>{" "}
                               <span>{p.rejectionReason || "No specific reason provided."}</span>
                             </div>
                           </div>
@@ -4010,7 +4010,7 @@ export default function DayBookPage() {
                             {formatCurrency(p.amount)}
                           </div>
                           <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">
-                            Rejected
+                            Declined
                           </div>
                         </div>
                       </div>
@@ -4038,7 +4038,7 @@ export default function DayBookPage() {
                       <FileText className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-black text-base leading-tight">Bills Incurred — Details</h3>
+                      <h3 className="font-black text-base leading-tight">Bills Recorded — Details</h3>
                       <p className="text-xs text-amber-100">
                         {formatDate(selectedDate)} · {dayData?.bills.length || 0} vendor/contractor bill{(dayData?.bills.length || 0) === 1 ? "" : "s"}
                       </p>
@@ -4070,7 +4070,7 @@ export default function DayBookPage() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
                     >
                       <PlusCircle className="w-4 h-4" />
-                      <span>+ Add Bill</span>
+                      <span>Record Bill</span>
                     </button>
                   )}
                 </div>
@@ -4292,7 +4292,7 @@ export default function DayBookPage() {
                       className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
                     >
                       <PlusCircle className="w-3.5 h-3.5" />
-                      <span>+ Log Labor Master</span>
+                      <span>Add Worker Count</span>
                     </button>
                   )}
                   <button
@@ -4346,7 +4346,7 @@ export default function DayBookPage() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
                     >
                       <PlusCircle className="w-4 h-4" />
-                      <span>+ Log Site Report</span>
+                      <span>Submit Daily Site Report</span>
                     </button>
                   )}
                 </div>
@@ -4356,7 +4356,7 @@ export default function DayBookPage() {
                     <div className="text-center py-10 text-slate-400">
                       <Layers className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-xs font-semibold text-slate-600">No daily site progress reports logged for this date.</p>
-                      <p className="text-[11px] text-slate-400 mt-1">Site supervisors can file daily work progress, blockers, and safety logs.</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Site supervisors can record daily work progress, delays, and safety notes.</p>
                     </div>
                   ) : (
                     dayData.dailyReports.map((r: any, idx: number) => (
@@ -4380,7 +4380,7 @@ export default function DayBookPage() {
                           <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-lg text-xs text-rose-800 flex items-start gap-2">
                             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                             <div>
-                              <strong className="block font-bold">Blockers / Obstacles:</strong>
+                              <strong className="block font-bold">Delays / Issues:</strong>
                               <span>{r.blockers}</span>
                             </div>
                           </div>
@@ -4599,7 +4599,7 @@ export default function DayBookPage() {
                       checked={printSections.payments}
                       onChange={(val) => setPrintSections((prev) => ({ ...prev, payments: val }))}
                       icon={<ArrowUpRight className="w-4 h-4 text-rose-500" />}
-                      title="1. Disbursed Payments"
+                      title="1. Approved Payments"
                       badge={`${printDisbursedPayments.length} paid`}
                       highlight={printDisbursedPayments.length > 0 ? formatCurrency(printDisbursedTotal) : undefined}
                     />
@@ -4608,8 +4608,8 @@ export default function DayBookPage() {
                       checked={printSections.rejected}
                       onChange={(val) => setPrintSections((prev) => ({ ...prev, rejected: val }))}
                       icon={<XCircle className="w-4 h-4 text-rose-600" />}
-                      title="2. Rejected Claims"
-                      badge={`${printRejectedPayments.length} rejected`}
+                      title="2. Declined Claims"
+                      badge={`${printRejectedPayments.length} declined`}
                       highlight={printRejectedPayments.length > 0 ? formatCurrency(printRejectedTotal) : undefined}
                       isWarning={printRejectedPayments.length > 0}
                     />
@@ -4898,7 +4898,7 @@ export default function DayBookPage() {
                     <div className="text-[8px] text-slate-500">{printMoneyIn.length} customer receipts</div>
                   </div>
                   <div className="border-r border-slate-200 pr-2">
-                    <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Total Disbursed</div>
+                    <div className="text-[8.5px] font-bold uppercase tracking-wider text-slate-500">Total Paid Out</div>
                     <div className="text-xs font-black text-rose-700">
                       {formatCurrency(printDisbursedTotal)}
                     </div>
@@ -4938,9 +4938,9 @@ export default function DayBookPage() {
               {printSections.payments && (!hideEmptySectionsInPrint || printDisbursedPayments.length > 0) && (
                 <div className="print-section">
                   <div className="print-section-header">
-                    <span>{sectionIndex++}. Disbursed Payments & Expense Vouchers ({printDisbursedPayments.length})</span>
+                    <span>{sectionIndex++}. Approved Payments & Receipts ({printDisbursedPayments.length})</span>
                     <span className="text-[9pt] font-black text-slate-900">
-                      Total Disbursed: {formatCurrency(printDisbursedTotal)}
+                      Total Paid: {formatCurrency(printDisbursedTotal)}
                     </span>
                   </div>
                   <table className="print-table">
@@ -4960,7 +4960,7 @@ export default function DayBookPage() {
                       {printDisbursedPayments.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="text-center text-slate-400 italic py-2">
-                            No disbursed payments or vouchers recorded for this period.
+                            No approved payments recorded for this period.
                           </td>
                         </tr>
                       ) : (
@@ -4996,7 +4996,7 @@ export default function DayBookPage() {
                     {printDisbursedPayments.length > 0 && (
                       <tfoot>
                         <tr>
-                          <td colSpan={7} style={{ textAlign: "right" }}>Total Disbursed:</td>
+                          <td colSpan={7} style={{ textAlign: "right" }}>Total Paid:</td>
                           <td style={{ textAlign: "right" }}>{formatCurrency(printDisbursedTotal)}</td>
                         </tr>
                       </tfoot>
@@ -5009,9 +5009,9 @@ export default function DayBookPage() {
               {printSections.rejected && (!hideEmptySectionsInPrint || printRejectedPayments.length > 0) && (
                 <div className="print-section">
                   <div className="print-section-header">
-                    <span className="text-rose-900">{sectionIndex++}. Rejected Payments & Claims ({printRejectedPayments.length})</span>
+                    <span className="text-rose-900">{sectionIndex++}. Declined Payments & Claims ({printRejectedPayments.length})</span>
                     <span className="text-[9pt] font-black text-rose-700">
-                      Total Rejected: {formatCurrency(printRejectedTotal)}
+                      Total Declined: {formatCurrency(printRejectedTotal)}
                     </span>
                   </div>
                   <table className="print-table">
@@ -5031,7 +5031,7 @@ export default function DayBookPage() {
                       {printRejectedPayments.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="text-center text-slate-400 italic py-2">
-                            No rejected payments or claims for this period.
+                            No declined payments or claims for this period.
                           </td>
                         </tr>
                       ) : (
@@ -5064,7 +5064,7 @@ export default function DayBookPage() {
                     {printRejectedPayments.length > 0 && (
                       <tfoot>
                         <tr>
-                          <td colSpan={7} style={{ textAlign: "right" }}>Total Rejected:</td>
+                          <td colSpan={7} style={{ textAlign: "right" }}>Total Declined:</td>
                           <td style={{ textAlign: "right", color: "#b91c1c" }}>{formatCurrency(printRejectedTotal)}</td>
                         </tr>
                       </tfoot>
@@ -5390,7 +5390,7 @@ export default function DayBookPage() {
                           )}
                           {dr.blockers && (
                             <div className="mt-1 text-rose-800">
-                              <strong>Site Blockers / Issues:</strong> {dr.blockers}
+                              <strong>Delays / Issues:</strong> {dr.blockers}
                             </div>
                           )}
                           {dr.safetyNotes && (

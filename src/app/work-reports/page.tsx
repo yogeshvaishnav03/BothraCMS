@@ -239,7 +239,7 @@ function AttendanceCard() {
           </div>
           {today?.pending && (
             <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
-              <CloudOff className="h-3 w-3" /> Saved on this phone, sent when there is signal
+              <CloudOff className="h-3 w-3" /> Saved on this device — sends when back online
             </div>
           )}
           {today?.checkInFlag === "OFF_SITE" ? (
@@ -414,7 +414,7 @@ function MyReport({ initialDate }: { initialDate: string }) {
         photoField: "photoUrls",
       });
       if (result.queued) {
-        setSaved("No signal, so the report is saved on this phone. It will be sent to the admin when you are back online.");
+        setSaved("No signal, so your report is saved on this device. It will be sent automatically once you are back online.");
         return;
       }
       const report = result.data;
@@ -500,6 +500,9 @@ function MyReport({ initialDate }: { initialDate: string }) {
                 className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-sm"
                 required
               />
+              {!locked && summary.trim().length > 0 && summary.trim().length < 5 && (
+                <span className="mt-1 block text-[11px] text-amber-700">Please write at least 5 characters to submit your report.</span>
+              )}
             </label>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -513,6 +516,7 @@ function MyReport({ initialDate }: { initialDate: string }) {
                   value={hours}
                   disabled={locked}
                   onChange={(e) => setHours(e.target.value)}
+                  placeholder="e.g. 8"
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                 />
               </label>
@@ -536,7 +540,7 @@ function MyReport({ initialDate }: { initialDate: string }) {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs font-bold text-slate-700">Problems or blockers</span>
+                <span className="text-xs font-bold text-slate-700">Delays or Issues (Optional)</span>
                 <textarea
                   rows={2}
                   value={blockers}
@@ -553,6 +557,7 @@ function MyReport({ initialDate }: { initialDate: string }) {
                   value={tomorrowPlan}
                   disabled={locked}
                   onChange={(e) => setTomorrowPlan(e.target.value)}
+                  placeholder="e.g. Complete 3rd floor plastering inspection"
                   className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
                 />
               </label>
@@ -695,7 +700,7 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
     { label: "Reports in", value: t ? `${t.submitted}/${t.expected}` : "–", Icon: ClipboardCheck, tone: "bg-blue-50 text-blue-600 ring-blue-100" },
     { label: "Present", value: t ? String(t.present) : "–", Icon: Users, tone: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
     { label: "Hours logged", value: t ? String(t.hours) : "–", Icon: Clock, tone: "bg-violet-50 text-violet-600 ring-violet-100" },
-    { label: "Blockers raised", value: t ? String(t.withBlockers) : "–", Icon: AlertTriangle, tone: "bg-rose-50 text-rose-600 ring-rose-100" },
+    { label: "With Delays / Issues", value: t ? String(t.withBlockers) : "–", Icon: AlertTriangle, tone: "bg-rose-50 text-rose-600 ring-rose-100" },
   ];
 
   return (
@@ -714,7 +719,7 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
               ["all", "Everyone"],
               ["submitted", "Filed"],
               ["missing", "Not filed"],
-              ["blockers", "Blockers"],
+              ["blockers", "Delays / Issues"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -1017,6 +1022,10 @@ function Register({ canManage }: { canManage: boolean }) {
               {v.label}
             </span>
           ))}
+          <span className="inline-flex items-center gap-1" title="Check-in recorded away from the site">
+            <span className="h-3.5 w-3.5 rounded bg-slate-100 ring-2 ring-rose-500" />
+            Off-site GPS
+          </span>
           <button
             onClick={downloadCsv}
             disabled={!data}
@@ -1047,8 +1056,8 @@ function Register({ canManage }: { canManage: boolean }) {
                     </th>
                   );
                 })}
-                <th className="px-2 py-2 text-right font-semibold">P</th>
-                <th className="px-2 py-2 text-right font-semibold">L</th>
+                <th className="px-2 py-2 text-right font-semibold" title="Present days">Present</th>
+                <th className="px-2 py-2 text-right font-semibold" title="Leave days">Leave</th>
                 <th className="px-3 py-2 text-right font-semibold">Hours</th>
               </tr>
             </thead>

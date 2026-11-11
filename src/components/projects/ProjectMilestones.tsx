@@ -103,7 +103,7 @@ function ProgressPanel({ m, onSaved, onClose, onQueued }: { m: Milestone; onSave
         photos: pending,
         photoField: "photoUrls",
       });
-      if (result.queued) onQueued?.(`${m.name} at ${progress}% is saved on this phone. It will be sent when there is signal.`);
+      if (result.queued) onQueued?.(`${m.name} at ${progress}% is saved on this device. It will sync automatically when you are back online.`);
       else onSaved(result.data);
       onClose();
     } catch (e: any) {

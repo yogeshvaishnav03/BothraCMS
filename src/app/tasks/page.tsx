@@ -275,10 +275,10 @@ export default function TasksPage() {
         loadComments(activeTaskForComments.id);
         loadData();
       } else {
-        setCommentError(data.error?.message || "Failed to add comment");
+        setCommentError(data.error?.message || "Could not post comment. Please try again.");
       }
     } catch {
-      setCommentError("Network error submitting comment");
+      setCommentError("Network error while posting comment. Check your connection and try again.");
     } finally {
       setCommentSubmitting(false);
     }
@@ -307,7 +307,7 @@ export default function TasksPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to create task");
+        setErrorMessage(data.error?.message || "Could not create task. Please check the title and try again.");
       } else {
         setStatusMessage("Task created and assigned successfully!");
         setShowCreateModal(false);
@@ -325,7 +325,7 @@ export default function TasksPage() {
         window.dispatchEvent(new CustomEvent("refreshTasks"));
       }
     } catch {
-      setErrorMessage("Network error during task creation");
+      setErrorMessage("Network error while creating task. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -366,7 +366,7 @@ export default function TasksPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to update task");
+        setErrorMessage(data.error?.message || "Could not update task. Please check your entries.");
       } else {
         setStatusMessage(`Task "${editTitle}" updated.`);
         setShowEditModal(false);
@@ -374,7 +374,7 @@ export default function TasksPage() {
         loadData();
       }
     } catch {
-      setErrorMessage("Network error updating task");
+      setErrorMessage("Network error while updating task. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -398,7 +398,7 @@ export default function TasksPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to update task status");
+        setErrorMessage(data.error?.message || "Could not update task status. Please try again.");
       } else {
         setStatusMessage(`Task "${statusTask.title}" updated to ${newStatus}.`);
         setShowStatusModal(false);
@@ -407,7 +407,7 @@ export default function TasksPage() {
         loadData();
       }
     } catch {
-      setErrorMessage("Network error updating status");
+      setErrorMessage("Network error while updating status. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -427,7 +427,7 @@ export default function TasksPage() {
       const res = await fetch(`/api/tasks?id=${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to delete task");
+        setErrorMessage(data.error?.message || "Could not delete task. Please try again.");
         setPendingDeleteTask(null);
         return;
       }
@@ -436,7 +436,7 @@ export default function TasksPage() {
       setPendingDeleteTask(null);
       loadData();
     } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to delete task"}`);
+      setErrorMessage(`Network error while deleting task. Check your connection and try again.${err.message ? ` (${err.message})` : ""}`);
       setPendingDeleteTask(null);
     } finally {
       setDeletingTask(false);
@@ -492,7 +492,7 @@ export default function TasksPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Create / Assign Task</span>
+              <span>Create / Assign Task</span>
             </button>
           )}
         </PageHeader>
@@ -545,7 +545,7 @@ export default function TasksPage() {
               { id: "verified", label: "Verified" },
               { id: "my_tasks", label: "My Tasks" },
               { id: "assigned_by_me", label: "Assigned by Me" },
-              { id: "requests", label: "Role Requests" },
+              { id: "requests", label: "Approval Requests" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -797,7 +797,7 @@ export default function TasksPage() {
                     <button
                       onClick={() => setAuditTarget({ id: t.id, title: t.title })}
                       className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition"
-                      title="Audit History & Version Log"
+                      title="View Change History"
                     >
                       <History className="w-4 h-4" />
                     </button>
@@ -1019,7 +1019,7 @@ export default function TasksPage() {
               <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <Edit2 className="w-5 h-5 text-amber-500" />
-                  <span>Edit Task & Log Version</span>
+                  <span>Edit Task</span>
                 </div>
                 <button
                   onClick={() => setShowEditModal(false)}
@@ -1119,7 +1119,7 @@ export default function TasksPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Reason for Change (Audit Log)
+                    Reason for Change (Optional)
                   </label>
                   <input
                     type="text"
@@ -1186,9 +1186,9 @@ export default function TasksPage() {
                   >
                     <option value="TODO">To Do</option>
                     <option value="IN_PROGRESS">In Progress</option>
-                    <option value="BLOCKED">Blocked (Action Required)</option>
-                    <option value="COMPLETED">Completed (Pending Verification)</option>
-                    <option value="VERIFIED">Verified (Superintendent / QA Approved)</option>
+                    <option value="BLOCKED">Blocked (Needs Help)</option>
+                    <option value="COMPLETED">Completed (Waiting for Review)</option>
+                    <option value="VERIFIED">Verified (Approved)</option>
                   </select>
                 </div>
 
@@ -1440,7 +1440,7 @@ export default function TasksPage() {
           <AuditHistoryModal
             entityType="TASK"
             entityId={auditTarget.id}
-            title={`Audit History: ${auditTarget.title}`}
+            title={`Change History: ${auditTarget.title}`}
             onClose={() => setAuditTarget(null)}
           />
         )}

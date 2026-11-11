@@ -422,7 +422,7 @@ function MeasurementSubgroupEntries({
                         <button
                           onClick={() => openEditModal(entry)}
                           className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition"
-                          title="Edit with mandatory reason"
+                          title="Edit measurement (reason required)"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -441,7 +441,7 @@ function MeasurementSubgroupEntries({
                       <button
                         onClick={() => openHistoryModal(entry.id)}
                         className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
-                        title="View audit history & diffs"
+                        title="View change history"
                       >
                         <History className="w-3.5 h-3.5" />
                       </button>
@@ -480,7 +480,7 @@ function MeasurementSubgroupEntries({
                         <button
                           onClick={() => openDeleteModal(entry)}
                           className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          title="Delete with mandatory reason"
+                          title="Delete measurement (reason required)"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1180,7 +1180,7 @@ export default function MeasurementBookPage() {
     e.preventDefault();
     if (!activeEntry) return;
     if (!mandatoryReason.trim()) {
-      setErrorMessage("Mandatory reason is strictly required to update this measurement.");
+      setErrorMessage("Please enter a brief reason explaining why you are updating this measurement.");
       return;
     }
     setActionLoading(true);
@@ -1240,7 +1240,7 @@ export default function MeasurementBookPage() {
     e.preventDefault();
     if (!activeEntry) return;
     if (!mandatoryReason.trim()) {
-      setErrorMessage("Mandatory reason is strictly required to delete this measurement.");
+      setErrorMessage("Please enter a brief reason explaining why you are deleting this measurement.");
       return;
     }
     setActionLoading(true);
@@ -1262,7 +1262,7 @@ export default function MeasurementBookPage() {
       if (data.data?.changeRequestCreated) {
         setStatusMessage("Deletion Change Request submitted to Project Managers for review.");
       } else {
-        setStatusMessage("Measurement successfully archived with audit trail.");
+        setStatusMessage("Measurement removed and saved in Change History.");
         // Optimistically remove measurement from local state immediately so UI updates without refreshing
         setGroups((prevGroups) =>
           prevGroups.map((g) => ({
@@ -1373,7 +1373,7 @@ export default function MeasurementBookPage() {
     }
 
     if (replaceTargetAtt && !imageReason.trim()) {
-      setErrorMessage("Mandatory reason is required to replace an evidence image.");
+      setErrorMessage("Please enter a brief reason explaining why you are replacing this photo.");
       return;
     }
 
@@ -1456,7 +1456,7 @@ export default function MeasurementBookPage() {
     e.preventDefault();
     if (!pendingDeleteAtt || !activeEntry) return;
     if (!deleteAttReason.trim()) {
-      setErrorMessage("Mandatory reason is strictly required to remove evidence.");
+      setErrorMessage("Please enter a brief reason explaining why you are removing this photo.");
       return;
     }
     const targetAtt = pendingDeleteAtt;
@@ -1625,7 +1625,7 @@ export default function MeasurementBookPage() {
         setShowHistoryModal(true);
       }
     } catch (err: any) {
-      setErrorMessage("Failed to load audit history.");
+      setErrorMessage("Could not load change history. Please try again.");
     } finally {
       setActionLoading(false);
     }
@@ -1720,7 +1720,7 @@ export default function MeasurementBookPage() {
       case "REJECTED":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300">
-            <XCircle className="w-3 h-3" /> Rejected
+            <XCircle className="w-3 h-3" /> Declined
           </span>
         );
       default:
@@ -1747,7 +1747,7 @@ export default function MeasurementBookPage() {
                   Measurement Book (MB Record)
                 </h1>
                 <p className="text-xs md:text-sm text-slate-500 mt-0.5">
-                  Professional 3-Level Construction Measurement Hierarchy & Complete Audit Trail
+                  Record site work measurements (Project → Room / Area → Item) with full change history.
                 </p>
               </div>
             </div>
@@ -1767,7 +1767,7 @@ export default function MeasurementBookPage() {
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs md:text-sm font-semibold shadow-sm transition"
             >
               <History className="w-4 h-4 text-slate-500" />
-              Audit Trail
+              Change History
             </button>
 
             {isSuperAdminOrAdmin && kpis.pendingChangeRequestsCount > 0 && (
@@ -1795,7 +1795,7 @@ export default function MeasurementBookPage() {
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs md:text-sm font-semibold shadow-sm transition"
                 >
                   <FolderPlus className="w-4 h-4 text-amber-700" />
-                  + Main Group
+                  Main Group
                 </button>
 
                 <button
@@ -1811,7 +1811,7 @@ export default function MeasurementBookPage() {
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-400 bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs md:text-sm font-semibold shadow-sm transition"
                 >
                   <Layers className="w-4 h-4 text-blue-700" />
-                  + Room / Subgroup
+                  Room / Area
                 </button>
 
                 <button
@@ -1819,7 +1819,7 @@ export default function MeasurementBookPage() {
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs md:text-sm shadow-md transition"
                 >
                   <Plus className="w-4 h-4" />
-                  + Add Measurement
+                  Add Measurement
                 </button>
               </>
             )}
@@ -1850,6 +1850,16 @@ export default function MeasurementBookPage() {
             </button>
           </div>
         )}
+
+        {/* Beginner 3-Step Guide */}
+        <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <span className="font-bold text-slate-800">How Measurement Book works:</span>
+          <span>1. Create a <strong>Main Group</strong> (Project + Vendor/Contractor)</span>
+          <span className="text-slate-300">→</span>
+          <span>2. Add a <strong>Room or Area</strong></span>
+          <span className="text-slate-300">→</span>
+          <span>3. Record <strong>Measurements &amp; Rates</strong> (with optional deductions)</span>
+        </div>
 
         {/* KPI Summary Cards */}
         {(() => {
@@ -2105,7 +2115,7 @@ export default function MeasurementBookPage() {
               <option value="VERIFIED">Verified</option>
               <option value="APPROVED">Approved</option>
               <option value="BILLED">Billed</option>
-              <option value="REJECTED">Rejected</option>
+              <option value="REJECTED">Declined</option>
             </select>
 
             {/* Expand / Collapse All */}
@@ -3292,7 +3302,7 @@ export default function MeasurementBookPage() {
                       </span>
                     </div>
                     <p className="text-xs text-slate-500">
-                      Modify site measurements with strict immutable audit trail logging
+                      Update measurements safely — every change saves a permanent version record
                     </p>
                   </div>
                 </div>
@@ -3312,7 +3322,7 @@ export default function MeasurementBookPage() {
                   <div className="p-2.5 bg-blue-50/80 border border-blue-200/90 rounded-xl text-xs text-blue-900 flex items-start gap-2.5">
                     <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold">Strict Audit Requirement:</span> Silently overwriting measurement entries is prohibited. Every modification creates an immutable audit record with previous vs new values.
+                      <span className="font-bold">Protected Record:</span> Existing measurements are never overwritten silently. Every edit requires a brief reason and saves a permanent version in Change History.
                       {currentUser?.role === "SITE_SUPERVISOR" && (
                         <span className="block mt-1 font-semibold text-amber-900">
                           Note: As Site Supervisor, modifying approved records will automatically generate a Change Request for Admin approval.
@@ -3324,7 +3334,7 @@ export default function MeasurementBookPage() {
                   {/* MANDATORY REASON FIELD */}
                   <div className="p-3 bg-amber-50/80 border-2 border-amber-300 rounded-xl space-y-1">
                     <label className="block text-xs font-bold text-amber-950">
-                      Mandatory Reason for Modification <span className="text-rose-600">*</span>
+                      Reason for Edit (Required) <span className="text-rose-600">*</span>
                     </label>
                     <input
                       type="text"
@@ -3335,7 +3345,7 @@ export default function MeasurementBookPage() {
                       className="w-full px-3 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-900"
                     />
                     <span className="text-[10px] text-amber-800 block">
-                      This reason will be permanently recorded in the immutable audit history.
+                      This note is saved permanently in Change History for transparency.
                     </span>
                   </div>
 
@@ -3725,7 +3735,7 @@ export default function MeasurementBookPage() {
                       className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-500/20 active:scale-95 transition flex items-center gap-1.5"
                     >
                       <Check className="w-4 h-4 text-white" />
-                      <span>{actionLoading ? "Saving..." : "Confirm & Update with Audit Reason"}</span>
+                      <span>{actionLoading ? "Saving..." : "Save Measurement Update"}</span>
                     </button>
                   </div>
                 </div>
@@ -3755,7 +3765,7 @@ export default function MeasurementBookPage() {
               <form onSubmit={handleDeleteMeasurementSubmit} className="mt-4 space-y-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-900 mb-1">
-                    Mandatory Reason for Deletion <span className="text-rose-600">*</span>
+                    Reason for Deleting (Required) <span className="text-rose-600">*</span>
                   </label>
                   <textarea
                     rows={2}
@@ -3834,7 +3844,7 @@ export default function MeasurementBookPage() {
                 <div className="p-3 bg-rose-50/80 border border-rose-200 rounded-xl text-rose-900 text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold">Permanent Deletion:</span> This action will remove this Main Group and all of its rooms, measurement entries, evidence photos, and audit logs.
+                    <span className="font-bold">Permanent Deletion:</span> This will remove the Main Group along with all rooms, measurement entries, photos, and change history inside it.
                     <span className="block mt-1 text-[11px] text-rose-700 font-medium">
                       If any measurement in this group has already been BILLED, deletion is prohibited.
                     </span>
@@ -4101,7 +4111,7 @@ export default function MeasurementBookPage() {
                       {replaceTargetAtt && (
                         <div>
                           <label className="block text-[11px] font-bold text-amber-950 mb-1">
-                            Mandatory Reason for Replacing Image <span className="text-rose-600">*</span>
+                            Reason for Replacing Photo (Required) <span className="text-rose-600">*</span>
                           </label>
                           <input
                             type="text"
@@ -4197,7 +4207,7 @@ export default function MeasurementBookPage() {
               <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
                   <GitPullRequest className="w-5 h-5 text-rose-600 shrink-0" />
-                  <span>Supervisor Change Requests & Audits</span>
+                  <span>Supervisor Change Requests</span>
                 </div>
                 <button
                   type="button"
@@ -4246,7 +4256,7 @@ export default function MeasurementBookPage() {
                             onClick={() => handleReviewChangeRequest(cr.id, "REJECT")}
                             className="px-3 py-1 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold border border-rose-200"
                           >
-                            Reject Request
+                            Decline Request
                           </button>
                           <button
                             onClick={() => handleReviewChangeRequest(cr.id, "APPROVE")}
@@ -4385,7 +4395,7 @@ export default function MeasurementBookPage() {
               <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0 bg-white">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-base sm:text-lg">
                   <History className="w-5 h-5 text-slate-700 shrink-0" />
-                  <span>Append-Only Audit Trail (All Modifications)</span>
+                  <span>Complete Change History (Permanent Log)</span>
                 </div>
                 <button
                   type="button"
@@ -4399,7 +4409,7 @@ export default function MeasurementBookPage() {
               <div className="p-4 sm:p-6 overflow-y-auto space-y-3 flex-1">
                 {historyList.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 text-sm">
-                    No audit records found.
+                    No changes recorded yet.
                   </div>
                 ) : (
                   historyList.map((hist) => (
@@ -4497,7 +4507,7 @@ export default function MeasurementBookPage() {
             <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3">
               <div className="font-bold text-slate-900 text-base">Remove Evidence Photo</div>
               <p className="text-xs text-slate-600">
-                Enter mandatory reason for removing <span className="font-semibold text-slate-900">{pendingDeleteAtt.fileName}</span> (e.g. wrong photo, duplicate). Metadata is retained in audit logs.
+                Enter a brief reason for removing <span className="font-semibold text-slate-900">{pendingDeleteAtt.fileName}</span> (e.g., wrong photo or duplicate). A record of removal stays in Change History.
               </p>
               <form onSubmit={confirmDeleteImage} className="space-y-3">
                 <textarea
@@ -4505,7 +4515,7 @@ export default function MeasurementBookPage() {
                   required
                   value={deleteAttReason}
                   onChange={(e) => setDeleteAttReason(e.target.value)}
-                  placeholder="Enter mandatory removal reason..."
+                  placeholder="Enter reason for removing photo..."
                   className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
@@ -4534,10 +4544,10 @@ export default function MeasurementBookPage() {
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm">
             <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3">
               <div className="font-bold text-slate-900 text-base">
-                {pendingReviewCr.action === "APPROVE" ? "Approve Change Request" : "Reject Change Request"}
+                {pendingReviewCr.action === "APPROVE" ? "Approve Change Request" : "Decline Change Request"}
               </div>
               <p className="text-xs text-slate-600">
-                Enter optional reviewer comments before {pendingReviewCr.action === "APPROVE" ? "approving" : "rejecting"} request #{pendingReviewCr.requestId.slice(0, 8)}.
+                Add an optional comment before {pendingReviewCr.action === "APPROVE" ? "approving" : "declining"} request #{pendingReviewCr.requestId.slice(0, 8)}.
               </p>
               <form onSubmit={confirmReviewChangeRequest} className="space-y-3">
                 <textarea
@@ -4562,7 +4572,7 @@ export default function MeasurementBookPage() {
                       pendingReviewCr.action === "APPROVE" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
                     }`}
                   >
-                    {actionLoading ? "Processing..." : pendingReviewCr.action === "APPROVE" ? "Confirm Approval" : "Confirm Rejection"}
+                    {actionLoading ? "Processing..." : pendingReviewCr.action === "APPROVE" ? "Approve Change" : "Decline Change"}
                   </button>
                 </div>
               </form>

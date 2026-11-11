@@ -216,7 +216,7 @@ export function AndroidInstallPrompt() {
               <p className="text-[11px] text-slate-300 mt-1 leading-snug">
                 {isIos
                   ? "Add to your iPhone Home Screen in Safari for full-screen mode, GPS check-in, and push alerts."
-                  : "Install as a native application for full-screen view, faster performance, and 1-tap launcher access."}
+                  : "Install as an app for full-screen view, faster loading, and one-tap access from your home screen."}
               </p>
 
               <div className="mt-3 flex items-center gap-2">
@@ -289,7 +289,7 @@ export function AndroidInstallPrompt() {
                     <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                     <div>
                       <strong className="text-white block">Open in Safari first</strong>
-                      You are inside an in-app browser (such as WhatsApp or Instagram). Tap the{" "}
+                      You are opening this inside another app (such as WhatsApp or Instagram). Tap the{" "}
                       <strong className="text-amber-300">Safari / ⋯</strong> icon to open this link in{" "}
                       <strong className="text-white">Safari</strong>.
                     </div>
@@ -326,7 +326,7 @@ export function AndroidInstallPrompt() {
                     2
                   </div>
                   <div className="text-xs text-slate-300 leading-relaxed">
-                    Scroll down the share sheet and tap{" "}
+                    Scroll down the menu and tap{" "}
                     <strong className="text-amber-400 inline-flex items-center gap-1">
                       <PlusSquare className="w-3.5 h-3.5 inline" /> &ldquo;Add to Home Screen&rdquo;
                     </strong>
@@ -396,7 +396,7 @@ export function AndroidInstallPrompt() {
                   <div className="text-xs text-slate-300">
                     <strong className="text-white">On Android:</strong> Open in{" "}
                     <strong className="text-amber-400">Chrome</strong> or open the{" "}
-                    <strong className="text-white">Install Portal</strong> to download{" "}
+                    <strong className="text-white">Install page</strong> to download{" "}
                     <code className="text-amber-300">bothra-cms.apk</code>.
                   </div>
                 </div>
@@ -419,7 +419,7 @@ export function AndroidInstallPrompt() {
                 onClick={() => setShowInstructionsModal(false)}
                 className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs py-2.5 rounded-xl text-center transition"
               >
-                View Install Portal
+                Open Install Guide
               </Link>
               <button
                 onClick={() => setShowInstructionsModal(false)}

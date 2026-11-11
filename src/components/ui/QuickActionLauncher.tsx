@@ -46,14 +46,14 @@ interface QuickActionItem {
 const QUICK_ACTIONS: QuickActionItem[] = [
   {
     id: "out-of-pocket-expense",
-    titleEn: "Log Out-of-Pocket Expense",
+    titleEn: "Add Out-of-Pocket Expense",
     titleHi: "आउट-ऑफ़-पॉकेट खर्चा दर्ज करें (Reimbursement)",
-    descEn: "Supervisor personal expense claim with mandatory receipt photo",
+    descEn: "Submit a personal expense claim with a receipt photo for reimbursement",
     descHi: "सुपरवाइज़र द्वारा अपनी जेब से किए गए खर्च की प्रतिपूर्ति (रसीद अनिवार्य)",
     href: "/expenses",
     icon: Receipt,
     colorClass: "bg-amber-500 text-slate-950",
-    badgeEn: "Receipt Mandatory",
+    badgeEn: "Receipt Needed",
     badgeHi: "रसीद अनिवार्य",
     keywords: ["expense", "out of pocket", "supervisor", "claim", "reimbursement", "bill", "receipt", "kharcha", "photo"],
     roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "ACCOUNTANT", "STOREKEEPER"],
@@ -63,7 +63,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     id: "day-book",
     titleEn: "Record Day Book Entry",
     titleHi: "दैनिक खर्च / रोकड़ दर्ज करें",
-    descEn: "Cash In or Cash Out for diesel, tea, local purchases",
+    descEn: "Record daily cash received or paid out for diesel, tea, or local purchases",
     descHi: "डीजल, चाय-पानी, मजदूरी और साइट के रोजमर्रा के खर्च",
     href: "/day-book",
     icon: CalendarDays,
@@ -77,9 +77,9 @@ const QUICK_ACTIONS: QuickActionItem[] = [
   },
   {
     id: "attendance",
-    titleEn: "Mark Site Attendance",
+    titleEn: "Mark Attendance",
     titleHi: "हाजिरी लगाएं (Attendance)",
-    descEn: "Check-in workers, skilled masons, and supervisors",
+    descEn: "Check in site staff and workers or mark today's Muster Roll",
     descHi: "कारीगरों और मजदूरों की दैनिक उपस्थिति दर्ज करें",
     href: "/attendance",
     icon: Clock,
@@ -93,9 +93,9 @@ const QUICK_ACTIONS: QuickActionItem[] = [
   },
   {
     id: "materials",
-    titleEn: "Receive Materials (GRN)",
+    titleEn: "Receive Materials",
     titleHi: "सामान / माल प्राप्ति दर्ज करें",
-    descEn: "Log incoming cement bags, steel tons, and sand dumpers",
+    descEn: "Log incoming cement bags, steel, sand, and site stock deliveries",
     descHi: "सीमेंट, सरिया, बजरी और ईंटों का ट्रक साइट पर दर्ज करें",
     href: "/materials",
     icon: Boxes,
@@ -109,14 +109,14 @@ const QUICK_ACTIONS: QuickActionItem[] = [
   },
   {
     id: "measurement-book",
-    titleEn: "Add Measurement (MB)",
+    titleEn: "Add Work Measurement",
     titleHi: "माप पुस्तिका नाप दर्ज करें",
     descEn: "Record work dimensions (Length × Breadth × Depth)",
     descHi: "किए गए काम का नाप (L × B × D) और बिलिंग परिमाण",
     href: "/measurement-book",
     icon: BookOpen,
     colorClass: "bg-indigo-500 text-white",
-    badgeEn: "L×B×D",
+    badgeEn: "MB",
     badgeHi: "नाप",
     keywords: ["measurement", "mb", "naap", "dimensions", "length", "breadth", "slab", "brickwork", "plaster"],
     requiredPermission: "projects:read",
@@ -125,14 +125,14 @@ const QUICK_ACTIONS: QuickActionItem[] = [
   },
   {
     id: "finance",
-    titleEn: "Add Bill or Payment",
+    titleEn: "Record Bill or Payment",
     titleHi: "बिल या भुगतान (Payment) जोड़ें",
-    descEn: "Record vendor invoices, contractor RA bills & bank UTRs",
+    descEn: "Record vendor or contractor bills and log bank or cash payments",
     descHi: "सप्लायर का बिल, ठेकेदार का भुगतान और बैंक ट्रांजेक्शन",
     href: "/finance",
     icon: DollarSign,
     colorClass: "bg-teal-500 text-white",
-    badgeEn: "Billing",
+    badgeEn: "Accounts",
     badgeHi: "बिलिंग",
     keywords: ["finance", "bill", "payment", "utr", "gst", "vendor bill", "contractor payment", "bank", "paise"],
     requiredPermission: "finance:read",
@@ -140,14 +140,14 @@ const QUICK_ACTIONS: QuickActionItem[] = [
   },
   {
     id: "workforce",
-    titleEn: "Add Worker to Directory",
+    titleEn: "Add Site Worker",
     titleHi: "नया कारीगर या मजदूर जोड़ें",
-    descEn: "Register mason, carpenter, or helper with daily wage",
+    descEn: "Save a worker's name, mobile number, skill trade, and daily wage",
     descHi: "मिस्त्री, बढ़ई या हेल्पर का मोबाइल नंबर और दिहाड़ी दर",
     href: "/workforce",
     icon: Users,
     colorClass: "bg-purple-500 text-white",
-    badgeEn: "Staff",
+    badgeEn: "Workers",
     badgeHi: "मजदूर",
     keywords: ["worker", "labor", "workforce", "aadhaar", "mason", "mistri", "helper", "wage", "dihaadi"],
     requiredPermission: "attendance:read",
@@ -158,12 +158,12 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     id: "parties",
     titleEn: "Add Vendor or Contractor",
     titleHi: "नया वेंडर या ठेकेदार जोड़ें",
-    descEn: "Save supplier GSTIN, bank details & phone number",
+    descEn: "Save supplier GSTIN, bank account details, and phone number",
     descHi: "फर्म का नाम, जीएसटी नंबर और बैंक खाता दर्ज करें",
     href: "/parties",
     icon: Building2,
     colorClass: "bg-cyan-500 text-white",
-    badgeEn: "Parties",
+    badgeEn: "Vendors",
     badgeHi: "पार्टी",
     keywords: ["vendor", "contractor", "party", "supplier", "thekedar", "gstin", "phone", "firm"],
     requiredPermission: "finance:read",
@@ -171,14 +171,14 @@ const QUICK_ACTIONS: QuickActionItem[] = [
   },
   {
     id: "chat",
-    titleEn: "Send Site Message / Photo",
+    titleEn: "Send Team Message",
     titleHi: "साइट पर मैसेज या फोटो भेजें",
-    descEn: "Instantly chat with project manager, supervisor or team",
+    descEn: "Message your project manager, site supervisor, or team with updates",
     descHi: "साइट की ताज़ा स्थिति या समस्या टीम के साथ साझा करें",
     href: "/chat",
     icon: MessageSquare,
     colorClass: "bg-rose-500 text-white",
-    badgeEn: "Chat",
+    badgeEn: "Messages",
     badgeHi: "संदेश",
     keywords: ["chat", "message", "photo", "sandesh", "batcheet", "supervisor", "site team", "alert"],
     roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "WORKER", "ACCOUNTANT", "STOREKEEPER"],
@@ -187,7 +187,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     id: "projects",
     titleEn: "View Projects & Sites",
     titleHi: "प्रोजेक्ट्स और निर्माण साइट्स",
-    descEn: "Check project progress, remaining budget, and health",
+    descEn: "Check project progress, remaining budget, and target dates",
     descHi: "काम की प्रगति और साइट का बजट देखें",
     href: "/projects",
     icon: FolderKanban,
@@ -200,14 +200,14 @@ const QUICK_ACTIONS: QuickActionItem[] = [
   },
   {
     id: "reports",
-    titleEn: "Download Excel Reports",
+    titleEn: "Download Reports",
     titleHi: "एक्सेल रिपोर्ट डाउनलोड करें",
-    descEn: "Export CA-ready financial statements & master rolls",
+    descEn: "Export Excel and PDF summaries for accounts, stock, and muster roll",
     descHi: "सीए और मालिक को भेजने लायक हिसाब की शीट निकालें",
     href: "/reports",
     icon: FileText,
     colorClass: "bg-violet-500 text-white",
-    badgeEn: "Excel",
+    badgeEn: "Reports",
     badgeHi: "रिपोर्ट",
     keywords: ["report", "excel", "csv", "audit", "statement", "master roll", "muster roll", "download"],
     requiredPermission: "reports:read",
@@ -215,9 +215,9 @@ const QUICK_ACTIONS: QuickActionItem[] = [
   },
   {
     id: "settings",
-    titleEn: "Change Password / Settings",
+    titleEn: "Account & Settings",
     titleHi: "पासवर्ड व सेटिंग्स बदलें",
-    descEn: "Update account password, language, and security",
+    descEn: "Change your password, display language, and app preferences",
     descHi: "अपना लॉगिन पासवर्ड और भाषा बदलें",
     href: "/settings",
     icon: Settings,
@@ -345,15 +345,15 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-white flex items-center gap-2">
-                      <span>{isHi ? "त्वरित कार्य मेन्यू" : "Quick Action Launcher"}</span>
+                      <span>{isHi ? "त्वरित कार्य मेन्यू" : "Quick Actions"}</span>
                       <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
-                        1-Click
+                        Shortcut
                       </span>
                     </h2>
                     <p className="text-xs text-slate-400">
                       {isHi
                         ? "किसी भी काम पर क्लिक करें, तुरंत वह पेज खुल जाएगा"
-                        : "Click any task below to jump straight to it"}
+                        : "Choose a task below to go straight to that screen"}
                     </p>
                   </div>
                 </div>
@@ -370,14 +370,14 @@ export default function QuickActionLauncher({ currentUser, activeSiteId, activeS
               <div className="flex flex-wrap items-center gap-2 mb-2 pb-2 border-b border-slate-800/80 text-[11px] text-slate-300">
                 <span className="inline-flex items-center gap-1 bg-slate-800/90 text-amber-400 font-semibold px-2 py-0.5 rounded border border-slate-700">
                   <Building2 className="w-3 h-3 text-amber-400" />
-                  {currentUser?.organizationName || "Active Organization"}
+                  {currentUser?.organizationName || "Your Company"}
                 </span>
                 <span className="inline-flex items-center gap-1.5 bg-slate-800/90 text-slate-200 font-medium px-2 py-0.5 rounded border border-slate-700">
                   <span className={`w-2 h-2 rounded-full ${activeSiteId ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
-                  {activeSiteName ? `Site: ${activeSiteName}` : "All Sites Scoped"}
+                  {activeSiteName ? `Site: ${activeSiteName}` : "All Sites"}
                 </span>
-                <span className="sm:ml-auto text-[10px] text-slate-400 uppercase tracking-wider font-mono">
-                  Role: {currentUser?.role || "GUEST"}
+                <span className="sm:ml-auto text-[10px] text-slate-400 capitalize tracking-wider">
+                  Role: {(currentUser?.role || "guest").toLowerCase().replace(/_/g, " ")}
                 </span>
               </div>
 

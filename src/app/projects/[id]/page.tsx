@@ -196,7 +196,7 @@ export default function ProjectDetailsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to create task");
+        setErrorMessage(data.error?.message || "Could not create task. Please check the title and try again.");
         return;
       }
 
@@ -212,7 +212,7 @@ export default function ProjectDetailsPage() {
       setTaskReminderDate("");
       loadProject();
     } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to create task"}`);
+      setErrorMessage(`Network error while creating task. Check your connection and try again.${err.message ? ` (${err.message})` : ""}`);
     } finally {
       setSubmitting(false);
     }
@@ -239,7 +239,7 @@ export default function ProjectDetailsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to record daily report");
+        setErrorMessage(data.error?.message || "Could not save daily report. Please try again.");
         return;
       }
 
@@ -249,7 +249,7 @@ export default function ProjectDetailsPage() {
       setReportBlockers("");
       loadProject();
     } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to record daily report"}`);
+      setErrorMessage(`Network error while saving daily report. Check your connection and try again.${err.message ? ` (${err.message})` : ""}`);
     } finally {
       setSubmitting(false);
     }
@@ -273,7 +273,7 @@ export default function ProjectDetailsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to create folder");
+        setErrorMessage(data.error?.message || "Could not create folder. Please try again.");
       } else {
         setStatusMessage(`Folder "${newFolderName}" created!`);
         setShowFolderModal(false);
@@ -284,7 +284,7 @@ export default function ProjectDetailsPage() {
         if (foldRes.success) setFolders(foldRes.data || []);
       }
     } catch {
-      setErrorMessage("Network error creating folder");
+      setErrorMessage("Network error while creating folder. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -311,14 +311,14 @@ export default function ProjectDetailsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to update project");
+        setErrorMessage(data.error?.message || "Could not save project changes. Please check your entries.");
       } else {
         setStatusMessage(`Project "${editName}" updated successfully.`);
         setShowEditModal(false);
         loadProject();
       }
     } catch {
-      setErrorMessage("Network error updating project");
+      setErrorMessage("Network error while updating project. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -440,24 +440,24 @@ export default function ProjectDetailsPage() {
             <button
               onClick={() => setShowAuditModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-sm transition-all"
-              title="Inspect Audit History"
+              title="View Change History"
             >
               <History className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Audit</span>
+              <span>History</span>
             </button>
             <button
               onClick={() => setShowReportModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
             >
               <ClipboardList className="w-4 h-4 text-amber-400" />
-              <span>+ Daily Report</span>
+              <span>Daily Report</span>
             </button>
             <button
               onClick={() => setShowTaskModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Add Task</span>
+              <span>Add Task</span>
             </button>
           </div>
         </div>
@@ -839,7 +839,7 @@ export default function ProjectDetailsPage() {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs self-start sm:self-auto"
                 >
                   <FolderPlus className="w-3.5 h-3.5" />
-                  <span>+ New Folder</span>
+                  <span>New Folder</span>
                 </button>
               </div>
 
@@ -910,7 +910,7 @@ export default function ProjectDetailsPage() {
                       <span>Add Task for {project.code}</span>
                       <span className="text-[11px] font-normal text-slate-500 hidden sm:inline">({project.name})</span>
                     </div>
-                    <p className="text-[11px] text-slate-400">Create and assign work orders, milestones, or site requests</p>
+                    <p className="text-[11px] text-slate-400">Create and assign work tasks, milestones, or approval requests</p>
                   </div>
                 </div>
                 <button
@@ -1324,7 +1324,7 @@ export default function ProjectDetailsPage() {
           <AuditHistoryModal
             entityType="PROJECT"
             entityId={project.id}
-            title={`Audit History: ${project.name} (${project.code})`}
+            title={`Change History: ${project.name} (${project.code})`}
             onClose={() => setShowAuditModal(false)}
           />
         )}

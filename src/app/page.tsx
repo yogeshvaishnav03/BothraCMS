@@ -421,10 +421,10 @@ export default function DashboardPage() {
     const diff = displayTotalWorkersOnSite > subSum ? displayTotalWorkersOnSite - subSum : 0;
 
     const parts: string[] = [];
-    if (art > 0) parts.push(`${art} Art`);
-    if (craft > 0) parts.push(`${craft} Craft`);
-    if (lab > 0) parts.push(`${lab} Lab`);
-    if (diff > 0) parts.push(`+${diff} Site Crew`);
+    if (art > 0) parts.push(`${art} Skilled`);
+    if (craft > 0) parts.push(`${craft} Craftsmen`);
+    if (lab > 0) parts.push(`${lab} Laborers`);
+    if (diff > 0) parts.push(`+${diff} Staff Checked In`);
 
     if (parts.length === 0) {
       return {
@@ -924,7 +924,7 @@ export default function DashboardPage() {
           title: "Workers on Site",
           badge: badgeText,
           badgeColor: isLatestFallback ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-800",
-          subtitle: "Daily site worker headcount (Artisans, Craftsmen, Laborers) and checked-in personnel",
+          subtitle: "Daily site worker counts (Skilled Workers & Laborers) plus checked-in staff",
           actionUrl: "/workforce",
           actionLabel: "Go to Workers",
           emptyTitle: "No workers logged yet",
@@ -937,7 +937,7 @@ export default function DashboardPage() {
                   <div className="space-y-0.5">
                     <div className="font-bold flex items-center gap-1.5 text-amber-950">
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>Showing latest logged count from ${activeDate ? formatDate(activeDate) : "earlier"}</span>
+                      <span>Showing latest logged count from {activeDate ? formatDate(activeDate) : "earlier"}</span>
                     </div>
                     <p className="text-[11px] text-amber-800">
                       Today&apos;s site headcount has not been submitted yet.
@@ -1308,11 +1308,11 @@ export default function DashboardPage() {
           title: "Paid Today",
           badge: `${formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)} Paid`,
           badgeColor: "bg-emerald-100 text-emerald-800",
-          subtitle: "Banking, cash, and online disbursements settled today",
+          subtitle: "Bank, cash, and UPI payments made today",
           actionUrl: "/finance",
           actionLabel: "Go to Finance & Payments",
           emptyTitle: "No payments recorded today",
-          emptyDesc: "No banking disbursements or payouts have been logged for today yet.",
+          emptyDesc: "No payments have been recorded for today yet.",
           content: list.length > 0 ? (
             <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
               {list.map((p: any) => (
@@ -1341,7 +1341,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="text-left sm:text-right shrink-0">
-                    <div className="text-[11px] text-slate-500 font-medium">Disbursed</div>
+                    <div className="text-[11px] text-slate-500 font-medium">Paid</div>
                     <div className="font-display text-sm font-extrabold text-emerald-700 tabular-nums">
                       {formatCurrency(p.amount || 0)}
                     </div>
@@ -1765,7 +1765,7 @@ export default function DashboardPage() {
                 className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group select-none block"
               >
                 <div className="flex items-center justify-between text-slate-500 mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider">My Role Requests</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">My Approval Requests</span>
                   <div className="p-2 rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
                     <ShieldCheck className="w-4 h-4" />
                   </div>
@@ -1779,7 +1779,7 @@ export default function DashboardPage() {
                   );
                 })()}
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                  <span>Requests for Owner/Arch</span>
+                  <span>Sent to Owner or Architect</span>
                   <span className="text-purple-600 font-medium group-hover:underline">Track →</span>
                 </div>
               </Link>
@@ -2006,7 +2006,7 @@ export default function DashboardPage() {
                 {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
               </div>
               <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">
-                Disbursed
+                Paid Out
               </div>
             </div>
 
@@ -2230,7 +2230,7 @@ export default function DashboardPage() {
                 {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
               </div>
               <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                <span>Posted banking disbursements</span>
+                <span>Approved payments today</span>
                 <span className="text-emerald-700 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                   Details <ExternalLink className="w-3 h-3" />
                 </span>
@@ -2412,7 +2412,7 @@ export default function DashboardPage() {
                           <div className="text-sm font-black text-emerald-600">{siteOnSiteCount}</div>
                         </div>
                         <div>
-                          <div className="text-[10px] text-slate-500 font-medium">Direct Crew</div>
+                          <div className="text-[10px] text-slate-500 font-medium" title="Monthly-salary staff &amp; permanent workers">Permanent Staff</div>
                           <div className="text-sm font-black text-slate-700">{directCrew}</div>
                         </div>
                       </div>
@@ -2421,11 +2421,11 @@ export default function DashboardPage() {
                       {externalGang > 0 && (
                         <div className="text-[10px] bg-amber-100/80 border border-amber-300 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-700 font-medium">Includes Subcontractor Labor:</span>
-                            <span className="font-bold text-amber-950">+{externalGang} External Gang</span>
+                            <span className="text-slate-700 font-medium">Contract / Agency Workers:</span>
+                            <span className="font-bold text-amber-950">+{externalGang} Contract Workers</span>
                           </div>
                           <div className="text-[9.5px] text-amber-900 font-medium text-right">
-                            ({directCrew} Direct Crew + {externalGang} External = {siteOnSiteCount} On-Site)
+                            ({directCrew} Permanent Staff + {externalGang} Contract = {siteOnSiteCount} On Site)
                           </div>
                         </div>
                       )}
@@ -2436,11 +2436,11 @@ export default function DashboardPage() {
                         return (
                           <div className="text-[10px] bg-blue-50/90 border border-blue-200/80 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-600 font-medium">Crew Attendance Status:</span>
-                              <span className="font-bold text-blue-900">-{absentCount} Direct Crew Absent</span>
+                              <span className="text-slate-600 font-medium">Staff Absence:</span>
+                              <span className="font-bold text-blue-900">-{absentCount} Staff Absent</span>
                             </div>
                             <div className="text-[9.5px] text-blue-800 font-medium text-right">
-                              ({directCrew} Direct Crew - {absentCount} Absent = {siteOnSiteCount} On-Site Today)
+                              ({directCrew} Permanent Staff - {absentCount} Absent = {siteOnSiteCount} On Site)
                             </div>
                           </div>
                         );
@@ -2545,12 +2545,12 @@ export default function DashboardPage() {
 
                         {externalGang > 0 ? (
                           <div className="text-[9.5px] bg-amber-50 border border-amber-200 px-2 py-1 rounded text-amber-900 flex flex-wrap items-center justify-between gap-1">
-                            <span>Includes Subcontractor Labor:</span>
-                            <span className="font-bold">+{externalGang} External Gang</span>
+                            <span>Contract / Agency Workers:</span>
+                            <span className="font-bold">+{externalGang} Contract Workers</span>
                           </div>
                         ) : siteOnSiteCount < directCrew ? (
                           <div className="text-[9.5px] bg-blue-50 border border-blue-200 px-2 py-1 rounded text-blue-900 flex flex-wrap items-center justify-between gap-1">
-                            <span>Crew Attendance Status:</span>
+                            <span>Staff Absence:</span>
                             <span className="font-bold">-{directCrew - siteOnSiteCount} Absent ({siteOnSiteCount} of {directCrew} On-Site)</span>
                           </div>
                         ) : null}
@@ -2593,7 +2593,7 @@ export default function DashboardPage() {
                     </button>
                   )}
                   <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
-                    Kanban &rarr;
+                    Task Board &rarr;
                   </Link>
                 </div>
               </div>
@@ -2809,8 +2809,8 @@ export default function DashboardPage() {
                             </div>
                           </div>
                           <div>
-                            <div className="text-[10px] text-slate-500 font-medium" title="Permanent in-house payroll staff & crew">
-                              Direct Crew
+                            <div className="text-[10px] text-slate-500 font-medium" title="Monthly-salary staff &amp; permanent workers">
+                              Permanent Staff
                             </div>
                             <div className="text-sm font-black text-slate-700">
                               {siteWorkers.length || site._count?.workforceMembers || 0}
@@ -2825,13 +2825,13 @@ export default function DashboardPage() {
                           return (
                             <div className="text-[10px] bg-amber-50/90 border border-amber-200/70 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
                               <div className="flex flex-wrap items-center justify-between gap-1">
-                                <span className="text-slate-600 font-medium">Includes Subcontractor Labor:</span>
+                                <span className="text-slate-600 font-medium">Contract / Agency Workers:</span>
                                 <span className="font-bold text-amber-900">
-                                  +{externalGang} External Gang
+                                  +{externalGang} Contract Workers
                                 </span>
                               </div>
                               <div className="text-[9.5px] text-amber-800 font-medium text-right">
-                                ({directCrew} Direct Crew + {externalGang} External = {siteOnSiteCount} On-Site)
+                                ({directCrew} Permanent Staff + {externalGang} Contract = {siteOnSiteCount} On Site)
                               </div>
                             </div>
                           );
@@ -2844,13 +2844,13 @@ export default function DashboardPage() {
                           return (
                             <div className="text-[10px] bg-blue-50/90 border border-blue-200/70 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
                               <div className="flex flex-wrap items-center justify-between gap-1">
-                                <span className="text-slate-600 font-medium">Crew Attendance Status:</span>
+                                <span className="text-slate-600 font-medium">Staff Absence:</span>
                                 <span className="font-bold text-blue-900">
-                                  -{absentCount} Direct Crew Absent
+                                  -{absentCount} Staff Absent
                                 </span>
                               </div>
                               <div className="text-[9.5px] text-blue-800 font-medium text-right">
-                                ({directCrew} Direct Crew - {absentCount} Absent = {siteOnSiteCount} On-Site Today)
+                                ({directCrew} Permanent Staff - {absentCount} Absent = {siteOnSiteCount} On Site)
                               </div>
                             </div>
                           );
@@ -3023,7 +3023,7 @@ export default function DashboardPage() {
                   </button>
                 )}
                 <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
-                  Open Kanban Board &rarr;
+                  Open Task Board &rarr;
                 </Link>
                 <button
                   type="button"

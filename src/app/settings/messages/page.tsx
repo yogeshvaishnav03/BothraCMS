@@ -134,7 +134,7 @@ export default function MessagesSettingsPage() {
       setWaToken("");
       setSmsKey("");
       setAppSecret("");
-      setMsg({ tone: "success", text: "Saved." });
+      setMsg({ tone: "success", text: "Messaging settings saved." });
     } catch (e: any) {
       setMsg({ tone: "error", text: e.message });
     } finally {
@@ -171,7 +171,7 @@ export default function MessagesSettingsPage() {
       const failed = r.failed + (r.staff?.failed ?? 0);
       setMsg(
         r.off && (r.staff?.off ?? true)
-          ? { tone: "info", text: "Automatic demands and staff alerts are off. Switch one on and save first." }
+          ? { tone: "info", text: "Automatic payment demands and staff alerts are turned off. Switch one on and press Save first." }
           : { tone: failed ? "error" : "success", text: `${sent} sent${failed ? `, ${failed} could not be sent (see the log)` : ""}. Nothing else is due today.` }
       );
       await load();
@@ -188,7 +188,7 @@ export default function MessagesSettingsPage() {
         <Link href="/settings" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
           <ArrowLeft className="h-4 w-4" /> Settings
         </Link>
-        <PageHeader icon={MessageCircle} title="WhatsApp & SMS Messages" subtitle="Send WhatsApp demand letters, payment reminders, login codes, and staff alerts.">
+        <PageHeader icon={MessageCircle} title="WhatsApp & SMS Messages" subtitle="Set up automatic WhatsApp payment demands, reminders, buyer login codes, and staff alerts.">
           <button
             onClick={save}
             disabled={!s || busy !== null}
@@ -225,8 +225,8 @@ export default function MessagesSettingsPage() {
                 <Toggle
                   on={s.autoDemands}
                   onChange={(v) => set("autoDemands", v)}
-                  title="Send demand letters on WhatsApp by themselves"
-                  text="When a stage is done and a demand is raised, the buyer gets it on WhatsApp with a link to their page. Then reminders, as set below."
+                  title="Send payment demands on WhatsApp automatically"
+                  text="When a stage is completed and a demand is raised, the buyer receives it on WhatsApp with a link to their portal, followed by scheduled reminders."
                 />
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <Field label="Remind before due" hint="days (0 = no)">
@@ -285,7 +285,7 @@ export default function MessagesSettingsPage() {
                   title="Test mode"
                   text="Messages and sign-in codes are written in the log below instead of being sent. Use it to try everything before WhatsApp is set up."
                 />
-                <Field label="Web address of this app" hint="Goes in messages as the buyer's link. Filled in by itself when you save.">
+                <Field label="Web address of this app" hint="Included in buyer messages as their portal link. Filled automatically when you save.">
                   <input className={input} value={s.siteUrl} onChange={(e) => set("siteUrl", e.target.value)} placeholder="https://cms.bothra.in" />
                 </Field>
                 <button
@@ -295,13 +295,13 @@ export default function MessagesSettingsPage() {
                 >
                   {busy === "run" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send today&apos;s messages now
                 </button>
-                {!cronReady && <p className="text-xs text-slate-500">Reminders also go out once a day by themselves once the server has a CRON_SECRET (see IMPLEMENTATION.md). Until then, use the button above.</p>}
+                {!cronReady && <p className="text-xs text-slate-500">Daily automatic reminders require your developer / IT administrator to enable the scheduled daily job on the server. Until then, click &quot;Send today&apos;s messages now&quot; above.</p>}
               </section>
 
               <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">WhatsApp Business</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">From Meta&apos;s WhatsApp Manager: the phone number ID and a permanent access token. Templates must be approved by Meta.</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Copy these details from Meta&apos;s WhatsApp Manager (or ask your IT team). Message templates must be approved in Meta first.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Phone number ID">
@@ -365,16 +365,16 @@ export default function MessagesSettingsPage() {
                     <Inbox className="h-4 w-4 text-slate-400" /> Replies into the app
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    So vendors&apos; and buyers&apos; replies come into the WhatsApp Inbox here. In Meta&apos;s app dashboard: WhatsApp → Configuration → Webhook, paste these two, then subscribe to &quot;messages&quot;. The app secret is under App settings → Basic.
+                    Connect Meta so replies from vendors and buyers appear directly in your WhatsApp Inbox. In Meta&apos;s app dashboard (WhatsApp → Configuration), paste the two values below and subscribe to &quot;messages&quot;. The App secret is under App settings → Basic.
                   </p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <Field label="Callback URL">
                       <input className={cn(input, "font-mono text-xs")} readOnly value={hook.url} onFocus={(e) => e.target.select()} />
                     </Field>
-                    <Field label="Verify token" hint={s.waVerifyToken ? undefined : "Made when you save this page"}>
+                    <Field label="Verify token" hint={s.waVerifyToken ? undefined : "Generated automatically when you save"}>
                       <input className={cn(input, "font-mono text-xs")} readOnly value={s.waVerifyToken} onFocus={(e) => e.target.select()} />
                     </Field>
-                    <Field label="App secret" hint={hook.secretFromEnv ? "Set on the server (WHATSAPP_APP_SECRET)." : s.hasWaAppSecret ? `Saved (${s.waAppSecret}). Type a new one to replace it.` : "Checks that each reply really comes from Meta"}>
+                    <Field label="App secret" hint={hook.secretFromEnv ? "Configured on the server by your IT team." : s.hasWaAppSecret ? `Saved (${s.waAppSecret}). Type a new one to replace it.` : "Verifies that incoming replies truly come from Meta"}>
                       <input className={input} type="password" autoComplete="off" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} placeholder={s.hasWaAppSecret ? "Keep the saved secret" : ""} />
                     </Field>
                   </div>
@@ -384,7 +384,7 @@ export default function MessagesSettingsPage() {
                   <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
                     <Smartphone className="h-4 w-4 text-slate-400" /> SMS for sign-in codes (MSG91)
                   </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Only needed if sign-in codes should go by SMS. Use a DLT-approved OTP template with ##otp##.</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Optional — only needed if buyer login codes should also go by SMS. Requires an approved SMS template with ##otp##.</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <Field label="Auth key" hint={s.hasSmsAuthKey ? `Saved (${s.smsAuthKey}).` : undefined}>
                       <input className={input} type="password" autoComplete="off" value={smsKey} onChange={(e) => setSmsKey(e.target.value)} placeholder={s.hasSmsAuthKey ? "Keep the saved key" : ""} />

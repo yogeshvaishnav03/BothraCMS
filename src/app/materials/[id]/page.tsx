@@ -47,7 +47,7 @@ export default function MaterialDetailPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
   const [orderDialog, setOrderDialog] = useState<{ type: "approve" | "reject"; order: any } | null>(null);
-  const [orderRejectReason, setOrderRejectReason] = useState("Order query rejected by administrator");
+  const [orderRejectReason, setOrderRejectReason] = useState("Purchase order declined by administrator");
   const [orderFeedback, setOrderFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function MaterialDetailPage() {
 
   const handleRejectOrder = (order: any) => {
     setOrderFeedback(null);
-    setOrderRejectReason("Order query rejected by administrator");
+    setOrderRejectReason("Purchase order declined by administrator");
     setOrderDialog({ type: "reject", order });
   };
 
@@ -342,7 +342,7 @@ export default function MaterialDetailPage() {
               <span title={formatQuantity(currentBalance, material.unitCode)}>{formatCompactQuantity(currentBalance, material.unitCode)}</span>
             </div>
             <div className="text-[11px] text-emerald-600 font-semibold mt-1">
-              Authoritative Reconciled Balance
+              Verified Closing Stock
             </div>
           </div>
 
@@ -396,10 +396,10 @@ export default function MaterialDetailPage() {
               </div>
               <div>
                 <h2 className="font-bold text-slate-900 text-sm">
-                  {t("order.recentOrders", "Purchase Orders to Vendors (सामग्री आपूर्ति आदेश)")}
+                  {t("order.recentOrders", "Purchase Orders to Vendors")}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Authoritative material orders placed to suppliers with automated WhatsApp & Email dispatch tracking.
+                  Material orders sent to suppliers with WhatsApp and Email tracking.
                 </p>
               </div>
             </div>
@@ -412,14 +412,14 @@ export default function MaterialDetailPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
               >
                 <ShoppingCart className="w-3.5 h-3.5" />
-                <span>+ {t("order.placeOrder", "New Order")}</span>
+                <span>{t("order.placeOrder", "New Order")}</span>
               </button>
             </div>
           </div>
 
           {orders.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs">
-              No purchase orders placed for this material yet. Click &ldquo;Place Order to Vendor&rdquo; above to dispatch an order with instant vendor WhatsApp/Email notification.
+              No purchase orders placed for this material yet. Click &ldquo;New Order&rdquo; above to send an order to a supplier.
             </div>
           ) : (
             <div className="overflow-hidden">
@@ -528,10 +528,10 @@ export default function MaterialDetailPage() {
                                 onClick={() => handleRejectOrder(po)}
                                 disabled={actionLoading === po.id}
                                 className="inline-flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition disabled:opacity-50"
-                                title="Reject order query"
+                                title="Decline purchase order"
                               >
                                 <XCircle className="w-3 h-3" />
-                                <span>Reject</span>
+                                <span>Decline</span>
                               </button>
                             </div>
                           ) : (
@@ -541,7 +541,7 @@ export default function MaterialDetailPage() {
                             </span>
                           )
                         ) : po.status === "REJECTED" ? (
-                          <span className="text-xs text-rose-500 font-semibold italic">Rejected</span>
+                          <span className="text-xs text-rose-500 font-semibold italic">Declined</span>
                         ) : po.whatsappUrl ? (
                           <a
                             href={po.whatsappUrl}
@@ -555,7 +555,7 @@ export default function MaterialDetailPage() {
                             <ExternalLink className="w-3 h-3 opacity-60" />
                           </a>
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Dispatched</span>
+                          <span className="text-xs text-slate-400 italic">Sent</span>
                         )}
                       </td>
                     </tr>
@@ -584,7 +584,7 @@ export default function MaterialDetailPage() {
             <div>
               <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <FileText className="w-4 h-4 text-amber-500" />
-                <span>Authoritative Chronological Stock Ledger</span>
+                <span>Complete Stock History</span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Every movement records store, date, type, vendor/source, received, issued, rate, and running balance.
@@ -762,7 +762,7 @@ export default function MaterialDetailPage() {
             ) : (
               <form onSubmit={executeOrderDialog} className="space-y-3">
                 <p className="text-xs text-slate-600">
-                  Provide rejection reason for Purchase Order{" "}
+                  Reason for declining Purchase Order{" "}
                   <strong className="font-mono text-slate-900">{orderDialog.order.orderNumber}</strong>.
                 </p>
                 <textarea
@@ -785,7 +785,7 @@ export default function MaterialDetailPage() {
                     disabled={actionLoading === orderDialog.order.id || !orderRejectReason.trim()}
                     className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
                   >
-                    {actionLoading === orderDialog.order.id ? "Rejecting..." : "Reject Order"}
+                    {actionLoading === orderDialog.order.id ? "Declining..." : "Decline Order"}
                   </button>
                 </div>
               </form>

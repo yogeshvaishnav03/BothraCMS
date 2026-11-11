@@ -74,11 +74,11 @@ export function PhotoPicker({
         if (res.ok && json?.data?.url) {
           added.push({ url: json.data.url, name: json.data.fileName || file.name });
         } else {
-          setError(json?.error?.message || json?.message || `Could not upload ${file.name}`);
+          setError(json?.error?.message || json?.message || `Could not upload ${file.name}. Use JPG, PNG, or WebP under 10 MB.`);
         }
       } catch (e) {
         if (isNetworkError(e)) added.push({ url: URL.createObjectURL(file), name: file.name, file });
-        else setError(`Could not upload ${file.name}`);
+        else setError(`Could not upload ${file.name}. Check the image format and size, then try again.`);
       }
       setUploading((n) => n - 1);
     }
@@ -94,7 +94,7 @@ export function PhotoPicker({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={p.url} alt={p.name} className="h-full w-full object-cover" />
             {p.file && (
-              <span className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-0.5 bg-amber-500/90 py-0.5 text-[9px] font-bold text-slate-950" title="Saved on this phone. Uploads when there is signal.">
+              <span className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-0.5 bg-amber-500/90 py-0.5 text-[9px] font-bold text-slate-950" title="Saved on this device. Uploads automatically when you are back online.">
                 <CloudOff className="h-2.5 w-2.5" /> On phone
               </span>
             )}

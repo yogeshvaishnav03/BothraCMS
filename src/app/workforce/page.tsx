@@ -660,7 +660,7 @@ export default function WorkforcePage() {
                 <span>Site Workers & Labor Headcount</span>
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Upload and track daily site worker and labor counts (artisans, craftsmen, and male/female laborers) by site.
+                Record daily counts of skilled workers and general laborers at each site.
               </p>
             </div>
           </div>
@@ -825,7 +825,7 @@ export default function WorkforcePage() {
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Artisans (कारीगर)
+                    Skilled Workers (Artisans)
                   </span>
                   <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 </div>
@@ -846,7 +846,7 @@ export default function WorkforcePage() {
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Laborers (मजदूर)
+                    General Laborers
                   </span>
                   <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 </div>
@@ -1130,7 +1130,7 @@ export default function WorkforcePage() {
               <div>
                 <h2 className="font-black text-sm text-slate-900 tracking-tight flex items-center gap-2">
                   <Briefcase className="w-4 h-4 text-amber-500" />
-                  <span>Registered Trade Workers Directory</span>
+                  <span>Registered Workers</span>
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Named trade specialists registered with wage rates and employee codes.
@@ -1143,7 +1143,7 @@ export default function WorkforcePage() {
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  <span>+ Register Worker</span>
+                  <span>Register Worker</span>
                 </button>
               )}
             </div>
@@ -1170,7 +1170,14 @@ export default function WorkforcePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {excelWorkers.paginatedData.map((w) => (
+                  {excelWorkers.paginatedData.length === 0 ? (
+                    <tr>
+                      <td colSpan={workerColumns.length} className="py-12 text-center text-slate-400">
+                        No registered workers match your search or filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    excelWorkers.paginatedData.map((w) => (
                     <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{w.name}</div>
@@ -1196,7 +1203,8 @@ export default function WorkforcePage() {
                       </td>
                       <td className="py-3 px-4 text-slate-600">{w.defaultSite?.name || "Main Site"}</td>
                     </tr>
-                  ))}
+                  ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1225,7 +1233,7 @@ export default function WorkforcePage() {
                     <span>Upload Site Worker Headcount</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Supervisor submission for Artisan, Craftsman, and Laborer counts on a single site.
+                    Enter daily counts of skilled workers and general laborers for this site.
                   </p>
                 </div>
                 <button
@@ -1318,7 +1326,7 @@ export default function WorkforcePage() {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5 font-black text-xs text-amber-950">
                         <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                        <span>1. Artisan (कारीगर / कुशल शिल्पी)</span>
+                        <span>1. Skilled Workers (Masons, Carpenters, Plumbers)</span>
                       </div>
                       <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
                         Direct Count: {artisanCount}
@@ -1327,7 +1335,7 @@ export default function WorkforcePage() {
 
                     <div>
                       <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                        Artisan Headcount (Direct Count):
+                        Skilled Workers Count:
                       </label>
                       <input
                         type="number"
@@ -1345,7 +1353,7 @@ export default function WorkforcePage() {
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5 font-black text-xs text-emerald-950">
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                        <span>2. Laborer / Helper (मजदूर / बेलदार / हेल्पर)</span>
+                        <span>2. General Laborers & Helpers</span>
                       </div>
                       <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
                         Subtotal: {modalLaborerTotal}
@@ -1355,7 +1363,7 @@ export default function WorkforcePage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Male Laborer (पुरुष):
+                          Male Workers:
                         </label>
                         <input
                           type="number"
@@ -1368,7 +1376,7 @@ export default function WorkforcePage() {
                       </div>
                       <div>
                         <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Female Laborer (महिला):
+                          Female Workers:
                         </label>
                         <input
                           type="number"
@@ -1692,7 +1700,7 @@ export default function WorkforcePage() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-base flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-amber-500" />
-                  <span>Register Trade Specialist</span>
+                  <span>Register Worker</span>
                 </div>
                 <button
                   onClick={() => setShowRegisterWorkerModal(false)}
@@ -1720,7 +1728,7 @@ export default function WorkforcePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                      Employee Code: *
+                      Worker ID Code: * <span className="font-normal lowercase text-slate-400">(e.g. WRK-104)</span>
                     </label>
                     <input
                       type="text"

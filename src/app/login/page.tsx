@@ -32,7 +32,7 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        let msg = data.error?.message || "Invalid credentials";
+        let msg = data.error?.message || "Incorrect email or password. Please check and try again.";
         if (msg.includes("admin@buildtrack.pro") || msg.includes("Password123") || msg.includes("instant demo access") || msg.includes("Database connecting")) {
           msg = "Authentication service is temporarily unavailable. Please try again shortly.";
         }
@@ -54,7 +54,7 @@ export default function LoginPage() {
         window.location.href = safeDestination;
       }
     } catch {
-      setError("Unable to connect to server. Check your connection.");
+      setError("Unable to reach the server. Check your internet connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -204,7 +204,7 @@ export default function LoginPage() {
         {/* Security badge footer */}
         <div className="text-center mt-6 text-xs text-slate-500 flex items-center justify-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-          <span>Role-Scoped Multi-Tenant Isolation Active</span>
+          <span>Protected Company Workspace</span>
         </div>
       </div>
     </div>

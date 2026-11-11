@@ -77,6 +77,14 @@ export default function Form16Page() {
         </div>
       </div>
 
+      {!doc.complete && (
+        <div className="mx-auto mb-4 max-w-3xl px-4 print:hidden">
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 text-xs text-slate-600">
+            <strong className="text-slate-900">Why this says Draft:</strong> Full Form 16 is only final after all 12 months of the financial year are paid and Q4 TDS returns (24Q) are filed. Download the signed Part A certificate from the government TRACES portal after Q4 filing.
+          </div>
+        </div>
+      )}
+
       {doc.problems.length > 0 && (
         <div className="mx-auto mb-4 max-w-3xl px-4 print:hidden">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

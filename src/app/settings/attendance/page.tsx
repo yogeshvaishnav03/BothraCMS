@@ -83,7 +83,7 @@ function SiteRow({ site, onSave }: { site: Site; onSave: (s: { id: string; latit
     return save(Number(m[1]), Number(m[2]));
   };
   const here = () => {
-    if (!navigator.geolocation) return setErr("This browser cannot read the location.");
+    if (!navigator.geolocation) return setErr("Your browser does not support GPS location. Try opening this page in Chrome or Safari on your device.");
     setBusy("here");
     setErr(null);
     navigator.geolocation.getCurrentPosition(
@@ -95,7 +95,7 @@ function SiteRow({ site, onSave }: { site: Site; onSave: (s: { id: string; latit
       },
       () => {
         setBusy(null);
-        setErr("Location was not allowed or could not be read.");
+        setErr("Location access was blocked. Allow Location permission in your browser settings (tap the lock icon near the web address) and try again.");
       },
       { enableHighAccuracy: true, timeout: 15000 }
     );
@@ -162,7 +162,7 @@ export default function AttendanceSettingsPage() {
       const x = await api<Data>("/api/organization/attendance", patch({ rules }));
       setD(x);
       setRules(x.rules);
-      setMsg({ tone: "success", text: "Saved." });
+      setMsg({ tone: "success", text: "Check-in rules saved." });
     } catch (e: any) {
       setMsg({ tone: "error", text: e.message });
     } finally {
@@ -221,7 +221,7 @@ export default function AttendanceSettingsPage() {
                 <h2 className="border-b border-slate-100 px-5 py-3 text-sm font-bold text-slate-900">
                   Site locations <span className="font-normal text-slate-500">({located} of {d.sites.length} set)</span>
                 </h2>
-                <p className="px-5 pt-3 text-xs text-slate-500">Stand on the site and press &quot;Use my location here&quot;, or copy the point from Google Maps.</p>
+                <p className="px-5 pt-3 text-xs text-slate-500">Stand on the site and press &quot;Use my location here&quot;, or copy the coordinates from Google Maps (right-click or long-press the spot, tap numbers like 26.9124, 75.7873 to copy, paste here, then press Save beside that site).</p>
                 <div className="divide-y divide-slate-100">
                   {d.sites.map((s) => (
                     <SiteRow key={s.id} site={s} onSave={saveSite} />

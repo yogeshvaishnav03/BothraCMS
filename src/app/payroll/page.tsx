@@ -20,7 +20,7 @@ const thisMonth = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(
 const monthLabel = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
 
 const STEPS = [
-  { id: "DRAFT", label: "Worked out", hint: "Check days, add bonus or deductions" },
+  { id: "DRAFT", label: "Calculated (Draft)", hint: "Check days, add bonus or deductions" },
   { id: "APPROVED", label: "Approved", hint: "An admin has signed off" },
   { id: "PAID", label: "Paid", hint: "Payments recorded in Finance" },
 ];
@@ -82,7 +82,7 @@ function EditLineModal({ line, onClose, onSaved }: { line: any; onClose: () => v
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
           <label className="inline-flex items-center gap-2">
             <input type="checkbox" checked={tdsAuto} onChange={(e) => setTdsAuto(e.target.checked)} className="rounded border-slate-300" />
-            Work out TDS from their tax regime and pay so far this year
+            Calculate TDS automatically from their tax regime and earnings this year
           </label>
           <a href={`/payroll/tax/${line.personId}`} className="font-semibold text-amber-700 hover:underline">
             Tax for the year →
@@ -206,7 +206,7 @@ function AdvanceModal({ people, onClose, onSaved }: { people: any[]; onClose: ()
       <Field label="Note">
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Medical emergency" className={inputCls} />
       </Field>
-      <p className="text-xs text-slate-500">It is taken back from the next payroll, as long as the pay covers it.</p>
+      <p className="text-xs text-slate-500">It is automatically deducted from their next payroll, up to their net pay.</p>
     </Modal>
   );
 }
@@ -943,10 +943,10 @@ export default function PayrollPage() {
                 {canWrite && (
                   <button
                     disabled={busy}
-                    onClick={() => act(() => api("/api/payroll", post({ month })), `Payroll for ${monthLabel(month)} worked out.`)}
+                    onClick={() => act(() => api("/api/payroll", post({ month })), `Payroll for ${monthLabel(month)} calculated.`)}
                     className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-brand px-5 py-2.5 text-sm font-bold text-slate-950 shadow-glow disabled:opacity-50"
                   >
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />} Work out payroll
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />} Calculate Payroll
                   </button>
                 )}
               </div>
@@ -1108,7 +1108,7 @@ export default function PayrollPage() {
         {tab === "SALARIES" && (
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
-              <span>Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workers page, and their PF and ESI are below.</span>
+              <div><div className="font-medium text-slate-700">Monthly salary for staff with a login. Site workers are paid by their daily wage, set on the Workers page, and their PF and ESI are below.</div><div className="mt-1 text-xs text-slate-500">PF uses the 12-digit UAN (Universal Account Number); ESI uses the employee&apos;s ESIC number. Tax regime: New has lower default tax slabs with standard deduction; Old allows 80C, 80D, and HRA exemptions.</div></div>
               {staff.length > 0 && (
                 <ShowEntriesControl
                   pageSize={staffSalaryPagination.pageSize}
@@ -1271,7 +1271,7 @@ export default function PayrollPage() {
                     <th className="px-4 py-2 text-left">Person</th>
                     <th className="px-4 py-2 text-left">Given</th>
                     <th className="px-4 py-2 text-right">Amount</th>
-                    <th className="px-4 py-2 text-left">Taken back</th>
+                    <th className="px-4 py-2 text-left">Deducted In</th>
                   </tr>
                 </thead>
                 <tbody>

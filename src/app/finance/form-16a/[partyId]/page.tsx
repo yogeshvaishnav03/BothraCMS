@@ -26,7 +26,7 @@ export default function Form16APage() {
       .catch((e) => setError(e.message));
   }, [partyId, fy, quarter]);
 
-  if (error) return <div className="p-8 text-center text-sm text-rose-600">{error}</div>;
+  if (error) return <div className="p-8 text-center text-sm text-rose-600">Could not load Form 16A: {error}. Check that TDS deductions and challans are saved for this quarter.</div>;
   if (!doc) return <div className="p-8 text-center text-sm text-slate-500">Loading…</div>;
   const wa = whatsappLink(
     doc.deductee.whatsapp,
@@ -63,6 +63,14 @@ export default function Form16APage() {
           </div>
         </div>
       )}
+
+      <div className="mx-auto mb-4 max-w-3xl px-4 print:hidden">
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 text-xs text-slate-600">
+          <strong className="text-slate-900">About this draft certificate:</strong> Tax deducted in Financial Year{" "}
+          <span className="font-semibold">{doc.fy}</span> appears under Assessment Year{" "}
+          <span className="font-semibold">{doc.assessmentYear}</span> (the following tax filing year). Use this sheet for reference—the official government-signed Form 16A is downloaded from TRACES after your quarterly 26Q return is filed.
+        </div>
+      </div>
 
       <div className="mx-auto max-w-3xl rounded-2xl bg-white p-8 text-sm text-slate-700 shadow-sm print:rounded-none print:shadow-none">
         <div className="border-b-2 border-slate-900 pb-3 text-center">

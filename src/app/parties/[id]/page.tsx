@@ -262,16 +262,16 @@ export default function PartyStatementPage() {
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-sm transition cursor-pointer"
               >
                 <ShoppingCart className="w-4 h-4" />
-                <span>Place Order to Vendor</span>
+                <span>New Purchase Order</span>
               </button>
             )}
             <button
               onClick={() => setShowAuditModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs shadow-sm transition"
-              title="Audit & Version History"
+              title="Change History"
             >
               <History className="w-4 h-4 text-indigo-600" />
-              <span>Audit Log</span>
+              <span>Change History</span>
             </button>
             <button
               onClick={() => window.print()}
@@ -292,7 +292,7 @@ export default function PartyStatementPage() {
                   <HardHat className="w-4 h-4 text-amber-400" />
                   <span>Subcontractor Contract Milestone Tracking</span>
                 </div>
-                <div className="font-display text-lg sm:text-xl font-extrabold mt-1 tabular-nums" title={formatCurrency(contractVal)}>Sanctioned Value: {formatCompactINR(contractVal)}</div>
+                <div className="font-display text-lg sm:text-xl font-extrabold mt-1 tabular-nums" title={formatCurrency(contractVal)}>Contract Value: {formatCompactINR(contractVal)}</div>
               </div>
               <div className="flex items-center gap-6 text-sm">
                 <div>
@@ -310,7 +310,7 @@ export default function PartyStatementPage() {
             <div className="pt-3 space-y-2">
               <div className="flex justify-between text-xs text-purple-200">
                 <span>Progress Billed: {formatCurrency(totalBilled)} ({billedPct}%)</span>
-                <span>Payments Released: {formatCurrency(totalPaid)} ({paidPct}%)</span>
+                <span>Total Paid: {formatCurrency(totalPaid)} ({paidPct}%)</span>
               </div>
               <div className="w-full h-3 bg-purple-950/60 rounded-full overflow-hidden flex">
                 <div
@@ -333,7 +333,7 @@ export default function PartyStatementPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {isContractor ? "Cumulative Work Certified / Billed" : "Total Invoiced Liability"}
+              {isContractor ? "Cumulative Work Certified / Billed" : "Total Billed (Liability)"}
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
               <span title={formatCurrency(totalBilled)}>{formatCompactINR(totalBilled)}</span>
@@ -345,19 +345,19 @@ export default function PartyStatementPage() {
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Cumulative Amount Paid
+              Total Paid
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
               <span title={formatCurrency(totalPaid)}>{formatCompactINR(totalPaid)}</span>
             </div>
             <div className="text-[11px] text-slate-500 mt-1">
-              Disbursements released ({payments.length} payments)
+              Payments released ({payments.length} payments)
             </div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm bg-gradient-to-br from-amber-50/50 to-white">
             <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
-              Current Outstanding Balance
+              Unpaid Balance
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
               <span title={formatCurrency(outstandingBalance)}>{formatCompactINR(outstandingBalance)}</span>
@@ -597,7 +597,7 @@ export default function PartyStatementPage() {
                             </div>
                           ))
                         ) : (
-                          <span className="text-slate-400 italic">Unallocated</span>
+                          <span className="text-slate-400 italic">Advance / General</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-right font-black text-emerald-600 tabular-nums">
@@ -659,13 +659,13 @@ export default function PartyStatementPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
               >
                 <ShoppingCart className="w-3.5 h-3.5" />
-                <span>+ New Order</span>
+                <span>New Order</span>
               </button>
             </div>
 
             {orders.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-xs">
-                No purchase orders placed with this vendor yet. Click &ldquo;+ New Order&rdquo; to place an order.
+                No purchase orders placed with this vendor yet. Click &ldquo;New Order&rdquo; to send a purchase order.
               </div>
             ) : (
               <>
@@ -743,7 +743,7 @@ export default function PartyStatementPage() {
                               <ExternalLink className="w-3 h-3 opacity-60" />
                             </a>
                           ) : (
-                            <span className="text-xs text-slate-400 italic">Dispatched</span>
+                            <span className="text-xs text-slate-400 italic">Sent</span>
                           )}
                         </td>
                       </tr>
@@ -776,7 +776,7 @@ export default function PartyStatementPage() {
                 {isContractor ? "Subcontractor Documents & Work Agreements" : "Vendor Documents, GST & Invoices"}
               </h2>
             </div>
-            <span className="text-xs text-slate-400 font-medium">Secured Storage Integration</span>
+            <span className="text-xs text-slate-400 font-medium">Vendor &amp; Contractor Documents</span>
           </div>
 
           <AttachmentManager
@@ -794,7 +794,7 @@ export default function PartyStatementPage() {
           <AuditHistoryModal
             entityType="PARTY"
             entityId={party.id}
-            title={`Audit History: ${party.name}`}
+            title={`Change History: ${party.name}`}
             onClose={() => setShowAuditModal(false)}
           />
         )}

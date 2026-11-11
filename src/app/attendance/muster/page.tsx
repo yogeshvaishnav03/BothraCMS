@@ -174,21 +174,21 @@ export default function MusterPage() {
     try {
       const entries = changed.map((w) => ({ workerId: w.id, mark: marks[w.id].mark, overtimeHours: marks[w.id].ot }));
       const result = await submitOrQueue<Muster & { present: number; halfDay: number; absent: number; kept: number }>({
-        label: `Master: ${muster.project.name}, ${dayLabel(muster.workDate, muster.today).toLowerCase()} (${entries.length} worker${entries.length === 1 ? "" : "s"})`,
+        label: `Muster Roll: ${muster.project.name}, ${dayLabel(muster.workDate, muster.today).toLowerCase()} (${entries.length} worker${entries.length === 1 ? "" : "s"})`,
         url: "/api/attendance/muster",
         body: { projectId: muster.project.id, workDate: muster.workDate, entries },
       });
       if (result.queued) {
         // Show the marks as saved, so the supervisor can carry on.
         setMuster({ ...muster, workers: muster.workers.map((w) => ({ ...w, mark: marks[w.id]?.mark ?? w.mark, overtimeHours: marks[w.id]?.ot ?? w.overtimeHours })) });
-        setNotice({ tone: "info", text: "No signal, so the master is saved on this phone. It will be sent when you are back online." });
+        setNotice({ tone: "info", text: "No signal, so today's Muster Roll is saved on this device. It will be sent automatically once you are back online." });
       } else {
         const r = result.data;
         setMuster(r);
         setMarks(Object.fromEntries(r.workers.map((w) => [w.id, { mark: w.mark, ot: w.overtimeHours }])));
         setNotice({
           tone: "success",
-          text: `Master saved for ${dayLabel(r.workDate, r.today).toLowerCase()}.${r.kept ? ` ${r.kept} already corrected by an admin ${r.kept === 1 ? "was" : "were"} left as is.` : ""}`,
+          text: `Muster Roll saved for ${dayLabel(r.workDate, r.today).toLowerCase()}.${r.kept ? ` ${r.kept} already updated by an admin ${r.kept === 1 ? "was" : "were"} kept unchanged.` : ""}`,
         });
       }
     } catch (e: any) {
@@ -204,7 +204,7 @@ export default function MusterPage() {
   return (
     <Shell>
       <div className="mx-auto max-w-3xl space-y-4 pb-56 lg:pb-28">
-        <PageHeader icon={ClipboardCheck} title="Site Master" subtitle="Mark each worker present, half day or absent. It goes straight into their wages in payroll.">
+        <PageHeader icon={ClipboardCheck} title="Muster Roll" subtitle="Mark each site worker Present, Half Day, or Absent with overtime. Saved marks go straight into payroll wages.">
           <Link href="/attendance" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Attendance
           </Link>
@@ -285,7 +285,7 @@ export default function MusterPage() {
             </div>
             {editable && (
               <button onClick={allPresent} className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-100">
-                <Users className="h-4 w-4" /> Rest present
+                <Users className="h-4 w-4" /> Mark Remaining Present
               </button>
             )}
           </div>
@@ -294,6 +294,10 @@ export default function MusterPage() {
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading workers…
+          </div>
+        ) : !loading && !muster && !error && projects.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+            No projects yet. Create a project on the <Link href="/projects" className="font-semibold text-amber-700 underline">Projects</Link> page first to mark Muster Roll.
           </div>
         ) : muster && workers.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
@@ -402,7 +406,7 @@ export default function MusterPage() {
               <div className="font-semibold text-slate-300">Wages for the day</div>
               <div className="font-display text-lg sm:text-xl font-extrabold tabular-nums" title={rupees(totals.wages)}>
                 {formatCompactINR(totals.wages)}
-                {totals.ot > 0 && <span className="ml-1.5 whitespace-nowrap text-xs font-semibold text-amber-300">+{totals.ot}h OT</span>}
+                {totals.ot > 0 && <span className="ml-1.5 whitespace-nowrap text-xs font-semibold text-amber-300">+{totals.ot}h overtime</span>}
               </div>
             </div>
             <button

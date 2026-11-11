@@ -276,7 +276,7 @@ export default function PlaceOrderModal({
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
-                Raises order query to Super Admin for confirmation before vendor dispatch
+                Sends this purchase order for admin approval before contacting the vendor
               </p>
             </div>
           </div>
@@ -307,10 +307,10 @@ export default function PlaceOrderModal({
                   <Clock className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <div className="text-sm font-bold text-amber-950">
-                      {t("order.queryRaised", "Order Query Raised to Super Admin!")}
+                      {t("order.queryRaised", "Purchase Order Sent for Approval!")}
                     </div>
                     <div className="text-xs text-amber-900 mt-1 leading-relaxed">
-                      Purchase order <span className="font-mono font-bold">{orderResult.order.orderNumber}</span> has been created with status <strong className="font-bold underline">PENDING SUPER ADMIN APPROVAL</strong>.
+                      Purchase order <span className="font-mono font-bold">{orderResult.order.orderNumber}</span> has been created and is <strong className="font-bold underline">Waiting for Approval</strong>.
                     </div>
                   </div>
                 </div>
@@ -319,7 +319,7 @@ export default function PlaceOrderModal({
                   <div className="flex items-center gap-2 pb-2 border-b border-slate-800 text-amber-400">
                     <ShieldAlert className="w-4 h-4" />
                     <span className="text-xs font-bold uppercase tracking-wider">
-                      Approval & Dispatch Governance
+                      Approval & Send Status
                     </span>
                   </div>
 
@@ -346,7 +346,7 @@ export default function PlaceOrderModal({
 
                   {orderResult.order.approvalQuery && (
                     <div className="mt-2 pt-2 border-t border-slate-800 text-xs">
-                      <span className="text-slate-400 block text-[11px] mb-1">Approval Query / Justification:</span>
+                      <span className="text-slate-400 block text-[11px] mb-1">Reason / Notes:</span>
                       <div className="p-2.5 bg-slate-950 rounded border border-slate-800 font-mono text-slate-300 text-xs">
                         {orderResult.order.approvalQuery}
                       </div>
@@ -354,8 +354,8 @@ export default function PlaceOrderModal({
                   )}
 
                   <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] text-amber-300 leading-relaxed">
-                    ℹ️ A notification alert has been logged for Super Admin review in the Super Admin Console.
-                    Direct WhatsApp and Email vendor dispatch links will unlock immediately once approved.
+                    ℹ️ Your request has been sent to an admin for review.
+                    WhatsApp and Email send buttons will unlock as soon as it is approved.
                   </div>
                 </div>
 
@@ -647,7 +647,7 @@ export default function PlaceOrderModal({
               {/* Approval Query / Justification for Super Admin */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
-                  <span>{t("order.approvalQuery", "Approval Query / Justification for Super Admin")}</span>
+                  <span>{t("order.approvalQuery", "Reason for Purchase Order")}</span>
                   <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">
                     Required for Confirmation
                   </span>
@@ -701,11 +701,11 @@ export default function PlaceOrderModal({
               <div className="p-3 bg-slate-900 text-slate-300 rounded-xl text-xs flex items-start gap-2.5">
                 <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div className="text-[11px] leading-relaxed">
-                  <span className="font-bold text-white">Super Admin Approval Workflow: </span>
+                  <span className="font-bold text-white">Order Approval Flow: </span>
                   {autoApprove ? (
-                    <span>This order will be immediately approved and WhatsApp/Email dispatch links will be generated for vendor dispatch.</span>
+                    <span>This order will be approved right away, and WhatsApp/Email send options will be ready immediately.</span>
                   ) : (
-                    <span>Submitting this order raises a query to <strong>Super Admin</strong>. The vendor WhatsApp and Email dispatch links will become active once confirmed and approved.</span>
+                    <span>Submitting sends this order for admin approval. WhatsApp and Email send options unlock as soon as it is approved.</span>
                   )}
                 </div>
               </div>
@@ -730,7 +730,7 @@ export default function PlaceOrderModal({
                       ? "Submitting..."
                       : autoApprove
                       ? "Approve & Place Order"
-                      : "Raise Order Query to Super Admin"}
+                      : "Send Order for Approval"}
                   </span>
                 </button>
               </div>

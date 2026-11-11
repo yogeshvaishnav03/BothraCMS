@@ -172,10 +172,10 @@ export default function SettingsPage() {
           }
         }
       } else {
-        setErrorMsg(json.error?.message || "Failed to load organization settings");
+        setErrorMsg(json.error?.message || "Could not load company settings. Please refresh the page.");
       }
     } catch {
-      setErrorMsg("Failed to connect to organization settings API");
+      setErrorMsg("Unable to connect while loading company settings. Check your internet connection.");
     } finally {
       setLoading(false);
     }
@@ -185,7 +185,7 @@ export default function SettingsPage() {
     setLanguage(langCode as LanguageCode);
     const target = SUPPORTED_LANGUAGES.find((l) => l.code === langCode);
     setLangChangeAlert(
-      `Display language changed to ${target?.name} (${target?.nativeName}). Entire website is now updated in ${target?.name}!`
+      `Language switched to ${target?.name} (${target?.nativeName}). Labels and menus across the app are now updated.`
     );
     setTimeout(() => {
       setLangChangeAlert(null);
@@ -229,13 +229,13 @@ export default function SettingsPage() {
             document.cookie = `buildtrack_language=${language}; path=/; max-age=31536000; SameSite=Lax`;
           }
         }
-        setSuccessMsg("Organization settings and language preference saved successfully.");
+        setSuccessMsg("Company settings and language preference saved.");
         fetchOrg();
       } else {
-        setErrorMsg(json.error?.message || "Failed to update settings");
+        setErrorMsg(json.error?.message || "Could not save settings. Please check the fields and try again.");
       }
     } catch {
-      setErrorMsg("Network error saving organization settings");
+      setErrorMsg("Network error while saving settings. Check your connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -343,7 +343,7 @@ export default function SettingsPage() {
             <Building2 className="w-6 h-6 text-amber-600" /> {t("settings.title", "Organization Settings")}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            {t("settings.subtitle", "Manage organization profile, currency formatting, tax registration, and active users.")}
+            {t("settings.subtitle", "Manage your company profile, GST/TAN details, check-in rules, and team access.")}
           </p>
         </div>
 
@@ -375,13 +375,13 @@ export default function SettingsPage() {
             <div className="lg:col-span-2 space-y-6">
               <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
                 <h2 className="text-base font-bold text-slate-800 border-b border-slate-100 pb-3">
-                  Company Details & Operational Configuration
+                  Company Details & Tax Settings
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Organization Legal Name *
+                      Company Legal Name *
                     </label>
                     <input
                       type="text"
@@ -529,7 +529,7 @@ export default function SettingsPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Corporate Headquarters / Billing Address
+                    Office / Billing Address
                   </label>
                   <div className="relative">
                     <textarea
@@ -543,7 +543,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {canManageSettings && (
+                {canManageSettings ? (
                   <div className="pt-2 flex justify-end">
                     <button
                       type="submit"
@@ -554,6 +554,10 @@ export default function SettingsPage() {
                       {saving ? t("action.saving", "Saving Changes...") : t("action.save", "Save Settings")}
                     </button>
                   </div>
+                ) : (
+                  <p className="text-xs text-slate-500 pt-1">
+                    View only — only a Company Admin or Super Admin can update company details.
+                  </p>
                 )}
               </form>
 
@@ -567,7 +571,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold text-slate-900">Messages: WhatsApp and SMS</div>
-                    <div className="text-xs text-slate-500">Send demand letters and reminders by themselves, and let buyers sign in with a code.</div>
+                    <div className="text-xs text-slate-500">Send payment demands and reminders automatically, and let buyers sign in with a 6-digit code.</div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </Link>
@@ -583,7 +587,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold text-slate-900">Online payments: Razorpay</div>
-                    <div className="text-xs text-slate-500">A &quot;Pay now&quot; button on the buyer&apos;s page, with the receipt entered by itself.</div>
+                    <div className="text-xs text-slate-500">Show a &quot;Pay now&quot; button on buyer pages &mdash; receipts are recorded automatically after payment.</div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </Link>
@@ -599,7 +603,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold text-slate-900">File storage</div>
-                    <div className="text-xs text-slate-500">Keep photos and drawings in cloud storage (Vercel Blob, S3 or R2), and move older files there.</div>
+                    <div className="text-xs text-slate-500">Keep photos and drawings in cloud storage and move older files out of the database.</div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </Link>
@@ -756,7 +760,7 @@ export default function SettingsPage() {
                   <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Users className="w-5 h-5 text-slate-700" />
-                      <h2 className="text-base font-bold text-slate-900">Organization Members</h2>
+                      <h2 className="text-base font-bold text-slate-900">Company Team Members</h2>
                     </div>
                   <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold">
                     {orgData?.users.length || 0} active users
@@ -839,14 +843,14 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <Globe className="w-5 h-5 text-amber-600" />
-                    <h3 className="text-sm font-bold text-slate-900">Language Switcher</h3>
+                    <h3 className="text-sm font-bold text-slate-900">App Language</h3>
                   </div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                     1-Click
                   </span>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Switch platform display language instantly:
+                  Switch app language immediately:
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {SUPPORTED_LANGUAGES.map((lang) => {
@@ -878,7 +882,7 @@ export default function SettingsPage() {
               <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-md space-y-4">
                 <div className="flex items-center gap-2 text-amber-400">
                   <ShieldCheck className="w-5 h-5" />
-                  <span className="text-xs uppercase tracking-wider font-bold">Tenant Isolation</span>
+                  <span className="text-xs uppercase tracking-wider font-bold">Your Company</span>
                 </div>
                 <h3 className="text-lg font-black">{orgData?.name}</h3>
                 <div className="text-xs text-slate-400 font-mono break-all">ID: {orgData?.id}</div>

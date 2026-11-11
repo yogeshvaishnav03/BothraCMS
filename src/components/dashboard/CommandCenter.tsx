@@ -547,7 +547,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             format={formatCompactNumber}
             sub={
               data
-                ? `${formatCompactINR(data.approvals.paymentsPendingAmount)} ${hi ? "भुगतान" : "in payments"} · ${data.approvals.ordersPendingCount} ${hi ? "ऑर्डर" : "POs"}`
+                ? `${formatCompactINR(data.approvals.paymentsPendingAmount)} ${hi ? "भुगतान" : "in payments"} · ${data.approvals.ordersPendingCount} ${hi ? "खरीद ऑर्डर" : "purchase orders"}`
                 : undefined
             }
             Icon={BadgeCheck}
@@ -565,7 +565,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               onClick={() => load()}
               className="px-3 py-1 bg-white border border-rose-300 rounded-lg text-rose-700 font-medium hover:bg-rose-100 text-xs shadow-sm transition"
             >
-              Retry
+              {hi ? "फिर कोशिश करें" : "Try Again"}
             </button>
             <button
               onClick={async () => {
@@ -579,7 +579,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               }}
               className="px-3 py-1 bg-rose-700 text-white rounded-lg font-medium hover:bg-rose-800 text-xs shadow-sm transition"
             >
-              Sync Database Schema
+              {hi ? "डेटा रिफ्रेश करें" : "Refresh & Repair Data"}
             </button>
           </div>
         </div>
@@ -588,7 +588,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
       {/* ── Secondary stats ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
         <MiniStat
-          label={hi ? "सामग्री प्राप्त (GRN)" : "Material receipts"}
+          label={hi ? "सामग्री प्राप्त" : "Material receipts"}
           value={s ? formatCompactNumber(s.receiptsCount) : "–"}
           Icon={PackagePlus}
           tone="bg-emerald-50 text-emerald-600 ring-emerald-100"
@@ -628,7 +628,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               </h2>
               <p className="text-xs text-slate-500">
                 {data
-                  ? `${data.timelineTotal} ${hi ? "प्रविष्टियाँ" : "entries across all modules"}`
+                  ? `${data.timelineTotal} ${hi ? "प्रविष्टियाँ" : "entries across all areas"}`
                   : hi
                   ? "लोड हो रहा है…"
                   : "Loading…"}
@@ -746,15 +746,15 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                               </div>
                             ) : e.kind === "HEADCOUNT" ? (
                               <div className="text-[11px] font-bold text-orange-800 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-md inline-block">
-                                {e.title.split(" ")[0]} Workers
+                                {e.title.split(" ")[0]} {hi ? "श्रमिक" : "Workers"}
                               </div>
                             ) : e.kind === "ATTENDANCE" ? (
                               <div className="text-[10px] font-bold text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md inline-block uppercase">
-                                Check-In
+                                {hi ? "चेक-इन" : "Check-In"}
                               </div>
                             ) : e.kind === "SITE_REPORT" ? (
                               <div className="text-[10px] font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md inline-block uppercase">
-                                Progress Report
+                                {hi ? "दैनिक रिपोर्ट" : "Daily Report"}
                               </div>
                             ) : null}
                             <div className="text-[11px] text-slate-400 tabular-nums mt-0.5">{timeOf(e.at)}</div>
@@ -875,7 +875,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                                       ? "border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/20"
                                       : "border-slate-200/80 hover:border-amber-300 hover:bg-slate-50/90"
                                   )}
-                                  title="Click to view full detail"
+                                  title={hi ? "पूरा विवरण देखें" : "Click to see full details"}
                                 >
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0 flex-1">
@@ -915,7 +915,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                                       {u.details && (
                                         <div className="bg-amber-50/90 p-2.5 rounded-lg border border-amber-200/90 text-slate-800 leading-relaxed font-medium">
                                           <div className="text-[10px] font-bold uppercase tracking-wider text-amber-900 mb-0.5">
-                                            Full Description & Summary:
+                                            {hi ? "पूरा विवरण:" : "Details:"}
                                           </div>
                                           <div className="text-xs break-words">{u.details}</div>
                                         </div>
@@ -924,12 +924,12 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                                       {/* Exact timestamp & entity metadata */}
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200/80">
                                         <div>
-                                          <span className="text-slate-400">Timestamp:</span>{" "}
+                                          <span className="text-slate-400">{hi ? "समय:" : "Time:"}</span>{" "}
                                           <strong className="text-slate-900 font-mono">{formatDateTime(u.at)}</strong>
                                         </div>
                                         {u.entityType && (
                                           <div>
-                                            <span className="text-slate-400">Target Entity:</span>{" "}
+                                            <span className="text-slate-400">{hi ? "रिकॉर्ड प्रकार:" : "Record Type:"}</span>{" "}
                                             <strong className="text-slate-900 font-mono">{u.entityType}</strong>
                                             {u.entityId && (
                                               <span className="text-slate-400 font-mono text-[10px] ml-1">
@@ -954,8 +954,8 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                                         return (
                                           <div className="bg-white rounded-lg border border-slate-200 p-2.5 space-y-1.5 shadow-2xs">
                                             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
-                                              <span>Field Changes & Data Recorded:</span>
-                                              <span className="text-[9px] text-slate-400">({diffKeys.length} fields)</span>
+                                              <span>{hi ? "किए गए बदलाव:" : "What Changed:"}</span>
+                                              <span className="text-[9px] text-slate-400">({diffKeys.length} {hi ? "बदलाव" : "fields"})</span>
                                             </div>
                                             <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 text-[11px] pr-1">
                                               {diffKeys.map((k) => {
@@ -999,7 +999,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                                               onClick={(e) => e.stopPropagation()}
                                               className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline inline-flex items-center gap-1"
                                             >
-                                              <span>View Party</span>
+                                              <span>{hi ? "वेंडर / ठेकेदार देखें" : "View Vendor / Contractor"}</span>
                                               <ExternalLink className="w-3 h-3" />
                                             </Link>
                                           )}
@@ -1009,7 +1009,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                                               onClick={(e) => e.stopPropagation()}
                                               className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline inline-flex items-center gap-1"
                                             >
-                                              <span>View Bills</span>
+                                              <span>{hi ? "बिल देखें" : "View Bills"}</span>
                                               <ExternalLink className="w-3 h-3" />
                                             </Link>
                                           )}
@@ -1019,7 +1019,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                                               onClick={(e) => e.stopPropagation()}
                                               className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline inline-flex items-center gap-1"
                                             >
-                                              <span>View Tasks</span>
+                                              <span>{hi ? "काम देखें" : "View Tasks"}</span>
                                               <ExternalLink className="w-3 h-3" />
                                             </Link>
                                           )}
@@ -1028,13 +1028,13 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                                             onClick={(e) => e.stopPropagation()}
                                             className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 hover:underline inline-flex items-center gap-1"
                                           >
-                                            <span>Audit Trail</span>
+                                            <span>{hi ? "बदलाव इतिहास" : "Change History"}</span>
                                             <ExternalLink className="w-3 h-3" />
                                           </Link>
                                         </div>
 
                                         <span className="text-[10px] text-amber-700 hover:text-amber-900 font-semibold">
-                                          Click to collapse ▴
+                                          {hi ? "बंद करें ▴" : "Hide details ▴"}
                                         </span>
                                       </div>
                                     </div>
@@ -1173,7 +1173,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                 {[
                   { v: data.people.present, l: hi ? "हाज़िर" : "Present" },
                   { v: data.people.hours, l: hi ? "घंटे" : "Hours" },
-                  { v: data.people.withBlockers, l: hi ? "रुकावटें" : "Blockers" },
+                  { v: data.people.withBlockers, l: hi ? "रुकावटें" : "Delays / Issues" },
                 ].map((x) => (
                   <div key={x.l} className="rounded-xl bg-slate-50 py-2">
                     <div className="text-base font-bold text-slate-900 tabular-nums">{x.v}</div>

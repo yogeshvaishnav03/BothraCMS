@@ -136,10 +136,10 @@ export default function SuperAdminDashboardPage() {
         setActiveTenants(json.data.activeTenants || 0);
         setSuspendedTenants(json.data.suspendedTenants || 0);
       } else {
-        setErrorMsg(json.error?.message || "Failed to load tenant data");
+        setErrorMsg(json.error?.message || "Could not load company list.");
       }
     } catch {
-      setErrorMsg("Network error communicating with tenant administration service");
+      setErrorMsg("Unable to connect while loading companies. Check your internet connection.");
     } finally {
       setLoading(false);
     }
@@ -165,7 +165,7 @@ export default function SuperAdminDashboardPage() {
   }
 
   function handleRejectOrder(order: any) {
-    setAdminDialogReason("Order query not approved at this time");
+    setAdminDialogReason("Purchase order request declined");
     setAdminDialog({ kind: "rejectOrder", order });
   }
 
@@ -189,7 +189,7 @@ export default function SuperAdminDashboardPage() {
   }
 
   function handleRejectPayment(payment: any) {
-    setAdminDialogReason("Payment query not approved at this time");
+    setAdminDialogReason("Payment request declined");
     setAdminDialog({ kind: "rejectPayment", payment });
   }
 
@@ -251,7 +251,7 @@ export default function SuperAdminDashboardPage() {
         });
         const json = await res.json();
         if (res.ok && json.success) {
-          setSuccessMsg(`Order ${order.orderNumber} rejected.`);
+          setSuccessMsg(`Order ${order.orderNumber} declined.`);
           await loadPendingOrders();
         } else {
           setErrorMsg(json.error?.message || "Failed to reject order");
@@ -310,7 +310,7 @@ export default function SuperAdminDashboardPage() {
         });
         const json = await res.json();
         if (res.ok && json.success) {
-          setSuccessMsg(`Payment query to ${payeeName} rejected.`);
+          setSuccessMsg(`Payment request to ${payeeName} declined.`);
           await loadPendingPayments();
         } else {
           setErrorMsg(json.error?.message || "Failed to reject payment");
@@ -339,13 +339,13 @@ export default function SuperAdminDashboardPage() {
         });
         const json = await res.json();
         if (json.success) {
-          setSuccessMsg(json.data.message || `Tenant status updated to ${nextStatus}`);
+          setSuccessMsg(json.data.message || `Company status updated to ${nextStatus === "ACTIVE" ? "Active" : "Suspended"}`);
           loadTenants();
         } else {
-          setErrorMsg(json.error?.message || "Failed to change tenant status");
+          setErrorMsg(json.error?.message || "Could not update company status.");
         }
       } catch {
-        setErrorMsg("Network error updating tenant status");
+        setErrorMsg("Unable to connect while updating company status.");
       } finally {
         setActionLoading(null);
       }
@@ -368,13 +368,13 @@ export default function SuperAdminDashboardPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSuccessMsg(data.data.message || "Demo data populated successfully!");
+        setSuccessMsg(data.data.message || "Sample company data added successfully!");
         setSeedSummary(data.data.summary);
         setSeedCredentials(data.data.demoCredentials || null);
         await loadTenants();
         await loadPendingOrders();
       } else {
-        setErrorMsg(data.error?.message || "Failed to seed demo data");
+        setErrorMsg(data.error?.message || "Could not load sample data.");
       }
     } catch (err: any) {
       setErrorMsg(`Network error: ${err.message || "Failed to seed demo data"}`);
@@ -439,7 +439,7 @@ export default function SuperAdminDashboardPage() {
       },
       {
         key: "query",
-        label: "Approval Query / Reason",
+        label: "Reason for Request",
         accessor: (o) => o.approvalQuery || o.notes || "—",
         type: "text",
       },
@@ -487,7 +487,7 @@ export default function SuperAdminDashboardPage() {
       },
       {
         key: "purpose",
-        label: "Purpose / Reason Query",
+        label: "Purpose / Reason",
         accessor: (p) => p.approvalQuery || p.notes || "—",
         type: "text",
       },
@@ -516,13 +516,13 @@ export default function SuperAdminDashboardPage() {
     () => [
       {
         key: "name",
-        label: "Organization Name",
+        label: "Company Name",
         accessor: (t) => t.name,
         type: "text",
       },
       {
         key: "id",
-        label: "Tenant ID",
+        label: "Company ID",
         accessor: (t) => t.id,
         type: "text",
       },
@@ -586,13 +586,13 @@ export default function SuperAdminDashboardPage() {
             <ShieldAlert className="w-8 h-8" />
           </div>
           <h1 className="font-display text-xl font-extrabold text-slate-900 tracking-tight">
-            Restricted Platform Administration
+            Super Admin Access Required
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            The Super Admin dashboard and global tenant management controls require global{" "}
-            <span className="font-mono font-bold text-rose-600">SUPER_ADMIN</span> credentials. Your
-            account (<span className="font-semibold">{currentUser?.email}</span>) holds the role of{" "}
-            <span className="font-semibold">{currentUser?.role}</span>.
+            Only <span className="font-semibold text-rose-600">Super Admin</span> accounts can open the
+            Super Admin Console and manage companies. Your account (
+            <span className="font-semibold">{currentUser?.email}</span>) has the{" "}
+            <span className="font-semibold">{currentUser?.role}</span> role.
           </p>
           <div className="pt-2">
             <Link
@@ -628,10 +628,10 @@ export default function SuperAdminDashboardPage() {
               onClick={() => handleSeedDemoData()}
               disabled={seeding || loading}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
-              title="Populate complete sample sites, projects, materials, workers, bills and attendance in 1 click"
+              title="Add sample sites, projects, materials, workers, bills, and attendance for testing"
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
-              {seeding ? "Populating Demo Data..." : "Add Demo Data (1-Click)"}
+              {seeding ? "Loading Sample Data..." : "Load Sample Data"}
             </button>
             <Link
               href="/chat"
@@ -691,13 +691,13 @@ export default function SuperAdminDashboardPage() {
               </div>
               <div>
                 <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <span>Order Approval Queries & Confirmations</span>
+                  <span>Purchase Orders Waiting for Approval</span>
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black">
-                    {pendingOrders.length} Pending Super Admin Decision
+                    {pendingOrders.length} Waiting for Approval
                   </span>
                 </h2>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Review site material requisitions submitted by supervisors and storekeepers. Approve to dispatch vendor notification.
+                  Review material purchase orders requested by supervisors and storekeepers. Approving prepares the vendor notification.
                 </p>
               </div>
             </div>
@@ -708,23 +708,23 @@ export default function SuperAdminDashboardPage() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 rounded-lg text-xs font-bold transition shadow-2xs self-start sm:self-auto"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${ordersLoading ? "animate-spin" : ""}`} />
-              <span>Refresh Queries</span>
+              <span>Refresh Orders</span>
             </button>
           </div>
 
           {ordersLoading ? (
             <div className="py-10 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
               <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-              <span>Loading pending order queries...</span>
+              <span>Loading pending purchase orders...</span>
             </div>
           ) : pendingOrders.length === 0 ? (
             <div className="p-8 text-center">
               <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2.5">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <div className="text-sm font-bold text-slate-900">All Order Queries Cleared!</div>
+              <div className="text-sm font-bold text-slate-900">All Purchase Orders Reviewed!</div>
               <div className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                There are no material purchase orders currently awaiting Super Admin approval. When any user places an order, it will appear here for review and confirmation.
+                There are no material purchase orders waiting for approval right now. New requests from your team will appear here.
               </div>
             </div>
           ) : (
@@ -815,19 +815,19 @@ export default function SuperAdminDashboardPage() {
                             onClick={() => handleApproveOrder(o)}
                             disabled={actionLoading === o.id}
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition disabled:opacity-50"
-                            title="Confirm & Approve order, activating vendor notification"
+                            title="Approve purchase order and prepare vendor message"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>{actionLoading === o.id ? "Approving..." : "Approve & Dispatch"}</span>
+                            <span>{actionLoading === o.id ? "Approving..." : "Approve Order"}</span>
                           </button>
                           <button
                             onClick={() => handleRejectOrder(o)}
                             disabled={actionLoading === o.id}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition disabled:opacity-50"
-                            title="Reject order query"
+                            title="Decline purchase order"
                           >
                             <XCircle className="w-3.5 h-3.5" />
-                            <span>Reject</span>
+                            <span>Decline</span>
                           </button>
                         </div>
                       </td>
@@ -998,7 +998,7 @@ export default function SuperAdminDashboardPage() {
               <ExcelTableToolbar
                 table={excelAdminPayments}
                 columns={paymentColumns}
-                tableName="disbursements"
+                tableName="payments"
                 showSearch={true}
                 showExport={true}
               />
@@ -1049,7 +1049,7 @@ export default function SuperAdminDashboardPage() {
                             </span>
                           </div>
                           {p.party && (
-                            <div className="text-[10px] text-slate-500">Party ID: {p.party.id}</div>
+                            <div className="text-[10px] text-slate-500">Saved Vendor / Contractor Account</div>
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-right font-black text-emerald-700 text-sm tabular-nums">
@@ -1084,7 +1084,7 @@ export default function SuperAdminDashboardPage() {
                               onClick={() => handleApprovePayment(p)}
                               disabled={actionLoading === p.id}
                               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition disabled:opacity-50"
-                              title="Confirm & Approve payment from paying account"
+                              title="Approve payment from this bank or cash account"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               <span>{actionLoading === p.id ? "Approving..." : "Confirm & Approve"}</span>
@@ -1093,10 +1093,10 @@ export default function SuperAdminDashboardPage() {
                               onClick={() => handleRejectPayment(p)}
                               disabled={actionLoading === p.id}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition disabled:opacity-50"
-                              title="Reject payment request"
+                              title="Decline payment request"
                             >
                               <XCircle className="w-3.5 h-3.5" />
-                              <span>Reject</span>
+                              <span>Decline</span>
                             </button>
                           </div>
                         </td>
@@ -1115,7 +1115,7 @@ export default function SuperAdminDashboardPage() {
               startItem={excelAdminPayments.startItem}
               endItem={excelAdminPayments.endItem}
               onPageChange={excelAdminPayments.setCurrentPage}
-              itemLabel="disbursements"
+              itemLabel="payments"
             />
           </div>
           )}
@@ -1126,13 +1126,13 @@ export default function SuperAdminDashboardPage() {
         <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white p-5 rounded-2xl border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
-              <Sparkles className="w-4 h-4" /> Instant Demo Environment
+              <Sparkles className="w-4 h-4" /> Sample Testing Data
             </div>
             <h3 className="text-base font-bold text-white">
-              One-Click Comprehensive Demo Data Generator
+              Load Sample Company Data
             </h3>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Instantly load sample construction data: 2 active sites, projects, material stock, vendor bills, worker attendance, and daily site reports.
+              Add sample construction records (2 sites, projects, material stock, vendor bills, worker attendance, and daily reports) so new users can explore safely.
             </p>
           </div>
           <button
@@ -1141,7 +1141,7 @@ export default function SuperAdminDashboardPage() {
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition disabled:opacity-50 shrink-0"
           >
             <Sparkles className="w-4 h-4 text-slate-950" />
-            <span>{seeding ? "Populating Demo Records..." : "Seed Complete Demo Data"}</span>
+            <span>{seeding ? "Loading Sample Data..." : "Load Sample Data"}</span>
           </button>
         </div>
 
@@ -1151,7 +1151,7 @@ export default function SuperAdminDashboardPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <span>Demo Data Population Completed</span>
+                <span>Sample Data Loaded</span>
               </div>
               <button onClick={() => setSeedSummary(null)} className="text-emerald-700 hover:text-emerald-900 text-xs">
                 Dismiss
@@ -1175,8 +1175,8 @@ export default function SuperAdminDashboardPage() {
                 <div className="text-base font-black text-slate-900">{seedSummary.materialsCreated} Items</div>
               </div>
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
-                <div className="text-[10px] text-slate-500 uppercase font-semibold">Parties / Vendors</div>
-                <div className="text-base font-black text-slate-900">{seedSummary.partiesCreated} Parties</div>
+                <div className="text-[10px] text-slate-500 uppercase font-semibold">Vendors &amp; Contractors</div>
+                <div className="text-base font-black text-slate-900">{seedSummary.partiesCreated} Vendors</div>
               </div>
               <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-center">
                 <div className="text-[10px] text-slate-500 uppercase font-semibold">Workers</div>
@@ -1191,34 +1191,34 @@ export default function SuperAdminDashboardPage() {
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between text-slate-400">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Total Organizations
+                Total Companies
               </span>
               <Building className="w-5 h-5 text-amber-500" />
             </div>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(totalTenants)}>{formatCompactNumber(totalTenants)}</div>
-            <div className="text-xs text-slate-500 mt-1">Total provisioned tenant databases</div>
+            <div className="text-xs text-slate-500 mt-1">Companies set up on this workspace</div>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between text-slate-400">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                Active Tenants
+                Active Companies
               </span>
               <CheckCircle2 className="w-5 h-5 text-emerald-500" />
             </div>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(activeTenants)}>{formatCompactNumber(activeTenants)}</div>
-            <div className="text-xs text-slate-500 mt-1">Operational with live site traffic</div>
+            <div className="text-xs text-slate-500 mt-1">Currently active and running</div>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between text-slate-400">
               <span className="text-xs font-bold uppercase tracking-wider text-rose-700">
-                Suspended Tenants
+                Suspended Companies
               </span>
               <XCircle className="w-5 h-5 text-rose-500" />
             </div>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(suspendedTenants)}>{formatCompactNumber(suspendedTenants)}</div>
-            <div className="text-xs text-slate-500 mt-1">Temporarily locked from platform mutation</div>
+            <div className="text-xs text-slate-500 mt-1">Temporarily paused (read-only access)</div>
           </div>
         </div>
 
@@ -1228,7 +1228,7 @@ export default function SuperAdminDashboardPage() {
             <div className="relative flex-1 max-w-md">
               <input
                 type="text"
-                placeholder="Search organizations by name or ID..."
+                placeholder="Search companies by name or ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -1236,14 +1236,14 @@ export default function SuperAdminDashboardPage() {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
             </div>
             <div className="text-xs text-slate-500 font-semibold">
-              Showing {filteredTenants.length} of {tenants.length} organizations
+              Showing {filteredTenants.length} of {tenants.length} companies
             </div>
           </div>
 
           <ExcelTableToolbar
             table={excelTenants}
             columns={tenantColumns}
-            tableName="organizations"
+            tableName="companies"
             showSearch={true}
             showExport={true}
           />
@@ -1259,14 +1259,14 @@ export default function SuperAdminDashboardPage() {
                       theme="darkHeader"
                     />
                   ))}
-                  <th className="py-3 px-4 text-right">Administrative Action</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {excelTenants.filteredData.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-slate-400">
-                      No matching organizations found.
+                      No matching companies found.
                     </td>
                   </tr>
                 ) : (
@@ -1305,10 +1305,10 @@ export default function SuperAdminDashboardPage() {
                             onClick={() => handleSeedDemoData(t.id, t.name)}
                             disabled={seeding || actionLoading === t.id}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition disabled:opacity-50"
-                            title={`Seed sample demo records for ${t.name}`}
+                            title={`Add sample test records to ${t.name}`}
                           >
                             <Database className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Seed Data</span>
+                            <span>Load Sample</span>
                           </button>
                           <button
                             onClick={() => toggleTenantStatus(t.id, t.status)}
@@ -1342,7 +1342,7 @@ export default function SuperAdminDashboardPage() {
             startItem={excelTenants.startItem}
             endItem={excelTenants.endItem}
             onPageChange={excelTenants.setCurrentPage}
-            itemLabel="organizations"
+            itemLabel="companies"
           />
         </div>
 
@@ -1361,14 +1361,14 @@ export default function SuperAdminDashboardPage() {
                   {adminDialog.kind === "approveOrder"
                     ? "Approve Purchase Order"
                     : adminDialog.kind === "rejectOrder"
-                    ? "Reject Purchase Order"
+                    ? "Decline Purchase Order"
                     : adminDialog.kind === "approvePayment"
                     ? "Confirm & Approve Payment"
                     : adminDialog.kind === "rejectPayment"
-                    ? "Reject Payment Request"
+                    ? "Decline Payment Request"
                     : adminDialog.kind === "toggleTenant"
-                    ? `Set Organization Status: ${adminDialog.nextStatus}`
-                    : "Populate Complete Demo Data"}
+                    ? `${adminDialog.nextStatus === "SUSPENDED" ? "Suspend Company" : "Activate Company"}`
+                    : "Load Sample Data"}
                 </h3>
                 <button
                   type="button"
@@ -1385,12 +1385,12 @@ export default function SuperAdminDashboardPage() {
                 <form onSubmit={executeAdminDialog} className="space-y-3">
                   <p className="text-xs text-slate-600 leading-relaxed">
                     {adminDialog.kind === "rejectOrder"
-                      ? `Provide rejection reason for Purchase Order ${adminDialog.order.orderNumber}.`
+                      ? `Enter a short reason for declining Purchase Order ${adminDialog.order.orderNumber}.`
                       : adminDialog.kind === "rejectPayment"
-                      ? `Provide rejection reason for payment to ${
+                      ? `Enter a short reason for declining payment to ${
                           adminDialog.payment.recipientName || adminDialog.payment.party?.name || "Recipient"
                         }.`
-                      : `Provide an administrative audit reason to change tenant status to ${adminDialog.nextStatus}.`}
+                      : `Enter a reason to ${adminDialog.nextStatus === "SUSPENDED" ? "suspend" : "reactivate"} this company.`}
                   </p>
                   <textarea
                     required
@@ -1423,7 +1423,7 @@ export default function SuperAdminDashboardPage() {
                       <>
                         Approve Purchase Order <strong className="font-mono text-slate-900">{adminDialog.order.orderNumber}</strong> for{" "}
                         <strong className="text-slate-900">{adminDialog.order.material.name}</strong> ({adminDialog.order.quantity}{" "}
-                        {adminDialog.order.unitCode})? This confirms the order and activates vendor notification.
+                        {adminDialog.order.unitCode})? This approves the order and prepares the vendor message.
                       </>
                     ) : adminDialog.kind === "approvePayment" ? (
                       <>
@@ -1439,7 +1439,7 @@ export default function SuperAdminDashboardPage() {
                       </>
                     ) : (
                       <>
-                        Populate sample Sites, Projects, Stores, Materials, Vendors, Attendance, Tasks, and Bills for{" "}
+                        Add sample sites, projects, stores, materials, vendors, attendance, tasks, and bills to{" "}
                         <strong className="text-slate-900">
                           {adminDialog.targetOrgName || "the platform demo environment"}
                         </strong>

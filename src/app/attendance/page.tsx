@@ -883,10 +883,10 @@ export default function AttendancePage() {
                   type="button"
                   onClick={handleOpenAlterModal}
                   className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs transition shadow-sm cursor-pointer"
-                  title="Alter or record attendance for another account holder"
+                  title="Add or update attendance for another staff member"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  <span>+ Alter Staff Attendance</span>
+                  <span>Add / Edit Staff Attendance</span>
                 </button>
                 <button
                   type="button"
@@ -905,7 +905,7 @@ export default function AttendancePage() {
                 href="/attendance/muster"
                 className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-slate-800"
               >
-                <Users className="h-3.5 w-3.5" /> Site master
+                <Users className="h-3.5 w-3.5" /> Muster Roll
               </Link>
             )}
             <button
@@ -1530,8 +1530,8 @@ export default function AttendancePage() {
                 {activeTab === "all" && isPrivileged
                   ? "No staff attendance records matched the selected filters for this time window."
                   : selectedMonthTab !== "ALL"
-                  ? "No shifts logged for this selected month. Click \"Check In Today\" above to mark today's attendance."
-                  : "No attendance shifts found in the past 3 months. Click \"Check In Today\" above to record your first shift."}
+                  ? "No attendance shifts recorded for this month yet."
+                  : "No attendance shifts recorded in the last 3 months yet."}
               </div>
             </div>
           ) : (
@@ -1625,7 +1625,7 @@ export default function AttendancePage() {
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                              Present (Open)
+                              Checked In (No Check-Out)
                             </span>
                           )}
                         </td>
@@ -1751,7 +1751,7 @@ export default function AttendancePage() {
                             <span className="text-emerald-600">✓</span> GPS Logged
                           </span>
                         ) : (
-                          <span className="text-slate-400">Standard check-in</span>
+                          <span className="text-slate-400">No GPS captured</span>
                         )}
                       </div>
 
@@ -1819,7 +1819,7 @@ export default function AttendancePage() {
                 <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-slate-800 flex items-start gap-2.5">
                   <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                   <div className="text-slate-600 text-[11px] leading-relaxed">
-                    Audited administrative action for staff: <strong className="text-slate-900">{correctionSession.employeeName}</strong> ({correctionSession.employeeCode}). All edits create an immutable entry in the system audit log.
+                    Updating attendance for <strong className="text-slate-900">{correctionSession.employeeName}</strong> ({correctionSession.employeeCode}). This change is saved permanently in Change History.
                   </div>
                 </div>
 
@@ -1956,7 +1956,7 @@ export default function AttendancePage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Select Account Holder / Employee <span className="text-rose-600">*</span>
+                    Select Staff Member <span className="text-rose-600">*</span>
                   </label>
                   <select
                     required
@@ -1965,7 +1965,7 @@ export default function AttendancePage() {
                     className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
                   >
                     {staffUsers.length === 0 ? (
-                      <option value="">No staff accounts found</option>
+                      <option value="">No staff accounts yet (add staff under Team)</option>
                     ) : (
                       staffUsers.map((u) => (
                         <option key={u.id} value={u.id}>
@@ -2156,7 +2156,7 @@ export default function AttendancePage() {
                     <div>
                       <div className="text-xs font-bold text-slate-900">Automatic Shift Checkout Reminders</div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
-                        Alert account holders on their dashboard and notification center when their scheduled shift has concluded and they haven&apos;t checked out.
+                        Notify staff on their dashboard when their shift has ended and they have not checked out yet.
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">

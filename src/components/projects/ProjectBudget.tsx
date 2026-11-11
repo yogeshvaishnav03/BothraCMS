@@ -312,7 +312,7 @@ export default function ProjectBudget({ projectId, canEdit }: { projectId: strin
             <MonthlyChart months={data.monthly} />
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs sm:p-5">
-            <h3 className="mb-3 text-[15px] font-bold text-slate-900">Biggest payees</h3>
+            <h3 className="mb-3 text-[15px] font-bold text-slate-900">Top Vendors & Contractors Paid</h3>
             {data.topParties.length === 0 ? (
               <p className="text-xs text-slate-500">No bills or payments on this project yet.</p>
             ) : (

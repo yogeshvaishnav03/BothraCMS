@@ -105,7 +105,7 @@ export default function TaxStatementPage() {
                 <td className="py-1.5 text-right">{r.pt ? rupees(r.pt) : "—"}</td>
                 <td className="py-1.5 text-right">
                   {r.tds ? rupees(r.tds) : "—"}
-                  {r.tdsManual && <span className="ml-1 text-[10px] text-slate-400" title="Typed in by hand">✎</span>}
+                  {r.tdsManual && <span className="ml-1 text-[10px] text-slate-500" title="Manually adjusted">(manual)</span>}
                 </td>
                 <td className="py-1.5 text-right">{r.status ? rupees(r.net) : "—"}</td>
               </tr>
@@ -145,7 +145,7 @@ export default function TaxStatementPage() {
             <table className="mt-2 w-full text-sm text-slate-700">
               <tbody>
                 <Row label="TDS deducted so far" value={p.tdsSoFar} />
-                <Row label={p.complete ? "Short deducted" : "Still to deduct this year"} value={p.balance} strong />
+                <Row label={p.complete ? "Shortfall (Tax Still Due)" : "Remaining Tax for Year"} value={p.balance} strong />
               </tbody>
             </table>
             {doc.regime === "OLD" && doc.declared > 0 && <p className="mt-3 text-xs text-slate-500">Declared deductions: {rupees(doc.declared)} a year.</p>}

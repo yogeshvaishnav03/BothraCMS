@@ -47,7 +47,7 @@ function formatKeyLabel(key: string): string {
 }
 
 function formatFieldValue(key: string, val: any): React.ReactNode {
-  if (val === null || val === undefined) return <span className="text-slate-400 italic">null</span>;
+  if (val === null || val === undefined) return <span className="text-slate-400 italic">Empty</span>;
   if (typeof val === "boolean") {
     return (
       <span
@@ -101,12 +101,12 @@ export default function AuditPage() {
     fetch("/api/audit")
       .then(async (r) => {
         if (r.status === 403) {
-          setError("Access Denied: Your account role does not have authorization to view immutable audit logs.");
+          setError("Access Restricted: Only Company Admins, Auditors, or Super Admins can view the system activity log.");
           return null;
         }
         if (!r.ok) {
           const errData = await r.json().catch(() => ({}));
-          setError(errData.error || `Failed to fetch audit logs (HTTP ${r.status})`);
+          setError(errData.error || `Could not load activity log (Error ${r.status})`);
           return null;
         }
         return r.json();
@@ -168,25 +168,25 @@ export default function AuditPage() {
       },
       {
         key: "actor",
-        label: "Actor",
+        label: "Changed By",
         accessor: (e) => `${e.actor?.name || "System"} (${e.actor?.role || "SYSTEM"})`,
         type: "text",
       },
       {
         key: "entityType",
-        label: "Target Entity",
+        label: "Record Type",
         accessor: (e) => `${e.entityType} ${e.entityId || ""}`,
         type: "text",
       },
       {
         key: "reason",
         label: "Reason / Notes",
-        accessor: (e) => e.reason || "Standard transaction",
+        accessor: (e) => e.reason || "Normal update",
         type: "text",
       },
       {
         key: "metadata",
-        label: "Metadata & Details",
+        label: "Details",
         accessor: (e) => (e.metadata ? JSON.stringify(e.metadata) : "—"),
         type: "text",
       },
@@ -330,7 +330,7 @@ export default function AuditPage() {
           setActiveTab("attributes");
         }}
         className="flex items-center justify-between gap-2 p-1 -m-1 rounded-lg hover:bg-slate-100/90 cursor-pointer group transition-colors"
-        title="Click to view detailed payload"
+        title="Click to view full change details"
       >
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           {chips.slice(0, 2)}
@@ -350,7 +350,7 @@ export default function AuditPage() {
           className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-white border border-slate-200 group-hover:border-amber-400 group-hover:text-amber-800 text-slate-600 rounded-md shadow-2xs shrink-0 transition-colors"
         >
           <Eye className="w-3.5 h-3.5 text-amber-600" />
-          <span>Inspect</span>
+          <span>View</span>
         </button>
       </div>
     );
@@ -362,7 +362,7 @@ export default function AuditPage() {
         {/* Header */}
         <PageHeader icon={ShieldCheck} title="System Activity Log" subtitle="Track all important site actions: payments, reversals, stock changes, orders, and attendance edits.">
           <span className="text-xs font-mono font-bold bg-slate-900 text-amber-400 px-3 py-1.5 rounded-lg w-max">
-            Audit Trail Active
+            All Changes Recorded
           </span>
         </PageHeader>
 
@@ -386,7 +386,7 @@ export default function AuditPage() {
             <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-200">
               <ShieldAlert className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Access Denied (403 Forbidden)</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Access Restricted</h3>
             <p className="text-sm text-slate-600 mb-6 leading-relaxed">
               {error}
             </p>
@@ -406,7 +406,7 @@ export default function AuditPage() {
         ) : filteredEvents.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
             <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <div className="text-sm font-bold text-slate-700">No audit events recorded</div>
+            <div className="text-sm font-bold text-slate-700">No activity recorded yet</div>
             <div className="text-xs text-slate-400 mt-1">Actions performed by users will appear here automatically.</div>
           </div>
         ) : (
@@ -414,7 +414,7 @@ export default function AuditPage() {
             <ExcelTableToolbar
               table={excelAudit}
               columns={auditColumns}
-              tableName="audit events"
+              tableName="activity log"
               showSearch={true}
               showExport={true}
             />
@@ -487,7 +487,7 @@ export default function AuditPage() {
                             {e.reason}
                           </span>
                         ) : (
-                          <span className="text-slate-400 italic">Standard transaction</span>
+                          <span className="text-slate-400 italic">Normal update</span>
                         )}
                       </td>
                       <td className="py-3.5 px-4 font-sans min-w-[240px]">
@@ -508,7 +508,7 @@ export default function AuditPage() {
               startItem={excelAudit.startItem}
               endItem={excelAudit.endItem}
               onPageChange={excelAudit.setCurrentPage}
-              itemLabel="audit logs"
+              itemLabel="activity entries"
             />
           </div>
         )}
@@ -543,7 +543,7 @@ export default function AuditPage() {
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-bold text-slate-900 text-base sm:text-lg">
-                          Audit Event Payload
+                          Change Details
                         </h3>
                         <span
                           className={`inline-flex items-center font-bold px-2.5 py-0.5 rounded-full text-xs uppercase tracking-wider ${
@@ -558,7 +558,7 @@ export default function AuditPage() {
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Immutable transaction log recorded at {formatDateTime(selectedEvent.createdAt)}
+                        Recorded on {formatDateTime(selectedEvent.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -574,21 +574,21 @@ export default function AuditPage() {
                 {/* Context Summary Cards */}
                 <div className="px-5 pt-4 pb-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs border-b border-slate-100">
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Actor</div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Changed By</div>
                     <div className="font-bold text-slate-900 mt-0.5">{selectedEvent.actor?.name || "System"}</div>
                     <div className="text-[11px] text-slate-500 font-mono capitalize">
                       {selectedEvent.actor?.role?.toLowerCase().replace("_", " ")}
                     </div>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Target Entity</div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Record Type</div>
                     <div className="font-bold text-slate-900 mt-0.5">{selectedEvent.entityType}</div>
                     <div className="text-[10px] text-slate-500 font-mono truncate" title={selectedEvent.entityId}>
                       ID: {selectedEvent.entityId.slice(0, 14)}...
                     </div>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/60 col-span-2 sm:col-span-1">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Timestamp</div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Date &amp; Time</div>
                     <div className="font-semibold text-slate-800 mt-0.5 font-mono text-[11px]">
                       {formatDateTime(selectedEvent.createdAt)}
                     </div>
@@ -616,7 +616,7 @@ export default function AuditPage() {
                     }`}
                   >
                     <Tag className="w-3.5 h-3.5" />
-                    <span>Key Attributes ({Object.keys(activeData).length})</span>
+                    <span>Summary ({Object.keys(activeData).length})</span>
                   </button>
                   {hasDiff && (
                     <button
@@ -628,7 +628,7 @@ export default function AuditPage() {
                       }`}
                     >
                       <Layers className="w-3.5 h-3.5" />
-                      <span>State Diff</span>
+                      <span>Before &amp; After</span>
                     </button>
                   )}
                   <button
@@ -640,7 +640,7 @@ export default function AuditPage() {
                     }`}
                   >
                     <Code2 className="w-3.5 h-3.5" />
-                    <span>Raw JSON</span>
+                    <span>Technical Data</span>
                   </button>
                 </div>
 
@@ -650,7 +650,7 @@ export default function AuditPage() {
                     <div className="space-y-2">
                       {Object.keys(activeData).length === 0 ? (
                         <div className="py-8 text-center text-slate-400 text-xs italic">
-                          No payload parameters recorded for this event.
+                          No extra details were recorded for this action.
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -710,7 +710,7 @@ export default function AuditPage() {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors shadow-2xs"
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-                    <span>{copied ? "Copied!" : "Copy Payload"}</span>
+                    <span>{copied ? "Copied!" : "Copy Details"}</span>
                   </button>
                   <button
                     type="button"

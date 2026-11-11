@@ -806,7 +806,7 @@ export function ExcelColumnHeader<T = any>({
                 ? "text-slate-400 hover:text-white hover:bg-slate-800"
                 : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
             }`}
-            title={`Excel Filter: ${column.label} ${isFiltered ? "(Filter Active)" : ""}`}
+            title={`Filter: ${column.label} ${isFiltered ? "(Active)" : ""}`}
           >
             <Filter className={`w-3.5 h-3.5 ${isFiltered ? "stroke-[2.5]" : ""}`} />
             {isFiltered && (
@@ -953,7 +953,7 @@ export function ExcelColumnHeader<T = any>({
                         className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 shrink-0"
                       />
                       <span className={`truncate ${item.value === "(Blanks)" ? "italic text-slate-400" : "text-slate-800 font-medium"}`}>
-                        {item.value}
+                        {item.value === "(Blanks)" ? "(Empty)" : item.value}
                       </span>
                     </div>
                     <span className="text-[10px] text-slate-400 font-mono shrink-0 bg-slate-100 px-1.5 py-0.2 rounded-full">
@@ -991,10 +991,10 @@ export function ExcelColumnHeader<T = any>({
                   table.setIsMegaFilterOpen(true);
                 }}
                 className="px-2 py-1 text-slate-700 hover:text-slate-950 hover:bg-slate-100 text-[11px] font-bold rounded-lg transition inline-flex items-center gap-1 border border-slate-200 bg-white shadow-2xs"
-                title="Open full Mega Filter panel"
+                title="Open full Filter & Sort panel"
               >
                 <SlidersHorizontal className="w-3 h-3 text-amber-500" />
-                <span>Mega Filter</span>
+                <span>Filter & Sort</span>
               </button>
 
               <button
@@ -1145,7 +1145,7 @@ export function MegaFilterModal<T = any>({
             <div>
               <div className="flex items-center gap-2">
                 <h3 id="mega-filter-title" className="font-black text-base sm:text-lg leading-tight">
-                  Mega Filter — {tableName}
+                  Filter & Sort — {tableName}
                 </h3>
                 {table.activeFiltersCount > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950">
@@ -1154,7 +1154,7 @@ export function MegaFilterModal<T = any>({
                 )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Slice, search, and refine records across {filterableColumns.length} columns simultaneously
+                Filter and search across {filterableColumns.length} columns together
               </p>
             </div>
           </div>
@@ -1162,7 +1162,7 @@ export function MegaFilterModal<T = any>({
             type="button"
             onClick={handleClose}
             className="text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800"
-            aria-label="Close Mega Filter"
+            aria-label="Close Filter & Sort"
           >
             <X className="w-5 h-5" />
           </button>
@@ -1173,7 +1173,7 @@ export function MegaFilterModal<T = any>({
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder={`Global search in ${tableName} (searches across all columns)...`}
+              placeholder={`Search across all columns in ${tableName}...`}
               value={table.globalSearch}
               onChange={(e) => table.setGlobalSearch(e.target.value)}
               className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
@@ -1308,7 +1308,7 @@ export function MegaFilterModal<T = any>({
                   )}
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {distinctValues.length} distinct values in this dataset
+                  {distinctValues.length} options in this column
                 </p>
               </div>
 
@@ -1333,14 +1333,14 @@ export function MegaFilterModal<T = any>({
                   onClick={() => table.selectBlanksOnly(activeColumn.key)}
                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
                 >
-                  (Blanks)
+                  (Empty)
                 </button>
                 <button
                   type="button"
                   onClick={() => table.selectNonBlanksOnly(activeColumn.key)}
                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition"
                 >
-                  Non-Blanks
+                  Has Value
                 </button>
                 {isColFiltered && (
                   <button
@@ -1364,7 +1364,7 @@ export function MegaFilterModal<T = any>({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                     <CalendarDays className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Date Range Slicer</span>
+                    <span>Date Range</span>
                   </span>
                   {(currentRange.fromDate || currentRange.toDate) && (
                     <button
@@ -1445,7 +1445,7 @@ export function MegaFilterModal<T = any>({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                     <Hash className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Numeric Range Slicer</span>
+                    <span>Number Range</span>
                   </span>
                   {(currentRange.min !== undefined || currentRange.max !== undefined) && (
                     <button
@@ -1505,7 +1505,7 @@ export function MegaFilterModal<T = any>({
                 <div className="relative flex-1">
                   <input
                     type="text"
-                    placeholder={`Search distinct values in ${activeColumn.label}...`}
+                    placeholder={`Search options in ${activeColumn.label}...`}
                     value={colSearch}
                     onChange={(e) =>
                       table.setFilterSearchQueries((prev) => ({
@@ -1540,7 +1540,7 @@ export function MegaFilterModal<T = any>({
               <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 pr-1 max-h-52">
                 {visibleValues.length === 0 ? (
                   <div className="py-8 text-center text-slate-400 text-xs italic">
-                    No matching distinct values found
+                    No matching options found
                   </div>
                 ) : (
                   visibleValues.map((item) => {
@@ -1562,7 +1562,7 @@ export function MegaFilterModal<T = any>({
                               item.value === "(Blanks)" ? "italic text-slate-400" : "text-slate-800 font-medium"
                             }`}
                           >
-                            {item.value}
+                            {item.value === "(Blanks)" ? "(Empty)" : item.value}
                           </span>
                         </div>
                         <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
@@ -1832,7 +1832,7 @@ export function ExcelTableMegaDrawer<T = any>({
               className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 hidden sm:inline-flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs hover:bg-slate-50 transition"
             >
               <Layers className="w-3 h-3 text-amber-500" />
-              <span>Deep Slicer...</span>
+              <span>More Filters...</span>
             </button>
           )}
 
@@ -1937,7 +1937,7 @@ export function ExcelTableMegaDrawer<T = any>({
                 onChange={(e) => table.setSingleColumnValue(col.key, e.target.value)}
                 className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 truncate"
               >
-                <option value="ALL">All {col.label}s ({distinct.length})</option>
+                <option value="ALL">All {col.label} ({distinct.length})</option>
                 {selectedVal === "MULTIPLE" && (
                   <option value="MULTIPLE" disabled>
                     (Multiple selected)
@@ -1945,7 +1945,7 @@ export function ExcelTableMegaDrawer<T = any>({
                 )}
                 {distinct.map((item) => (
                   <option key={item.value} value={item.value}>
-                    {item.value} ({item.count})
+                    {item.value === "(Blanks)" ? "(Empty)" : item.value} ({item.count})
                   </option>
                 ))}
               </select>
@@ -2400,10 +2400,10 @@ export function ExcelTableToolbar<T = any>({
                 ? "bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-500/20"
                 : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
             }`}
-            title={`Toggle Mega Filter for ${tableName}`}
+            title={`Show or hide filters for ${tableName}`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-slate-950" />
-            <span>Mega Filter</span>
+            <span>Filter & Sort</span>
             {effectiveActiveCount > 0 && (
               <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-slate-950 text-amber-400">
                 {effectiveActiveCount}
@@ -2569,7 +2569,7 @@ export function ExcelTableToolbar<T = any>({
               type="button"
               onClick={() => table.exportCSV(`${tableName}-filtered.csv`)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg font-bold text-xs shadow-2xs transition"
-              title="Export filtered records to CSV"
+              title="Download visible rows as a spreadsheet (CSV)"
             >
               <Download className="w-3.5 h-3.5 text-slate-500" />
               <span>Export CSV</span>

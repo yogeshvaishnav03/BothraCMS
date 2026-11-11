@@ -471,7 +471,7 @@ export default function MaterialsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to create material");
+        setErrorMessage(data.error?.message || "Could not add material. Please check the name and unit.");
       } else {
         setStatusMessage(`Material "${data.data.name}" added to master inventory!`);
         setShowCreateMaterialModal(false);
@@ -489,7 +489,7 @@ export default function MaterialsPage() {
         loadMaterials(activeSiteId);
       }
     } catch {
-      setErrorMessage("Network error during material creation");
+      setErrorMessage("Network error while adding material. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -510,7 +510,7 @@ export default function MaterialsPage() {
       const res = await fetch(`/api/materials?id=${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to remove material");
+        setErrorMessage(data.error?.message || "Could not delete material. It may have existing stock entries.");
         setPendingDeleteMaterial(null);
         return;
       }
@@ -519,7 +519,7 @@ export default function MaterialsPage() {
       setPendingDeleteMaterial(null);
       loadMaterials();
     } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to delete material"}`);
+      setErrorMessage(`Network error while deleting material. Check your connection and try again.${err.message ? ` (${err.message})` : ""}`);
       setPendingDeleteMaterial(null);
     } finally {
       setActionLoading(false);
@@ -561,9 +561,9 @@ export default function MaterialsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to receive goods");
+        setErrorMessage(data.error?.message || "Could not record stock receipt. Please check the quantity and store.");
       } else {
-        setStatusMessage("Goods received and authoritative ledger updated successfully!");
+        setStatusMessage("Stock received and added to store balance!");
         setShowReceiveModal(false);
         setQuantity("");
         setUnitRate("");
@@ -572,7 +572,7 @@ export default function MaterialsPage() {
         loadMaterials();
       }
     } catch {
-      setErrorMessage("Network error during receipt");
+      setErrorMessage("Network error while saving stock receipt. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -607,7 +607,7 @@ export default function MaterialsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to issue material");
+        setErrorMessage(data.error?.message || "Could not issue material. Please check available store stock.");
       } else {
         setStatusMessage("Material issued and project consumption logged successfully!");
         setShowIssueModal(false);
@@ -616,7 +616,7 @@ export default function MaterialsPage() {
         loadMaterials();
       }
     } catch {
-      setErrorMessage("Network error during issue");
+      setErrorMessage("Network error while issuing material. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -654,7 +654,7 @@ export default function MaterialsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to transfer material");
+        setErrorMessage(data.error?.message || "Could not transfer material between stores. Check stock balance.");
       } else {
         setStatusMessage("Material transferred successfully across stores!");
         setShowTransferModal(false);
@@ -664,7 +664,7 @@ export default function MaterialsPage() {
         loadMaterials();
       }
     } catch {
-      setErrorMessage("Network error during transfer");
+      setErrorMessage("Network error while transferring stock. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -680,7 +680,7 @@ export default function MaterialsPage() {
     () => [
       {
         key: "name",
-        label: "Material / SKU",
+        label: "Material & Item Code (SKU)",
         accessor: (m) => `${m.name} ${m.sku}`,
         type: "text",
       },
@@ -768,7 +768,7 @@ export default function MaterialsPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4 text-amber-400" />
-                <span>+ Add Material</span>
+                <span>Add Material</span>
               </button>
             )}
             {canReceiveGoods && (
@@ -781,7 +781,7 @@ export default function MaterialsPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
               >
                 <PackagePlus className="w-4 h-4" />
-                <span>+ Goods Receipt</span>
+                <span>Receive Stock</span>
               </button>
             )}
             {canIssueStock && (
@@ -794,7 +794,7 @@ export default function MaterialsPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
               >
                 <PackageMinus className="w-4 h-4" />
-                <span>- Issue Stock</span>
+                <span>Issue Stock</span>
               </button>
             )}
             {canTransferStock && (
@@ -809,7 +809,7 @@ export default function MaterialsPage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
               >
                 <ArrowRightLeft className="w-4 h-4" />
-                <span>⇄ Transfer Stock</span>
+                <span>Transfer Stock</span>
               </button>
             )}
           </div>
@@ -825,7 +825,7 @@ export default function MaterialsPage() {
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
-              placeholder="Search by material name or SKU code..."
+              placeholder="Search by material name or item code..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -844,7 +844,7 @@ export default function MaterialsPage() {
           <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
             <Boxes className="w-10 h-10 text-slate-300 mx-auto mb-2" />
             <div className="text-sm font-bold text-slate-700">No materials found</div>
-            <div className="text-xs text-slate-400 mt-1">Try clearing your search query.</div>
+            <div className="text-xs text-slate-400 mt-1">Try a different search word or clear filters.</div>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -1018,7 +1018,7 @@ export default function MaterialsPage() {
                                   onClick={(e) => e.stopPropagation()}
                                   className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
                                 >
-                                  <span>Ledger</span>
+                                  <span>Stock History</span>
                                   <ArrowRight className="w-3.5 h-3.5" />
                                 </Link>
                                 {canDeleteMaterial && (
@@ -1062,7 +1062,7 @@ export default function MaterialsPage() {
                                         href={`/materials/${m.id}`}
                                         className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
                                       >
-                                        <span>Full Ledger</span>
+                                        <span>Full Stock History</span>
                                         <ArrowRight className="w-3.5 h-3.5" />
                                       </Link>
                                     </div>
@@ -1329,7 +1329,7 @@ export default function MaterialsPage() {
                           href={`/materials/${m.id}`}
                           className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
                         >
-                          <span>Full Ledger</span>
+                          <span>Full Stock History</span>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </Link>
 

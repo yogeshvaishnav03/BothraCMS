@@ -193,7 +193,7 @@ function BankDetailsModal({ party, onClose }: { party: any; onClose: () => void 
           {data && (
             <div className="pt-2 flex items-center justify-between gap-2">
               <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                <ShieldAlert className="w-3.5 h-3.5" /> This view is recorded in the audit log.
+                <ShieldAlert className="w-3.5 h-3.5" /> Bank details views are saved to Change History for security.
               </p>
               {allText && <CopyButton value={allText} label="Copy all" />}
             </div>
@@ -345,16 +345,16 @@ export default function PartiesPage() {
       const res = await fetch(`/api/parties?id=${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to delete party");
+        setErrorMessage(data.error?.message || "Could not remove this vendor or contractor. Please try again.");
         setPendingDeleteParty(null);
         return;
       }
-      setStatusMessage(`Party "${partyName}" deleted.`);
+      setStatusMessage(`Removed "${partyName}".`);
       setParties((prev) => prev.filter((p) => p.id !== id));
       setPendingDeleteParty(null);
       loadParties();
     } catch (err: any) {
-      setErrorMessage(`Network error: ${err.message || "Failed to delete party"}`);
+      setErrorMessage(`Connection error: ${err.message || "Could not remove this vendor or contractor. Check your internet and try again."}`);
       setPendingDeleteParty(null);
     } finally {
       setSubmitting(false);
@@ -406,9 +406,9 @@ export default function PartiesPage() {
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          setErrorMessage(data.error?.message || "Failed to update party");
+          setErrorMessage(data.error?.message || "Could not save changes. Please check the form and try again.");
         } else {
-          setStatusMessage(`Party "${form.name}" updated successfully.`);
+          setStatusMessage(`Saved changes for "${form.name}".`);
           setShowModal(false);
           loadParties();
         }
@@ -422,15 +422,15 @@ export default function PartiesPage() {
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          setErrorMessage(data.error?.message || "Failed to register party");
+          setErrorMessage(data.error?.message || "Could not add vendor or contractor. Please check the form and try again.");
         } else {
-          setStatusMessage("Party registered successfully!");
+          setStatusMessage("Vendor or contractor added!");
           setShowModal(false);
           loadParties();
         }
       }
     } catch {
-      setErrorMessage("Network error during operation");
+      setErrorMessage("Connection error. Check your internet connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -492,7 +492,7 @@ export default function PartiesPage() {
 
   const partyColumns: ExcelColumn<any>[] = useMemo(
     () => [
-      { key: "name", label: "Partner Name / GSTIN", accessor: (p) => `${p.name} ${p.taxIdentifier || ""}`, type: "text" },
+      { key: "name", label: "Vendor / Contractor & GSTIN", accessor: (p) => `${p.name} ${p.taxIdentifier || ""}`, type: "text" },
       { key: "partyType", label: "Type", accessor: (p) => p.partyType, type: "text" },
       { key: "category", label: "Category", accessor: (p) => p.category || "—", type: "text" },
       { key: "city", label: "City", accessor: (p) => p.city || "—", type: "text" },
@@ -530,7 +530,7 @@ export default function PartiesPage() {
       {canWriteFinance && (
         <button
           onClick={() => handleOpenEdit(p)}
-          title="Edit Party Details"
+          title="Edit vendor / contractor"
           className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition"
         >
           <Edit2 className="w-3.5 h-3.5" />
@@ -538,7 +538,7 @@ export default function PartiesPage() {
       )}
       <button
         onClick={() => setAuditParty({ id: p.id, name: p.name })}
-        title="Audit History"
+        title="Change History"
         className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 hover:ring-indigo-200 transition"
       >
         <History className="w-3.5 h-3.5" />
@@ -546,7 +546,7 @@ export default function PartiesPage() {
       {canWriteFinance && (
         <button
           onClick={() => handleDeleteParty(p.id, p.name)}
-          title="Delete Party"
+          title="Delete vendor / contractor"
           className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-rose-600 hover:ring-rose-200 hover:bg-rose-50 transition"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -585,7 +585,7 @@ export default function PartiesPage() {
           {[
             { label: "Vendors", value: formatCompactNumber(stats.vendors), title: String(stats.vendors), Icon: Truck, tone: "bg-sky-50 text-sky-600 ring-sky-100", onClick: () => setTypeFilter("VENDOR") },
             { label: "Contractors", value: formatCompactNumber(stats.contractors), title: String(stats.contractors), Icon: HardHat, tone: "bg-violet-50 text-violet-600 ring-violet-100", onClick: () => setTypeFilter("CONTRACTOR") },
-            { label: "Total due to parties", value: formatCompactINR(stats.outstanding), title: formatCurrency(stats.outstanding), Icon: IndianRupee, tone: "bg-amber-50 text-amber-600 ring-amber-100", onClick: () => { setOnlyOutstanding(true); setSortBy("outstanding"); } },
+            { label: "Total Unpaid Balance", value: formatCompactINR(stats.outstanding), title: formatCurrency(stats.outstanding), Icon: IndianRupee, tone: "bg-amber-50 text-amber-600 ring-amber-100", onClick: () => { setOnlyOutstanding(true); setSortBy("outstanding"); } },
             { label: "Missing bank details", value: formatCompactNumber(stats.missingBank), title: String(stats.missingBank), Icon: Landmark, tone: "bg-rose-50 text-rose-600 ring-rose-100", onClick: () => setOnlyMissingBank(true) },
           ].map((s) => (
             <button
@@ -866,13 +866,13 @@ export default function PartiesPage() {
               startItem={cardsPagination.startItem}
               endItem={cardsPagination.endItem}
               onPageChange={cardsPagination.setCurrentPage}
-              itemLabel="partners"
+              itemLabel="vendors & contractors"
             />
           </div>
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs min-h-[400px]">
-            <ExcelTableToolbar table={excelParties} columns={partyColumns} tableName="partners" showSearch={true} showExport={true} />
+            <ExcelTableToolbar table={excelParties} columns={partyColumns} tableName="vendors & contractors" showSearch={true} showExport={true} />
             {/* Desktop Table View (≥ lg screens) */}
             <div className="hidden lg:block overflow-x-auto min-h-[400px]">
               <table className="w-full text-left text-sm min-w-[700px]">
@@ -890,7 +890,7 @@ export default function PartiesPage() {
                       <td colSpan={partyColumns.length + 1} className="py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Filter className="w-8 h-8 text-slate-300" />
-                          <p className="font-semibold text-slate-700">No partners match selected filters</p>
+                          <p className="font-semibold text-slate-700">No vendors or contractors match these filters</p>
                           <button
                             type="button"
                             onClick={excelParties.clearAllFilters}
@@ -959,7 +959,7 @@ export default function PartiesPage() {
               {excelParties.filteredData.length === 0 ? (
                 <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                   <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="font-semibold text-slate-700">No partners match selected filters</p>
+                  <p className="font-semibold text-slate-700">No vendors or contractors match these filters</p>
                   <button
                     type="button"
                     onClick={excelParties.clearAllFilters}
@@ -1046,7 +1046,7 @@ export default function PartiesPage() {
               startItem={excelParties.startItem}
               endItem={excelParties.endItem}
               onPageChange={excelParties.setCurrentPage}
-              itemLabel="partners"
+              itemLabel="vendors & contractors"
             />
           </div>
         )}
@@ -1099,12 +1099,13 @@ export default function PartiesPage() {
                     <div>
                       <label className={labelCls}>PAN</label>
                       <input type="text" maxLength={10} placeholder="ABCDE1234F" value={form.panNumber} onChange={setField("panNumber")} className={cn(inputCls, "font-mono uppercase")} />
+                      <p className="mt-1 text-[11px] text-slate-400">Without a PAN, TDS applies at a higher 20% rate.</p>
                     </div>
                     <div>
                       <label className={labelCls}>TDS on payments</label>
                       <select value={form.tdsSection} onChange={setField("tdsSection")} className={inputCls}>
                         <option value="">{form.partyType === "VENDOR" ? "None (goods supplier)" : "Automatic: contractor (194C)"}</option>
-                        <option value="194C">Contractor (194C)</option>
+                        <option value="194C">Contractor (194C — 1% indiv. / 2% co.)</option>
                         <option value="194J_PROF">Professional fees, 10% (194J)</option>
                         <option value="194J_TECH">Technical services, 2% (194J)</option>
                         <option value="194I_LB">Rent of land or building, 10% (194I)</option>
@@ -1112,6 +1113,7 @@ export default function PartiesPage() {
                         <option value="194Q">Goods over ₹50 lakh a year, 0.1% (194Q)</option>
                         <option value="NONE">No TDS</option>
                       </select>
+                      <p className="mt-1 text-[11px] text-slate-400">Contractors usually use Section 194C (1% for individuals, 2% for companies).</p>
                     </div>
                     {form.partyType !== "VENDOR" && (
                       <div>
@@ -1235,7 +1237,7 @@ export default function PartiesPage() {
                   disabled={submitting}
                   className="px-5 py-2.5 bg-gradient-brand text-slate-950 font-bold text-sm rounded-xl shadow-glow hover:brightness-110 disabled:opacity-50 transition"
                 >
-                  {submitting ? "Saving…" : isEditing ? "Save changes" : "Add partner"}
+                  {submitting ? "Saving…" : isEditing ? "Save changes" : "Add vendor / contractor"}
                 </button>
               </div>
             </div>
@@ -1251,9 +1253,9 @@ export default function PartiesPage() {
               className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="font-bold text-slate-900 text-base">Delete Party?</div>
+              <div className="font-bold text-slate-900 text-base">Delete Vendor / Contractor?</div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Are you sure you want to delete party <strong className="text-slate-900">{pendingDeleteParty.name}</strong>?
+                Remove <strong className="text-slate-900">{pendingDeleteParty.name}</strong> from your vendor &amp; contractor list?
               </p>
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
@@ -1269,7 +1271,7 @@ export default function PartiesPage() {
                   onClick={executeDeleteParty}
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
                 >
-                  {submitting ? "Deleting..." : "Delete Party"}
+                  {submitting ? "Deleting..." : "Delete Vendor / Contractor"}
                 </button>
               </div>
             </div>
@@ -1282,7 +1284,7 @@ export default function PartiesPage() {
           <AuditHistoryModal
             entityType="PARTY"
             entityId={auditParty.id}
-            title={`Audit History: ${auditParty.name}`}
+            title={`Change History: ${auditParty.name}`}
             onClose={() => setAuditParty(null)}
           />
         )}

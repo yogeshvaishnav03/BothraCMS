@@ -52,7 +52,7 @@ export default function ReportsPage() {
         return r.json();
       }),
       fetch("/api/parties").then(async (r) => {
-        if (!r.ok) throw new Error(`Parties fetch failed (HTTP ${r.status})`);
+        if (!r.ok) throw new Error(`Could not load vendors & contractors (Error ${r.status})`);
         return r.json();
       }),
       fetch("/api/attendance").then(async (r) => {
@@ -67,7 +67,7 @@ export default function ReportsPage() {
       })
       .catch((err) => {
         console.error("Authoritative reports load failed:", err);
-        setError(err.message || "Failed to load authoritative report datasets");
+        setError(err.message || "Could not load report data. Please refresh and try again.");
       })
       .finally(() => setLoading(false));
   }, [activeSiteId, refreshUser]);
@@ -109,12 +109,12 @@ export default function ReportsPage() {
 
   const stockColumns: ExcelColumn<any>[] = useMemo(
     () => [
-      { key: "sku", label: "SKU", accessor: (m) => m.sku, type: "text" },
+      { key: "sku", label: "Item Code", accessor: (m) => m.sku, type: "text" },
       { key: "name", label: "Material Name", accessor: (m) => m.name, type: "text" },
       { key: "category", label: "Category", accessor: (m) => m.category?.name || "General", type: "text" },
       { key: "totalStock", label: "Stock On Hand", accessor: (m) => Number(m.totalStock) || 0, type: "number", align: "right" },
-      { key: "minStockQty", label: "Min Threshold", accessor: (m) => Number(m.minStockQty) || 0, type: "number", align: "right" },
-      { key: "status", label: "Status", accessor: (m) => (m.isLowStock ? "LOW STOCK" : "ADEQUATE"), type: "text", align: "center" },
+      { key: "minStockQty", label: "Low-Stock Alert", accessor: (m) => Number(m.minStockQty) || 0, type: "number", align: "right" },
+      { key: "status", label: "Status", accessor: (m) => (m.isLowStock ? "LOW STOCK" : "OK"), type: "text", align: "center" },
     ],
     []
   );
@@ -126,7 +126,7 @@ export default function ReportsPage() {
 
   const payablesColumns: ExcelColumn<any>[] = useMemo(
     () => [
-      { key: "name", label: "Party Name", accessor: (p) => p.name, type: "text" },
+      { key: "name", label: "Vendor / Contractor", accessor: (p) => p.name, type: "text" },
       { key: "partyType", label: "Type", accessor: (p) => p.partyType, type: "text" },
       { key: "taxIdentifier", label: "GSTIN", accessor: (p) => p.taxIdentifier || "—", type: "text" },
       { key: "totalBilled", label: "Total Billed", accessor: (p) => (Number(p.totalBilled) || 0) / 100, type: "currency", align: "right" },
@@ -262,7 +262,7 @@ export default function ReportsPage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <PageHeader icon={FileText} title="Reports & Downloads" subtitle="View stock, payables, and attendance summaries, and download Excel/CSV sheets with one click.">
+        <PageHeader icon={FileText} title="Reports & Downloads" subtitle="Check current material stock, unpaid vendor balances, and worker attendance, or download spreadsheet files for your accountant.">
 
           <div className="flex items-center gap-2">
             {reportType === "STOCK" && (
@@ -308,7 +308,7 @@ export default function ReportsPage() {
             }`}
           >
             <Boxes className="w-4 h-4" />
-            <span>Inventory & Stock Valuation</span>
+            <span>Material Stock Report</span>
           </button>
 
           {canReadFinance && (
@@ -321,7 +321,7 @@ export default function ReportsPage() {
               }`}
             >
               <DollarSign className="w-4 h-4" />
-              <span>Payables Aging & Statements</span>
+              <span>Vendor &amp; Contractor Payables</span>
             </button>
           )}
 
@@ -346,7 +346,7 @@ export default function ReportsPage() {
               onClick={() => fetchReportsData()}
               className="px-3 py-1 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition"
             >
-              Retry
+              Try Again
             </button>
           </div>
         ) : loading ? (
@@ -356,7 +356,7 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
                 <span className="text-[11px] font-bold text-slate-500 uppercase">Materials Tracked</span>
-                <div className="text-lg font-black text-slate-900 mt-0.5">{excelStock.filteredData.length} SKUs</div>
+                <div className="text-lg font-black text-slate-900 mt-0.5">{excelStock.filteredData.length} Items</div>
               </div>
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
                 <span className="text-[11px] font-bold text-slate-500 uppercase">Total Stock Quantity</span>
@@ -419,7 +419,7 @@ export default function ReportsPage() {
                               </span>
                             ) : (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                                ADEQUATE
+                                OK
                               </span>
                             )}
                           </td>
@@ -446,11 +446,11 @@ export default function ReportsPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 uppercase">Total Billed by Parties</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Total Billed by Vendors</span>
                 <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalPayablesBilled)}>{formatCompactINR(totalPayablesBilled)}</div>
               </div>
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 uppercase">Total Settled / Paid</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Total Paid</span>
                 <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-700 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalPayablesPaid)}>{formatCompactINR(totalPayablesPaid)}</div>
               </div>
               <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
@@ -486,7 +486,7 @@ export default function ReportsPage() {
                     {excelPayables.filteredData.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-8 text-center text-xs text-slate-500">
-                          No party payable records match the current filters.
+                          No vendor or contractor records match your filters.
                         </td>
                       </tr>
                     ) : (

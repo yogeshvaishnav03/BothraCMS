@@ -31,7 +31,7 @@ interface AuditHistoryModalProps {
 export default function AuditHistoryModal({
   entityType,
   entityId,
-  title = "Audit History & Version Log",
+  title = "Change History",
   onClose,
 }: AuditHistoryModalProps) {
   const [events, setEvents] = useState<AuditEventItem[]>([]);
@@ -46,11 +46,11 @@ export default function AuditHistoryModal({
         if (res.success) {
           setEvents(res.data || []);
         } else {
-          setError(res.error?.message || "Failed to load audit history");
+          setError(res.error?.message || "Could not load change history. Try closing and opening again.");
         }
       })
       .catch((err) => {
-        setError(err.message || "Network error loading audit history");
+        setError(err.message || "Could not connect to load change history. Check your internet connection.");
       })
       .finally(() => setLoading(false));
   }, [entityType, entityId]);
@@ -91,14 +91,14 @@ export default function AuditHistoryModal({
             <div>
               <h3 id="audit-modal-title" className="font-bold text-slate-900 text-base">{title}</h3>
               <p className="text-xs text-slate-500">
-                Immutable audit trail for {entityType} ID: <span className="font-mono">{entityId.slice(0, 8)}...</span>
+                Permanent change history for {entityType.toLowerCase().replace(/_/g, " ")} (#{entityId.slice(0, 8)})
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition"
-            aria-label="Close audit history"
+            aria-label="Close change history"
           >
             <X className="w-5 h-5" />
           </button>
@@ -119,7 +119,7 @@ export default function AuditHistoryModal({
             </div>
           ) : events.length === 0 ? (
             <div className="text-center py-12 text-slate-400 text-xs italic">
-              No previous edits or version history recorded for this entry.
+              No edits have been recorded for this item yet.
             </div>
           ) : (
             events.map((ev, idx) => {
@@ -140,7 +140,7 @@ export default function AuditHistoryModal({
                       <span className="text-slate-700 font-semibold flex items-center gap-1">
                         <User className="w-3.5 h-3.5 text-slate-400" />
                         <span>{ev.actor.name}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">({ev.actor.role})</span>
+                        <span className="text-[10px] text-slate-400 capitalize">({ev.actor.role.toLowerCase().replace(/_/g, " ")})</span>
                       </span>
                     </div>
                     <span className="text-slate-400 text-[11px] font-mono flex items-center gap-1 shrink-0">
@@ -165,10 +165,10 @@ export default function AuditHistoryModal({
                         if (JSON.stringify(bVal) === JSON.stringify(aVal)) return null;
                         return (
                           <div key={key} className="flex items-center gap-1.5 p-1 bg-white rounded border border-slate-100">
-                            <span className="font-bold text-slate-600">{key}:</span>
-                            <span className="line-through text-rose-600">{JSON.stringify(bVal)}</span>
+                            <span className="font-bold text-slate-600 capitalize">{key.replace(/([A-Z])/g, " $1").trim()}:</span>
+                            <span className="line-through text-rose-600">{bVal === null || bVal === undefined || bVal === "" ? "Not set" : String(typeof bVal === "object" ? JSON.stringify(bVal) : bVal)}</span>
                             <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="text-emerald-700 font-bold">{JSON.stringify(aVal)}</span>
+                            <span className="text-emerald-700 font-bold">{aVal === null || aVal === undefined || aVal === "" ? "Not set" : String(typeof aVal === "object" ? JSON.stringify(aVal) : aVal)}</span>
                           </div>
                         );
                       })}
@@ -184,7 +184,7 @@ export default function AuditHistoryModal({
         <div className="pt-3 border-t border-slate-100 mt-2 flex items-center justify-between text-xs text-slate-500 shrink-0">
           <span className="flex items-center gap-1 text-[11px] text-slate-400">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Cryptographically sealed & tamper-resistant</span>
+            <span>Permanent history — saved automatically and cannot be deleted</span>
           </span>
           <button
             onClick={onClose}

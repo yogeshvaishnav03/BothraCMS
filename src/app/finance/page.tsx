@@ -63,7 +63,7 @@ export default function FinancePage() {
   } | null>(null);
   const [approvePaymentTarget, setApprovePaymentTarget] = useState<any | null>(null);
   const [rejectPaymentTarget, setRejectPaymentTarget] = useState<any | null>(null);
-  const [rejectPaymentReason, setRejectPaymentReason] = useState("Payment query not approved");
+  const [rejectPaymentReason, setRejectPaymentReason] = useState("Payment request was declined");
   const [approvalActionSubmitting, setApprovalActionSubmitting] = useState(false);
 
   // Payment Modal state
@@ -240,13 +240,13 @@ export default function FinancePage() {
       payingAccount === "CUSTOM" ? customPayingAccount.trim() : payingAccount.trim();
 
     if (!effectivePayingAccount) {
-      setErrorMessage("Please specify the paying account / bank source from which to pay");
+      setErrorMessage("Please enter the bank or cash account you are paying from.");
       setSubmitting(false);
       return;
     }
 
     if (!approvalQuery || approvalQuery.trim().length === 0) {
-      setErrorMessage("Please specify the reason / purpose of this payment query");
+      setErrorMessage("Please enter the purpose of this payment before submitting.");
       setSubmitting(false);
       return;
     }
@@ -263,7 +263,7 @@ export default function FinancePage() {
     }
 
     if (!finalPartyId && !finalRecipientName) {
-      setErrorMessage("Please select a vendor/contractor or enter the recipient name");
+      setErrorMessage("Please select a vendor or contractor, or enter who you are paying.");
       setSubmitting(false);
       return;
     }
@@ -309,13 +309,13 @@ export default function FinancePage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to record payment");
+        setErrorMessage(data.error?.message || "Could not save payment. Please check the details and try again.");
       } else {
         const isPending = data.data?.payment?.status === "PENDING_APPROVAL";
         setStatusMessage(
           isPending
-            ? `Payment approval query of ₹${amount} for ${finalRecipientName} submitted to Super Admin for confirmation from account "${effectivePayingAccount}".`
-            : `Payment of ₹${amount} posted successfully from account "${effectivePayingAccount}".`
+            ? `Payment request of ₹${amount} for ${finalRecipientName} sent for approval (from "${effectivePayingAccount}").`
+            : `Payment of ₹${amount} saved from "${effectivePayingAccount}".`
         );
         setShowPaymentModal(false);
         setAmount("");
@@ -333,7 +333,7 @@ export default function FinancePage() {
         loadData();
       }
     } catch {
-      setErrorMessage("Network error during payment submission");
+      setErrorMessage("Connection error while saving payment. Check your internet connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -357,22 +357,22 @@ export default function FinancePage() {
       const data = await res.json();
       if (res.ok && data.success) {
         setApprovePaymentTarget(null);
-        setStatusMessage(data.data?.message || `Payment to ${payeeName} approved and posted.`);
+        setStatusMessage(data.data?.message || `Payment to ${payeeName} has been approved.`);
         // Optimistically update payment status immediately so UI updates without refreshing
         setPayments((prev) => prev.map((p) => (p.id === payment.id ? { ...p, status: "APPROVED" } : p)));
         loadData();
       } else {
-        setErrorMessage(data.error?.message || "Failed to approve payment");
+        setErrorMessage(data.error?.message || "Could not approve payment. Please try again.");
       }
     } catch {
-      setErrorMessage("Network error approving payment");
+      setErrorMessage("Connection error while approving payment. Check your internet and try again.");
     } finally {
       setApprovalActionSubmitting(false);
     }
   };
 
   const handleRejectPayment = (payment: any) => {
-    setRejectPaymentReason("Payment query not approved");
+    setRejectPaymentReason("Payment request was declined");
     setRejectPaymentTarget(payment);
   };
 
@@ -391,15 +391,15 @@ export default function FinancePage() {
       const data = await res.json();
       if (res.ok && data.success) {
         setRejectPaymentTarget(null);
-        setStatusMessage(`Payment query to ${payeeName} rejected.`);
+        setStatusMessage(`Payment request for ${payeeName} was declined.`);
         // Optimistically update payment status immediately so UI updates without refreshing
         setPayments((prev) => prev.map((p) => (p.id === payment.id ? { ...p, status: "REJECTED" } : p)));
         loadData();
       } else {
-        setErrorMessage(data.error?.message || "Failed to reject payment");
+        setErrorMessage(data.error?.message || "Could not decline payment. Please try again.");
       }
     } catch {
-      setErrorMessage("Network error rejecting payment");
+      setErrorMessage("Connection error while declining payment. Check your internet and try again.");
     } finally {
       setApprovalActionSubmitting(false);
     }
@@ -420,10 +420,10 @@ export default function FinancePage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to reverse payment");
+        setErrorMessage(data.error?.message || "Could not reverse payment. Please try again.");
       } else {
         setStatusMessage(
-          `Payment #${paymentToReverse.referenceNumber} reversed. Bill balances restored and audit trail recorded.`
+          `Payment #${paymentToReverse.referenceNumber} reversed. Unpaid bill balances are restored and saved to Change History.`
         );
         // Optimistically update payment status immediately so UI updates without refreshing
         setPayments((prev) =>
@@ -435,7 +435,7 @@ export default function FinancePage() {
         loadData();
       }
     } catch {
-      setErrorMessage("Network error during reversal");
+      setErrorMessage("Connection error while reversing payment. Check your internet and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -471,11 +471,11 @@ export default function FinancePage() {
   const handleBillSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!billPartyId) {
-      setErrorMessage("Please select a vendor or contractor");
+      setErrorMessage("Please choose a vendor or contractor before saving this bill.");
       return;
     }
     if (!billNumber.trim()) {
-      setErrorMessage("Bill number is required");
+      setErrorMessage("Please enter the bill or invoice number.");
       return;
     }
 
@@ -494,7 +494,7 @@ export default function FinancePage() {
     });
 
     if (parsedLines.some((l) => isNaN(l.lineTotal) || l.lineTotal <= 0)) {
-      setErrorMessage("Each line item must have a positive total amount");
+      setErrorMessage("Each item line must have an amount greater than 0.");
       return;
     }
 
@@ -528,10 +528,10 @@ export default function FinancePage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to create bill");
+        setErrorMessage(data.error?.message || "Could not save bill. Please check the details and try again.");
       } else {
         const totalAmountRupees = ((data.data?.totalAmount ?? parsedLines.reduce((s: number, l: any) => s + (l.lineTotal || 0), 0)) / 100).toFixed(2);
-        setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} posted successfully!`);
+        setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} saved!`);
         setShowBillModal(false);
         setBillNumber("");
         setBillDueDate("");
@@ -544,7 +544,7 @@ export default function FinancePage() {
         loadData();
       }
     } catch {
-      setErrorMessage("Network error during bill creation");
+      setErrorMessage("Connection error while saving bill. Check your internet connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -565,7 +565,7 @@ export default function FinancePage() {
   const distinctPayingAccounts = useMemo(() => {
     const set = new Set<string>();
     payments.forEach((p) => {
-      const acc = p.payingAccount?.trim() || "Company Primary A/C";
+      const acc = p.payingAccount?.trim() || "Company Primary Account";
       if (acc) set.add(acc);
     });
     return Array.from(set).sort();
@@ -690,10 +690,10 @@ export default function FinancePage() {
       "Ref Number",
       "Payee Name",
       "Payee Type",
-      "Paying Account (Source)",
+      "Paid From (Account)",
       "Method",
-      "Reason / Query",
-      "Allocated Bills",
+      "Payment Purpose",
+      "Linked Bills",
       "Amount (Rupees)",
       "Status",
     ];
@@ -701,7 +701,7 @@ export default function FinancePage() {
     const rows = filteredPayments.map((p) => {
       const payee = (p.recipientName || p.party?.name || "Recipient").replace(/"/g, '""');
       const rType = p.recipientType || p.party?.type || "VENDOR";
-      const payingAcc = (p.payingAccount || "Company Primary A/C").replace(/"/g, '""');
+      const payingAcc = (p.payingAccount || "Company Primary Account").replace(/"/g, '""');
       const note = (p.approvalQuery || p.notes || p.rejectionReason || "").replace(/"/g, '""');
       const allocs = (
         p.allocations && p.allocations.length > 0
@@ -741,7 +741,7 @@ export default function FinancePage() {
     return payments.filter((p) => {
       const payee = (p.recipientName || p.party?.name || "Recipient").toLowerCase();
       const rType = (p.recipientType || p.party?.type || "VENDOR").toUpperCase();
-      const payingAcc = (p.payingAccount || "Company Primary A/C").toLowerCase();
+      const payingAcc = (p.payingAccount || "Company Primary Account").toLowerCase();
       const methodStr = (p.method || "").toUpperCase();
       const reasonStr = `${p.approvalQuery || ""} ${p.notes || ""} ${p.rejectionReason || ""}`.toLowerCase();
       const refStr = (p.referenceNumber || "").toLowerCase();
@@ -812,7 +812,7 @@ export default function FinancePage() {
 
       // 4. Paying Account (Source)
       if (paymentPayingAccount !== "ALL") {
-        const acc = p.payingAccount?.trim() || "Company Primary A/C";
+        const acc = p.payingAccount?.trim() || "Company Primary Account";
         if (acc !== paymentPayingAccount) return false;
       }
 
@@ -919,8 +919,8 @@ export default function FinancePage() {
       },
       {
         key: "payingAccount",
-        label: "Paying Account (Source)",
-        accessor: (p) => p.payingAccount || "Company Primary A/C",
+        label: "Paid From (Account)",
+        accessor: (p) => p.payingAccount || "Company Primary Account",
         type: "text",
       },
       {
@@ -931,13 +931,13 @@ export default function FinancePage() {
       },
       {
         key: "reason",
-        label: "Reason / Query",
+        label: "Payment Purpose",
         accessor: (p) => p.approvalQuery || p.notes || "—",
         type: "text",
       },
       {
         key: "allocatedTo",
-        label: "Allocated To",
+        label: "Linked Bill",
         accessor: (p) => {
           if (p.allocations && p.allocations.length > 0) {
             return p.allocations.map((a: any) => `Bill #${a.bill?.billNumber || a.billId}`).join(", ");
@@ -1010,7 +1010,7 @@ export default function FinancePage() {
       },
       {
         key: "outstandingAmount",
-        label: "Pending Balance",
+        label: "Unpaid Balance",
         accessor: (b) => (Number(b.outstandingAmount) || 0) / 100,
         type: "currency",
         align: "right",
@@ -1057,7 +1057,7 @@ export default function FinancePage() {
     <Shell>
       <div className="space-y-6">
         {/* Header */}
-        <PageHeader icon={DollarSign} title="Payments & Bills" subtitle="Manage vendor bills, pay suppliers and contractors, and track balances easily.">
+        <PageHeader icon={DollarSign} title="Payments & Bills" subtitle="Record vendor & contractor bills, track unpaid balances, and manage payments in one place.">
 
           <div className="flex items-center gap-2">
             <a
@@ -1065,7 +1065,7 @@ export default function FinancePage() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
             >
               <FileText className="h-4 w-4 text-indigo-600" />
-              <span>TDS return (26Q)</span>
+              <span>TDS Return (26Q)</span>
             </a>
             {canWriteFinance && (
               <button
@@ -1076,7 +1076,7 @@ export default function FinancePage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
               >
                 <Receipt className="w-4 h-4" />
-                <span>+ Record Bill</span>
+                <span>Record Bill</span>
               </button>
             )}
             {canWriteFinance && (
@@ -1095,7 +1095,7 @@ export default function FinancePage() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all"
               >
                 <CreditCard className="w-4 h-4" />
-                <span>+ Record Payment</span>
+                <span>Record Payment</span>
               </button>
             )}
           </div>
@@ -1109,33 +1109,33 @@ export default function FinancePage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Invoiced Liability
+              Total Billed (Liability)
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalBilledAll)}>
               {formatCompactINR(totalBilledAll)}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Across all posted vendor bills</div>
+            <div className="text-[11px] text-slate-500 mt-1">Total across all recorded vendor &amp; contractor bills</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Disbursed (Paid)
+              Total Paid
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalPaidAll)}>
               {formatCompactINR(totalPaidAll)}
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Verified non-reversed payments</div>
+            <div className="text-[11px] text-slate-500 mt-1">Approved payments released (excluding reversed)</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm bg-gradient-to-br from-amber-50/50 to-white">
             <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
-              Total Outstanding Payables
+              Unpaid Balance (Payables)
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalOutstandingAll)}>
               {formatCompactINR(totalOutstandingAll)}
             </div>
             <div className="text-[11px] text-amber-700 font-medium mt-1">
-              Active company liability
+              Amount still owed across unpaid bills
             </div>
           </div>
         </div>
@@ -1318,7 +1318,7 @@ export default function FinancePage() {
                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
                   )}
                   <Clock className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Pending Super Admin</span>
+                  <span>Waiting for Approval</span>
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
                       paymentStatus === "PENDING_APPROVAL"
@@ -1376,7 +1376,7 @@ export default function FinancePage() {
                 {/* Payee Type Pills */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
-                    Payee:
+                    Paid To:
                   </span>
                   {[
                     { key: "ALL", label: "All Types", count: paymentCounts.all },
@@ -1446,7 +1446,7 @@ export default function FinancePage() {
                   <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                       <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Advanced Search & Column Filters</span>
+                      <span>More Filters</span>
                     </div>
                     <button
                       onClick={() => setShowAdvancedFilters(false)}
@@ -1522,14 +1522,14 @@ export default function FinancePage() {
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
                       <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
                         <Landmark className="w-3 h-3 text-slate-400" />
-                        <span>Paying Account (Source)</span>
+                        <span>Paid From (Account)</span>
                       </label>
                       <select
                         value={paymentPayingAccount}
                         onChange={(e) => setPaymentPayingAccount(e.target.value)}
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 truncate"
                       >
-                        <option value="ALL">All Paying Accounts ({distinctPayingAccounts.length})</option>
+                        <option value="ALL">All Accounts ({distinctPayingAccounts.length})</option>
                         {distinctPayingAccounts.map((acc) => (
                           <option key={acc} value={acc}>
                             {acc}
@@ -1567,13 +1567,13 @@ export default function FinancePage() {
                     {/* Reason / Query */}
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Reason / Query / Notes
+                        Purpose / Notes
                       </label>
                       <input
                         type="text"
                         value={paymentReason}
                         onChange={(e) => setPaymentReason(e.target.value)}
-                        placeholder="e.g. advance, cement, query..."
+                        placeholder="e.g. advance, cement, sand..."
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                       />
                     </div>
@@ -1582,7 +1582,7 @@ export default function FinancePage() {
                     <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-[11px] font-bold text-slate-700">
-                          Allocated Bill #
+                          Linked Bill #
                         </label>
                         <div className="flex items-center gap-1 text-[10px]">
                           <button
@@ -1596,7 +1596,7 @@ export default function FinancePage() {
                                 : "text-slate-500 hover:text-slate-800"
                             }`}
                           >
-                            Unallocated
+                            Advance / General
                           </button>
                         </div>
                       </div>
@@ -1604,7 +1604,7 @@ export default function FinancePage() {
                         type="text"
                         value={paymentAllocatedTo}
                         onChange={(e) => setPaymentAllocatedTo(e.target.value)}
-                        placeholder="e.g. Bill #, unallocated..."
+                        placeholder="e.g. Bill #, advance..."
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                       />
                     </div>
@@ -1860,7 +1860,7 @@ export default function FinancePage() {
                           <td className="py-3 px-4 text-xs">
                             <div className="flex items-center gap-1.5 font-semibold text-slate-800">
                               <Landmark className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span>{p.payingAccount || "Company Primary A/C"}</span>
+                              <span>{p.payingAccount || "Company Primary Account"}</span>
                             </div>
                           </td>
                           <td className="py-3 px-4 text-xs">
@@ -1887,9 +1887,9 @@ export default function FinancePage() {
                               ))
                             ) : (
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-slate-400 italic">Unallocated</span>
+                                <span className="text-slate-400 italic">Advance / General</span>
                                 <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded w-fit">
-                                  Missing Bill Allocation
+                                  Not Linked to a Bill
                                 </span>
                               </div>
                             )}
@@ -1917,7 +1917,7 @@ export default function FinancePage() {
                             {isPending ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
                                 <Clock className="w-3 h-3 text-amber-600" />
-                                <span>Pending Super Admin</span>
+                                <span>Waiting for Approval</span>
                               </span>
                             ) : isRejected ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-rose-100 text-rose-800 border border-rose-200">
@@ -1945,7 +1945,7 @@ export default function FinancePage() {
                                   })
                                 }
                                 className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-                                title="Upload or view payment receipt / voucher"
+                                title="Attach or view payment receipt"
                               >
                                 <Paperclip className="w-3.5 h-3.5" />
                               </button>
@@ -1954,7 +1954,7 @@ export default function FinancePage() {
                                   <button
                                     onClick={() => handleApprovePayment(p)}
                                     className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs transition"
-                                    title="Confirm & Approve payment"
+                                    title="Approve this payment"
                                   >
                                     <CheckCircle2 className="w-3 h-3" />
                                     <span>Approve</span>
@@ -1962,15 +1962,15 @@ export default function FinancePage() {
                                   <button
                                     onClick={() => handleRejectPayment(p)}
                                     className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md transition"
-                                    title="Reject payment request"
+                                    title="Decline this payment request"
                                   >
                                     <XCircle className="w-3 h-3" />
-                                    <span>Reject</span>
+                                    <span>Decline</span>
                                   </button>
                                 </>
                               ) : isPending ? (
                                 <span className="text-[11px] text-amber-700 font-medium italic">
-                                  Awaiting Admin
+                                  Waiting for Approval
                                 </span>
                               ) : p.status === "POSTED" && !isReversed && canReverseFinance ? (
                                 <button
@@ -2075,7 +2075,7 @@ export default function FinancePage() {
                               </span>
                             ) : isRejected ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700">
-                                REJECTED
+                                DECLINED
                               </span>
                             ) : isPending ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
@@ -2113,14 +2113,14 @@ export default function FinancePage() {
                               setAttachmentTarget({
                                 type: "PAYMENT",
                                 id: p.id,
-                                title: `Voucher #${p.referenceNumber} Attachments`,
+                                title: `Payment #${p.referenceNumber} Receipts`,
                                 categoryDefault: "RECEIPT",
                               })
                             }
                             className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
                           >
                             <Paperclip className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Voucher Docs</span>
+                            <span>Receipts & Docs</span>
                           </button>
 
                           <div className="flex items-center gap-1.5 ml-auto">
@@ -2136,7 +2136,7 @@ export default function FinancePage() {
                                   onClick={() => handleRejectPayment(p)}
                                   className="px-2.5 py-1 rounded text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200"
                                 >
-                                  Reject
+                                  Decline
                                 </button>
                               </>
                             ) : null}
@@ -2205,8 +2205,8 @@ export default function FinancePage() {
                   className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                 >
                   <option value="ALL">All Bills</option>
-                  <option value="PENDING">Pending Balance</option>
-                  <option value="PAID">Fully Paid</option>
+                  <option value="PENDING">Unpaid Balance</option>
+                  <option value="PAID">Paid in Full</option>
                 </select>
                 {(billSearch || billStatus !== "ALL") && (
                   <button
@@ -2359,7 +2359,7 @@ export default function FinancePage() {
                       {/* Middle: Pending Balance & Total Bill Amount (Paid Amount column hidden) */}
                       <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
                         <div>
-                          <div className="text-[11px] text-slate-400 font-medium">Pending Balance</div>
+                          <div className="text-[11px] text-slate-400 font-medium">Unpaid Balance</div>
                           <div className={`font-display text-base font-extrabold tabular-nums truncate ${b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}`} title={formatCurrency(b.outstandingAmount)}>
                             {formatCompactINR(b.outstandingAmount)}
                           </div>
@@ -2376,7 +2376,7 @@ export default function FinancePage() {
                       {/* Footer Actions: Attach Invoices / Challans */}
                       <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[11px] text-slate-400">
-                          {b.outstandingAmount === 0 ? "Fully Settled" : "Awaiting Clearance"}
+                          {b.outstandingAmount === 0 ? "Paid in Full" : "Balance Due"}
                         </span>
 
                         <button
@@ -2420,7 +2420,7 @@ export default function FinancePage() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-emerald-600" />
-                  <span>Record Payment & Raise Approval Query</span>
+                  <span>Record Payment & Request Approval</span>
                 </div>
                 <button
                   onClick={() => setShowPaymentModal(false)}
@@ -2541,7 +2541,7 @@ export default function FinancePage() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1.5">
                     <Landmark className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Account From Which To Pay (Source Account) *</span>
+                    <span>Paid From (Bank / Cash Account) *</span>
                   </label>
                   <select
                     value={payingAccount}
@@ -2626,7 +2626,7 @@ export default function FinancePage() {
                 {/* 6. Reason / Approval Query (Mandatory) */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Reason & Purpose for Payment (Approval Query) *
+                    Payment Purpose (Shown for Approval) *
                   </label>
                   <textarea
                     required
@@ -2642,17 +2642,17 @@ export default function FinancePage() {
                 {recipientType !== "EMPLOYEE" && partyBills.length > 0 && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Allocate to Pending Bill (Optional)
+                      Link to an Unpaid Bill (Optional)
                     </label>
                     <select
                       value={selectedBillId}
                       onChange={(e) => setSelectedBillId(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
                     >
-                      <option value="">Leave as unallocated payment / general advance</option>
+                      <option value="">Leave blank for advance or general payment</option>
                       {partyBills.map((b) => (
                         <option key={b.id} value={b.id}>
-                          Bill #{b.billNumber} — Pending: {formatCurrency(b.outstandingAmount)}
+                          Bill #{b.billNumber} — Unpaid: {formatCurrency(b.outstandingAmount)}
                         </option>
                       ))}
                     </select>
@@ -2668,11 +2668,11 @@ export default function FinancePage() {
                         value={tdsMode}
                         onChange={(e) => setTdsMode(e.target.value as any)}
                         className="rounded-md border border-indigo-200 bg-white px-2 py-1 text-xs font-semibold"
-                        aria-label="How TDS is worked out"
+                        aria-label="How TDS is calculated"
                       >
-                        <option value="AUTO">Work it out</option>
+                        <option value="AUTO">Calculate automatically</option>
                         <option value="NONE">No TDS</option>
-                        <option value="MANUAL">Type the amount</option>
+                        <option value="MANUAL">Enter amount manually</option>
                       </select>
                     </div>
                     {tdsMode === "MANUAL" && (
@@ -2682,7 +2682,7 @@ export default function FinancePage() {
                         step="any"
                         value={tdsManual}
                         onChange={(e) => setTdsManual(e.target.value)}
-                        placeholder="TDS ₹, e.g. under a lower-deduction certificate"
+                        placeholder="TDS ₹ (e.g. lower-deduction certificate rate)"
                         className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-2 text-sm font-mono"
                       />
                     )}
@@ -2692,7 +2692,7 @@ export default function FinancePage() {
                         value={tdsReason}
                         onChange={(e) => setTdsReason(e.target.value)}
                         required={tdsMode === "NONE"}
-                        placeholder={tdsMode === "NONE" ? "Why? e.g. transporter's declaration, or the yearly total stays under the limit" : "Why? e.g. section 197 certificate no."}
+                        placeholder={tdsMode === "NONE" ? "Reason (e.g. transporter PAN declaration, or below annual limit)" : "Reason (e.g. Section 197 certificate number)"}
                         className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-2 text-sm"
                       />
                     )}
@@ -2709,7 +2709,7 @@ export default function FinancePage() {
                         <div>No TDS on this payment.</div>
                       )}
                       {tdsPreview.note && <div className="text-indigo-800">{tdsPreview.note}</div>}
-                      {!tdsPreview.pan && <div className="font-semibold text-rose-700">No PAN for this party, so TDS is 20%. Add it on the Vendors &amp; Contractors page.</div>}
+                      {!tdsPreview.pan && <div className="font-semibold text-rose-700">No PAN on file for this vendor, so TDS applies at 20%. Add their PAN on the Vendors &amp; Contractors page.</div>}
                     </div>
                   </div>
                 )}
@@ -2725,11 +2725,11 @@ export default function FinancePage() {
                         className="w-4 h-4 text-emerald-600 rounded"
                       />
                       <span className="text-xs font-bold text-amber-950">
-                        Direct Authorize / Instant Super Admin Approval (Immediate Post)
+                        Approve and save immediately (Super Admin)
                       </span>
                     </label>
                     <p className="text-[11px] text-amber-800 mt-1">
-                      Uncheck to submit as a pending query for review on the Super Admin console.
+                      Uncheck to send this payment for Super Admin approval first.
                     </p>
                   </div>
                 ) : (
@@ -2754,10 +2754,10 @@ export default function FinancePage() {
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>
                       {submitting
-                        ? "Submitting Query..."
+                        ? "Sending Request..."
                         : currentUser?.role === "SUPER_ADMIN" && autoApprove
-                        ? "Post & Confirm Payment"
-                        : "Submit Payment Approval Query"}
+                        ? "Approve & Save Payment"
+                        : "Send Payment for Approval"}
                     </span>
                   </button>
                 </div>
@@ -2773,7 +2773,7 @@ export default function FinancePage() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <RotateCcw className="w-5 h-5 text-rose-600" />
-                  <span>Reverse Posted Payment</span>
+                  <span>Reverse Payment</span>
                 </div>
                 <button
                   onClick={() => setShowReverseModal(false)}
@@ -2788,13 +2788,13 @@ export default function FinancePage() {
                 <span className="font-mono font-bold">#{paymentToReverse.referenceNumber}</span> of{" "}
                 <span className="font-bold">{formatCurrency(paymentToReverse.amount)}</span> to{" "}
                 <span className="font-bold">{paymentToReverse.party?.name}</span> will restore the
-                vendor bills outstanding balance and log an immutable audit entry.
+                unpaid balance on any linked vendor bills, reverse its TDS effect, and save a permanent record in Change History.
               </div>
 
               <form onSubmit={handleReverseSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Mandatory Audit Reversal Reason
+                    Reason for Reversing Payment *
                   </label>
                   <textarea
                     required
@@ -2848,7 +2848,7 @@ export default function FinancePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Party (Vendor / Contractor) *
+                      Vendor / Contractor *
                     </label>
                     <select
                       value={billPartyId}
@@ -2866,7 +2866,7 @@ export default function FinancePage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Target Project (Optional)
+                      Project / Site (Optional)
                     </label>
                     <select
                       value={billProjectId}
@@ -2926,7 +2926,7 @@ export default function FinancePage() {
                 <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Bill Line Items
+                      Items / Services on This Bill
                     </span>
                     <button
                       type="button"
@@ -3069,7 +3069,7 @@ export default function FinancePage() {
                                 onChange={(e) => setBillTaxType(e.target.value as "AUTO" | "LOCAL" | "IGST")}
                                 className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
                               >
-                                <option value="AUTO">Work out from GSTINs</option>
+                                <option value="AUTO">Detect automatically from GSTIN</option>
                                 <option value="LOCAL">Same state: CGST + SGST</option>
                                 <option value="IGST">Other state: IGST</option>
                               </select>
@@ -3077,13 +3077,19 @@ export default function FinancePage() {
                           )}
                           {billGstRate !== "" && (
                             <div className="space-y-1 sm:pt-4">
-                              <label className="flex items-center gap-2">
-                                <input type="checkbox" checked={billItc} onChange={(e) => setBillItc(e.target.checked)} />
-                                <span className="text-slate-600">Claim input tax credit</span>
+                              <label className="flex items-start gap-2">
+                                <input type="checkbox" checked={billItc} onChange={(e) => setBillItc(e.target.checked)} className="mt-0.5" />
+                                <span className="text-slate-600">
+                                  <span className="font-medium text-slate-700">Claim GST Input Tax Credit (ITC)</span>
+                                  <span className="block text-[10px] text-slate-400">Check if your company can claim GST credit on this purchase.</span>
+                                </span>
                               </label>
-                              <label className="flex items-center gap-2" title="For example GTA transport or an unregistered supplier under notified services: you pay the GST to the government, not the supplier.">
-                                <input type="checkbox" checked={billRcm} onChange={(e) => setBillRcm(e.target.checked)} />
-                                <span className="text-slate-600">Reverse charge</span>
+                              <label className="flex items-start gap-2">
+                                <input type="checkbox" checked={billRcm} onChange={(e) => setBillRcm(e.target.checked)} className="mt-0.5" />
+                                <span className="text-slate-600">
+                                  <span className="font-medium text-slate-700">Reverse Charge (RCM)</span>
+                                  <span className="block text-[10px] text-slate-400">Company pays GST to the government instead of the vendor (e.g. GTA transport).</span>
+                                </span>
                               </label>
                             </div>
                           )}
@@ -3134,7 +3140,7 @@ export default function FinancePage() {
                   disabled={submitting}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
                 >
-                  {submitting ? "Posting Bill..." : "Post Bill Liability"}
+                  {submitting ? "Saving Bill..." : "Save Bill"}
                 </button>
               </div>
             </div>
@@ -3177,9 +3183,9 @@ export default function FinancePage() {
         {approvePaymentTarget && (
           <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3">
-              <div className="font-bold text-slate-900 text-base">Confirm &amp; Authorize Payment</div>
+              <div className="font-bold text-slate-900 text-base">Approve Payment</div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Authorize payment of{" "}
+                Approve payment of{" "}
                 <span className="font-bold text-slate-900">
                   ₹{(approvePaymentTarget.amount / 100).toFixed(2)}
                 </span>{" "}
@@ -3206,20 +3212,20 @@ export default function FinancePage() {
                   onClick={executeApprovePayment}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
                 >
-                  {approvalActionSubmitting ? "Authorizing..." : "Authorize Payment"}
+                  {approvalActionSubmitting ? "Approving..." : "Approve Payment"}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Modal: Reject Payment Query */}
+        {/* Modal: Decline Payment Request */}
         {rejectPaymentTarget && (
           <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3">
-              <div className="font-bold text-slate-900 text-base">Reject Payment Query</div>
+              <div className="font-bold text-slate-900 text-base">Decline Payment Request</div>
               <p className="text-xs text-slate-600">
-                Provide rejection reason for payment to{" "}
+                Enter a reason for declining this payment to{" "}
                 <span className="font-bold text-slate-900">
                   {rejectPaymentTarget.recipientName || rejectPaymentTarget.party?.name || "Recipient"}
                 </span>
@@ -3246,7 +3252,7 @@ export default function FinancePage() {
                     disabled={approvalActionSubmitting || !rejectPaymentReason.trim()}
                     className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
                   >
-                    {approvalActionSubmitting ? "Rejecting..." : "Reject Payment"}
+                    {approvalActionSubmitting ? "Declining..." : "Decline Payment"}
                   </button>
                 </div>
               </form>

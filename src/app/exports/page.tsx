@@ -63,7 +63,7 @@ export default function ExportsPage() {
   return (
     <Shell>
       <div className="space-y-5">
-        <PageHeader icon={Landmark} title="Accounts Export" subtitle="Download bills, payments, and receipts to share with your accountant or import into Tally." />
+        <PageHeader icon={Landmark} title="Accounts Export" subtitle="Download bills, payments, and receipts in formats your accountant can open in Tally or Excel." />
         {error && <Alert tone="error" onDismiss={() => setError(null)}>{error}</Alert>}
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
@@ -98,7 +98,7 @@ export default function ExportsPage() {
           <StatTile value={summary ? formatCompactINR(summary.bills.amount) : "…"} title={summary ? rupees(summary.bills.amount) : undefined} label={`Supplier bills (${summary?.bills.count ?? "…"})`} />
           <StatTile value={summary ? formatCompactINR(summary.payments.amount) : "…"} title={summary ? rupees(summary.payments.amount) : undefined} label={`Payments made (${summary?.payments.count ?? "…"})`} tone="rose" />
           <StatTile value={summary ? formatCompactINR(summary.receipts.amount) : "…"} title={summary ? rupees(summary.receipts.amount) : undefined} label={`Received from customers (${summary?.receipts.count ?? "…"})`} tone="emerald" />
-          <StatTile value={summary ? formatCompactINR(summary.receipts.gst) : "…"} title={summary ? rupees(summary.receipts.gst) : undefined} label="GST collected on receipts" tone="amber" hint={summary ? `on ${formatCompactINR(summary.receipts.taxable)} taxable` : undefined} />
+          <StatTile value={summary ? formatCompactINR(summary.receipts.gst) : "…"} title={summary ? rupees(summary.receipts.gst) : undefined} label="GST collected on customer receipts" tone="amber" hint={summary ? `on ${formatCompactINR(summary.receipts.taxable)} taxable` : undefined} />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -108,7 +108,7 @@ export default function ExportsPage() {
               <h2 className="font-display font-bold text-slate-900">Tally import file</h2>
             </div>
             <p className="mt-1 text-sm text-slate-600">
-              One XML file with the vouchers and the ledgers they use. In Tally Prime: Gateway of Tally → Import → Vouchers, and pick this file. Ledgers that already exist are left as they are.
+              One XML file containing vouchers and the ledgers they use. In Tally Prime, go to Gateway of Tally → Import → Vouchers and choose this file. Ledgers already in Tally stay unchanged.
             </p>
             <div className="mt-3 space-y-2 text-sm">
               {(
@@ -141,8 +141,8 @@ export default function ExportsPage() {
             <p className="mt-1 text-sm text-slate-600">Spreadsheets (CSV) that open in Excel. Send them to your accountant for monthly GST returns.</p>
             <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
               {[
-                { kind: "purchases", title: "Purchase register", hint: "Supplier bills with GSTIN, to match input credit in GSTR-2B" },
-                { kind: "payments", title: "Payments list", hint: "All completed payments, to match with your bank statement" },
+                { kind: "purchases", title: "Purchase register", hint: "Supplier bills with GSTIN & Reverse Charge info, to match input credit in GSTR-2B" },
+                { kind: "payments", title: "Payments list", hint: "All completed payments (net of TDS), to match with your bank statement" },
               ].map((r) => (
                 <li key={r.kind} className="flex items-center gap-3 px-3 py-2.5">
                   <div className="min-w-0 flex-1">
@@ -150,7 +150,7 @@ export default function ExportsPage() {
                     <div className="text-xs text-slate-500">{r.hint}</div>
                   </div>
                   <button onClick={() => download(`/api/exports/${r.kind}?${qs}`)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
-                    <Download className="h-3.5 w-3.5" /> CSV
+                    <Download className="h-3.5 w-3.5" /> Download CSV
                   </button>
                 </li>
               ))}

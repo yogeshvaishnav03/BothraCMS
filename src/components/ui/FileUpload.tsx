@@ -40,9 +40,9 @@ export function FileUpload({
       const res = await fetch("/api/attachments", { method: "POST", body: form });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.data?.url) onChange({ url: json.data.url, name: json.data.fileName || file.name });
-      else setError(json?.error?.message || "Upload failed");
+      else setError(json?.error?.message || "Could not upload file. Use JPG, PNG, WebP, or PDF under 10 MB.");
     } catch {
-      setError("Upload failed");
+      setError("Could not upload file. Check your connection and try again.");
     } finally {
       setBusy(false);
       if (ref.current) ref.current.value = "";

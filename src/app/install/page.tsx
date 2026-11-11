@@ -226,7 +226,7 @@ export default function InstallAppPage() {
                 <span>Version: 1.0.0</span>
                 <span>•</span>
                 <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                  <FileCheck className="w-3.5 h-3.5" /> Signed APK
+                  <FileCheck className="w-3.5 h-3.5" /> Verified App File
                 </span>
               </div>
 
@@ -237,7 +237,7 @@ export default function InstallAppPage() {
                 className="w-full bg-white/[0.06] hover:bg-white/[0.10] text-slate-200 text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 ring-1 ring-white/10 transition active:scale-98"
               >
                 <Smartphone className="w-4 h-4 text-amber-400" />
-                <span>Or 1-Tap Install in Chrome (No APK download needed)</span>
+                <span>Or Install in Chrome (No file download needed)</span>
               </button>
 
               {/* Share Button */}
@@ -380,7 +380,7 @@ export default function InstallAppPage() {
               <Zap className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-white">No URL Bar / Full-Screen</h4>
+              <h4 className="text-xs font-bold text-white">Full-Screen App View</h4>
               <p className="text-[11px] text-slate-400 mt-0.5">
                 Runs like a native app on both iPhone and Android with maximum screen space for tables &amp; forms.
               </p>

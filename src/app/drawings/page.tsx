@@ -241,6 +241,10 @@ export default function DrawingsPage() {
           </div>
         )}
 
+        <p className="text-xs text-slate-500 px-1">
+          <strong className="text-slate-700">How revisions work:</strong> Every updated upload creates a numbered revision (<strong className="font-mono text-slate-700">R0, R1, R2</strong>). Only drawings marked <strong className="text-emerald-700">Good for construction (GFC)</strong> should be used for work on site.
+        </p>
+
         <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

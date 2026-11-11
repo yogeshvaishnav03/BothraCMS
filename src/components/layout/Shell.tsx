@@ -249,10 +249,10 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.people",
       label: "People",
       items: [
-        { key: "nav.myDay", defaultLabel: "Daily Work", href: "/work-reports", icon: NotebookPen },
+        { key: "nav.myDay", defaultLabel: "Daily Work Reports", href: "/work-reports", icon: NotebookPen },
         { key: "nav.workforce", defaultLabel: "Workers", href: "/workforce", icon: Users },
         { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
-        ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Site Master", href: "/attendance/muster", icon: ClipboardCheck }] : []),
+        ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Muster Roll", href: "/attendance/muster", icon: ClipboardCheck }] : []),
         { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
       ],
     },
@@ -350,7 +350,7 @@ export default function Shell({ children }: ShellProps) {
       aria-label={t("nav.activeSite", "Active Site")}
     >
       <option value="" className="bg-slate-900 text-amber-400 font-bold">
-        {t("nav.allSites", "All sites (overview)")}
+        {t("nav.allSites", "All Sites")}
       </option>
       {sites.map((s) => (
         <option key={s.id} value={s.id} className="bg-slate-900 text-slate-100">
@@ -386,7 +386,7 @@ export default function Shell({ children }: ShellProps) {
             <span>{t("nav.activeSite", "Active Site")}</span>
             <span
               className={`w-2 h-2 rounded-full shrink-0 ${activeSiteId ? "bg-emerald-400 animate-pulse-ring" : "bg-amber-400"}`}
-              title={activeSiteId ? "Specific Site Selected" : "All Active Sites (Overview)"}
+              title={activeSiteId ? "Specific Site Selected" : "All Active Sites"}
             ></span>
           </div>
           {sites.length > 0 ? (
@@ -435,8 +435,8 @@ export default function Shell({ children }: ShellProps) {
           </Link>
           <button
             onClick={handleLogout}
-            title={t("nav.logout", "Logout")}
-            aria-label={t("nav.logout", "Logout")}
+            title={t("nav.logout", "Log Out")}
+            aria-label={t("nav.logout", "Log Out")}
             className="p-2 text-slate-500 hover:text-rose-400 hover:bg-white/[0.06] rounded-lg transition-colors shrink-0"
           >
             <LogOut className="w-4 h-4" />
@@ -473,8 +473,8 @@ export default function Shell({ children }: ShellProps) {
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className="relative p-2 text-slate-300 hover:text-amber-400 hover:bg-white/10 rounded-xl transition"
-            title={t("nav.alerts", "Operational Alerts")}
-            aria-label={t("nav.alerts", "Operational Alerts")}
+            title={t("nav.alerts", "Alerts & Notices")}
+            aria-label={t("nav.alerts", "Alerts & Notices")}
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
@@ -642,8 +642,8 @@ export default function Shell({ children }: ShellProps) {
               <button
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 className="relative p-2 rounded-xl bg-white ring-1 ring-slate-200 hover:ring-slate-300 text-slate-600 hover:text-slate-900 shadow-xs transition"
-                title={t("nav.alerts", "Operational Alerts")}
-                aria-label={t("nav.alerts", "Operational Alerts")}
+                title={t("nav.alerts", "Alerts & Notices")}
+                aria-label={t("nav.alerts", "Alerts & Notices")}
               >
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
@@ -695,7 +695,7 @@ export default function Shell({ children }: ShellProps) {
             <div className="p-4 bg-gradient-chrome text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Bell className="w-4 h-4 text-amber-400" />
-                <span className="text-sm font-bold">{t("nav.alerts", "Operational Alerts")}</span>
+                <span className="text-sm font-bold">{t("nav.alerts", "Alerts & Notices")}</span>
                 {unreadCount > 0 && (
                   <span className="text-xs bg-gradient-brand text-slate-950 font-bold px-1.5 py-0.5 rounded-full">
                     {unreadCount}
@@ -725,7 +725,7 @@ export default function Shell({ children }: ShellProps) {
             <div className="flex-1 min-h-0 max-h-[60dvh] overflow-y-auto divide-y divide-slate-100 p-2">
               {notifications.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-xs">
-                  {t("nav.noAlerts", "No active operational alerts. All site systems normal!")}
+                  {t("nav.noAlerts", "No new alerts. Approvals, low-stock notices, and updates appear here.")}
                 </div>
               ) : (
                 notifications.map((n) => (
@@ -858,7 +858,7 @@ export default function Shell({ children }: ShellProps) {
               </button>
             </div>
             <p className="text-xs text-slate-400">
-              {t("settings.quickSwitcherDesc", "Switch platform display language instantly:")}
+              {t("settings.quickSwitcherDesc", "Choose your display language:")}
             </p>
             <div className="space-y-1.5">
               {languages.map((l) => {

@@ -179,7 +179,7 @@ export function NotificationBanner() {
                   Turn on alerts for this {deviceName}
                 </p>
                 <p className="text-slate-300 text-xs mt-0.5">
-                  Get real-time notification alerts for orders, expenses, site reports, and approvals.
+                  Get instant alerts for material orders, expenses, site reports, and approvals.
                 </p>
               </div>
             )}

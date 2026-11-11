@@ -81,7 +81,7 @@ export function PushToggle() {
       });
       if (!res.ok) throw new Error();
       setState("on");
-      setNote("Alerts enabled! A test notification was dispatched.");
+      setNote("Alerts turned on. A test notification has been sent.");
     } catch {
       setNote("Could not turn on alerts here. Please check site permissions or try Chrome/Edge.");
     } finally {
@@ -129,7 +129,7 @@ export function PushToggle() {
           });
           setNote("Test alert sent! Check your system banner / notification center.");
         } else {
-          setNote("Could not deliver test notification. Try turning alerts off and on again.");
+          setNote("Could not send the test notification. Try turning alerts off and back on, or check device notification settings.");
         }
       }
     } catch {
@@ -190,7 +190,7 @@ export function PushToggle() {
       )}
       {state === "blocked" && (
         <p className="text-rose-600 mt-1 text-[11px] leading-relaxed">
-          Notifications are blocked in your browser settings. Click the site settings icon (lock icon in URL bar) to allow notifications, then reload.
+          Notifications are blocked in your browser. Click the lock or site-settings icon in the address bar to allow notifications, then refresh the page.
         </p>
       )}
       {note && <p className="text-slate-600 mt-1 text-[11px] font-medium">{note}</p>}

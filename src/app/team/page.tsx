@@ -536,6 +536,11 @@ export default function TeamPage() {
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                       className={cn(inputCls, editing && "bg-slate-50 text-slate-500")}
                     />
+                    {editing && (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Email cannot be changed after an account is created.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className={labelCls}>Mobile (for WhatsApp)</label>
@@ -581,7 +586,7 @@ export default function TeamPage() {
                           {showEditPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">If set, the user&apos;s password will be updated immediately and shown for you to copy.</p>
+                      <p className="text-[11px] text-slate-400 mt-1">If filled in, their password updates immediately and will be shown once for you to copy.</p>
                     </div>
                   )}
                 </div>
@@ -696,7 +701,7 @@ export default function TeamPage() {
                           minLength={6}
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="e.g. BuildTrack@2026!"
+                          placeholder="e.g. Bothra@2026!"
                           className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-mono pr-10 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                         />
                         <button

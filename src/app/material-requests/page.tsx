@@ -31,7 +31,7 @@ const STATUS: Record<string, { label: string; pill: string }> = {
   APPROVED: { label: "Approved", pill: "bg-blue-50 text-blue-700 ring-blue-200" },
   PARTLY_ORDERED: { label: "Partly ordered", pill: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
   ORDERED: { label: "Ordered", pill: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-  REJECTED: { label: "Rejected", pill: "bg-rose-50 text-rose-700 ring-rose-200" },
+  REJECTED: { label: "Declined", pill: "bg-rose-50 text-rose-700 ring-rose-200" },
   CANCELLED: { label: "Cancelled", pill: "bg-slate-50 text-slate-500 ring-slate-200" },
 };
 
@@ -418,7 +418,7 @@ function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any;
                 <Check className="h-3.5 w-3.5" /> Review
               </button>
               <button onClick={() => { setConfirmCancel(false); setRejectNote(""); setRejecting(true); }} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-700">
-                <XCircle className="h-3.5 w-3.5" /> Reject
+                <XCircle className="h-3.5 w-3.5" /> Decline
               </button>
             </>
           )}
@@ -444,7 +444,7 @@ function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any;
 
       {rejecting && (
         <form onSubmit={submitReject} className="mt-3 rounded-xl border border-rose-200 bg-rose-50/60 p-3 space-y-2">
-          <label className="block text-xs font-bold text-rose-900">Why is this request rejected?</label>
+          <label className="block text-xs font-bold text-rose-900">Reason for declining this request</label>
           <input
             type="text"
             required
@@ -459,7 +459,7 @@ function RequestCard({ r, me, highlight, onChange, onOrder }: { r: any; me: any;
               Cancel
             </button>
             <button type="submit" disabled={busy || !rejectNote.trim()} className="rounded-lg bg-rose-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">
-              Confirm Reject
+              Decline Request
             </button>
           </div>
         </form>
@@ -797,7 +797,7 @@ export default function MaterialRequestsPage() {
           onClose={() => setShowNew(false)}
           onCreated={(r) => {
             setShowNew(false);
-            setNotice(r ? `${r.requestNumber} sent. The office has been told.` : "No signal, so the request is saved on this phone. It will be sent to the office when you are back online.");
+            setNotice(r ? `${r.requestNumber} sent. The office has been told.` : "No signal, so the request is saved on this device. It will be sent to the office when you are back online.");
             load();
           }}
         />

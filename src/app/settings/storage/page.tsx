@@ -39,7 +39,7 @@ export default function StorageSettingsPage() {
         const r = await api<{ moved: number; failed: string[]; remaining: number }>("/api/organization/storage", post({}));
         total += r.moved;
         setMoved(total);
-        if (r.failed.length) throw new Error(`Could not upload ${r.failed[0]}. Check the storage settings and try again; files already moved are safe.`);
+        if (r.failed.length) throw new Error(`Could not upload ${r.failed[0]}. Ask your IT administrator to check cloud storage settings, then try again — files already moved are safe.`);
         if (r.remaining === 0 || r.moved === 0) break;
       }
       setMsg({ tone: "success", text: `${total} file${total === 1 ? "" : "s"} moved to ${s?.providerName}.` });
@@ -90,12 +90,13 @@ export default function StorageSettingsPage() {
                 </>
               )}
               {!s.cloud && s.onVercel && (
-                <Alert tone="info">This server&apos;s disk is wiped on each deploy, so every file is also kept in the database. Set up cloud storage to keep the database small.</Alert>
+                <Alert tone="info">Because temporary server storage resets during app updates, uploaded files are also backed up in your database until cloud storage is connected.</Alert>
               )}
             </section>
 
             <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-700 shadow-sm">
               <h2 className="text-sm font-bold text-slate-900">Setting up cloud storage</h2>
+            <p className="text-xs text-slate-500">Technical setup — share these instructions with your developer or IT administrator.</p>
               <p className="font-semibold text-slate-800">On Vercel (simplest)</p>
               <ol className="list-decimal space-y-1.5 pl-5">
                 <li>In the Vercel project, open Storage → Create → Blob, and choose a <b>private</b> store.</li>

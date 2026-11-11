@@ -73,12 +73,12 @@ export default function OfflineBar() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           {online ? <UploadCloud className="h-4 w-4 shrink-0" /> : <CloudOff className="h-4 w-4 shrink-0" />}
           <span className="font-semibold">{online ? (note && items.length === 0 ? note : "Back online") : "No signal"}</span>
-          {!online && <span className="text-xs">Stage updates, daily reports, check-ins, the site master, material requests and quality checks are saved on this phone and sent when you are back online.</span>}
+          {!online && <span className="text-xs">Stage updates, daily reports, check-ins, the muster roll, material requests, and quality checks are saved on this device and sent automatically when you are back online.</span>}
           {items.length > 0 && (
             <button onClick={() => setOpen((o) => !o)} className="text-xs font-bold underline underline-offset-2">
               {waiting.length > 0 && `${waiting.length} waiting to send`}
               {waiting.length > 0 && refused.length > 0 && " · "}
-              {refused.length > 0 && `${refused.length} not accepted`}
+              {refused.length > 0 && `${refused.length} need{refused.length === 1 ? "s" : ""} attention`}
             </button>
           )}
           {online && waiting.length > 0 && (
@@ -99,7 +99,7 @@ export default function OfflineBar() {
                   <span className="font-semibold">{i.label}</span>
                   {i.photos.length > 0 && ` · ${i.photos.length} photo${i.photos.length === 1 ? "" : "s"}`}
                   <span className="text-slate-500"> · saved {new Date(i.createdAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}</span>
-                  {i.failed && <span className="block text-rose-600">Not accepted: {i.failed}</span>}
+                  {i.failed && <span className="block text-rose-600">Not saved on server: {i.failed}</span>}
                 </span>
                 <button onClick={() => discard(i.id)} className="rounded p-1 text-slate-400 hover:text-rose-600" aria-label={`Discard ${i.label}`} title="Discard">
                   <Trash2 className="h-3.5 w-3.5" />

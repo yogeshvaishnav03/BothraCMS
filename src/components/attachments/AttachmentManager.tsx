@@ -134,7 +134,7 @@ export default function AttachmentManager({
         });
 
         if (!uploadRes.ok) {
-          throw new Error(`Direct storage upload failed with status ${uploadRes.status}`);
+          throw new Error(`Could not upload file (error ${uploadRes.status}). Check your connection and try again.`);
         }
 
         // Verify and finalize in database
@@ -158,7 +158,7 @@ export default function AttachmentManager({
 
         const completeJson = await completeRes.json().catch(() => null);
         if (!completeRes.ok || !completeJson?.success) {
-          throw new Error(completeJson?.error?.message || "Failed to finalize uploaded attachment");
+          throw new Error(completeJson?.error?.message || "Upload finished, but could not save attachment details. Please try again.");
         }
 
         return;
@@ -184,7 +184,7 @@ export default function AttachmentManager({
 
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) {
-      throw new Error(data?.error?.message || "Failed to upload file");
+      throw new Error(data?.error?.message || "Could not upload file. Make sure it is a JPG, PNG, WebP, or PDF under 10 MB.");
     }
   };
 
@@ -201,11 +201,11 @@ export default function AttachmentManager({
         await uploadSingleFile(files[i], category);
       }
 
-      setStatusMsg("Attachment(s) uploaded successfully!");
+      setStatusMsg("Files uploaded successfully.");
       setNotes("");
       loadAttachments();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to upload file");
+      setErrorMsg(err.message || "Could not upload file. Check file format (JPG, PNG, WebP, or PDF) and try again.");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -230,10 +230,10 @@ export default function AttachmentManager({
       // Delete the old attachment record
       await fetch(`/api/attachments/${oldId}`, { method: "DELETE" });
 
-      setStatusMsg("Document re-uploaded & replaced successfully!");
+      setStatusMsg("File replaced successfully.");
       loadAttachments();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to replace file");
+      setErrorMsg(err.message || "Could not replace file. Make sure it is a valid image or PDF and try again.");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -348,7 +348,7 @@ export default function AttachmentManager({
                     {att.fileName}
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-                    <span className="font-mono bg-slate-100 px-1 rounded text-slate-600">{att.category}</span>
+                    <span className="bg-slate-100 px-1.5 py-0.2 rounded text-slate-600 capitalize">{att.category.toLowerCase().replace(/_/g, " ")}</span>
                     <span>{formatFileSize(att.fileSize)}</span>
                   </div>
                 </div>
@@ -413,7 +413,7 @@ export default function AttachmentManager({
 
             <label className="relative inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
               <Upload className="w-3.5 h-3.5 text-amber-400" />
-              <span>{uploading ? "Uploading..." : "Upload File"}</span>
+              <span>{uploading ? "Uploading..." : "Upload File (JPG, PNG, PDF)"}</span>
               <input
                 type="file"
                 multiple

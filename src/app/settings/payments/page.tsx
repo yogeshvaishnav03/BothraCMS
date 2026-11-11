@@ -117,7 +117,7 @@ export default function PaymentsSettingsPage() {
       setS(d.settings);
       setKeySecret("");
       setWebhookSecret("");
-      setMsg({ tone: "success", text: "Saved." });
+      setMsg({ tone: "success", text: "Online payment settings saved." });
     } catch (e: any) {
       setMsg({ tone: "error", text: e.message });
     } finally {
@@ -130,7 +130,7 @@ export default function PaymentsSettingsPage() {
     setMsg(null);
     try {
       await api("/api/organization/payments", post({}));
-      setMsg({ tone: "success", text: "Razorpay accepted the keys." });
+      setMsg({ tone: "success", text: "Connection successful — Razorpay accepted these credentials." });
     } catch (e: any) {
       setMsg({ tone: "error", text: e.message });
     } finally {
@@ -161,8 +161,8 @@ export default function PaymentsSettingsPage() {
         ) : (
           <>
             <div className="flex flex-wrap gap-2">
-              <Ready ok={!!s.keyId && s.hasKeySecret} label="Razorpay keys saved" />
-              <Ready ok={s.hasWebhookSecret} label="Webhook secret saved" />
+              <Ready ok={!!s.keyId && s.hasKeySecret} label="Razorpay account connected" />
+              <Ready ok={s.hasWebhookSecret} label="Instant update secret saved" />
               <Ready ok={s.ready} label="Pay now shown to buyers" />
               {s.testKeys && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-200">
@@ -186,7 +186,7 @@ export default function PaymentsSettingsPage() {
                   <span>
                     <span className="block text-sm font-bold text-slate-900">Show &quot;Pay now&quot; on the buyer&apos;s page</span>
                     <span className="block text-xs text-slate-500">
-                      Next to each instalment that is due. When the payment goes through, the receipt is entered by itself and the buyer sees it straight away.
+                      Next to each due instalment. As soon as the buyer pays, the receipt is recorded automatically and appears on their portal.
                     </span>
                   </span>
                 </button>
@@ -206,12 +206,12 @@ export default function PaymentsSettingsPage() {
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-bold text-slate-600">Webhook secret</span>
+                  <span className="text-xs font-bold text-slate-600">Instant update secret (Webhook secret)</span>
                   <input
                     type="password"
                     autoComplete="off"
                     className={cn(input, "mt-1 font-mono")}
-                    placeholder={s.hasWebhookSecret ? `Saved (${s.webhookSecret}). Type to replace.` : "The secret you type when adding the webhook"}
+                    placeholder={s.hasWebhookSecret ? `Saved (${s.webhookSecret}). Type to replace.` : "Enter the same secret word you set in Razorpay (Step 3)"}
                     value={webhookSecret}
                     onChange={(e) => setWebhookSecret(e.target.value)}
                   />
@@ -221,7 +221,7 @@ export default function PaymentsSettingsPage() {
                   disabled={busy !== null || !s.hasKeySecret}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  {busy === "check" ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />} Check the keys
+                  {busy === "check" ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />} Test Connection
                 </button>
               </section>
 
@@ -230,13 +230,13 @@ export default function PaymentsSettingsPage() {
                 <ol className="list-decimal space-y-2 pl-5">
                   <li>Open a Razorpay account (business KYC and the bank account money is paid into).</li>
                   <li>
-                    In Razorpay, go to Account &amp; Settings → API keys and make a key. Put the key ID and secret here. Start with the <b>test</b> keys to try it with
+                    In Razorpay, go to Account &amp; Settings → API keys and generate a key. Put the key ID and secret here. Start with the <b>test</b> keys to try it with
                     Razorpay&apos;s test cards and UPI; switch to the live keys when it works.
                   </li>
                   <li>
-                    Add a webhook in Account &amp; Settings → Webhooks with this address, tick the event <b>payment_link.paid</b>, type a secret and put the same secret here:
+                    Set up instant payment confirmation: in Razorpay, go to Account &amp; Settings → Webhooks, paste this web address, tick <b>payment_link.paid</b>, create any secret password, and enter that same secret on the left:
                     <code className="mt-1 block break-all rounded-lg bg-slate-50 px-2 py-1.5 font-mono text-xs ring-1 ring-slate-200">{origin}/api/portal/pay/webhook</code>
-                    The webhook books the payment even if the buyer closes the page before coming back.
+                    This ensures the receipt is saved automatically even if the buyer closes their browser right after paying.
                   </li>
                   <li>Switch on &quot;Pay now&quot; and save. Open a buyer&apos;s page to see the button.</li>
                 </ol>

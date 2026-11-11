@@ -9,10 +9,10 @@ export default function OfflinePage() {
     <div className="flex min-h-dvh items-center justify-center bg-slate-50 p-6 pt-safe pb-safe">
       <div className="max-w-sm rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200">
         <CloudOff className="mx-auto h-10 w-10 text-amber-500" />
-        <h1 className="mt-3 font-display text-lg font-extrabold text-slate-900">No signal</h1>
+        <h1 className="mt-3 font-display text-lg font-extrabold text-slate-900">You are offline</h1>
         <p className="mt-2 text-sm text-slate-600">
-          This page has not been opened on this phone before, so it is not saved for offline use. Pages you have opened, like your projects and the daily report, still
-          work, and anything you save there is sent when the signal comes back.
+          This page has not been opened on this device before, so it is not saved offline yet. Pages you have already opened &mdash; like Projects and Daily Work Reports &mdash;
+          still work, and anything you save will sync automatically when you are back online.
         </p>
         <div className="mt-4 flex justify-center gap-2">
           <button onClick={() => history.back()} className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">

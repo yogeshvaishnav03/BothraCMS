@@ -871,7 +871,7 @@ export default function ChatPage() {
                   placeholder={
                     activeTab === "conversations"
                       ? "Search chats..."
-                      : "Search employees by name or role..."
+                      : "Search staff by name or role..."
                   }
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -903,7 +903,7 @@ export default function ChatPage() {
                   }`}
                 >
                   <Users className="w-3 h-3 text-amber-500" />
-                  <span>{t("chat.allEmployees", "Directory")} ({Math.max(0, employees.filter((e) => !e.isCurrentUser).length)})</span>
+                  <span>{t("chat.allEmployees", "All Staff")} ({Math.max(0, employees.filter((e) => !e.isCurrentUser).length)})</span>
                 </button>
               </div>
             </div>
@@ -927,7 +927,7 @@ export default function ChatPage() {
 
                     {directConversations.length === 0 ? (
                       <div className="p-4 text-center text-slate-400 text-xs bg-white rounded-xl border border-slate-100 mt-1">
-                        No direct chats active. Switch to &ldquo;Directory&rdquo; to start messaging any employee.
+                        No active chats yet. Switch to &ldquo;All Staff&rdquo; to message any team member.
                       </div>
                     ) : (
                       <div className="space-y-1 mt-1">
@@ -997,7 +997,7 @@ export default function ChatPage() {
 
                       {groupConversations.length === 0 ? (
                         <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-500 text-center mt-1">
-                          No groups created yet. Super Admin can click &ldquo;+ Create Group&rdquo; above when needed.
+                          No group chats yet. Super Admin can click &ldquo;Create Group&rdquo; above when needed.
                         </div>
                       ) : (
                         <div className="space-y-1 mt-1">
@@ -1065,7 +1065,12 @@ export default function ChatPage() {
                     💡 Click on any employee to instantly start or resume a private 1-on-1 direct chat.
                   </div>
 
-                  {filteredEmployees.map((emp) => (
+                  {filteredEmployees.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400 bg-white rounded-xl border border-slate-100">
+                      {search ? `No staff match "${search}".` : "No other staff accounts added yet."}
+                    </div>
+                  ) : (
+                    filteredEmployees.map((emp) => (
                     <div
                       key={emp.id}
                       className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2 transition"
@@ -1078,7 +1083,7 @@ export default function ChatPage() {
                           <div className="font-bold text-xs text-slate-900 truncate">{emp.name || "Unnamed Employee"}</div>
                           <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
                             <span className="font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-semibold">
-                              {emp.role}
+                              {emp.role ? emp.role.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase()) : "Staff"}
                             </span>
                             <span className="truncate">{emp.email}</span>
                           </div>
@@ -1108,7 +1113,8 @@ export default function ChatPage() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                  ))
+                  )}
                 </div>
               )}
             </div>
@@ -1269,7 +1275,7 @@ export default function ChatPage() {
                                         type="button"
                                         onClick={() => handleStartEdit(m)}
                                         className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition cursor-pointer"
-                                        title="Edit message (संपादित करें)"
+                                        title="Edit message"
                                       >
                                         <Pencil className="w-3.5 h-3.5" />
                                       </button>
@@ -1279,7 +1285,7 @@ export default function ChatPage() {
                                         type="button"
                                         onClick={() => setConfirmDeleteMessageId(m.id)}
                                         className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                                        title="Delete message (हटाएं)"
+                                        title="Delete message"
                                       >
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </button>
@@ -1526,7 +1532,7 @@ export default function ChatPage() {
                   {t("chat.selectConversation", "Select an employee to start chatting")}
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
-                  Super Admin can chat directly 1-on-1 with every employee across the company. Group chats are not created automatically, but can be created by Super Admin upon request.
+                  Choose someone from the left list or open All Staff to start a 1-on-1 conversation. Super Admins can also create group chats.
                 </p>
                 <div className="mt-4 flex items-center gap-2">
                   <button
@@ -1534,7 +1540,7 @@ export default function ChatPage() {
                     onClick={() => setActiveTab("employees")}
                     className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition"
                   >
-                    Open Employee Directory
+                    Browse All Staff
                   </button>
                 </div>
               </div>

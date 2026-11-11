@@ -72,7 +72,7 @@ export function ReceiptDocument({ receipt }: { receipt: any }) {
           <Row label="Total received" value={inr(receipt.amount)} strong />
         </tbody>
       </table>
-      <p className="mt-4 text-xs text-slate-500">Cheque payments are subject to realisation.</p>
+      <p className="mt-4 text-xs text-slate-500">Cheque payments are subject to bank clearance.</p>
       <div className="mt-12 flex items-end justify-between text-xs text-slate-600">
         <div>{receipt.byName ? `Received by ${receipt.byName}` : ""}</div>
         <div className="text-right">
