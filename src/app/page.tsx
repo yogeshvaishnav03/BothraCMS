@@ -2309,22 +2309,22 @@ export default function DashboardPage() {
         {activeSectionTab === "ALL" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             {/* Left Column: Active Site & Projects */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-emerald-600" />
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-4 min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <h2 className="text-base font-bold text-slate-900">
                     {!activeSiteId ? "Active Construction Sites" : "Selected Site Operations"}
                   </h2>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold shrink-0 whitespace-nowrap">
                     {!activeSiteId ? `${displayedSites.length} Sites` : (sites.find((s) => s.id === activeSiteId)?.code || "Site")}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => setActiveSectionTab("SITES")}
-                    className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer"
+                    className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer whitespace-nowrap"
                   >
                     View All Sites &rarr;
                   </button>
@@ -2347,20 +2347,20 @@ export default function DashboardPage() {
 
                 return (
                   <div className="space-y-3">
-                    <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-300">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 text-sm">{site?.name}</span>
+                    <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-300 overflow-hidden">
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900 text-sm break-words min-w-0">{site?.name}</span>
                             {site?.code && (
-                              <span className="text-[10px] font-mono font-bold bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                              <span className="text-[10px] font-mono font-bold bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
                                 {site.code}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 min-w-0">
                             <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span>{site?.address || "Active Site Location"}</span>
+                            <span className="truncate">{site?.address || "Active Site Location"}</span>
                           </p>
                         </div>
                         <button
@@ -2373,7 +2373,7 @@ export default function DashboardPage() {
                               window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: "" } }));
                             }
                           }}
-                          className="text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white px-2 py-1 rounded border border-slate-200 shadow-2xs hover:bg-slate-50 cursor-pointer"
+                          className="text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white px-2 py-1 rounded border border-slate-200 shadow-2xs hover:bg-slate-50 cursor-pointer shrink-0 whitespace-nowrap"
                         >
                           ✕ Show All Sites
                         </button>
@@ -2459,7 +2459,7 @@ export default function DashboardPage() {
                   </div>
                 );
               })() : (
-                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-[500px] overflow-y-auto overflow-x-hidden pr-1">
                   {displayedSites.map((site) => {
                     const siteProjs = projects.filter((p) => p.siteId === site.id);
                     const siteWorkers = workers.filter((w) => w.defaultSiteId === site.id);
@@ -2474,19 +2474,19 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={site.id}
-                        className="p-3.5 rounded-xl border border-slate-200 hover:border-amber-400 bg-slate-50/50 hover:bg-white transition-all shadow-2xs space-y-2.5"
+                        className="p-3 sm:p-3.5 rounded-xl border border-slate-200 hover:border-amber-400 bg-slate-50/50 hover:bg-white transition-all shadow-2xs space-y-2.5 min-w-0 overflow-hidden"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-900 text-xs sm:text-sm">{site.name}</span>
+                        <div className="flex items-start justify-between gap-2 min-w-0">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 text-xs sm:text-sm break-words min-w-0">{site.name}</span>
                               {site.code && (
-                                <span className="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded">
+                                <span className="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
                                   {site.code}
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[240px]">
+                            <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                               {site.address || "Active Site"}
                             </p>
                           </div>
@@ -2500,7 +2500,7 @@ export default function DashboardPage() {
                                 window.dispatchEvent(new CustomEvent("siteChanged", { detail: { siteId: site.id } }));
                               }
                             }}
-                            className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-white transition shrink-0 cursor-pointer"
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-white transition shrink-0 whitespace-nowrap cursor-pointer"
                           >
                             Filter Site &rarr;
                           </button>
@@ -2522,12 +2522,12 @@ export default function DashboardPage() {
                         </div>
 
                         {externalGang > 0 ? (
-                          <div className="text-[9.5px] bg-amber-50 border border-amber-200 px-2 py-1 rounded text-amber-900 flex items-center justify-between">
+                          <div className="text-[9.5px] bg-amber-50 border border-amber-200 px-2 py-1 rounded text-amber-900 flex flex-wrap items-center justify-between gap-1">
                             <span>Includes Subcontractor Labor:</span>
                             <span className="font-bold">+{externalGang} External Gang</span>
                           </div>
                         ) : siteOnSiteCount < directCrew ? (
-                          <div className="text-[9.5px] bg-blue-50 border border-blue-200 px-2 py-1 rounded text-blue-900 flex items-center justify-between">
+                          <div className="text-[9.5px] bg-blue-50 border border-blue-200 px-2 py-1 rounded text-blue-900 flex flex-wrap items-center justify-between gap-1">
                             <span>Crew Attendance Status:</span>
                             <span className="font-bold">-{directCrew - siteOnSiteCount} Absent ({siteOnSiteCount} of {directCrew} On-Site)</span>
                           </div>
@@ -2745,29 +2745,29 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={site.id}
-                      className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                      className={`p-4 rounded-xl border transition-all flex flex-col justify-between min-w-0 overflow-hidden ${
                         isSelected
                           ? "bg-amber-50/50 border-amber-400 ring-2 ring-amber-300/70 shadow-sm"
                           : "bg-slate-50/60 hover:bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
                       }`}
                     >
-                      <div>
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900 text-sm">{site.name}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 text-sm break-words min-w-0">{site.name}</span>
                               {site.code && (
-                                <span className="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
+                                <span className="text-[10px] font-mono font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
                                   {site.code}
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 line-clamp-1">
+                            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 min-w-0">
                               <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                              <span>{site.address || "Active Site"}</span>
+                              <span className="truncate">{site.address || "Active Site"}</span>
                             </p>
                           </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider shrink-0">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider shrink-0 whitespace-nowrap">
                             {site.status}
                           </span>
                         </div>
@@ -2802,7 +2802,7 @@ export default function DashboardPage() {
                           const externalGang = siteOnSiteCount - directCrew;
                           return (
                             <div className="text-[10px] bg-amber-50/90 border border-amber-200/70 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
-                              <div className="flex items-center justify-between">
+                              <div className="flex flex-wrap items-center justify-between gap-1">
                                 <span className="text-slate-600 font-medium">Includes Subcontractor Labor:</span>
                                 <span className="font-bold text-amber-900">
                                   +{externalGang} External Gang
@@ -2821,7 +2821,7 @@ export default function DashboardPage() {
                           const absentCount = directCrew - siteOnSiteCount;
                           return (
                             <div className="text-[10px] bg-blue-50/90 border border-blue-200/70 px-2.5 py-1.5 rounded-md space-y-0.5 mb-2 shadow-2xs">
-                              <div className="flex items-center justify-between">
+                              <div className="flex flex-wrap items-center justify-between gap-1">
                                 <span className="text-slate-600 font-medium">Crew Attendance Status:</span>
                                 <span className="font-bold text-blue-900">
                                   -{absentCount} Direct Crew Absent
@@ -2836,7 +2836,7 @@ export default function DashboardPage() {
 
                         {/* Site Projects List */}
                         <div className="space-y-1.5 my-2">
-                          <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
+                          <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between gap-2 flex-wrap">
                             <span>Active Projects:</span>
                             {totalSiteBudget > 0 && (
                               <span className="text-slate-500 font-mono text-[10px] font-semibold">
@@ -2849,14 +2849,14 @@ export default function DashboardPage() {
                               No active projects logged for this site.
                             </div>
                           ) : (
-                            <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                            <div className="max-h-36 overflow-y-auto overflow-x-hidden space-y-1.5 pr-1">
                               {siteProjs.map((p) => (
                                 <Link
                                   key={p.id}
                                   href={`/projects/${p.id}`}
-                                  className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border border-slate-200/80 hover:border-amber-400 transition-colors block"
+                                  className="flex items-center justify-between gap-2 text-xs bg-white p-2 rounded-lg border border-slate-200/80 hover:border-amber-400 transition-colors"
                                 >
-                                  <span className="font-semibold text-slate-800 truncate max-w-[170px]">{p.name}</span>
+                                  <span className="font-semibold text-slate-800 truncate min-w-0 flex-1">{p.name}</span>
                                   <span className="font-black text-slate-900 tabular-nums text-[11px]">
                                     {formatCurrency(p.budgetAmount || 0)}
                                   </span>
