@@ -618,8 +618,9 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+        <div className="xl:col-span-2 space-y-4 min-w-0">
         {/* ── Day Book timeline ───────────────────────────────────────────── */}
-        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
               <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
@@ -782,6 +783,61 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               </div>
             </>
           )}
+        </div>
+
+        {/* ── Task updates from the field ─────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
+              <GitCommitHorizontal className="w-4 h-4 text-amber-500" aria-hidden />
+              {hi ? "काम की अपडेट" : "Task updates"}
+            </h2>
+            <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:text-amber-700">
+              {hi ? "सभी काम" : "All tasks"}
+            </Link>
+          </div>
+          {!data ? (
+            <div className="skeleton h-32" />
+          ) : data.taskFeed.length === 0 ? (
+            <p className="text-xs text-slate-500">{hi ? "इस दिन कोई अपडेट नहीं।" : "No task updates on this day."}</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto pr-1">
+              {data.taskFeed.map((f) => (
+                <li key={f.id}>
+                  <Link href={`/tasks?task=${f.taskId}`} className="flex gap-3 py-2.5 rounded-lg hover:bg-slate-50 px-1 -mx-1 transition-colors">
+                    <span className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-800 to-slate-600 text-amber-300 text-[10px] font-bold flex items-center justify-center shrink-0">
+                      {initials(f.actor)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-slate-700">
+                        <span className="font-semibold text-slate-900">{f.actor}</span> {f.text}
+                        {f.status && (
+                          <span className={cn("ml-1.5 inline-flex rounded-full px-1.5 py-px text-[10px] font-bold ring-1 align-middle", FEED_STATUS_TONE[f.status] || FEED_STATUS_TONE.TODO)}>
+                            {f.status.replace("_", " ").toLowerCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs font-medium text-slate-500 truncate">{f.taskTitle}</div>
+                      {f.note && <div className="text-xs text-slate-600 mt-0.5 line-clamp-2">{f.note}</div>}
+                      {f.photos.length > 0 && (
+                        <div className="flex gap-1.5 mt-1.5">
+                          {f.photos.slice(0, 4).map((url) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={url} src={url} alt="" loading="lazy" className="w-12 h-12 rounded-lg object-cover border border-slate-200" />
+                          ))}
+                          {f.photos.length > 4 && (
+                            <span className="w-12 h-12 rounded-lg bg-slate-100 text-xs font-bold text-slate-500 flex items-center justify-center">+{f.photos.length - 4}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-400 tabular-nums shrink-0">{timeOf(f.at)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         </div>
 
         {/* ── Right rail ──────────────────────────────────────────────────── */}
@@ -1087,120 +1143,64 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               </ul>
             )}
           </div>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {/* ── Task updates from the field ─────────────────────────────────── */}
-        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
-              <GitCommitHorizontal className="w-4 h-4 text-amber-500" aria-hidden />
-              {hi ? "काम की अपडेट" : "Task updates"}
-            </h2>
-            <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:text-amber-700">
-              {hi ? "सभी काम" : "All tasks"}
-            </Link>
-          </div>
-          {!data ? (
-            <div className="skeleton h-32" />
-          ) : data.taskFeed.length === 0 ? (
-            <p className="text-xs text-slate-500">{hi ? "इस दिन कोई अपडेट नहीं।" : "No task updates on this day."}</p>
-          ) : (
-            <ul className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto pr-1">
-              {data.taskFeed.map((f) => (
-                <li key={f.id}>
-                  <Link href={`/tasks?task=${f.taskId}`} className="flex gap-3 py-2.5 rounded-lg hover:bg-slate-50 px-1 -mx-1 transition-colors">
-                    <span className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-800 to-slate-600 text-amber-300 text-[10px] font-bold flex items-center justify-center shrink-0">
-                      {initials(f.actor)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm text-slate-700">
-                        <span className="font-semibold text-slate-900">{f.actor}</span> {f.text}
-                        {f.status && (
-                          <span className={cn("ml-1.5 inline-flex rounded-full px-1.5 py-px text-[10px] font-bold ring-1 align-middle", FEED_STATUS_TONE[f.status] || FEED_STATUS_TONE.TODO)}>
-                            {f.status.replace("_", " ").toLowerCase()}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs font-medium text-slate-500 truncate">{f.taskTitle}</div>
-                      {f.note && <div className="text-xs text-slate-600 mt-0.5 line-clamp-2">{f.note}</div>}
-                      {f.photos.length > 0 && (
-                        <div className="flex gap-1.5 mt-1.5">
-                          {f.photos.slice(0, 4).map((url) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img key={url} src={url} alt="" loading="lazy" className="w-12 h-12 rounded-lg object-cover border border-slate-200" />
-                          ))}
-                          {f.photos.length > 4 && (
-                            <span className="w-12 h-12 rounded-lg bg-slate-100 text-xs font-bold text-slate-500 flex items-center justify-center">+{f.photos.length - 4}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-slate-400 tabular-nums shrink-0">{timeOf(f.at)}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* ── Staff today: attendance and work reports ───────────────────── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
-              <NotebookPen className="w-4 h-4 text-amber-500" aria-hidden />
-              {hi ? "स्टाफ़ की रिपोर्ट" : "Staff work reports"}
-            </h2>
-            <Link href={`/work-reports?tab=team&date=${date}`} className="text-xs font-semibold text-amber-600 hover:text-amber-700">
-              {hi ? "खोलें" : "Open"}
-            </Link>
-          </div>
-          {!data ? (
-            <div className="skeleton h-32" />
-          ) : (
-            <>
-              <div className="flex items-end gap-2">
-                <span className="font-display text-3xl font-extrabold text-slate-900 tabular-nums">{data.people.submitted}</span>
-                <span className="text-sm text-slate-500 pb-1">/ {data.people.expected} {hi ? "रिपोर्ट आईं" : "reports in"}</span>
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-brand transition-all"
-                  style={{ width: `${data.people.expected ? Math.min(100, (data.people.submitted / data.people.expected) * 100) : 0}%` }}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                {[
-                  { v: data.people.present, l: hi ? "हाज़िर" : "Present" },
-                  { v: data.people.hours, l: hi ? "घंटे" : "Hours" },
-                  { v: data.people.withBlockers, l: hi ? "रुकावटें" : "Delays / Issues" },
-                ].map((x) => (
-                  <div key={x.l} className="rounded-xl bg-slate-50 py-2">
-                    <div className="text-base font-bold text-slate-900 tabular-nums">{x.v}</div>
-                    <div className="text-[11px] text-slate-500">{x.l}</div>
-                  </div>
-                ))}
-              </div>
-              {data.people.missing.length > 0 && (
-                <div className="mt-4">
-                  <div className="text-xs font-semibold text-slate-700 mb-2">{hi ? "रिपोर्ट बाकी" : "Not filed yet"}</div>
-                  <ul className="space-y-2">
-                    {data.people.missing.map((m) => (
-                      <li key={m.userId} className="flex items-center justify-between gap-2 min-w-0">
-                        <span className="text-sm text-slate-800 truncate min-w-0 flex-1">{m.name}</span>
-                        <ContactActions
-                          phone={m.phone}
-                          chatUserId={m.userId}
-                          message={`Hi ${m.name.split(" ")[0]}, please file your daily work report in Bothra CMS (Daily Work).`} className="shrink-0 flex-nowrap"
-                        />
-                      </li>
-                    ))}
-                  </ul>
+          {/* ── Staff today: attendance and work reports ───────────────────── */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
+                <NotebookPen className="w-4 h-4 text-amber-500" aria-hidden />
+                {hi ? "स्टाफ़ की रिपोर्ट" : "Staff work reports"}
+              </h2>
+              <Link href={`/work-reports?tab=team&date=${date}`} className="text-xs font-semibold text-amber-600 hover:text-amber-700">
+                {hi ? "खोलें" : "Open"}
+              </Link>
+            </div>
+            {!data ? (
+              <div className="skeleton h-32" />
+            ) : (
+              <>
+                <div className="flex items-end gap-2">
+                  <span className="font-display text-3xl font-extrabold text-slate-900 tabular-nums">{data.people.submitted}</span>
+                  <span className="text-sm text-slate-500 pb-1">/ {data.people.expected} {hi ? "रिपोर्ट आईं" : "reports in"}</span>
                 </div>
-              )}
-            </>
-          )}
+                <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-brand transition-all"
+                    style={{ width: `${data.people.expected ? Math.min(100, (data.people.submitted / data.people.expected) * 100) : 0}%` }}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                  {[
+                    { v: data.people.present, l: hi ? "हाज़िर" : "Present" },
+                    { v: data.people.hours, l: hi ? "घंटे" : "Hours" },
+                    { v: data.people.withBlockers, l: hi ? "रुकावटें" : "Delays / Issues" },
+                  ].map((x) => (
+                    <div key={x.l} className="rounded-xl bg-slate-50 py-2">
+                      <div className="text-base font-bold text-slate-900 tabular-nums">{x.v}</div>
+                      <div className="text-[11px] text-slate-500">{x.l}</div>
+                    </div>
+                  ))}
+                </div>
+                {data.people.missing.length > 0 && (
+                  <div className="mt-4">
+                    <div className="text-xs font-semibold text-slate-700 mb-2">{hi ? "रिपोर्ट बाकी" : "Not filed yet"}</div>
+                    <ul className="space-y-2">
+                      {data.people.missing.map((m) => (
+                        <li key={m.userId} className="flex items-center justify-between gap-2 min-w-0">
+                          <span className="text-sm text-slate-800 truncate min-w-0 flex-1">{m.name}</span>
+                          <ContactActions
+                            phone={m.phone}
+                            chatUserId={m.userId}
+                            message={`Hi ${m.name.split(" ")[0]}, please file your daily work report in Bothra CMS (Daily Work).`} className="shrink-0 flex-nowrap"
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
