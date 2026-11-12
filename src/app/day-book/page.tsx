@@ -2559,13 +2559,13 @@ export default function DayBookPage() {
             {/* 3. Staff Present (Staff Attendance Sessions) */}
             {(activeTab === "ALL" || activeTab === "ATTENDANCE") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-emerald-600" />
-                    <h3 className="text-sm font-black text-slate-900">Staff Present</h3>
+                <div className="p-3.5 sm:p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <h3 className="text-sm font-black text-slate-900 truncate">Staff Present</h3>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-emerald-700">
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs font-bold text-emerald-700 whitespace-nowrap">
                       {dayData?.summary?.staffPresentCount ?? (dayData?.attendance?.filter((a: any) => ["PRESENT", "HALF_DAY", "OVERTIME", "CORRECTED"].includes(a.status)).length || dayData?.attendance?.length || 0)} Present
                     </span>
                     <button
@@ -2787,18 +2787,26 @@ export default function DayBookPage() {
             {/* 4. Daily Site Progress Reports (DSR) */}
             {(activeTab === "ALL" || activeTab === "REPORTS") && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-blue-500" />
-                    <h3 className="text-sm font-black text-slate-900">Daily Site Reports (DSR)</h3>
+                <div className="p-3.5 sm:p-4 bg-slate-50/60 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Layers className="w-4 h-4 text-blue-500 shrink-0" />
+                      <h3 className="text-sm font-black text-slate-900 truncate">
+                        <span className="sm:hidden">Site Reports (DSR)</span>
+                        <span className="hidden sm:inline">Daily Site Reports (DSR)</span>
+                      </h3>
+                    </div>
+                    <span className="sm:hidden text-xs font-bold text-blue-700 whitespace-nowrap shrink-0">
+                      {dayData?.dailyReports.length || 0} Reports
+                    </span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-blue-700">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="hidden sm:inline text-xs font-bold text-blue-700 whitespace-nowrap">
                       {dayData?.dailyReports.length || 0} Reports
                     </span>
                     <button
                       onClick={() => openPrintModalForSection("reports")}
-                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      className="hidden sm:inline-flex p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                       title="Print Daily Site Reports only"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -2809,9 +2817,9 @@ export default function DayBookPage() {
                           setModalMode("DSR");
                           setShowLogModal(true);
                         }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 sm:py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold whitespace-nowrap transition"
                       >
-                        <PlusCircle className="w-3.5 h-3.5" />
+                        <PlusCircle className="w-3.5 h-3.5 shrink-0" />
                         <span>Add DSR</span>
                       </button>
                     )}

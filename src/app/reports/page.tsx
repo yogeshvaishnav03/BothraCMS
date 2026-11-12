@@ -298,43 +298,46 @@ export default function ReportsPage() {
         </PageHeader>
 
         {/* Report Selectors */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 overflow-x-auto max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => setReportType("STOCK")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               reportType === "STOCK"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-200/60"
             }`}
           >
-            <Boxes className="w-4 h-4" />
-            <span>Material Stock Report</span>
+            <Boxes className="w-4 h-4 shrink-0" />
+            <span className="sm:hidden">Stock</span>
+            <span className="hidden sm:inline">Material Stock Report</span>
           </button>
 
           {canReadFinance && (
             <button
               onClick={() => setReportType("PAYABLES")}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 reportType === "PAYABLES"
                   ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-600 hover:bg-slate-200/60"
               }`}
             >
-              <DollarSign className="w-4 h-4" />
-              <span>Vendor &amp; Contractor Payables</span>
+              <DollarSign className="w-4 h-4 shrink-0" />
+              <span className="sm:hidden">Payables</span>
+              <span className="hidden sm:inline">Vendor &amp; Contractor Payables</span>
             </button>
           )}
 
           <button
             onClick={() => setReportType("ATTENDANCE")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               reportType === "ATTENDANCE"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-200/60"
             }`}
           >
-            <HardHat className="w-4 h-4" />
-            <span>Daily Workers Attendance ({filteredAttendance.length})</span>
+            <HardHat className="w-4 h-4 shrink-0" />
+            <span className="sm:hidden">Attendance ({filteredAttendance.length})</span>
+            <span className="hidden sm:inline">Daily Workers Attendance ({filteredAttendance.length})</span>
           </button>
         </div>
 

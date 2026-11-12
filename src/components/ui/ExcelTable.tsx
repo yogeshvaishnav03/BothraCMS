@@ -2368,9 +2368,9 @@ export function ExcelTableToolbar<T = any>({
     <div className="border-b border-slate-200 bg-slate-50/80">
       <div className="p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
         {/* Left: Global Search & Mega Filter toggle & Active Filter Chips */}
-        <div className="flex flex-wrap items-center gap-2 flex-1">
+        <div className="flex flex-wrap items-center gap-2 flex-1 w-full md:w-auto">
           {showSearch && (
-            <div className="relative min-w-[180px] max-w-xs w-full">
+            <div className="relative w-full sm:flex-1 sm:min-w-[180px] sm:max-w-xs">
               <input
                 type="text"
                 placeholder={`Quick search ${tableName}...`}
@@ -2548,14 +2548,16 @@ export function ExcelTableToolbar<T = any>({
         </div>
 
         {/* Right: Show Entries, Record Counter & Export */}
-        <div className="flex flex-wrap items-center justify-end gap-3 shrink-0 self-end md:self-auto">
+        <div className="flex flex-wrap items-center justify-between md:justify-end gap-x-3 gap-y-2 w-full md:w-auto md:shrink-0 pt-2 md:pt-0 border-t border-slate-200/70 md:border-t-0">
           {showEntries && (
-            <ShowEntriesControl
-              pageSize={table.pageSize}
-              onPageSizeChange={table.setPageSize}
-            />
+            <div className="order-1">
+              <ShowEntriesControl
+                pageSize={table.pageSize}
+                onPageSizeChange={table.setPageSize}
+              />
+            </div>
           )}
-          <span className="text-slate-500 font-medium">
+          <span className="order-3 md:order-2 w-full md:w-auto text-[11px] sm:text-xs text-slate-500 font-medium">
             Showing{" "}
             <strong className="text-slate-900 font-bold">
               {table.filteredCount === 0 ? 0 : `${table.startItem}–${table.endItem}`}
@@ -2568,10 +2570,10 @@ export function ExcelTableToolbar<T = any>({
             <button
               type="button"
               onClick={() => table.exportCSV(`${tableName}-filtered.csv`)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg font-bold text-xs shadow-2xs transition"
+              className="order-2 md:order-3 ml-auto md:ml-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg font-bold text-xs whitespace-nowrap shadow-2xs transition shrink-0"
               title="Download visible rows as a spreadsheet (CSV)"
             >
-              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <Download className="w-3.5 h-3.5 text-slate-500 shrink-0" />
               <span>Export CSV</span>
             </button>
           )}
