@@ -6,7 +6,7 @@ import Link from "next/link";
 import React, { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber } from "@/lib/formatters";
+import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber, formatShortBillNumber, formatShortName } from "@/lib/formatters";
 import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
 import {
@@ -392,7 +392,11 @@ export default function DayBookPage() {
         key: "billNumber",
         label: "Bill Number",
         accessor: (b) => b.billNumber || "—",
-        render: (b) => <span className="font-mono font-bold text-amber-700">{b.billNumber || "—"}</span>,
+        render: (b) => (
+          <span className="font-mono font-bold text-amber-700" title={b.billNumber || "—"}>
+            {formatShortBillNumber(b.billNumber)}
+          </span>
+        ),
       },
       {
         key: "party",
@@ -3112,7 +3116,7 @@ export default function DayBookPage() {
                           <option value="">Advance / General Expense (Not linked to a bill)</option>
                           {pendingPartyBills.map((b) => (
                             <option key={b.id} value={b.id}>
-                              Bill #{b.billNumber} — Pending: {formatCurrency(b.outstandingAmount ?? b.totalAmount)}
+                              Bill #{formatShortBillNumber(b.billNumber)} — Pending: {formatCurrency(b.outstandingAmount ?? b.totalAmount)}
                             </option>
                           ))}
                         </select>
@@ -4147,10 +4151,13 @@ export default function DayBookPage() {
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                              {b.billNumber || "BILL"}
+                            <span className="font-mono text-xs font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded" title={b.billNumber || "BILL"}>
+                              {b.billNumber ? formatShortBillNumber(b.billNumber) : "BILL"}
                             </span>
-                            <span className="font-bold text-sm text-slate-900">{b.party?.name || "Direct Party"}</span>
+                            <span className="font-bold text-sm text-slate-900" title={b.party?.name || "Direct Party"}>
+                              <span className="sm:hidden">{formatShortName(b.party?.name || "Direct Party")}</span>
+                              <span className="hidden sm:inline">{b.party?.name || "Direct Party"}</span>
+                            </span>
                             <span
                               className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
                                 b.status === "POSTED" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"

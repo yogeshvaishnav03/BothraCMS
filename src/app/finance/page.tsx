@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatCompactINR, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatDate, formatShortBillNumber, formatShortName } from "@/lib/formatters";
 import {
   DollarSign,
   Plus,
@@ -1888,8 +1888,8 @@ export default function FinancePage() {
                           <td className="py-3 px-4 text-xs text-slate-600">
                             {p.allocations && p.allocations.length > 0 ? (
                               p.allocations.map((a: any) => (
-                                <div key={a.id} className="font-mono text-[11px]">
-                                  Bill #{a.bill?.billNumber || a.billId} ({formatCurrency(a.amount)})
+                                <div key={a.id} className="font-mono text-[11px]" title={a.bill?.billNumber || a.billId}>
+                                  Bill #{formatShortBillNumber(a.bill?.billNumber || a.billId)} ({formatCurrency(a.amount)})
                                 </div>
                               ))
                             ) : (
@@ -2053,10 +2053,14 @@ export default function FinancePage() {
                                   className="font-bold text-slate-900 hover:text-amber-600 text-sm truncate min-w-0"
                                   title={payee}
                                 >
-                                  {payee}
+                                  <span className="sm:hidden">{formatShortName(payee)}</span>
+                                  <span className="hidden sm:inline">{payee}</span>
                                 </Link>
                               ) : (
-                                <span className="font-bold text-slate-900 text-sm truncate min-w-0" title={payee}>{payee}</span>
+                                <span className="font-bold text-slate-900 text-sm truncate min-w-0" title={payee}>
+                                  <span className="sm:hidden">{formatShortName(payee)}</span>
+                                  <span className="hidden sm:inline">{payee}</span>
+                                </span>
                               )}
                               <span
                                 className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border shrink-0 whitespace-nowrap ${
@@ -2074,7 +2078,7 @@ export default function FinancePage() {
                               className="text-xs text-slate-400 font-mono mt-0.5 truncate"
                               title={`${formatDate(p.paymentDate)} · Ref: ${p.referenceNumber}`}
                             >
-                              {formatDate(p.paymentDate)} · Ref: {p.referenceNumber}
+                              {formatDate(p.paymentDate)} · Ref: {formatShortBillNumber(p.referenceNumber)}
                             </div>
                           </div>
 
@@ -2261,8 +2265,8 @@ export default function FinancePage() {
                   <tbody className="divide-y divide-slate-100">
                     {excelBills.paginatedData.map((b) => (
                       <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                          {b.billNumber}
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900" title={b.billNumber}>
+                          {formatShortBillNumber(b.billNumber)}
                         </td>
                         <td className="py-3 px-4 font-semibold text-slate-800">
                           <Link href={`/parties/${b.partyId}`} className="hover:text-amber-600 hover:underline">
@@ -2298,7 +2302,7 @@ export default function FinancePage() {
                               setAttachmentTarget({
                                 type: "BILL",
                                 id: b.id,
-                                title: `Bill #${b.billNumber} Invoices & Challans`,
+                                title: `Bill #${formatShortBillNumber(b.billNumber)} Invoices & Challans`,
                                 categoryDefault: "INVOICE",
                               })
                             }
@@ -2341,12 +2345,7 @@ export default function FinancePage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="font-bold font-mono text-slate-900 text-sm truncate" title={b.billNumber}>
-                            <span className="sm:hidden">
-                              {b.billNumber && b.billNumber.length > 18
-                                ? `${b.billNumber.slice(0, 8)}…${b.billNumber.slice(-7)}`
-                                : b.billNumber}
-                            </span>
-                            <span className="hidden sm:inline">{b.billNumber}</span>
+                            {formatShortBillNumber(b.billNumber)}
                           </div>
                           <div className="text-xs text-slate-700 font-semibold mt-0.5 min-w-0">
                             <Link
@@ -2354,7 +2353,8 @@ export default function FinancePage() {
                               className="hover:text-amber-600 hover:underline block truncate"
                               title={b.party?.name || "Vendor"}
                             >
-                              {b.party?.name || "Vendor"}
+                              <span className="sm:hidden">{formatShortName(b.party?.name || "Vendor")}</span>
+                              <span className="hidden sm:inline">{b.party?.name || "Vendor"}</span>
                             </Link>
                           </div>
                           <div className="text-[11px] text-slate-400 font-mono mt-0.5">
@@ -2672,7 +2672,7 @@ export default function FinancePage() {
                       <option value="">Leave blank for advance or general payment</option>
                       {partyBills.map((b) => (
                         <option key={b.id} value={b.id}>
-                          Bill #{b.billNumber} — Unpaid: {formatCurrency(b.outstandingAmount)}
+                          Bill #{formatShortBillNumber(b.billNumber)} — Unpaid: {formatCurrency(b.outstandingAmount)}
                         </option>
                       ))}
                     </select>

@@ -129,3 +129,20 @@ export function formatFileSize(bytes: number | null | undefined): string {
   const val = bytes / Math.pow(k, i);
   return `${val >= 10 || i === 0 ? Math.round(val) : val.toFixed(1)} ${sizes[i]}`;
 }
+
+/** Strip redundant embedded YYYYMMDD / YYYY-MM-DD date segments from generated bill or ref codes. */
+export function formatShortBillNumber(billNumber: string | null | undefined): string {
+  if (!billNumber) return "—";
+  return billNumber.replace(/-(?:19|20)\d{2}-?(?:0[1-9]|1[0-2])-?(?:0[1-9]|[12]\d|3[01])(?=-|$)/g, "");
+}
+
+/** Shorten long party or payee names cleanly for compact mobile cards (keeps full value in title). */
+export function formatShortName(
+  name: string | null | undefined,
+  maxLength: number = 18
+): string {
+  if (!name) return "";
+  const trimmed = name.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+}
