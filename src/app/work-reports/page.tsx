@@ -1012,39 +1012,52 @@ function Register({ canManage }: { canManage: boolean }) {
   const today = todayIst();
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <input
-          type="month"
-          value={month}
-          max={today.slice(0, 7)}
-          onChange={(e) => e.target.value && setMonth(e.target.value)}
-          className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
-        />
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
-          {membersList.length > 0 && (
-            <ShowEntriesControl
-              pageSize={membersPagination.pageSize}
-              onPageSizeChange={membersPagination.setPageSize}
-            />
-          )}
-          {Object.entries(ATT_TONE).map(([k, v]) => (
-            <span key={k} className="inline-flex items-center gap-1">
-              <span className={cn("flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold", v.cell)}>{v.short}</span>
-              {v.label}
-            </span>
-          ))}
-          <span className="inline-flex items-center gap-1" title="Check-in recorded away from the site">
-            <span className="h-3.5 w-3.5 rounded bg-slate-100 ring-2 ring-rose-500" />
-            Off-site GPS
-          </span>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center justify-between gap-2 lg:justify-start">
+          <input
+            type="month"
+            value={month}
+            max={today.slice(0, 7)}
+            onChange={(e) => e.target.value && setMonth(e.target.value)}
+            className="min-w-0 flex-1 sm:flex-initial rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold"
+          />
           <button
             onClick={downloadCsv}
             disabled={!data}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 lg:hidden"
           >
             <Download className="h-3.5 w-3.5" /> CSV for payroll
           </button>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between lg:justify-end lg:gap-3 text-[11px] text-slate-500">
+          <div className="flex items-center gap-3 overflow-x-auto rounded-xl border border-slate-200/80 bg-white px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:border-0 lg:bg-transparent lg:p-0">
+            {Object.entries(ATT_TONE).map(([k, v]) => (
+              <span key={k} className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
+                <span className={cn("flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold", v.cell)}>{v.short}</span>
+                {v.label}
+              </span>
+            ))}
+            <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap" title="Check-in recorded away from the site">
+              <span className="h-3.5 w-3.5 rounded bg-slate-100 ring-2 ring-rose-500" />
+              Off-site GPS
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2 sm:justify-end">
+            {membersList.length > 0 && (
+              <ShowEntriesControl
+                pageSize={membersPagination.pageSize}
+                onPageSizeChange={membersPagination.setPageSize}
+              />
+            )}
+            <button
+              onClick={downloadCsv}
+              disabled={!data}
+              className="hidden lg:inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" /> CSV for payroll
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1055,11 +1068,11 @@ function Register({ canManage }: { canManage: boolean }) {
           <div className="skeleton m-4 h-48 rounded-xl" />
         ) : (
           <>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:[scrollbar-width:auto]">
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-500">
-                <th className="sticky left-0 z-[1] min-w-[150px] bg-slate-50 px-3 py-2 text-left font-semibold">Staff</th>
+                <th className="sticky left-0 z-[1] min-w-[120px] max-w-[130px] sm:min-w-[160px] sm:max-w-[220px] border-r border-slate-100 bg-slate-50 px-3 py-2 text-left font-semibold">Staff</th>
                 {data.days.map((d: string) => {
                   const dow = new Date(`${d}T00:00:00Z`).getUTCDay();
                   return (
@@ -1076,7 +1089,7 @@ function Register({ canManage }: { canManage: boolean }) {
             <tbody>
               {membersPagination.paginatedData.map((m: any) => (
                 <tr key={m.user.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                  <td className="sticky left-0 z-[1] bg-white px-3 py-1.5">
+                  <td className="sticky left-0 z-[1] min-w-[120px] max-w-[130px] sm:min-w-[160px] sm:max-w-[220px] border-r border-slate-100 bg-white px-3 py-1.5">
                     <div className="truncate font-semibold text-slate-800">{m.user.name}</div>
                     <div className="truncate text-[10px] capitalize text-slate-400">{m.user.jobTitle || m.user.role.toLowerCase().replace(/_/g, " ")}</div>
                   </td>
