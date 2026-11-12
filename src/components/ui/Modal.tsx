@@ -118,16 +118,16 @@ export function StatTile({ value, label, tone = "slate", hint, title }: { value:
 }
 
 /** Pill-style tabs. */
-export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; onChange: (v: T) => void; tabs: { id: T; label: string; count?: number }[] }) {
+export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; onChange: (v: T) => void; tabs: { id: T; label: React.ReactNode; count?: number }[] }) {
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1">
+    <div className="flex gap-1.5 overflow-x-auto max-w-full py-1 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {tabs.map((t) => (
         <button
           key={t.id}
           type="button"
           onClick={() => onChange(t.id)}
           className={cn(
-            "whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition",
+            "whitespace-nowrap shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition",
             value === t.id ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
           )}
         >

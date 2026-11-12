@@ -2435,16 +2435,16 @@ export default function FinancePage() {
 
         {/* Modal: Record Payment */}
         {showPaymentModal && canWriteFinance && (
-          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90dvh]">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-emerald-600" />
-                  <span>Record Payment & Request Approval</span>
+          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90dvh]">
+              <div className="flex items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-4">
+                <div className="font-bold text-slate-900 text-base sm:text-lg flex items-start sm:items-center gap-2 min-w-0 leading-snug">
+                  <CreditCard className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 sm:mt-0" />
+                  <span>Record Payment &amp; Request Approval</span>
                 </div>
                 <button
                   onClick={() => setShowPaymentModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  className="p-1 text-slate-400 hover:text-slate-600 shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2559,8 +2559,8 @@ export default function FinancePage() {
 
                 {/* 3. Paying Account / Source Bank (Mandatory) */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1.5">
-                    <Landmark className="w-3.5 h-3.5 text-slate-600" />
+                  <label className="text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1.5">
+                    <Landmark className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                     <span>Paid From (Bank / Cash Account) *</span>
                   </label>
                   <select
@@ -2595,7 +2595,7 @@ export default function FinancePage() {
                 </div>
 
                 {/* 4. Amount and Method */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Payment Amount (₹) *
@@ -2650,11 +2650,11 @@ export default function FinancePage() {
                   </label>
                   <textarea
                     required
-                    rows={2}
+                    rows={3}
                     placeholder="e.g. Advance payment for column rebar tying week 42, Steel shipment delivery settlement, Site food allowance reimbursement"
                     value={approvalQuery}
                     onChange={(e) => setApprovalQuery(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm leading-relaxed"
                   />
                 </div>
 
@@ -2762,17 +2762,24 @@ export default function FinancePage() {
                   <button
                     type="button"
                     onClick={() => setShowPaymentModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg whitespace-nowrap shrink-0"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                    className="px-4 sm:px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="sm:hidden">
+                      {submitting
+                        ? "Sending..."
+                        : currentUser?.role === "SUPER_ADMIN" && autoApprove
+                        ? "Approve & Save"
+                        : "Request Approval"}
+                    </span>
+                    <span className="hidden sm:inline">
                       {submitting
                         ? "Sending Request..."
                         : currentUser?.role === "SUPER_ADMIN" && autoApprove
@@ -2851,20 +2858,20 @@ export default function FinancePage() {
         {showBillModal && canWriteFinance && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
             <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
-              <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-amber-500" />
-                  <span>Record Vendor / Contractor Bill</span>
+              <div className="flex items-start sm:items-center justify-between gap-2 p-4 sm:p-5 pb-3.5 sm:pb-4 border-b border-slate-100 shrink-0 bg-white">
+                <div className="font-bold text-slate-900 text-base sm:text-lg flex items-center gap-2 min-w-0">
+                  <Receipt className="w-5 h-5 text-amber-500 shrink-0" />
+                  <span className="truncate">Record Vendor / Contractor Bill</span>
                 </div>
                 <button
                   onClick={() => setShowBillModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form id="create-bill-modal-form" onSubmit={handleBillSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+              <form id="create-bill-modal-form" onSubmit={handleBillSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -2944,26 +2951,40 @@ export default function FinancePage() {
 
                 {/* Line Items */}
                 <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Items / Services on This Bill
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider min-w-0">
+                      <span className="sm:hidden">Bill Line Items</span>
+                      <span className="hidden sm:inline">Items / Services on This Bill</span>
                     </span>
                     <button
                       type="button"
                       onClick={addBillLine}
-                      className="text-xs font-bold text-amber-600 hover:text-amber-500 flex items-center gap-1"
+                      className="text-xs font-bold text-amber-700 hover:text-amber-600 bg-amber-100/70 hover:bg-amber-100 px-2.5 py-1 rounded-lg flex items-center gap-1 whitespace-nowrap shrink-0 transition"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5 shrink-0" />
                       <span>Add Line</span>
                     </button>
                   </div>
 
-                  <div className="space-y-2.5 max-h-56 overflow-y-auto">
+                  <div className="space-y-2.5 sm:max-h-60 sm:overflow-y-auto">
                     {billLines.map((line, idx) => (
                       <div
                         key={idx}
                         className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-2"
                       >
+                        {billLines.length > 1 && (
+                          <div className="flex sm:hidden items-center justify-between text-[11px] font-bold text-slate-500 pb-1 border-b border-slate-100">
+                            <span>Item #{idx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeBillLine(idx)}
+                              className="p-1 text-slate-400 hover:text-rose-500 rounded inline-flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                           <div className="sm:col-span-6">
                             <input
@@ -2989,7 +3010,7 @@ export default function FinancePage() {
                               ))}
                             </select>
                           </div>
-                          <div className="sm:col-span-1 flex justify-end items-center">
+                          <div className="hidden sm:flex sm:col-span-1 justify-end items-center">
                             {billLines.length > 1 && (
                               <button
                                 type="button"
@@ -3002,7 +3023,7 @@ export default function FinancePage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           <div>
                             <input
                               type="number"
@@ -3023,7 +3044,7 @@ export default function FinancePage() {
                               className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono"
                             />
                           </div>
-                          <div>
+                          <div className="col-span-2 sm:col-span-1">
                             <input
                               type="number"
                               step="any"

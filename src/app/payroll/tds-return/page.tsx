@@ -176,7 +176,15 @@ export default function TdsReturnPage() {
           }}
           tabs={[
             { id: "salary", label: "Salary (24Q)" },
-            { id: "contractors", label: "Contractors, fees & rent (26Q)" },
+            {
+              id: "contractors",
+              label: (
+                <>
+                  <span className="sm:hidden">Contractors (26Q)</span>
+                  <span className="hidden sm:inline">Contractors, fees &amp; rent (26Q)</span>
+                </>
+              ),
+            },
           ]}
         />
 
@@ -230,14 +238,45 @@ export default function TdsReturnPage() {
                 </div>
               )}
 
-              <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-                <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-                  <h2 className="text-[15px] font-bold text-slate-900">Challans (TDS deposited each month)</h2>
-                  <a href={csv("challans")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline">
-                    <Download className="h-3.5 w-3.5" /> CSV
+              <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
+                <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 sm:px-4 py-3">
+                  <h2 className="text-sm sm:text-[15px] font-bold text-slate-900 min-w-0">Challans (TDS deposited each month)</h2>
+                  <a href={csv("challans")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline whitespace-nowrap shrink-0">
+                    <Download className="h-3.5 w-3.5 shrink-0" /> CSV
                   </a>
                 </header>
-                <div className="overflow-x-auto">
+                <div className="md:hidden print:hidden divide-y divide-slate-100">
+                  {doc.challans.map((c: any) => (
+                    <div key={`m-${c.section ?? ""}-${c.month}`} className="p-3.5 space-y-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold text-slate-800 flex items-center gap-1.5 min-w-0">
+                          <span className="truncate">{monthLabel(c.month)}</span>
+                          {c.section && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 shrink-0">{c.section}</span>}
+                        </div>
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 whitespace-nowrap shrink-0", STATE[c.state].pill)}>
+                          {c.state === "NO_DATA" ? k.noData : STATE[c.state].label}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-slate-400">TDS</div>
+                          <div className="font-bold tabular-nums text-slate-900">{rupees(c.tds)}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] uppercase tracking-wide text-slate-400">Deposited</div>
+                          <div className="font-bold tabular-nums text-slate-900">{rupees(c.deposited)}</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
+                        <span>Due: {shortDate(c.due)}</span>
+                        {c.depositedOn && <span>Paid: {shortDate(c.depositedOn)}</span>}
+                        {c.reference && <span className="font-mono truncate max-w-full">Ref: {c.reference}</span>}
+                      </div>
+                      {c.interest > 0 && <div className="text-[11px] font-semibold text-amber-700">Interest about {rupees(c.interest)}</div>}
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden md:block print:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                       <tr>
@@ -279,14 +318,53 @@ export default function TdsReturnPage() {
               </section>
 
               {kind === "contractors" && (
-                <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-                  <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-                    <h2 className="text-[15px] font-bold text-slate-900">Payments and TDS for each party</h2>
-                    <a href={csv("deductees")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline">
-                      <Download className="h-3.5 w-3.5" /> CSV
+                <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
+                  <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 sm:px-4 py-3">
+                    <h2 className="text-sm sm:text-[15px] font-bold text-slate-900 min-w-0">Payments and TDS for each party</h2>
+                    <a href={csv("deductees")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline whitespace-nowrap shrink-0">
+                      <Download className="h-3.5 w-3.5 shrink-0" /> CSV
                     </a>
                   </header>
-                  <div className="overflow-x-auto">
+                  <div className="md:hidden print:hidden divide-y divide-slate-100">
+                    {doc.deductees.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-slate-500">
+                        No payments with TDS in this quarter.
+                      </div>
+                    ) : (
+                      doc.deductees.map((d: any) => (
+                        <div key={`m-${d.paymentId}`} className="p-3.5 space-y-1.5 text-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-800 truncate">{d.name}</div>
+                              <div className="text-[11px] text-slate-500 font-mono">
+                                {shortDate(d.paidOn)} · {d.pan || <span className="font-sans font-semibold text-rose-600">PAN Missing</span>}
+                              </div>
+                            </div>
+                            {d.section && (
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 whitespace-nowrap shrink-0">
+                                {d.section} · {d.sectionCode}
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
+                            <div>
+                              <span className="text-slate-400 block">Paid</span>
+                              <span className="font-semibold tabular-nums text-slate-800">{rupees(d.amountPaid)}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">Rate</span>
+                              <span className="font-semibold tabular-nums text-slate-700">{d.rate ? `${d.rate}%` : "—"}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-slate-400 block">TDS</span>
+                              <span className="font-bold tabular-nums text-slate-900">{rupees(d.tds)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="hidden md:block print:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                         <tr>
@@ -357,14 +435,45 @@ export default function TdsReturnPage() {
               )}
 
               {kind === "salary" && (
-                <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-                  <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-                    <h2 className="text-[15px] font-bold text-slate-900">Salary and TDS for each person (Annexure I)</h2>
-                    <a href={csv("deductees")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline">
-                      <Download className="h-3.5 w-3.5" /> CSV
+                <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
+                  <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 sm:px-4 py-3">
+                    <h2 className="text-sm sm:text-[15px] font-bold text-slate-900 min-w-0">Salary and TDS for each person (Annexure I)</h2>
+                    <a href={csv("deductees")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline whitespace-nowrap shrink-0">
+                      <Download className="h-3.5 w-3.5 shrink-0" /> CSV
                     </a>
                   </header>
-                  <div className="overflow-x-auto">
+                  <div className="md:hidden print:hidden divide-y divide-slate-100">
+                    {doc.deductees.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-slate-500">
+                        No approved staff payroll in this quarter.
+                      </div>
+                    ) : (
+                      doc.deductees.map((d: any) => (
+                        <div key={`m-${d.month}-${d.userId}`} className="p-3.5 space-y-1.5 text-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-800 truncate">{d.name}</div>
+                              <div className="text-[11px] text-slate-500">{monthLabel(d.month)} · Paid {shortDate(d.paidOn)}</div>
+                            </div>
+                            <span className="font-mono text-[11px] text-slate-600 shrink-0">
+                              {d.pan || <span className="font-sans font-semibold text-rose-600">No PAN</span>}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                              <span className="text-[10px] uppercase text-slate-400 block">Paid</span>
+                              <span className="font-semibold tabular-nums text-slate-800">{rupees(d.amountPaid)}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] uppercase text-slate-400 block">TDS</span>
+                              <span className="font-bold tabular-nums text-slate-900">{rupees(d.tds)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="hidden md:block print:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                         <tr>
@@ -401,14 +510,45 @@ export default function TdsReturnPage() {
               )}
 
               {doc.salaryForYear && (
-                <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs">
-                  <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-                    <h2 className="text-[15px] font-bold text-slate-900">Salary for the year (Annexure II)</h2>
-                    <a href={csv("salary")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline">
-                      <Download className="h-3.5 w-3.5" /> CSV
+                <section className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden">
+                  <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 sm:px-4 py-3">
+                    <h2 className="text-sm sm:text-[15px] font-bold text-slate-900 min-w-0">Salary for the year (Annexure II)</h2>
+                    <a href={csv("salary")} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:underline whitespace-nowrap shrink-0">
+                      <Download className="h-3.5 w-3.5 shrink-0" /> CSV
                     </a>
                   </header>
-                  <div className="overflow-x-auto">
+                  <div className="md:hidden print:hidden divide-y divide-slate-100">
+                    {doc.salaryForYear.map((p: any) => (
+                      <div key={`m-${p.userId}`} className="p-3.5 space-y-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <Link href={`/payroll/tax/${p.userId}?fy=${fy}`} className="font-bold text-slate-900 hover:text-amber-700 truncate">
+                            {p.name}
+                          </Link>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{p.regime === "OLD" ? "Old" : "New"}</span>
+                            <Link href={`/payroll/form-16/${p.userId}?fy=${fy}`} className="text-xs font-bold text-amber-700 hover:underline whitespace-nowrap">
+                              Form 16
+                            </Link>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[11px]">
+                          <div>
+                            <span className="text-slate-400 block">Gross</span>
+                            <span className="font-semibold tabular-nums">{rupees(p.gross)}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block">Tax / TDS</span>
+                            <span className="font-semibold tabular-nums">{rupees(p.tdsDeducted)}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-slate-400 block">Due</span>
+                            <span className={cn("font-bold tabular-nums", p.shortfall > 0 && "text-rose-600")}>{p.shortfall ? rupees(p.shortfall) : "—"}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="hidden md:block print:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
                         <tr>
