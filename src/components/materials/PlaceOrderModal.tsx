@@ -263,26 +263,27 @@ export default function PlaceOrderModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+        <div className="bg-slate-900 text-white px-4 py-3.5 sm:px-5 sm:py-4 flex items-start sm:items-center justify-between gap-2 border-b border-slate-800 shrink-0">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
               <ShoppingCart className="w-5 h-5 text-amber-400" />
             </div>
-            <div>
-              <h2 id="place-order-modal-title" className="text-base font-bold text-white flex items-center gap-2">
+            <div className="min-w-0">
+              <h2 id="place-order-modal-title" className="text-base font-bold text-white flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <span>{t("order.placeOrderToVendor", "Place Order to Vendor")}</span>
-                <span className="text-[10px] font-mono bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded uppercase">
-                  Super Admin Approval Required
+                <span className="text-[10px] font-mono bg-amber-500 text-slate-950 font-black px-1.5 py-0.5 rounded uppercase whitespace-nowrap shrink-0">
+                  <span className="sm:hidden">Admin Approval</span>
+                  <span className="hidden sm:inline">Super Admin Approval Required</span>
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 mt-0.5 leading-snug">
                 Sends this purchase order for admin approval before contacting the vendor
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition shrink-0"
             aria-label="Close order modal"
           >
             <X className="w-5 h-5" />
@@ -290,7 +291,7 @@ export default function PlaceOrderModal({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 flex-1 overflow-y-auto">
+        <div className="p-4 sm:p-5 flex-1 overflow-y-auto">
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center gap-3">
               <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
@@ -474,22 +475,22 @@ export default function PlaceOrderModal({
 
               {/* Material Info Card */}
               {currentMaterial && (
-                <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-800 flex items-center justify-center font-bold">
+                <div className="p-3 sm:p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-800 flex items-center justify-center font-bold shrink-0 mt-0.5">
                       <Boxes className="w-4 h-4 text-amber-700" />
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
                         <span>{currentMaterial.name}</span>
-                        <span className="font-mono text-[10px] bg-white px-1.5 py-0.5 rounded border border-amber-300 text-slate-700 font-semibold">
+                        <span className="font-mono text-[10px] bg-white px-1.5 py-0.5 rounded border border-amber-300 text-slate-700 font-semibold whitespace-nowrap">
                           {currentMaterial.sku}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-600">
-                        Unit: <strong>{currentMaterial.unitCode}</strong>
+                      <div className="text-[11px] text-slate-600 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span>Unit: <strong>{currentMaterial.unitCode}</strong></span>
                         {currentMaterial.minStockQty !== undefined && (
-                          <span className="ml-2 text-slate-500">
+                          <span className="text-slate-500">
                             (Min: {currentMaterial.minStockQty} | Reorder: {currentMaterial.reorderQty || "—"})
                           </span>
                         )}
@@ -497,9 +498,9 @@ export default function PlaceOrderModal({
                     </div>
                   </div>
                   {currentMaterial.currentStock !== undefined && (
-                    <div className="text-right">
+                    <div className="flex sm:block items-center justify-between pt-2 sm:pt-0 border-t sm:border-t-0 border-amber-200/70 sm:text-right shrink-0">
                       <div className="text-[10px] text-slate-500 uppercase font-semibold">Stock on Hand</div>
-                      <div className="text-sm font-black text-slate-900">
+                      <div className="text-sm font-black text-slate-900 whitespace-nowrap">
                         {formatQuantity(currentMaterial.currentStock, currentMaterial.unitCode)}
                       </div>
                     </div>
@@ -537,11 +538,11 @@ export default function PlaceOrderModal({
 
               {/* Vendor Selector */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 uppercase mb-1 flex flex-wrap items-center justify-between gap-1">
                   <span>{t("order.vendor", "Select Vendor / Supplier")} *</span>
                   {currentVendor?.phone && (
-                    <span className="text-[11px] text-emerald-600 font-normal flex items-center gap-1 font-mono">
-                      <Phone className="w-3 h-3" /> {currentVendor.phone}
+                    <span className="text-[11px] text-emerald-600 font-normal flex items-center gap-1 font-mono whitespace-nowrap">
+                      <Phone className="w-3 h-3 shrink-0" /> {currentVendor.phone}
                     </span>
                   )}
                 </label>
@@ -646,18 +647,18 @@ export default function PlaceOrderModal({
 
               {/* Approval Query / Justification for Super Admin */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 uppercase mb-1 flex flex-wrap items-center justify-between gap-1">
                   <span>{t("order.approvalQuery", "Reason for Purchase Order")}</span>
-                  <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">
+                  <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wider whitespace-nowrap">
                     Required for Confirmation
                   </span>
                 </label>
                 <textarea
-                  rows={2}
+                  rows={3}
                   placeholder="Explain why this material order is required (site progress, urgency, shortage)..."
                   value={approvalQuery}
                   onChange={(e) => setApprovalQuery(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm leading-relaxed focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 />
               </div>
 
@@ -677,20 +678,20 @@ export default function PlaceOrderModal({
 
               {/* Super Admin Immediate Approval Toggle */}
               {isSuperAdmin && (
-                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert className="w-4 h-4 text-amber-700" />
-                    <div>
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-start sm:items-center gap-2 min-w-0">
+                    <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+                    <div className="min-w-0">
                       <span className="text-xs font-bold text-amber-950 block">Super Admin Action</span>
-                      <span className="text-[11px] text-amber-800">Directly approve and unlock vendor notification immediately?</span>
+                      <span className="text-[11px] text-amber-800 leading-snug block">Directly approve and unlock vendor notification immediately?</span>
                     </div>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                  <label className="flex items-center justify-center sm:justify-start gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-amber-300 shadow-2xs shrink-0 whitespace-nowrap w-full sm:w-auto">
                     <input
                       type="checkbox"
                       checked={autoApprove}
                       onChange={(e) => setAutoApprove(e.target.checked)}
-                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 shrink-0"
                     />
                     <span className="text-xs font-bold text-slate-800">Auto-Approve</span>
                   </label>
@@ -711,20 +712,20 @@ export default function PlaceOrderModal({
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+              <div className="pt-2 flex items-center justify-end gap-2.5 sm:gap-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 whitespace-nowrap transition"
                 >
                   {t("action.cancel", "Cancel")}
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-amber-500/20 transition disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs whitespace-nowrap shadow-md shadow-amber-500/20 transition disabled:opacity-50"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4 shrink-0" />
                   <span>
                     {submitting
                       ? "Submitting..."

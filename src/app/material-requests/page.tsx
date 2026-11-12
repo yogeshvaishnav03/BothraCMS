@@ -723,14 +723,14 @@ export default function MaterialRequestsPage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex gap-1.5 overflow-x-auto">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-1 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FILTERS.map((f) => (
               <button
                 key={f.id}
                 onClick={() => setFilter(f.id)}
                 className={cn(
-                  "whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
+                  "whitespace-nowrap shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
                   filter === f.id ? "bg-slate-900 text-white ring-slate-900" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
                 )}
               >
@@ -738,7 +738,7 @@ export default function MaterialRequestsPage() {
               </button>
             ))}
           </div>
-          <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+          <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="w-full sm:w-auto bg-white rounded-xl border border-slate-200 px-3 py-2 text-sm">
             <option value="">All projects</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>

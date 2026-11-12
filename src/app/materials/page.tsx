@@ -739,16 +739,16 @@ export default function MaterialsPage() {
         {/* Header */}
         <PageHeader icon={Boxes} title="Materials & Stock" subtitle="Track available stock by site and store. Click any item to view its movement history.">
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="w-full sm:w-auto grid grid-cols-2 sm:flex sm:items-center gap-2 sm:flex-wrap">
             {canPlaceOrder && (
               <button
                 onClick={() => {
                   setOrderModalMaterial(null);
                   setShowPlaceOrderModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer"
               >
-                <ShoppingCart className="w-4 h-4" />
+                <ShoppingCart className="w-4 h-4 shrink-0" />
                 <span>Place Order</span>
               </button>
             )}
@@ -765,9 +765,9 @@ export default function MaterialsPage() {
                   setIsMaterialDropdownOpen(false);
                   setShowCreateMaterialModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer"
               >
-                <Plus className="w-4 h-4 text-amber-400" />
+                <Plus className="w-4 h-4 text-amber-400 shrink-0" />
                 <span>Add Material</span>
               </button>
             )}
@@ -778,9 +778,9 @@ export default function MaterialsPage() {
                   if (materials.length > 0) setSelectedMaterialId(materials[0].id);
                   setShowReceiveModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer"
               >
-                <PackagePlus className="w-4 h-4" />
+                <PackagePlus className="w-4 h-4 shrink-0" />
                 <span>Receive Stock</span>
               </button>
             )}
@@ -791,9 +791,9 @@ export default function MaterialsPage() {
                   if (materials.length > 0) setSelectedMaterialId(materials[0].id);
                   setShowIssueModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer"
               >
-                <PackageMinus className="w-4 h-4" />
+                <PackageMinus className="w-4 h-4 shrink-0" />
                 <span>Issue Stock</span>
               </button>
             )}
@@ -806,9 +806,9 @@ export default function MaterialsPage() {
                   if (stores.length > 1) setTransferTargetStoreId(stores[1].id);
                   setShowTransferModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer"
               >
-                <ArrowRightLeft className="w-4 h-4" />
+                <ArrowRightLeft className="w-4 h-4 shrink-0" />
                 <span>Transfer Stock</span>
               </button>
             )}

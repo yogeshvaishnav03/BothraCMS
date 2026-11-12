@@ -303,15 +303,15 @@ export default function MaterialDetailPage() {
 
         {/* Low Stock Warning Banner */}
         {material.minStockQty > 0 && currentBalance < material.minStockQty && (
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0 border border-amber-500/30">
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-150">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0 border border-amber-500/30">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm font-bold text-amber-950 flex items-center gap-2 flex-wrap">
                   <span>Automatic Reorder Alert: Stock Below Minimum Threshold</span>
-                  <span className="text-[10px] bg-rose-100 text-rose-700 font-black px-2 py-0.5 rounded-full border border-rose-200 uppercase">
+                  <span className="text-[10px] bg-rose-100 text-rose-700 font-black px-2 py-0.5 rounded-full border border-rose-200 uppercase whitespace-nowrap shrink-0">
                     Shortage: {formatQuantity(material.minStockQty - currentBalance, material.unitCode)}
                   </span>
                 </div>
@@ -323,9 +323,9 @@ export default function MaterialDetailPage() {
             {canPlaceOrder && (
               <button
                 onClick={() => setShowPlaceOrderModal(true)}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                className="w-full sm:w-auto justify-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold whitespace-nowrap shrink-0 shadow-sm flex items-center gap-1.5 transition cursor-pointer"
               >
-                <ShoppingCart className="w-3.5 h-3.5" />
+                <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
                 <span>{t("order.placeOrder", "Place Order Now")} &rarr;</span>
               </button>
             )}
@@ -389,29 +389,29 @@ export default function MaterialDetailPage() {
 
         {/* Purchase Orders to Vendors Section */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-800 flex items-center justify-center font-bold">
+          <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-800 flex items-center justify-center font-bold shrink-0 mt-0.5 sm:mt-0">
                 <ShoppingCart className="w-4 h-4 text-amber-600" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 className="font-bold text-slate-900 text-sm">
                   {t("order.recentOrders", "Purchase Orders to Vendors")}
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Material orders sent to suppliers with WhatsApp and Email tracking.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded">
+            <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+              <span className="text-xs font-mono font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded whitespace-nowrap">
                 {orders.length} Placed Orders
               </span>
               <button
                 onClick={() => setShowPlaceOrderModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-bold whitespace-nowrap shadow-xs transition shrink-0 cursor-pointer"
               >
-                <ShoppingCart className="w-3.5 h-3.5" />
+                <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
                 <span>{t("order.placeOrder", "New Order")}</span>
               </button>
             </div>
@@ -580,17 +580,22 @@ export default function MaterialDetailPage() {
 
         {/* Chronological Stock Ledger Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-            <div>
-              <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <FileText className="w-4 h-4 text-amber-500" />
-                <span>Complete Stock History</span>
-              </h2>
+          <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2 min-w-0">
+                  <FileText className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="truncate">Complete Stock History</span>
+                </h2>
+                <span className="sm:hidden text-xs font-mono font-bold bg-slate-200 text-slate-800 px-2 py-0.5 rounded whitespace-nowrap shrink-0">
+                  {entries.length} Records
+                </span>
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 Every movement records store, date, type, vendor/source, received, issued, rate, and running balance.
               </p>
             </div>
-            <span className="text-xs font-mono font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded">
+            <span className="hidden sm:inline-block text-xs font-mono font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded whitespace-nowrap shrink-0">
               {entries.length} Ledger Records
             </span>
           </div>
