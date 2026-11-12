@@ -460,7 +460,7 @@ export default function TeamPage() {
           {canManage && (
             <button
               onClick={openCreate}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-brand text-slate-950 font-bold text-sm shadow-glow hover:brightness-110 transition"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-brand text-slate-950 font-bold text-sm shadow-glow hover:brightness-110 transition"
             >
               <Plus className="w-4 h-4" /> Add person
             </button>
@@ -471,28 +471,28 @@ export default function TeamPage() {
         {error && <Alert tone="error" onDismiss={() => setError(null)}>{error}</Alert>}
 
         {/* Role summary */}
-        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
           <button
             onClick={() => setRoleFilter("")}
             className={cn(
-              "shrink-0 rounded-2xl px-4 py-3 text-left ring-1 transition min-w-[130px]",
+              "rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 text-left ring-1 transition sm:min-w-[130px]",
               !roleFilter ? "bg-slate-900 text-white ring-slate-900" : "bg-white ring-slate-200 hover:ring-slate-300"
             )}
           >
-            <div className="font-display text-xl font-extrabold tabular-nums">{counts.active}</div>
-            <div className={cn("text-xs", !roleFilter ? "text-slate-300" : "text-slate-500")}>Active people</div>
+            <div className="font-display text-lg sm:text-xl font-extrabold tabular-nums">{counts.active}</div>
+            <div className={cn("text-xs truncate", !roleFilter ? "text-slate-300" : "text-slate-500")}>Active people</div>
           </button>
           {ROLES.filter((r) => counts.byRole[r.value]).map((r) => (
             <button
               key={r.value}
               onClick={() => setRoleFilter(roleFilter === r.value ? "" : r.value)}
               className={cn(
-                "shrink-0 rounded-2xl px-4 py-3 text-left ring-1 transition min-w-[130px]",
+                "rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 text-left ring-1 transition sm:min-w-[130px]",
                 roleFilter === r.value ? r.tone + " ring-2" : "bg-white ring-slate-200 hover:ring-slate-300"
               )}
             >
-              <div className="font-display text-xl font-extrabold tabular-nums text-slate-900">{counts.byRole[r.value]}</div>
-              <div className="text-xs text-slate-500">{r.label}</div>
+              <div className="font-display text-lg sm:text-xl font-extrabold tabular-nums text-slate-900">{counts.byRole[r.value]}</div>
+              <div className="text-xs text-slate-500 truncate">{r.label}</div>
             </button>
           ))}
         </div>
@@ -507,13 +507,13 @@ export default function TeamPage() {
               className="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl"
             />
           </div>
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 self-start">
+          <div className="grid grid-cols-3 sm:flex items-center gap-1 p-1 rounded-xl bg-slate-100 w-full sm:w-auto sm:self-start">
             {(["ACTIVE", "INACTIVE", "ALL"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition",
+                  "px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-center whitespace-nowrap transition",
                   statusFilter === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
                 )}
               >
