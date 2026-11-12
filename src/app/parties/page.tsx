@@ -656,57 +656,61 @@ export default function PartiesPage() {
               </button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-              <option value="">All categories</option>
-              {categories.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-              <option value="">All cities</option>
-              {cities.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-              <option value="recent">Sort: Newest first</option>
-              <option value="name">Sort: Name</option>
-              <option value="outstanding">Sort: Highest due</option>
-              <option value="rating">Sort: Best rated</option>
-            </select>
-            <button
-              onClick={() => setOnlyOutstanding(!onlyOutstanding)}
-              className={cn(
-                "px-2.5 py-1.5 rounded-lg text-xs font-semibold ring-1 transition",
-                onlyOutstanding ? "bg-amber-50 text-amber-800 ring-amber-300" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
+          <div className="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:contents">
+              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-full sm:w-auto text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                <option value="">All categories</option>
+                {categories.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+              <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="w-full sm:w-auto text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                <option value="">All cities</option>
+                {cities.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="col-span-2 sm:col-span-1 w-full sm:w-auto text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                <option value="recent">Sort: Newest first</option>
+                <option value="name">Sort: Name</option>
+                <option value="outstanding">Sort: Highest due</option>
+                <option value="rating">Sort: Best rated</option>
+              </select>
+              <button
+                onClick={() => setOnlyOutstanding(!onlyOutstanding)}
+                className={cn(
+                  "w-full sm:w-auto px-2.5 py-1.5 rounded-lg text-xs font-semibold ring-1 transition text-center",
+                  onlyOutstanding ? "bg-amber-50 text-amber-800 ring-amber-300" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
+                )}
+              >
+                Amount due
+              </button>
+              <button
+                onClick={() => setOnlyMissingBank(!onlyMissingBank)}
+                className={cn(
+                  "w-full sm:w-auto px-2.5 py-1.5 rounded-lg text-xs font-semibold ring-1 transition text-center",
+                  onlyMissingBank ? "bg-rose-50 text-rose-700 ring-rose-300" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
+                )}
+              >
+                No bank details
+              </button>
+            </div>
+            <div className="flex items-center justify-between gap-2 pt-0.5 sm:pt-0 sm:contents">
+              {view === "cards" && (
+                <ShowEntriesControl
+                  pageSize={cardsPagination.pageSize}
+                  onPageSizeChange={cardsPagination.setPageSize}
+                />
               )}
-            >
-              Amount due
-            </button>
-            <button
-              onClick={() => setOnlyMissingBank(!onlyMissingBank)}
-              className={cn(
-                "px-2.5 py-1.5 rounded-lg text-xs font-semibold ring-1 transition",
-                onlyMissingBank ? "bg-rose-50 text-rose-700 ring-rose-300" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
-              )}
-            >
-              No bank details
-            </button>
-            {view === "cards" && (
-              <ShowEntriesControl
-                pageSize={cardsPagination.pageSize}
-                onPageSizeChange={cardsPagination.setPageSize}
-              />
-            )}
-            <span className="text-xs text-slate-500 ml-auto">
-              {filteredParties.length} of {parties.length}
-              {filtersActive && (
-                <button onClick={clearFilters} className="ml-2 font-semibold text-amber-600 hover:text-amber-700">
-                  Clear
-                </button>
-              )}
-            </span>
+              <span className="text-xs text-slate-500 ml-auto">
+                {filteredParties.length} of {parties.length}
+                {filtersActive && (
+                  <button onClick={clearFilters} className="ml-2 font-semibold text-amber-600 hover:text-amber-700">
+                    Clear
+                  </button>
+                )}
+              </span>
+            </div>
           </div>
         </div>
 

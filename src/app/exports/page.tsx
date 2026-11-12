@@ -67,7 +67,7 @@ export default function ExportsPage() {
         {error && <Alert tone="error" onDismiss={() => setError(null)}>{error}</Alert>}
 
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
             {ranges.map((r) => (
               <button
                 key={r.id}
@@ -76,7 +76,7 @@ export default function ExportsPage() {
                   setTo(r.to);
                 }}
                 className={cn(
-                  "rounded-full px-3 py-1.5 text-xs font-bold transition",
+                  "rounded-full px-3 py-1.5 text-center text-xs font-bold whitespace-nowrap transition",
                   activeRange === r.id ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                 )}
               >
@@ -84,7 +84,7 @@ export default function ExportsPage() {
               </button>
             ))}
           </div>
-          <div className="mt-3 grid max-w-md grid-cols-2 gap-3">
+          <div className="mt-3 grid w-full grid-cols-2 gap-3 sm:max-w-md">
             <Field label="From">
               <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
             </Field>
@@ -102,7 +102,7 @@ export default function ExportsPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs">
             <div className="flex items-center gap-2">
               <FileCode2 className="h-5 w-5 text-amber-500" />
               <h2 className="font-display font-bold text-slate-900">Tally import file</h2>
@@ -127,13 +127,13 @@ export default function ExportsPage() {
             <button
               disabled={chosen.length === 0}
               onClick={() => download(`/api/exports/tally?${qs}&parts=${chosen.join(",")}`)}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+              className="mt-4 inline-flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 sm:py-2 text-sm font-bold text-white disabled:opacity-40"
             >
               <Download className="h-4 w-4" /> Download for Tally
             </button>
           </section>
 
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs">
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
               <h2 className="font-display font-bold text-slate-900">Sheets for GST & Bank Accounts</h2>
@@ -144,12 +144,12 @@ export default function ExportsPage() {
                 { kind: "purchases", title: "Purchase register", hint: "Supplier bills with GSTIN & Reverse Charge info, to match input credit in GSTR-2B" },
                 { kind: "payments", title: "Payments list", hint: "All completed payments (net of TDS), to match with your bank statement" },
               ].map((r) => (
-                <li key={r.kind} className="flex items-center gap-3 px-3 py-2.5">
+                <li key={r.kind} className="flex flex-col gap-2.5 px-3.5 py-3 sm:flex-row sm:items-center sm:gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-slate-900">{r.title}</div>
                     <div className="text-xs text-slate-500">{r.hint}</div>
                   </div>
-                  <button onClick={() => download(`/api/exports/${r.kind}?${qs}`)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                  <button onClick={() => download(`/api/exports/${r.kind}?${qs}`)} className="inline-flex w-full sm:w-auto shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
                     <Download className="h-3.5 w-3.5" /> Download CSV
                   </button>
                 </li>

@@ -705,14 +705,26 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <DateNav date={date} onChange={setDate} />
-        <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-start">
+          <DateNav date={date} onChange={setDate} />
           {staff.length > 0 && (
-            <ShowEntriesControl
-              pageSize={staffPagination.pageSize}
-              onPageSizeChange={staffPagination.setPageSize}
-            />
+            <div className="sm:hidden">
+              <ShowEntriesControl
+                pageSize={staffPagination.pageSize}
+                onPageSizeChange={staffPagination.setPageSize}
+              />
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 sm:flex-wrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {staff.length > 0 && (
+            <div className="hidden sm:block">
+              <ShowEntriesControl
+                pageSize={staffPagination.pageSize}
+                onPageSizeChange={staffPagination.setPageSize}
+              />
+            </div>
           )}
           {(
             [
@@ -726,7 +738,7 @@ function TeamDay({ initialDate, canManage }: { initialDate: string; canManage: b
               key={id}
               onClick={() => setFilter(id)}
               className={cn(
-                "whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
+                "shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
                 filter === id ? "bg-slate-900 text-white ring-slate-900" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
               )}
             >
@@ -1200,13 +1212,13 @@ export default function WorkReportsPage() {
         />
 
         {tabs.length > 1 && (
-          <div className="flex max-w-full flex-wrap sm:inline-flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-2xs">
+          <div className="flex max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:inline-flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-2xs">
             {tabs.map((t) => (
               <button
                 key={t.id}
                 onClick={() => selectTab(t.id)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm",
+                  "inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition sm:text-sm",
                   tab === t.id ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
                 )}
               >
