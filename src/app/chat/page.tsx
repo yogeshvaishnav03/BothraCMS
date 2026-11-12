@@ -1250,7 +1250,7 @@ export default function ChatPage() {
                               key={m.id}
                               className={`flex flex-col ${m.isMine ? "items-end" : "items-start"} group relative`}
                             >
-                              <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-500">
+                              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mb-1 px-1 text-[10px] text-slate-500 max-w-full">
                                 {!m.isMine && (
                                   <span className="font-bold text-slate-700">
                                     {senderName} {senderRole ? `(${senderRole})` : ""}
@@ -1271,10 +1271,14 @@ export default function ChatPage() {
                                 )}
                               </div>
 
-                              <div className={`flex items-end gap-1.5 max-w-full ${m.isMine ? "flex-row" : "flex-row-reverse"}`}>
+                              <div className={`flex items-end gap-1.5 w-full max-w-full ${m.isMine ? "justify-end" : "justify-start"}`}>
                                 {/* Action Buttons Toolbar for Edit & Delete */}
                                 {!isEditing && (canEdit || canDelete) && (
-                                  <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 bg-white border border-slate-200 shadow-xs rounded-lg p-0.5 shrink-0 mb-1">
+                                  <div
+                                    className={`${
+                                      m.isMine ? "order-1" : "order-2"
+                                    } opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 bg-white border border-slate-200 shadow-xs rounded-lg p-0.5 shrink-0 mb-1`}
+                                  >
                                     {canEdit && (
                                       <button
                                         type="button"
@@ -1299,7 +1303,9 @@ export default function ChatPage() {
                                 )}
 
                                 <div
-                                  className={`min-w-0 max-w-[82%] sm:max-w-md p-2.5 rounded-2xl text-xs leading-relaxed shadow-2xs ${
+                                  className={`${
+                                    m.isMine ? "order-2" : "order-1"
+                                  } min-w-0 max-w-[calc(100%-4.25rem)] sm:max-w-md p-2.5 rounded-2xl text-xs leading-relaxed shadow-2xs ${
                                     m.isMine
                                       ? "bg-slate-900 text-white rounded-tr-none"
                                       : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
@@ -1333,7 +1339,7 @@ export default function ChatPage() {
 
                                   {/* Inline Edit Form when isEditing is true */}
                                   {isEditing ? (
-                                    <div className="w-full max-w-[260px] sm:min-w-[280px] sm:max-w-none space-y-2 mt-1">
+                                    <div className="w-[min(260px,100%)] sm:w-[300px] space-y-2 mt-1">
                                       <div className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
                                         <Pencil className="w-3 h-3" />
                                         <span>Update Message</span>
