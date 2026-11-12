@@ -253,37 +253,44 @@ export default function TeamPage() {
     });
   };
 
-  const toggleExtraModule = (mod: ExtraAccessModule) => {
+  const groupedAccessModules = useMemo(() => {
+    const groups: {
+      group: string;
+      viewMod?: ExtraAccessModule;
+      fullMod?: ExtraAccessModule;
+    }[] = [];
+    const byGroup = new Map<string, (typeof groups)[number]>();
+    for (const mod of EXTRA_ACCESS_MODULES) {
+      let entry = byGroup.get(mod.group);
+      if (!entry) {
+        entry = { group: mod.group };
+        byGroup.set(mod.group, entry);
+        groups.push(entry);
+      }
+      if (mod.accessLevel === "VIEW") entry.viewMod = mod;
+      else entry.fullMod = mod;
+    }
+    return groups;
+  }, []);
+
+  const setGroupAccessLevel = (
+    viewMod: ExtraAccessModule | undefined,
+    fullMod: ExtraAccessModule | undefined,
+    target: "NONE" | "VIEW" | "FULL"
+  ) => {
     setForm((prev) => {
       const baseSet = new Set<Permission>(ROLE_PERMISSIONS[prev.role as Role] || []);
-      const extraOnly = mod.permissions.filter((p) => !baseSet.has(p));
-      if (extraOnly.length === 0) return prev;
       const current = new Set<Permission>(prev.extraPermissions || []);
-
-      if (mod.accessLevel === "VIEW") {
-        // Check if the Full Access sibling in the same group is currently active
-        const siblingFull = EXTRA_ACCESS_MODULES.find(
-          (m) => m.group === mod.group && m.accessLevel === "FULL"
-        );
-        const siblingExtras = siblingFull
-          ? siblingFull.permissions.filter((p) => !baseSet.has(p) && !mod.permissions.includes(p))
-          : [];
-        const hasFullSiblingActive = siblingExtras.some((p) => current.has(p));
-
-        if (hasFullSiblingActive) {
-          // Downgrade cleanly from Full Access to View Only for this module
-          siblingExtras.forEach((p) => current.delete(p));
-          extraOnly.forEach((p) => current.add(p));
-          return { ...prev, extraPermissions: Array.from(current) };
-        }
-      }
-
-      const allSelected = extraOnly.every((p) => current.has(p));
-      if (allSelected) {
-        extraOnly.forEach((p) => current.delete(p));
-      } else {
-        extraOnly.forEach((p) => current.add(p));
-      }
+      viewMod?.permissions.forEach((p) => {
+        if (!baseSet.has(p)) current.delete(p);
+      });
+      fullMod?.permissions.forEach((p) => {
+        if (!baseSet.has(p)) current.delete(p);
+      });
+      const chosen = target === "FULL" ? fullMod : target === "VIEW" ? viewMod : undefined;
+      chosen?.permissions.forEach((p) => {
+        if (!baseSet.has(p)) current.add(p);
+      });
       return { ...prev, extraPermissions: Array.from(current) };
     });
   };
@@ -772,21 +779,21 @@ export default function TeamPage() {
 
                       {/* Quick Presets: View Only (All) & Full Access (All) */}
                       {(canGrantViewPreset || canGrantFullPreset) && (
-                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <div className="grid grid-cols-2 gap-2 mb-3">
                           {canGrantViewPreset && (
                             <button
                               type="button"
                               disabled={isLockedSelf}
                               onClick={() => applyAccessPreset("VIEW_ONLY")}
                               className={cn(
-                                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ring-1 transition",
+                                "inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500",
                                 isViewOnlyPresetActive
-                                  ? "ring-2 ring-sky-400 bg-sky-50 text-sky-800"
-                                  : "ring-slate-200 bg-white text-slate-700 hover:bg-sky-50/50 hover:ring-sky-300",
+                                  ? "border-sky-600 bg-sky-600 text-white shadow-xs"
+                                  : "border-slate-200 bg-white text-slate-700 hover:bg-sky-50/70 hover:border-sky-300",
                                 isLockedSelf && "opacity-60 cursor-not-allowed"
                               )}
                             >
-                              <Eye className="w-3.5 h-3.5 text-sky-600" />
+                              <Eye className={cn("w-3.5 h-3.5 shrink-0", isViewOnlyPresetActive ? "text-white" : "text-sky-600")} />
                               <span>View Only (All)</span>
                             </button>
                           )}
@@ -796,86 +803,123 @@ export default function TeamPage() {
                               disabled={isLockedSelf}
                               onClick={() => applyAccessPreset("FULL_ACCESS")}
                               className={cn(
-                                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold ring-1 transition",
+                                "inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
                                 isFullAccessPresetActive
-                                  ? "ring-2 ring-amber-400 bg-amber-50 text-amber-900"
-                                  : "ring-slate-200 bg-white text-slate-700 hover:bg-amber-50/50 hover:ring-amber-300",
+                                  ? "border-slate-900 bg-slate-900 text-amber-400 shadow-xs"
+                                  : "border-slate-200 bg-white text-slate-700 hover:bg-amber-50/70 hover:border-amber-300",
                                 isLockedSelf && "opacity-60 cursor-not-allowed"
                               )}
                             >
-                              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                              <ShieldCheck className={cn("w-3.5 h-3.5 shrink-0", isFullAccessPresetActive ? "text-amber-400" : "text-amber-600")} />
                               <span>Full Access (All)</span>
                             </button>
                           )}
                         </div>
                       )}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {EXTRA_ACCESS_MODULES.map((mod) => {
-                          const includedInRole = mod.permissions.every((p) => roleIncludedSet.has(p));
-                          const extraPermsForMod = mod.permissions.filter((p) => !roleIncludedSet.has(p));
-                          const activeExtra =
-                            !includedInRole &&
-                            extraPermsForMod.length > 0 &&
-                            extraPermsForMod.every((p) => (form.extraPermissions || []).includes(p));
-                          const disabled = includedInRole || isLockedSelf;
-                          const isViewLevel = mod.accessLevel === "VIEW";
+                      <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
+                        {groupedAccessModules.map(({ group, viewMod, fullMod }) => {
+                          const extraSet = new Set<Permission>(form.extraPermissions || []);
+                          const hasPerm = (p: Permission) => roleIncludedSet.has(p) || extraSet.has(p);
+
+                          const fullInRole = fullMod ? fullMod.permissions.every((p) => roleIncludedSet.has(p)) : false;
+                          const viewInRole = viewMod ? viewMod.permissions.every((p) => roleIncludedSet.has(p)) : false;
+                          const fullyIncludedInRole = fullMod ? fullInRole : viewInRole;
+
+                          const isFullActive = !!fullMod && fullMod.permissions.every(hasPerm);
+                          const isViewActive = !!viewMod && !isFullActive && viewMod.permissions.every(hasPerm);
+                          const currentLevel: "NONE" | "VIEW" | "FULL" = isFullActive
+                            ? "FULL"
+                            : isViewActive
+                            ? "VIEW"
+                            : "NONE";
+
+                          const displayMod =
+                            currentLevel === "FULL" && fullMod
+                              ? fullMod
+                              : currentLevel === "VIEW" && viewMod
+                              ? viewMod
+                              : viewMod || fullMod!;
+
+                          const title = viewMod?.label || fullMod!.label;
+                          const segments: { id: "NONE" | "VIEW" | "FULL"; label: string; disabled?: boolean }[] = [];
+                          if (!viewInRole) {
+                            segments.push({ id: "NONE", label: "None" });
+                          }
+                          if (viewMod) {
+                            segments.push({
+                              id: "VIEW",
+                              label: viewInRole ? "In Role" : "View",
+                            });
+                          }
+                          if (fullMod) {
+                            segments.push({ id: "FULL", label: "Full" });
+                          }
 
                           return (
-                            <button
-                              key={mod.key}
-                              type="button"
-                              disabled={disabled}
-                              onClick={() => toggleExtraModule(mod)}
+                            <div
+                              key={group}
                               className={cn(
-                                "text-left rounded-xl p-2.5 ring-1 transition flex items-start gap-2",
-                                includedInRole
-                                  ? "ring-slate-200 bg-slate-50/80 opacity-75 cursor-default"
-                                  : activeExtra
-                                  ? isViewLevel
-                                    ? "ring-2 ring-sky-400 bg-sky-50/60"
-                                    : "ring-2 ring-amber-400 bg-amber-50/60"
-                                  : "ring-slate-200 hover:ring-slate-300 bg-white",
-                                isLockedSelf && !includedInRole && "opacity-60 cursor-not-allowed"
+                                "p-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between transition-colors",
+                                fullyIncludedInRole
+                                  ? "bg-slate-50/70"
+                                  : currentLevel === "FULL"
+                                  ? "bg-amber-50/40"
+                                  : currentLevel === "VIEW"
+                                  ? "bg-sky-50/40"
+                                  : "bg-white"
                               )}
                             >
-                              <div
-                                className={cn(
-                                  "mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 ring-1",
-                                  includedInRole
-                                    ? "bg-emerald-100 text-emerald-700 ring-emerald-200"
-                                    : activeExtra
-                                    ? isViewLevel
-                                      ? "bg-sky-500 text-white ring-sky-500"
-                                      : "bg-amber-500 text-slate-950 ring-amber-500"
-                                    : "bg-white text-transparent ring-slate-300"
-                                )}
-                              >
-                                <Check className="w-3 h-3" />
-                              </div>
                               <div className="min-w-0 flex-1">
-                                <div className="text-xs font-semibold text-slate-900 flex items-center justify-between gap-1">
-                                  <span className="truncate">{mod.label}</span>
-                                  {includedInRole ? (
-                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-600 shrink-0">
-                                      In role
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className={cn(
-                                        "text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ring-1 shrink-0",
-                                        isViewLevel
-                                          ? "bg-sky-50 text-sky-700 ring-sky-200"
-                                          : "bg-amber-50 text-amber-800 ring-amber-200"
-                                      )}
-                                    >
-                                      {isViewLevel ? "View only" : "Full access"}
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-semibold text-slate-900 truncate">{title}</span>
+                                  {fullyIncludedInRole && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 shrink-0 whitespace-nowrap">
+                                      <Check className="w-3 h-3" /> In role
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-[10px] text-slate-500 leading-snug mt-0.5">{mod.hint}</div>
+                                <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                                  {displayMod.hint}
+                                </p>
                               </div>
-                            </button>
+
+                              {!fullyIncludedInRole && (
+                                <div
+                                  role="group"
+                                  aria-label={`${title} access level`}
+                                  className={cn(
+                                    "grid gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200/80 shrink-0 w-full sm:w-auto",
+                                    segments.length === 3 ? "grid-cols-3 sm:min-w-[168px]" : "grid-cols-2 sm:min-w-[120px]"
+                                  )}
+                                >
+                                  {segments.map((seg) => {
+                                    const active = currentLevel === seg.id;
+                                    return (
+                                      <button
+                                        key={seg.id}
+                                        type="button"
+                                        disabled={isLockedSelf}
+                                        onClick={() => setGroupAccessLevel(viewMod, fullMod, seg.id)}
+                                        className={cn(
+                                          "px-2.5 py-1.5 sm:py-1 rounded-md text-[11px] font-semibold text-center whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400",
+                                          active
+                                            ? seg.id === "FULL"
+                                              ? "bg-amber-500 text-slate-950 font-bold shadow-2xs"
+                                              : seg.id === "VIEW"
+                                              ? "bg-sky-600 text-white shadow-2xs"
+                                              : "bg-white text-slate-800 shadow-2xs"
+                                            : "text-slate-600 hover:text-slate-900",
+                                          isLockedSelf && "opacity-60 cursor-not-allowed"
+                                        )}
+                                      >
+                                        {seg.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           );
                         })}
                       </div>
