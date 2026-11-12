@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
 import {
@@ -3441,27 +3442,25 @@ export default function DashboardPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Target Project *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      ...projects.map((p) => ({
+                        value: p.id,
+                        label: p.name,
+                        badge: p.code || undefined,
+                        subLabel: p.site?.name || sites.find((s) => s.id === p.siteId)?.name || undefined,
+                      })),
+                      {
+                        value: "OTHER",
+                        label: "Other / General Operations",
+                        subLabel: projects.length === 0 ? "Default Site" : "Not site-specific",
+                      },
+                    ]}
                     value={quickProjectId || (projects.length > 0 ? projects[0].id : "OTHER")}
-                    onChange={(e) => setQuickProjectId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {projects.length === 0 ? (
-                      <option value="OTHER">Other / General Operations (Default Site)</option>
-                    ) : (
-                      <>
-                        {projects.map((p) => {
-                          const siteName = p.site?.name || sites.find((s) => s.id === p.siteId)?.name;
-                          return (
-                            <option key={p.id} value={p.id}>
-                              {p.code} - {p.name} {siteName ? `[${siteName}]` : ""}
-                            </option>
-                          );
-                        })}
-                        <option value="OTHER">Other / General Operations (Not site-specific)</option>
-                      </>
-                    )}
-                  </select>
+                    onChange={setQuickProjectId}
+                    placeholder="Select project..."
+                    searchPlaceholder="Search project name, code, or site..."
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

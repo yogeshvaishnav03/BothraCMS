@@ -2,6 +2,7 @@
 
 import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
@@ -2285,18 +2286,20 @@ export default function FinancePage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Project / Site (Optional)
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "Select Project" },
+                        ...projects.map((p) => ({
+                          value: p.id,
+                          label: p.name,
+                          badge: p.code || undefined,
+                        })),
+                      ]}
                       value={billProjectId}
-                      onChange={(e) => setBillProjectId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                    >
-                      <option value="">Select Project</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.code})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setBillProjectId}
+                      placeholder="Select Project"
+                      searchPlaceholder="Search project name or code..."
+                    />
                   </div>
                 </div>
 

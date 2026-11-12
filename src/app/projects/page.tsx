@@ -2,6 +2,7 @@
 
 import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, useTablePagination, ExcelColumnHeader, ExcelTableToolbar, ShowEntriesControl, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
@@ -1435,18 +1436,18 @@ export default function ProjectsPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Target Project *
                     </label>
-                    <select
-                      value={reportProjectId}
-                      onChange={(e) => setReportProjectId(e.target.value)}
+                    <SearchableSelect
                       required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.code})
-                        </option>
-                      ))}
-                    </select>
+                      options={projects.map((p) => ({
+                        value: p.id,
+                        label: p.name,
+                        badge: p.code || undefined,
+                      }))}
+                      value={reportProjectId}
+                      onChange={setReportProjectId}
+                      placeholder="Select Target Project..."
+                      searchPlaceholder="Search project name or code..."
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">

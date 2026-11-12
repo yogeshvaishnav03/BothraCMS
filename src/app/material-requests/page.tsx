@@ -133,16 +133,21 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           {error && <Alert tone="error">{error}</Alert>}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-bold text-slate-700">Project</span>
-              <select required value={projectId} onChange={(e) => setProjectId(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="sm:col-span-2">
+              <span className="text-xs font-bold text-slate-700 block mb-1">Project</span>
+              <SearchableSelect
+                required
+                options={projects.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  badge: p.code || undefined,
+                }))}
+                value={projectId}
+                onChange={setProjectId}
+                placeholder="Select project..."
+                searchPlaceholder="Search project name or code..."
+              />
+            </div>
             <label className="block">
               <span className="text-xs font-bold text-slate-700">Needed by</span>
               <input type="date" value={neededBy} onChange={(e) => setNeededBy(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />

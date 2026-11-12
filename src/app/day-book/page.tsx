@@ -2,6 +2,7 @@
 
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import Link from "next/link";
 import React, { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -3070,18 +3071,20 @@ export default function DayBookPage() {
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Project (Optional)
                         </label>
-                        <select
+                        <SearchableSelect
+                          options={[
+                            { value: "", label: "General / Head Office" },
+                            ...projects.map((pr) => ({
+                              value: pr.id,
+                              label: pr.name,
+                              badge: pr.code || undefined,
+                            })),
+                          ]}
                           value={paymentProjectId}
-                          onChange={(e) => setPaymentProjectId(e.target.value)}
-                          className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
-                        >
-                          <option value="">General / Head Office</option>
-                          {projects.map((pr) => (
-                            <option key={pr.id} value={pr.id}>
-                              {pr.name} ({pr.code})
-                            </option>
-                          ))}
-                        </select>
+                          onChange={setPaymentProjectId}
+                          placeholder="General / Head Office"
+                          searchPlaceholder="Search project name or code..."
+                        />
                       </div>
                     </div>
 
@@ -3321,18 +3324,20 @@ export default function DayBookPage() {
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Project (Optional)
                         </label>
-                        <select
+                        <SearchableSelect
+                          options={[
+                            { value: "", label: "General Project" },
+                            ...projects.map((pr) => ({
+                              value: pr.id,
+                              label: pr.name,
+                              badge: pr.code || undefined,
+                            })),
+                          ]}
                           value={billProjectId}
-                          onChange={(e) => setBillProjectId(e.target.value)}
-                          className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
-                        >
-                          <option value="">General Project</option>
-                          {projects.map((pr) => (
-                            <option key={pr.id} value={pr.id}>
-                              {pr.name} ({pr.code})
-                            </option>
-                          ))}
-                        </select>
+                          onChange={setBillProjectId}
+                          placeholder="General Project"
+                          searchPlaceholder="Search project name or code..."
+                        />
                       </div>
                     </div>
 
@@ -3651,18 +3656,18 @@ export default function DayBookPage() {
                       <label className="block text-xs font-bold text-slate-700 mb-1">
                         Project *
                       </label>
-                      <select
-                        value={dsrProjectId}
-                        onChange={(e) => setDsrProjectId(e.target.value)}
+                      <SearchableSelect
                         required
-                        className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
-                      >
-                        {projects.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.code})
-                          </option>
-                        ))}
-                      </select>
+                        options={projects.map((p) => ({
+                          value: p.id,
+                          label: p.name,
+                          badge: p.code || undefined,
+                        }))}
+                        value={dsrProjectId}
+                        onChange={setDsrProjectId}
+                        placeholder="Select Project..."
+                        searchPlaceholder="Search project name or code..."
+                      />
                     </div>
 
                     <div>
@@ -4594,18 +4599,20 @@ export default function DayBookPage() {
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Filter by Project Scope
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "ALL", label: "All Projects (Company-wide)" },
+                        ...projects.map((p) => ({
+                          value: p.id,
+                          label: p.name,
+                          badge: p.code || undefined,
+                        })),
+                      ]}
                       value={printProjectFilter}
-                      onChange={(e) => setPrintProjectFilter(e.target.value)}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    >
-                      <option value="ALL">All Projects (Company-wide)</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} {p.code ? `(${p.code})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setPrintProjectFilter}
+                      placeholder="All Projects (Company-wide)"
+                      searchPlaceholder="Search project name or code..."
+                    />
                   </div>
                   <div className="sm:pt-3">
                     <label className="flex items-center gap-2 cursor-pointer select-none">

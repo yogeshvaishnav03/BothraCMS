@@ -1519,18 +1519,21 @@ export default function MaterialsPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Allocated Project
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      { value: "", label: "Other / General Central Store (Not allocated to specific project)" },
+                      ...projects.map((p) => ({
+                        value: p.id,
+                        label: p.name,
+                        badge: p.code || undefined,
+                        subLabel: p.site?.name || undefined,
+                      })),
+                    ]}
                     value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  >
-                    <option value="">Other / General Central Store (Not allocated to specific project)</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.code} - {p.name} {p.site ? `(${p.site.name})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setProjectId}
+                    placeholder="Other / General Central Store..."
+                    searchPlaceholder="Search project name, code, or site..."
+                  />
                 </div>
 
                 <div>
@@ -1654,18 +1657,20 @@ export default function MaterialsPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Target Project
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "Select Project (Optional)" },
+                        ...projects.map((p) => ({
+                          value: p.id,
+                          label: p.name,
+                          badge: p.code || undefined,
+                        })),
+                      ]}
                       value={projectId}
-                      onChange={(e) => setProjectId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                    >
-                      <option value="">Select Project (Optional)</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setProjectId}
+                      placeholder="Select Project (Optional)"
+                      searchPlaceholder="Search project name or code..."
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">

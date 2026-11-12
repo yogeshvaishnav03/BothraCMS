@@ -273,8 +273,8 @@ export default function SearchableSelect({
                     aria-selected={isSelected}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                        <span className="truncate">{opt.label}</span>
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <span className="line-clamp-2 leading-snug">{opt.label}</span>
                         {opt.badge && (
                           <span className="shrink-0 font-mono text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">
                             {opt.badge}

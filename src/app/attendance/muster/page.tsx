@@ -5,6 +5,7 @@ import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { cn } from "@/lib/cn";
 import { submitOrQueue } from "@/lib/offline-queue";
@@ -210,23 +211,24 @@ export default function MusterPage() {
           </Link>
         </PageHeader>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs">
-          <select
-            value={projectId}
-            onChange={(e) => {
-              setNotice(null);
-              setProjectId(e.target.value);
-            }}
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-800"
-            aria-label="Project"
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center rounded-xl border border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs">
+          <div className="min-w-0 flex-1">
+            <SearchableSelect
+              options={projects.map((p) => ({
+                value: p.id,
+                label: p.name,
+                badge: p.code || undefined,
+              }))}
+              value={projectId}
+              onChange={(val) => {
+                setNotice(null);
+                setProjectId(val);
+              }}
+              placeholder="Select project..."
+              searchPlaceholder="Search project name or code..."
+            />
+          </div>
+          <div className="flex items-center justify-between sm:justify-start rounded-xl border border-slate-200">
             <button
               onClick={() => goTo(shiftDate(date, -1))}
               disabled={!date || (!!oldest && date <= oldest) || loading}

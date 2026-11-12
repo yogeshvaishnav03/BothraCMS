@@ -7,6 +7,7 @@ import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
 import { canUser } from "@/lib/permissions";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import {
@@ -2054,18 +2055,22 @@ export default function MeasurementBookPage() {
 
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             {/* Project Filter */}
-            <select
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="text-xs font-medium px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            >
-              <option value="ALL">All Projects</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <div className="w-full sm:w-64">
+              <SearchableSelect
+                options={[
+                  { value: "ALL", label: "All Projects" },
+                  ...projects.map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                    badge: p.code || undefined,
+                  })),
+                ]}
+                value={selectedProject}
+                onChange={setSelectedProject}
+                placeholder="All Projects"
+                searchPlaceholder="Search project..."
+              />
+            </div>
 
             {/* Site Filter */}
             <select
@@ -2411,19 +2416,21 @@ export default function MeasurementBookPage() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Select Project <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={grpProjectId}
-                    onChange={(e) => setGrpProjectId(e.target.value)}
+                  <SearchableSelect
                     required
-                    className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="">-- Choose Project --</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.code})
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: "", label: "-- Choose Project --" },
+                      ...projects.map((p) => ({
+                        value: p.id,
+                        label: p.name,
+                        badge: p.code || undefined,
+                      })),
+                    ]}
+                    value={grpProjectId}
+                    onChange={setGrpProjectId}
+                    placeholder="-- Choose Project --"
+                    searchPlaceholder="Search project name or code..."
+                  />
                 </div>
 
                 <div>
@@ -2777,19 +2784,21 @@ export default function MeasurementBookPage() {
                         <label className="block text-xs font-semibold text-slate-800 mb-1">
                           Project <span className="text-rose-500">*</span>
                         </label>
-                        <select
-                          value={formProjectId}
-                          onChange={(e) => setFormProjectId(e.target.value)}
+                        <SearchableSelect
                           required
-                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-medium text-slate-800"
-                        >
-                          <option value="">-- Select Project --</option>
-                          {projects.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} {p.code ? `(${p.code})` : ""}
-                            </option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: "", label: "-- Select Project --" },
+                            ...projects.map((p) => ({
+                              value: p.id,
+                              label: p.name,
+                              badge: p.code || undefined,
+                            })),
+                          ]}
+                          value={formProjectId}
+                          onChange={setFormProjectId}
+                          placeholder="-- Select Project --"
+                          searchPlaceholder="Search project name or code..."
+                        />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-800 mb-1">
