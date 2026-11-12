@@ -234,7 +234,7 @@ function SalaryMobileCard({ s, canEdit, onSaved }: { s: any; canEdit: boolean; o
   const panBad = pan.length > 0 && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan);
   const esiOver = esi && toPaise(salary) > 21_000_00;
   return (
-    <div className="p-4 space-y-3">
+    <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-semibold text-slate-900">{s.name}</div>
@@ -352,7 +352,7 @@ function WorkerMobileCard({ w, canEdit, onSaved }: { w: any; canEdit: boolean; o
   const [error, setError] = useState<string | null>(null);
   const dirty = pf !== w.pfApplicable || esi !== w.esiApplicable || uan !== (w.uan || "") || esic !== (w.esicNumber || "") || account !== "" || ifsc !== (w.ifsc || "");
   return (
-    <div className="p-4 space-y-3">
+    <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-semibold text-slate-900">{w.name}</div>
@@ -728,12 +728,12 @@ function PayrollRunGroupCard({
         </table>
       </div>
 
-      <div className="lg:hidden divide-y divide-slate-100">
+      <div className="lg:hidden space-y-3 bg-slate-50/70 p-3">
         {pagination.paginatedData.map((l: any) => {
           const statutory = l.pfEmployee + l.esiEmployee + l.professionalTax + l.tds;
           const allDed = l.advanceDeduction + l.otherDeduction + statutory;
           return (
-            <div key={`m-${l.id}`} className="p-4 space-y-2.5">
+            <div key={`m-${l.id}`} className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs space-y-2.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-slate-900">{l.personName}</div>
@@ -1158,7 +1158,7 @@ export default function PayrollPage() {
                 </tbody>
               </table>
             </div>
-            <div className="lg:hidden divide-y divide-slate-100">
+            <div className="lg:hidden space-y-3 bg-slate-50/70 p-3">
               {staffSalaryPagination.paginatedData.map((s) => (
                 <SalaryMobileCard key={`ms-${s.id}`} s={s} canEdit={canWrite} onSaved={(list) => { setStaff(list); setNotice(`Salary saved for ${s.name}.`); }} />
               ))}
@@ -1205,7 +1205,7 @@ export default function PayrollPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="lg:hidden divide-y divide-slate-100">
+                <div className="lg:hidden space-y-3 bg-slate-50/70 p-3">
                   {workerSalaryPagination.paginatedData.map((w) => (
                     <WorkerMobileCard key={`mw-${w.id}`} w={w} canEdit={canWrite} onSaved={(list) => { setWorkers(list); setNotice(`Saved for ${w.name}. Refresh a draft payroll to apply it.`); }} />
                   ))}
@@ -1239,12 +1239,12 @@ export default function PayrollPage() {
                 </span>
               </div>
             )}
-            <div className="sm:hidden divide-y divide-slate-100">
+            <div className={cn("sm:hidden", advances.length > 0 && "space-y-3 bg-slate-50/70 p-3")}>
               {advances.length === 0 ? (
                 <div className="px-4 py-10 text-center text-sm text-slate-500">No advances given yet.</div>
               ) : (
                 advancesPagination.paginatedData.map((a) => (
-                  <div key={`ma-${a.id}`} className="p-4 flex items-center justify-between gap-3">
+                  <div key={`ma-${a.id}`} className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-semibold text-slate-900 truncate">{a.personName}</div>
                       <div className="text-xs text-slate-500">
