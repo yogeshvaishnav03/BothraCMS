@@ -227,39 +227,44 @@ export default function PartyStatementPage() {
       <div className="space-y-6">
         {/* Header & Breadcrumb */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3 min-w-0">
             <Link
               href="/parties"
-              className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 shadow-sm print:hidden"
+              className="mt-0.5 p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 shadow-2xs shrink-0 print:hidden"
+              aria-label="Back to Vendors and Contractors"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
-            <div>
-              <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-2">
-                <span>{isContractor ? "Subcontractor Contract & Statement" : "Material Supplier Financial Statement"}</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                {isContractor ? "Subcontractor Contract & Statement" : "Material Supplier Financial Statement"}
               </div>
-              <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                <span>{party.name}</span>
+              <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight leading-snug mt-0.5">
+                {party.name}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2 mt-1.5">
                 <span
-                  className={`font-mono text-xs px-2.5 py-0.5 rounded font-bold ${
-                    isContractor ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"
+                  className={`font-mono text-[11px] px-2.5 py-0.5 rounded-md font-bold ring-1 ${
+                    isContractor
+                      ? "bg-amber-50 text-amber-800 ring-amber-200"
+                      : "bg-slate-100 text-slate-700 ring-slate-200"
                   }`}
                 >
                   {party.partyType}
                 </span>
                 {party.taxIdentifier && (
                   <span className="text-xs font-mono text-slate-500 font-medium">
-                    (GSTIN: {party.taxIdentifier})
+                    GSTIN: {party.taxIdentifier}
                   </span>
                 )}
-              </h1>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 print:hidden self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 print:hidden w-full sm:w-auto shrink-0">
             {isVendor && canPlaceOrder && (
               <button
                 onClick={() => setShowPlaceOrderModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-sm transition cursor-pointer"
+                className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3.5 py-2 bg-gradient-brand hover:brightness-105 text-slate-950 font-bold rounded-xl text-xs shadow-sm transition cursor-pointer whitespace-nowrap"
               >
                 <ShoppingCart className="w-4 h-4" />
                 <span>New Purchase Order</span>
@@ -267,15 +272,15 @@ export default function PartyStatementPage() {
             )}
             <button
               onClick={() => setShowAuditModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs shadow-sm transition"
+              className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs shadow-sm transition whitespace-nowrap"
               title="Change History"
             >
-              <History className="w-4 h-4 text-indigo-600" />
+              <History className="w-4 h-4 text-amber-600" />
               <span>Change History</span>
             </button>
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition"
+              className="flex-1 sm:flex-initial justify-center flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition whitespace-nowrap"
             >
               <Printer className="w-4 h-4" />
               <span>Print / PDF</span>
@@ -285,38 +290,42 @@ export default function PartyStatementPage() {
 
         {/* Contractor Contract Summary (if Contractor) */}
         {canReadFinance && isContractor && contractVal > 0 && (
-          <div className="bg-gradient-to-r from-purple-900 to-indigo-950 rounded-2xl p-5 text-white shadow-md">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-purple-800/60">
+          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 border border-slate-800 rounded-2xl p-4 sm:p-5 text-white shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-700/70">
               <div>
-                <div className="text-xs text-purple-300 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                  <HardHat className="w-4 h-4 text-amber-400" />
+                <div className="text-[11px] text-amber-400 uppercase tracking-wider font-bold flex items-center gap-1.5">
+                  <HardHat className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>Subcontractor Contract Milestone Tracking</span>
                 </div>
-                <div className="font-display text-lg sm:text-xl font-extrabold mt-1 tabular-nums" title={formatCurrency(contractVal)}>Contract Value: {formatCompactINR(contractVal)}</div>
+                <div className="font-display text-lg sm:text-xl font-extrabold mt-1 tabular-nums text-white" title={formatCurrency(contractVal)}>
+                  Contract Value: {formatCompactINR(contractVal)}
+                </div>
               </div>
-              <div className="flex items-center gap-6 text-sm">
+              <div className="grid grid-cols-2 gap-4 sm:flex sm:items-center sm:gap-6 text-sm">
                 <div>
-                  <div className="text-xs text-purple-300">Remaining Contract Balance</div>
-                  <div className="font-display text-lg sm:text-xl font-extrabold text-amber-400 tabular-nums" title={formatCurrency(remainingContract)}>{formatCompactINR(remainingContract)}</div>
+                  <div className="text-xs text-slate-400">Remaining Contract Balance</div>
+                  <div className="font-display text-lg sm:text-xl font-extrabold text-amber-400 tabular-nums mt-0.5" title={formatCurrency(remainingContract)}>
+                    {formatCompactINR(remainingContract)}
+                  </div>
                 </div>
                 <div>
-                  <div className="text-xs text-purple-300">Work Billed %</div>
-                  <div className="font-display text-lg sm:text-xl font-extrabold text-white tabular-nums">{billedPct}%</div>
+                  <div className="text-xs text-slate-400">Work Billed %</div>
+                  <div className="font-display text-lg sm:text-xl font-extrabold text-white tabular-nums mt-0.5">{billedPct}%</div>
                 </div>
               </div>
             </div>
 
             {/* Progress Bars */}
             <div className="pt-3 space-y-2">
-              <div className="flex justify-between gap-2 text-xs text-purple-200">
-                <span className="tabular-nums truncate" title={formatCurrency(totalBilled)}>
-                  Progress Billed: {formatCompactINR(totalBilled)} ({billedPct}%)
+              <div className="flex flex-wrap justify-between gap-2 text-xs text-slate-300">
+                <span className="tabular-nums" title={formatCurrency(totalBilled)}>
+                  Progress Billed: <strong className="text-white">{formatCompactINR(totalBilled)}</strong> ({billedPct}%)
                 </span>
-                <span className="tabular-nums shrink-0 whitespace-nowrap" title={formatCurrency(totalPaid)}>
-                  Total Paid: {formatCompactINR(totalPaid)} ({paidPct}%)
+                <span className="tabular-nums whitespace-nowrap" title={formatCurrency(totalPaid)}>
+                  Total Paid: <strong className="text-emerald-400">{formatCompactINR(totalPaid)}</strong> ({paidPct}%)
                 </span>
               </div>
-              <div className="w-full h-3 bg-purple-950/60 rounded-full overflow-hidden flex">
+              <div className="w-full h-2.5 bg-slate-800 border border-slate-700/60 rounded-full overflow-hidden flex">
                 <div
                   style={{ width: `${paidPct}%` }}
                   className="bg-emerald-400 h-full rounded-l-full"
