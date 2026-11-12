@@ -1406,6 +1406,244 @@ export default function WorkforcePage() {
                   </div>
                 </div>
 
+                {/* Contractor / Labour Agency Selection (2nd Position) */}
+                <div className="relative bg-slate-50/70 p-3 rounded-xl border border-slate-200" ref={contractorDropdownRef}>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-600 block">
+                      Contractor / Labour Agency (Optional):
+                    </label>
+                    {(contractorName || contractorSearchQuery) && (
+                      <button
+                        type="button"
+                        onClick={handleClearContractor}
+                        className="text-[10px] text-rose-600 hover:underline cursor-pointer font-semibold"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Searchable Combobox Input */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search worker, contractor or agency (or type custom)..."
+                      value={contractorSearchQuery !== "" ? contractorSearchQuery : contractorName}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setContractorSearchQuery(val);
+                        setContractorName(val);
+                        setIsContractorDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsContractorDropdownOpen(true)}
+                      className="w-full pl-8 pr-14 bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                    <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5">
+                      {(contractorSearchQuery || contractorName) && (
+                        <button
+                          type="button"
+                          onClick={handleClearContractor}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                          title="Clear selection"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsContractorDropdownOpen((prev) => !prev)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                        title="Toggle dropdown list"
+                      >
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                            isContractorDropdownOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Search Autocomplete Dropdown List */}
+                  {isContractorDropdownOpen && (
+                    <div className="absolute left-3 right-3 top-full mt-1 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-64 overflow-y-auto divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                      {/* Option to use custom typed text if entered */}
+                      {(contractorSearchQuery || contractorName).trim() && (
+                        <div
+                          onClick={() => handleSelectCustomContractor(contractorSearchQuery || contractorName)}
+                          className="p-2 bg-amber-50/80 hover:bg-amber-100/90 cursor-pointer flex items-center justify-between transition-colors border-b border-amber-100 text-xs"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <Plus className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <div className="text-amber-950 font-medium truncate">
+                              Use <strong className="font-bold">&quot;{(contractorSearchQuery || contractorName).trim()}&quot;</strong> as custom name
+                            </div>
+                          </div>
+                          <span className="text-[9px] font-bold uppercase bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded-full shrink-0">
+                            Custom
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Summary Header */}
+                      <div className="px-3 py-1.5 bg-slate-50 flex items-center justify-between text-[10px] font-semibold text-slate-500">
+                        <span>
+                          {(contractorSearchQuery || "").trim()
+                            ? `Matching results (${totalMatchingContractorOptions})`
+                            : "Registered Directory & Agencies (Click to select)"}
+                        </span>
+                        <span className="text-slate-400">Searchable list</span>
+                      </div>
+
+                      {/* Section 1: Registered Trade Workers Directory */}
+                      {filteredWorkersForContractor.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 border-t border-slate-100">
+                            <HardHat className="w-3 h-3 text-amber-500" />
+                            <span>Registered Trade Workers ({filteredWorkersForContractor.length})</span>
+                          </div>
+                          <div className="py-0.5">
+                            {filteredWorkersForContractor.map((w) => {
+                              const wageStr = w.dailyWageRate ? ` • ₹${Number(w.dailyWageRate) / 100}/day` : "";
+                              const siteStr = w.defaultSite?.name ? ` • ${w.defaultSite.name}` : "";
+                              const val = `${w.name} (${w.employeeCode} - ${w.workerType})`;
+                              const isSelected = contractorName === val;
+
+                              return (
+                                <div
+                                  key={w.id}
+                                  onClick={() => handleSelectWorkerAsContractor(w)}
+                                  className={`px-3 py-1.5 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                                    isSelected
+                                      ? "bg-amber-50 font-bold text-amber-900"
+                                      : "hover:bg-slate-50 text-slate-800"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                                      {w.name.slice(0, 1).toUpperCase()}
+                                    </div>
+                                    <div className="truncate">
+                                      <div className="font-semibold text-slate-900 flex items-center gap-1.5 truncate">
+                                        <span>{w.name}</span>
+                                        <span className="font-mono text-[10px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-normal">
+                                          {w.employeeCode}
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 truncate">
+                                        {w.workerType}{wageStr}{siteStr}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                                    {w.workerType}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Section 2: Contractors & Labour Agencies */}
+                      {filteredContractorsList.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 border-t border-slate-100">
+                            <Building2 className="w-3 h-3 text-sky-500" />
+                            <span>Contractors & Labour Agencies ({filteredContractorsList.length})</span>
+                          </div>
+                          <div className="py-0.5">
+                            {filteredContractorsList.map((c) => {
+                              const isSelected = contractorName === c;
+                              return (
+                                <div
+                                  key={c}
+                                  onClick={() => handleSelectContractor(c)}
+                                  className={`px-3 py-1.5 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                                    isSelected
+                                      ? "bg-sky-50 font-bold text-sky-900"
+                                      : "hover:bg-slate-50 text-slate-800"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 truncate">
+                                    <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span className="truncate">{c}</span>
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* No matching results state */}
+                      {totalMatchingContractorOptions === 0 && !(contractorSearchQuery || contractorName).trim() && (
+                        <div className="p-4 text-center text-xs text-slate-400">
+                          No registered trade workers or contractors found. Type above to enter custom agency name.
+                        </div>
+                      )}
+
+                      {totalMatchingContractorOptions === 0 && (contractorSearchQuery || contractorName).trim() && (
+                        <div className="p-3 text-center">
+                          <p className="text-xs text-slate-500">
+                            No existing workers or contractors match &quot;{(contractorSearchQuery || contractorName).trim()}&quot;
+                          </p>
+                          <p className="text-[11px] text-amber-700 font-semibold mt-1">
+                            Click the &quot;Use custom name&quot; option above to save this as a new contractor.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Rich Details Card when a Registered Trade Worker is Selected */}
+                  {selectedWorker && (
+                    <div className="mt-2 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1.5 shadow-2xs animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between pb-1 border-b border-amber-200/60">
+                        <span className="font-bold text-amber-950 flex items-center gap-1.5">
+                          <Briefcase className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Registered Trade Worker Details</span>
+                        </span>
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-200 text-amber-900">
+                          {selectedWorker.employeeCode}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-700">
+                        <div>
+                          <span className="text-slate-400">Worker:</span>{" "}
+                          <strong className="text-slate-900">{selectedWorker.name}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Trade:</span>{" "}
+                          <strong className="text-amber-800 uppercase font-mono">{selectedWorker.workerType}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Daily Wage:</span>{" "}
+                          <strong className="text-emerald-700">
+                            ₹{(Number(selectedWorker.dailyWageRate) || 0) / 100} / day
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Assigned Site:</span>{" "}
+                          <strong className="text-slate-900">
+                            {selectedWorker.defaultSite?.name || "Main Site"}
+                          </strong>
+                        </div>
+                        {selectedWorker.phone && (
+                          <div className="col-span-2">
+                            <span className="text-slate-400">Contact Phone:</span>{" "}
+                            <strong className="font-mono text-slate-900">{selectedWorker.phone}</strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* The 3 Categories (Artisan: Direct, Craftsman: Direct, Laborer: Male & Female) */}
                 <div className="space-y-3">
                   {/* Category 1: Artisan (Direct Count) */}
@@ -1493,258 +1731,18 @@ export default function WorkforcePage() {
                   </div>
                 </div>
 
-                {/* Optional Contractor & Notes */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="relative" ref={contractorDropdownRef}>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 block">
-                        Contractor / Labour Agency (Optional):
-                      </label>
-                      {(contractorName || contractorSearchQuery) && (
-                        <button
-                          type="button"
-                          onClick={handleClearContractor}
-                          className="text-[10px] text-rose-600 hover:underline cursor-pointer font-semibold"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Searchable Combobox Input */}
-                    <div className="relative">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="Search worker, contractor or agency (or type custom)..."
-                        value={contractorSearchQuery !== "" ? contractorSearchQuery : contractorName}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setContractorSearchQuery(val);
-                          setContractorName(val);
-                          setIsContractorDropdownOpen(true);
-                        }}
-                        onFocus={() => setIsContractorDropdownOpen(true)}
-                        className="w-full pl-8 pr-16 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      />
-                      <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5">
-                        {(contractorSearchQuery || contractorName) && (
-                          <button
-                            type="button"
-                            onClick={handleClearContractor}
-                            className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
-                            title="Clear selection"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setIsContractorDropdownOpen((prev) => !prev)}
-                          className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
-                          title="Toggle dropdown list"
-                        >
-                          <ChevronDown
-                            className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                              isContractorDropdownOpen ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Search Autocomplete Dropdown List */}
-                    {isContractorDropdownOpen && (
-                      <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-64 overflow-y-auto divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
-                        {/* Option to use custom typed text if entered */}
-                        {(contractorSearchQuery || contractorName).trim() && (
-                          <div
-                            onClick={() => handleSelectCustomContractor(contractorSearchQuery || contractorName)}
-                            className="p-2 bg-amber-50/80 hover:bg-amber-100/90 cursor-pointer flex items-center justify-between transition-colors border-b border-amber-100 text-xs"
-                          >
-                            <div className="flex items-center gap-1.5">
-                              <Plus className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <div className="text-amber-950 font-medium truncate">
-                                Use <strong className="font-bold">&quot;{(contractorSearchQuery || contractorName).trim()}&quot;</strong> as custom name
-                              </div>
-                            </div>
-                            <span className="text-[9px] font-bold uppercase bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded-full shrink-0">
-                              Custom
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Summary Header */}
-                        <div className="px-3 py-1.5 bg-slate-50 flex items-center justify-between text-[10px] font-semibold text-slate-500">
-                          <span>
-                            {(contractorSearchQuery || "").trim()
-                              ? `Matching results (${totalMatchingContractorOptions})`
-                              : "Registered Directory & Agencies (Click to select)"}
-                          </span>
-                          <span className="text-slate-400">Searchable list</span>
-                        </div>
-
-                        {/* Section 1: Registered Trade Workers Directory */}
-                        {filteredWorkersForContractor.length > 0 && (
-                          <div>
-                            <div className="px-3 py-1 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 border-t border-slate-100">
-                              <HardHat className="w-3 h-3 text-amber-500" />
-                              <span>Registered Trade Workers ({filteredWorkersForContractor.length})</span>
-                            </div>
-                            <div className="py-0.5">
-                              {filteredWorkersForContractor.map((w) => {
-                                const wageStr = w.dailyWageRate ? ` • ₹${Number(w.dailyWageRate) / 100}/day` : "";
-                                const siteStr = w.defaultSite?.name ? ` • ${w.defaultSite.name}` : "";
-                                const val = `${w.name} (${w.employeeCode} - ${w.workerType})`;
-                                const isSelected = contractorName === val;
-
-                                return (
-                                  <div
-                                    key={w.id}
-                                    onClick={() => handleSelectWorkerAsContractor(w)}
-                                    className={`px-3 py-1.5 text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                                      isSelected
-                                        ? "bg-amber-50 font-bold text-amber-900"
-                                        : "hover:bg-slate-50 text-slate-800"
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                                        {w.name.slice(0, 1).toUpperCase()}
-                                      </div>
-                                      <div className="truncate">
-                                        <div className="font-semibold text-slate-900 flex items-center gap-1.5 truncate">
-                                          <span>{w.name}</span>
-                                          <span className="font-mono text-[10px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-normal">
-                                            {w.employeeCode}
-                                          </span>
-                                        </div>
-                                        <div className="text-[10px] text-slate-500 truncate">
-                                          {w.workerType}{wageStr}{siteStr}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
-                                      {w.workerType}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Section 2: Contractors & Labour Agencies */}
-                        {filteredContractorsList.length > 0 && (
-                          <div>
-                            <div className="px-3 py-1 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 border-t border-slate-100">
-                              <Building2 className="w-3 h-3 text-sky-500" />
-                              <span>Contractors & Labour Agencies ({filteredContractorsList.length})</span>
-                            </div>
-                            <div className="py-0.5">
-                              {filteredContractorsList.map((c) => {
-                                const isSelected = contractorName === c;
-                                return (
-                                  <div
-                                    key={c}
-                                    onClick={() => handleSelectContractor(c)}
-                                    className={`px-3 py-1.5 text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                                      isSelected
-                                        ? "bg-sky-50 font-bold text-sky-900"
-                                        : "hover:bg-slate-50 text-slate-800"
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2 truncate">
-                                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                      <span className="truncate">{c}</span>
-                                    </div>
-                                    {isSelected && (
-                                      <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* No matching results state */}
-                        {totalMatchingContractorOptions === 0 && !(contractorSearchQuery || contractorName).trim() && (
-                          <div className="p-4 text-center text-xs text-slate-400">
-                            No registered trade workers or contractors found. Type above to enter custom agency name.
-                          </div>
-                        )}
-
-                        {totalMatchingContractorOptions === 0 && (contractorSearchQuery || contractorName).trim() && (
-                          <div className="p-3 text-center">
-                            <p className="text-xs text-slate-500">
-                              No existing workers or contractors match &quot;{(contractorSearchQuery || contractorName).trim()}&quot;
-                            </p>
-                            <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                              Click the &quot;Use custom name&quot; option above to save this as a new contractor.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Rich Details Card when a Registered Trade Worker is Selected */}
-                    {selectedWorker && (
-                      <div className="mt-2 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1.5 shadow-2xs animate-in fade-in duration-150">
-                        <div className="flex items-center justify-between pb-1 border-b border-amber-200/60">
-                          <span className="font-bold text-amber-950 flex items-center gap-1.5">
-                            <Briefcase className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Registered Trade Worker Details</span>
-                          </span>
-                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-200 text-amber-900">
-                            {selectedWorker.employeeCode}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-700">
-                          <div>
-                            <span className="text-slate-400">Worker:</span>{" "}
-                            <strong className="text-slate-900">{selectedWorker.name}</strong>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Trade:</span>{" "}
-                            <strong className="text-amber-800 uppercase font-mono">{selectedWorker.workerType}</strong>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Daily Wage:</span>{" "}
-                            <strong className="text-emerald-700">
-                              ₹{(Number(selectedWorker.dailyWageRate) || 0) / 100} / day
-                            </strong>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Assigned Site:</span>{" "}
-                            <strong className="text-slate-900">
-                              {selectedWorker.defaultSite?.name || "Main Site"}
-                            </strong>
-                          </div>
-                          {selectedWorker.phone && (
-                            <div className="col-span-2">
-                              <span className="text-slate-400">Contact Phone:</span>{" "}
-                              <strong className="font-mono text-slate-900">{selectedWorker.phone}</strong>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Column 2: Work Details / Notes */}
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                      Work Details / Notes (Optional):
-                    </label>
-                    <textarea
-                      rows={4}
-                      placeholder="e.g. Core wall casting, shuttering, plastering work on 3rd floor"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    />
-                  </div>
+                {/* Work Details / Notes */}
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                    Work Details / Notes (Optional):
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="e.g. Core wall casting, shuttering, plastering work on 3rd floor"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
                 </div>
               </form>
 
