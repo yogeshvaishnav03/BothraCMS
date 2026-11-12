@@ -261,18 +261,18 @@ export default function AttachmentManager({
 
   return (
     <div className={`space-y-3 ${compact ? "p-3 bg-slate-50/70 rounded-xl border border-slate-200" : ""}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <Paperclip className="w-4 h-4 text-amber-500 shrink-0" />
-          <h4 className="font-bold text-slate-800 text-xs sm:text-sm">{title}</h4>
-          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
+          <h4 className="font-bold text-slate-800 text-xs sm:text-sm truncate">{title}</h4>
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 shrink-0">
             {attachments.length}
           </span>
         </div>
 
         {highlightMissing && attachments.length === 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-            <AlertCircle className="w-3 h-3 text-amber-600" />
+          <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[10px] font-bold px-2.5 py-1 sm:py-0.5 rounded-lg sm:rounded bg-amber-100 text-amber-800 border border-amber-200 self-start sm:self-auto shrink-0">
+            <AlertCircle className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-amber-600 shrink-0" />
             <span>{missingLabel}</span>
           </span>
         )}
@@ -396,11 +396,11 @@ export default function AttachmentManager({
       {/* Upload Controls */}
       {allowUpload && (
         <div className="pt-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-amber-400 outline-none"
+              className="col-span-2 sm:col-span-1 w-full sm:w-auto text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-2 sm:py-1.5 focus:border-amber-400 outline-none"
             >
               <option value="PHOTO">📸 Site Photograph</option>
               <option value="INVOICE">🧾 Bill / Invoice</option>
@@ -411,9 +411,10 @@ export default function AttachmentManager({
               <option value="GENERAL">📎 General Document</option>
             </select>
 
-            <label className="relative inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer transition shadow-xs">
-              <Upload className="w-3.5 h-3.5 text-amber-400" />
-              <span>{uploading ? "Uploading..." : "Upload File (JPG, PNG, PDF)"}</span>
+            <label className="relative inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs whitespace-nowrap rounded-lg cursor-pointer transition shadow-xs">
+              <Upload className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="sm:hidden">{uploading ? "Uploading..." : "Upload File"}</span>
+              <span className="hidden sm:inline">{uploading ? "Uploading..." : "Upload File (JPG, PNG, PDF)"}</span>
               <input
                 type="file"
                 multiple
@@ -425,8 +426,8 @@ export default function AttachmentManager({
             </label>
 
             {/* Mobile Camera Direct Button */}
-            <label className="relative inline-flex sm:hidden items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg cursor-pointer transition">
-              <Camera className="w-3.5 h-3.5" />
+            <label className="relative inline-flex sm:hidden items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs whitespace-nowrap rounded-lg cursor-pointer transition shadow-xs">
+              <Camera className="w-3.5 h-3.5 shrink-0" />
               <span>Camera</span>
               <input
                 type="file"

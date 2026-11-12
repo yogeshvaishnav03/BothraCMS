@@ -6,6 +6,7 @@ import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { cn } from "@/lib/cn";
 import { formatCompactINR, formatCompactNumber } from "@/lib/formatters";
@@ -738,14 +739,23 @@ export default function MaterialRequestsPage() {
               </button>
             ))}
           </div>
-          <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="w-full sm:w-auto bg-white rounded-xl border border-slate-200 px-3 py-2 text-sm">
-            <option value="">All projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <div className="w-full sm:w-64 shrink-0">
+            <SearchableSelect
+              options={[
+                { value: "", label: "All projects" },
+                ...projects.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  badge: p.code || undefined,
+                  subLabel: p.site?.name ? `Site: ${p.site.name}` : undefined,
+                })),
+              ]}
+              value={projectFilter}
+              onChange={(pid) => setProjectFilter(pid)}
+              placeholder="All projects"
+              searchPlaceholder="Search project name or code..."
+            />
+          </div>
         </div>
 
         {requests === null ? (

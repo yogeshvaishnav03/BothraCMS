@@ -1059,12 +1059,12 @@ export default function FinancePage() {
         {/* Header */}
         <PageHeader icon={DollarSign} title="Payments & Bills" subtitle="Record vendor & contractor bills, track unpaid balances, and manage payments in one place.">
 
-          <div className="flex items-center gap-2">
+          <div className="w-full sm:w-auto grid grid-cols-2 sm:flex sm:items-center gap-2">
             <a
               href="/payroll/tds-return?kind=contractors"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              className="order-3 sm:order-1 col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
             >
-              <FileText className="h-4 w-4 text-indigo-600" />
+              <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
               <span>TDS Return (26Q)</span>
             </a>
             {canWriteFinance && (
@@ -1073,9 +1073,9 @@ export default function FinancePage() {
                   if (parties.length > 0) setBillPartyId(parties[0].id);
                   setShowBillModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
+                className="order-1 sm:order-2 inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all"
               >
-                <Receipt className="w-4 h-4" />
+                <Receipt className="w-4 h-4 shrink-0" />
                 <span>Record Bill</span>
               </button>
             )}
@@ -1092,9 +1092,9 @@ export default function FinancePage() {
                   }
                   setShowPaymentModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-sm transition-all"
+                className="order-2 sm:order-3 inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all"
               >
-                <CreditCard className="w-4 h-4" />
+                <CreditCard className="w-4 h-4 shrink-0" />
                 <span>Record Payment</span>
               </button>
             )}
@@ -1141,18 +1141,20 @@ export default function FinancePage() {
         </div>
 
         {/* Tab Controls */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 overflow-x-auto max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => setActiveTab("PAYMENTS")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === "PAYMENTS"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-200/60"
             }`}
           >
-            <CreditCard className="w-4 h-4" />
+            <CreditCard className="w-4 h-4 shrink-0" />
             <span>
-              Payments Register (
+              <span className="sm:hidden">Payments</span>
+              <span className="hidden sm:inline">Payments Register</span>
+              {" ("}
               {filteredPayments.length !== payments.length
                 ? `${filteredPayments.length} of ${payments.length}`
                 : payments.length}
@@ -1161,15 +1163,17 @@ export default function FinancePage() {
           </button>
           <button
             onClick={() => setActiveTab("BILLS")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === "BILLS"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-200/60"
             }`}
           >
-            <Receipt className="w-4 h-4" />
+            <Receipt className="w-4 h-4 shrink-0" />
             <span>
-              Vendor Bills (
+              <span className="sm:hidden">Bills</span>
+              <span className="hidden sm:inline">Vendor Bills</span>
+              {" ("}
               {filteredBills.length !== bills.length
                 ? `${filteredBills.length} of ${bills.length}`
                 : bills.length}
@@ -1207,7 +1211,7 @@ export default function FinancePage() {
                 </div>
 
                 {/* Primary Action Buttons */}
-                <div className="flex items-center gap-2 self-end sm:self-auto">
+                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto flex-wrap">
                   {/* Filter Options (Expand/Collapse) */}
                   <button
                     onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
@@ -1257,7 +1261,7 @@ export default function FinancePage() {
               </div>
 
               {/* Row 2: Interactive Status Pills (Clickable Segmented Control) */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 shrink-0">
                   Status:
                 </span>
@@ -1372,10 +1376,10 @@ export default function FinancePage() {
               </div>
 
               {/* Row 3: Interactive Quick Preset Pills (Payee Type & Date Shortcuts) */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
                 {/* Payee Type Pills */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5 sm:flex-wrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 shrink-0 whitespace-nowrap">
                     Paid To:
                   </span>
                   {[
@@ -1390,13 +1394,13 @@ export default function FinancePage() {
                       <button
                         key={tab.key}
                         onClick={() => setPaymentPayeeType(active && tab.key !== "ALL" ? "ALL" : tab.key)}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer ${
                           active
                             ? "bg-slate-900 text-white shadow-xs"
                             : "bg-slate-100/80 hover:bg-slate-200/80 text-slate-700 border border-transparent"
                         }`}
                       >
-                        {Icon && <Icon className="w-3 h-3" />}
+                        {Icon && <Icon className="w-3 h-3 shrink-0" />}
                         <span>{tab.label}</span>
                         <span
                           className={`text-[9px] px-1 rounded font-mono ${
@@ -1411,8 +1415,8 @@ export default function FinancePage() {
                 </div>
 
                 {/* Date Presets */}
-                <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                <div className="flex items-center gap-1 overflow-x-auto max-w-full py-0.5 sm:flex-wrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 shrink-0 whitespace-nowrap">
                     Date:
                   </span>
                   {[
@@ -1427,7 +1431,7 @@ export default function FinancePage() {
                       <button
                         key={p.key}
                         onClick={() => handleDatePreset(p.key as any)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
                           active
                             ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
                             : "text-slate-600 hover:bg-slate-100"
@@ -1674,9 +1678,9 @@ export default function FinancePage() {
               )}
 
               {/* Row 5: Summary & Interactive Active Filter Chips */}
-              <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-600">
+              <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 pt-2 border-t border-slate-100 flex-wrap gap-2">
+                <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto flex-wrap">
+                  <span className="font-medium text-slate-600 whitespace-nowrap">
                     Showing <strong className="text-slate-900 font-bold">{filteredPayments.length}</strong> of{" "}
                     <strong className="text-slate-900 font-bold">{payments.length}</strong> payments
                   </span>
@@ -1685,7 +1689,7 @@ export default function FinancePage() {
                       className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs shadow-xs flex items-center gap-1 whitespace-nowrap tabular-nums"
                       title={formatCurrency(filteredPaymentsTotal)}
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                       <span>Filtered Total: {formatCompactINR(filteredPaymentsTotal)}</span>
                     </span>
                   )}
@@ -2391,9 +2395,9 @@ export default function FinancePage() {
                               categoryDefault: "INVOICE",
                             })
                           }
-                          className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 transition cursor-pointer"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 whitespace-nowrap shrink-0 transition cursor-pointer"
                         >
-                          <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                          <Paperclip className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                           <span>Attach Invoice / Challan</span>
                         </button>
                       </div>
@@ -3152,16 +3156,16 @@ export default function FinancePage() {
 
         {/* Attachment Modal (Priority 3) */}
         {attachmentTarget && (
-          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[85dvh] flex flex-col">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <Paperclip className="w-5 h-5 text-amber-500" />
-                  <span>{attachmentTarget.title}</span>
+          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 max-h-[85dvh] flex flex-col">
+              <div className="flex items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-3 sm:mb-4">
+                <div className="font-bold text-slate-900 text-base sm:text-lg flex items-start sm:items-center gap-2 min-w-0 leading-snug">
+                  <Paperclip className="w-5 h-5 text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
+                  <span className="break-words min-w-0">{attachmentTarget.title}</span>
                 </div>
                 <button
                   onClick={() => setAttachmentTarget(null)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  className="p-1 text-slate-400 hover:text-slate-600 shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3171,7 +3175,7 @@ export default function FinancePage() {
                 <AttachmentManager
                   entityType={attachmentTarget.type}
                   entityId={attachmentTarget.id}
-                  title={attachmentTarget.title}
+                  title="Uploaded Documents"
                   allowUpload={true}
                   categoryDefault={attachmentTarget.categoryDefault || "INVOICE"}
                   highlightMissing={true}

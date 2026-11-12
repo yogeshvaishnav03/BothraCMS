@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Field, Modal, StatTile, inputCls } from "@/components/ui/Modal";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { FileUpload } from "@/components/ui/FileUpload";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { api, post, shortDate } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
 import { useActiveSite } from "@/hooks/useActiveSite";
@@ -49,6 +50,7 @@ function NewDrawingModal({ projects, defaultProject, onClose, onSaved }: { proje
       saving={saving}
       submitLabel="Add as R0"
       onSubmit={async () => {
+        if (!form.projectId) return setError("Please choose a project.");
         setSaving(true);
         setError(null);
         try {
@@ -62,15 +64,21 @@ function NewDrawingModal({ projects, defaultProject, onClose, onSaved }: { proje
       }}
     >
       <Field label="Project">
-        <select required value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className={inputCls}>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        <SearchableSelect
+          options={projects.map((p) => ({
+            value: p.id,
+            label: p.name,
+            badge: p.code || undefined,
+            subLabel: p.site?.name ? `Site: ${p.site.name}` : undefined,
+          }))}
+          value={form.projectId}
+          onChange={(pid) => setForm({ ...form, projectId: pid })}
+          placeholder="Select project..."
+          searchPlaceholder="Search project name, code, or site..."
+          required
+        />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Drawing number">
           <input required value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} placeholder="STR-GF-101" className={cn(inputCls, "uppercase")} />
         </Field>
@@ -245,20 +253,29 @@ export default function DrawingsPage() {
           <strong className="text-slate-700">How revisions work:</strong> Every updated upload creates a numbered revision (<strong className="font-mono text-slate-700">R0, R1, R2</strong>). Only drawings marked <strong className="text-emerald-700">Good for construction (GFC)</strong> should be used for work on site.
         </p>
 
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2.5 sm:gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search number or title" className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm" />
           </div>
-          <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-            <option value="">All projects</option>
-            {visibleProjects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <select value={discipline} onChange={(e) => setDiscipline(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+          <div className="w-full sm:w-64 shrink-0">
+            <SearchableSelect
+              options={[
+                { value: "", label: "All projects" },
+                ...visibleProjects.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  badge: p.code || undefined,
+                  subLabel: p.site?.name ? `Site: ${p.site.name}` : undefined,
+                })),
+              ]}
+              value={projectId}
+              onChange={(pid) => setProjectId(pid)}
+              placeholder="All projects"
+              searchPlaceholder="Search project name or code..."
+            />
+          </div>
+          <select value={discipline} onChange={(e) => setDiscipline(e.target.value)} className="w-full sm:w-auto bg-white rounded-xl border border-slate-200 px-3 py-2 text-sm">
             <option value="">All disciplines</option>
             {Object.entries(DISCIPLINES).map(([k, d]) => (
               <option key={k} value={k}>
