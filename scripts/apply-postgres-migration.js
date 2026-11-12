@@ -14,7 +14,9 @@ const POSTGRES_COLUMNS = [
   // Chat message edit support
   `ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "isEdited" BOOLEAN DEFAULT false;`,
 
-  // Phase 7: Workforce compliance
+  // Phase 7: Workforce compliance & category wage rates
+  `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "maleHelperWageRate" DOUBLE PRECISION;`,
+  `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "femaleHelperWageRate" DOUBLE PRECISION;`,
   `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "pfApplicable" BOOLEAN DEFAULT false;`,
   `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "esiApplicable" BOOLEAN DEFAULT false;`,
   `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "uan" TEXT;`,

@@ -559,9 +559,11 @@ model WorkforceMember {
   name           String
   workerType     String   // MASON, CARPENTER, ELECTRICIAN, PLUMBER, HELPER, FOREMAN, SITE_ENGINEER
   phone          String?
-  defaultSiteId  String?
-  dailyWageRate  Float?   // paise per day
-  pfApplicable   Boolean  @default(false)
+  defaultSiteId        String?
+  dailyWageRate        Float?   // paise per day (Skilled Workers / Primary Rate)
+  maleHelperWageRate   Float?   // paise per day (Laborers & Helpers Male)
+  femaleHelperWageRate Float?   // paise per day (Laborers & Helpers Female)
+  pfApplicable         Boolean  @default(false)
   esiApplicable  Boolean  @default(false)
   uan            String?
   esicNumber     String?

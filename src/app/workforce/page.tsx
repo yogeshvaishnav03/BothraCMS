@@ -64,6 +64,8 @@ interface WorkerRosterItem {
   workerType: string;
   phone?: string;
   dailyWageRate?: number;
+  maleHelperWageRate?: number;
+  femaleHelperWageRate?: number;
   defaultSiteId?: string | null;
   defaultSite?: { id: string; name: string };
 }
@@ -207,6 +209,8 @@ export default function WorkforcePage() {
   const [workerType, setWorkerType] = useState("MASON");
   const [workerPhone, setWorkerPhone] = useState("");
   const [workerDailyWage, setWorkerDailyWage] = useState("");
+  const [workerMaleHelperWage, setWorkerMaleHelperWage] = useState("");
+  const [workerFemaleHelperWage, setWorkerFemaleHelperWage] = useState("");
 
   // Feedback states
   const [submitting, setSubmitting] = useState(false);
@@ -470,6 +474,8 @@ export default function WorkforcePage() {
     setWorkerType("MASON");
     setWorkerPhone("");
     setWorkerDailyWage("");
+    setWorkerMaleHelperWage("");
+    setWorkerFemaleHelperWage("");
     setShowRegisterWorkerModal(true);
   };
 
@@ -480,6 +486,8 @@ export default function WorkforcePage() {
     setWorkerType(w.workerType || "MASON");
     setWorkerPhone(w.phone || "");
     setWorkerDailyWage(w.dailyWageRate ? String(w.dailyWageRate / 100) : "");
+    setWorkerMaleHelperWage(w.maleHelperWageRate ? String(w.maleHelperWageRate / 100) : "");
+    setWorkerFemaleHelperWage(w.femaleHelperWageRate ? String(w.femaleHelperWageRate / 100) : "");
     setShowRegisterWorkerModal(true);
   };
 
@@ -506,6 +514,16 @@ export default function WorkforcePage() {
           : editingWorker
           ? null
           : undefined, // stored in paise
+        maleHelperWageRate: workerMaleHelperWage
+          ? Math.round(parseFloat(workerMaleHelperWage) * 100)
+          : editingWorker
+          ? null
+          : undefined,
+        femaleHelperWageRate: workerFemaleHelperWage
+          ? Math.round(parseFloat(workerFemaleHelperWage) * 100)
+          : editingWorker
+          ? null
+          : undefined,
       };
       if (editingWorker) {
         payload.id = editingWorker.id;
@@ -532,6 +550,8 @@ export default function WorkforcePage() {
         setEmployeeCode("");
         setWorkerPhone("");
         setWorkerDailyWage("");
+        setWorkerMaleHelperWage("");
+        setWorkerFemaleHelperWage("");
         await loadData();
       }
     } catch {
@@ -1224,7 +1244,17 @@ export default function WorkforcePage() {
                         )}
                       </td>
                       <td className="py-3 px-4 font-mono text-slate-800 font-bold">
-                        {w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "—"}
+                        <div>{w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "—"}</div>
+                        {(w.maleHelperWageRate || w.femaleHelperWageRate) && (
+                          <div className="text-[10px] font-normal text-slate-500 mt-0.5 whitespace-nowrap">
+                            {[
+                              w.maleHelperWageRate ? `M: ₹${(w.maleHelperWageRate / 100).toLocaleString("en-IN")}` : null,
+                              w.femaleHelperWageRate ? `F: ₹${(w.femaleHelperWageRate / 100).toLocaleString("en-IN")}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-slate-600">{w.defaultSite?.name || "Main Site"}</td>
                       {canWrite && (
@@ -1262,9 +1292,21 @@ export default function WorkforcePage() {
                         <div className="text-[11px] font-mono text-slate-400">{w.employeeCode}</div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
-                          {w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "—"}
-                        </span>
+                        <div className="text-right">
+                          <span className="font-mono text-xs font-bold text-slate-800 whitespace-nowrap block">
+                            {w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "—"}
+                          </span>
+                          {(w.maleHelperWageRate || w.femaleHelperWageRate) && (
+                            <span className="font-mono text-[10px] text-slate-500 whitespace-nowrap block">
+                              {[
+                                w.maleHelperWageRate ? `M: ₹${(w.maleHelperWageRate / 100).toLocaleString("en-IN")}` : null,
+                                w.femaleHelperWageRate ? `F: ₹${(w.femaleHelperWageRate / 100).toLocaleString("en-IN")}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          )}
+                        </div>
                         {canWrite && (
                           <button
                             type="button"
@@ -1622,9 +1664,9 @@ export default function WorkforcePage() {
                           <strong className="text-amber-800 uppercase font-mono">{selectedWorker.workerType}</strong>
                         </div>
                         <div>
-                          <span className="text-slate-400">Daily Wage:</span>{" "}
+                          <span className="text-slate-400">Skilled Rate:</span>{" "}
                           <strong className="text-emerald-700">
-                            ₹{(Number(selectedWorker.dailyWageRate) || 0) / 100} / day
+                            {selectedWorker.dailyWageRate ? `₹${Number(selectedWorker.dailyWageRate) / 100} / day` : "—"}
                           </strong>
                         </div>
                         <div>
@@ -1633,6 +1675,22 @@ export default function WorkforcePage() {
                             {selectedWorker.defaultSite?.name || "Main Site"}
                           </strong>
                         </div>
+                        {(selectedWorker.maleHelperWageRate || selectedWorker.femaleHelperWageRate) && (
+                          <div className="col-span-2 flex flex-wrap gap-x-4 gap-y-0.5">
+                            {selectedWorker.maleHelperWageRate ? (
+                              <span>
+                                <span className="text-slate-400">Helper Male Rate:</span>{" "}
+                                <strong className="text-emerald-700">₹{Number(selectedWorker.maleHelperWageRate) / 100} / day</strong>
+                              </span>
+                            ) : null}
+                            {selectedWorker.femaleHelperWageRate ? (
+                              <span>
+                                <span className="text-slate-400">Helper Female Rate:</span>{" "}
+                                <strong className="text-emerald-700">₹{Number(selectedWorker.femaleHelperWageRate) / 100} / day</strong>
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
                         {selectedWorker.phone && (
                           <div className="col-span-2">
                             <span className="text-slate-400">Contact Phone:</span>{" "}
@@ -1848,31 +1906,69 @@ export default function WorkforcePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                      Phone Number:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="+91 98765 43210"
-                      value={workerPhone}
-                      onChange={(e) => setWorkerPhone(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    />
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                    Phone Number:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="+91 98765 43210"
+                    value={workerPhone}
+                    onChange={(e) => setWorkerPhone(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 space-y-2.5">
+                  <div className="text-[10px] uppercase font-bold text-slate-600 tracking-wider">
+                    Daily Wage Rates (₹ / day)
                   </div>
 
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                      Daily Wage Rate (₹):
+                      1. Skilled Workers Rate (₹):
                     </label>
                     <input
                       type="number"
+                      min="0"
+                      step="any"
                       placeholder="e.g. 850"
                       value={workerDailyWage}
                       onChange={(e) => setWorkerDailyWage(e.target.value)}
                       className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                     />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                        2. Laborers &amp; Helpers Male (₹):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="e.g. 600"
+                        value={workerMaleHelperWage}
+                        onChange={(e) => setWorkerMaleHelperWage(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                        3. Laborers &amp; Helpers Female (₹):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="e.g. 550"
+                        value={workerFemaleHelperWage}
+                        onChange={(e) => setWorkerFemaleHelperWage(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 

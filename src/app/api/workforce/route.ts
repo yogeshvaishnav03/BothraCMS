@@ -21,7 +21,9 @@ const createWorkerSchema = z.object({
   ]),
   phone: z.string().optional(),
   defaultSiteId: z.string().min(1).optional(),
-  dailyWageRate: z.number().min(0).optional(), // paise
+  dailyWageRate: z.number().min(0).optional(), // paise (Skilled Workers / Primary Rate)
+  maleHelperWageRate: z.number().min(0).optional(), // paise (Laborers & Helpers Male)
+  femaleHelperWageRate: z.number().min(0).optional(), // paise (Laborers & Helpers Female)
 });
 
 export async function GET(req: NextRequest) {
@@ -178,6 +180,8 @@ export async function POST(req: NextRequest) {
         phone: data.phone,
         defaultSiteId: data.defaultSiteId,
         dailyWageRate: data.dailyWageRate,
+        maleHelperWageRate: data.maleHelperWageRate,
+        femaleHelperWageRate: data.femaleHelperWageRate,
       },
       include: { defaultSite: true },
     });
@@ -206,6 +210,8 @@ const updateWorkerSchema = z.object({
   phone: z.string().trim().nullable().optional(),
   defaultSiteId: z.string().min(1).nullable().optional(),
   dailyWageRate: z.number().min(0).nullable().optional(),
+  maleHelperWageRate: z.number().min(0).nullable().optional(),
+  femaleHelperWageRate: z.number().min(0).nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -254,6 +260,8 @@ export async function PATCH(req: NextRequest) {
     if (data.phone !== undefined) updateData.phone = data.phone || null;
     if (data.defaultSiteId !== undefined) updateData.defaultSiteId = data.defaultSiteId;
     if (data.dailyWageRate !== undefined) updateData.dailyWageRate = data.dailyWageRate;
+    if (data.maleHelperWageRate !== undefined) updateData.maleHelperWageRate = data.maleHelperWageRate;
+    if (data.femaleHelperWageRate !== undefined) updateData.femaleHelperWageRate = data.femaleHelperWageRate;
 
     let linkedUserForRename: { id: string; role: string } | null = null;
     if (existing.employeeCode.startsWith("USR-") && data.name !== undefined && data.name !== existing.name) {
