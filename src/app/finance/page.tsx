@@ -2046,19 +2046,20 @@ export default function FinancePage() {
                         {/* Top: Payee, Type Pill & Status Badge */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1.5 min-w-0">
                               {p.partyId ? (
                                 <Link
                                   href={`/parties/${p.partyId}`}
-                                  className="font-bold text-slate-900 hover:text-amber-600 text-sm"
+                                  className="font-bold text-slate-900 hover:text-amber-600 text-sm truncate min-w-0"
+                                  title={payee}
                                 >
                                   {payee}
                                 </Link>
                               ) : (
-                                <span className="font-bold text-slate-900 text-sm">{payee}</span>
+                                <span className="font-bold text-slate-900 text-sm truncate min-w-0" title={payee}>{payee}</span>
                               )}
                               <span
-                                className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border shrink-0 whitespace-nowrap ${
                                   rType === "EMPLOYEE"
                                     ? "bg-purple-50 text-purple-700 border-purple-200"
                                     : rType === "SUBCONTRACTOR"
@@ -2069,7 +2070,10 @@ export default function FinancePage() {
                                 {rType}
                               </span>
                             </div>
-                            <div className="text-xs text-slate-400 font-mono mt-0.5">
+                            <div
+                              className="text-xs text-slate-400 font-mono mt-0.5 truncate"
+                              title={`${formatDate(p.paymentDate)} · Ref: ${p.referenceNumber}`}
+                            >
                               {formatDate(p.paymentDate)} · Ref: {p.referenceNumber}
                             </div>
                           </div>
@@ -2336,11 +2340,20 @@ export default function FinancePage() {
                       {/* Top: Bill Number, Vendor Link & Status Badge */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <div className="font-bold font-mono text-slate-900 text-sm">
-                            {b.billNumber}
+                          <div className="font-bold font-mono text-slate-900 text-sm truncate" title={b.billNumber}>
+                            <span className="sm:hidden">
+                              {b.billNumber && b.billNumber.length > 18
+                                ? `${b.billNumber.slice(0, 8)}…${b.billNumber.slice(-7)}`
+                                : b.billNumber}
+                            </span>
+                            <span className="hidden sm:inline">{b.billNumber}</span>
                           </div>
-                          <div className="text-xs text-slate-700 font-semibold mt-0.5">
-                            <Link href={`/parties/${b.partyId}`} className="hover:text-amber-600 hover:underline">
+                          <div className="text-xs text-slate-700 font-semibold mt-0.5 min-w-0">
+                            <Link
+                              href={`/parties/${b.partyId}`}
+                              className="hover:text-amber-600 hover:underline block truncate"
+                              title={b.party?.name || "Vendor"}
+                            >
                               {b.party?.name || "Vendor"}
                             </Link>
                           </div>
