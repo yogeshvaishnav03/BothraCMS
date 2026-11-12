@@ -2065,11 +2065,12 @@ export function ExcelTableMegaDrawer<T = any>({
       </div>
 
       {/* Quick Presets Row */}
-      <div className="flex flex-wrap items-center gap-y-2 gap-x-4 pt-1 text-xs">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-y-2.5 gap-x-4 pt-1 text-xs">
         {/* Quick Amount Presets */}
         {primaryNumericCol && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-bold text-slate-400">Quick Amount:</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 min-w-0">
+            <span className="text-[11px] font-bold text-slate-400 shrink-0">Quick Amount:</span>
+            <div className="flex items-center gap-1.5 overflow-x-auto sm:flex-wrap pb-0.5 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { key: "ALL", label: "All Amounts" },
               { key: "UNDER_50K", label: "< ₹50,000" },
@@ -2087,7 +2088,7 @@ export function ExcelTableMegaDrawer<T = any>({
                   key={p.key}
                   type="button"
                   onClick={() => handleAmountPreset(p.key as any)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer ${
+                  className={`px-2.5 py-1 sm:px-2 sm:py-0.5 rounded-md sm:rounded text-[11px] sm:text-[10px] font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
                     isSelected
                       ? "bg-slate-900 text-white"
                       : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
@@ -2097,13 +2098,15 @@ export function ExcelTableMegaDrawer<T = any>({
                 </button>
               );
             })}
+            </div>
           </div>
         )}
 
         {/* Quick Date Presets */}
         {showDateFilter && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-bold text-slate-400">Quick Dates:</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 min-w-0">
+            <span className="text-[11px] font-bold text-slate-400 shrink-0">Quick Dates:</span>
+            <div className="flex items-center gap-1.5 overflow-x-auto sm:flex-wrap pb-0.5 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { key: "ALL", label: "All Dates" },
               { key: "TODAY", label: "Today" },
@@ -2119,7 +2122,7 @@ export function ExcelTableMegaDrawer<T = any>({
                   key={p.key}
                   type="button"
                   onClick={() => handleDatePreset(p.key as any)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer ${
+                  className={`px-2.5 py-1 sm:px-2 sm:py-0.5 rounded-md sm:rounded text-[11px] sm:text-[10px] font-semibold whitespace-nowrap shrink-0 transition cursor-pointer ${
                     isSelected
                       ? "bg-slate-900 text-white"
                       : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
@@ -2129,6 +2132,7 @@ export function ExcelTableMegaDrawer<T = any>({
                 </button>
               );
             })}
+            </div>
           </div>
         )}
       </div>

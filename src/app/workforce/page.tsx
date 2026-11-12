@@ -780,7 +780,7 @@ export default function WorkforcePage() {
             )}
 
             {/* Date Filter */}
-            <div>
+            <div className="w-full sm:w-auto">
               <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
                 Report Date:
               </label>
@@ -788,20 +788,20 @@ export default function WorkforcePage() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                className="w-full sm:w-auto bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
               />
             </div>
 
             {/* Today's Site Status Tag */}
-            <div className="self-end pb-1">
+            <div className="w-full sm:w-auto sm:self-end sm:pb-1">
               {selectedSiteTodayRecord ? (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <div className="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>Today Logged: {selectedSiteTodayRecord.grandTotal} Workers</span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-300 text-xs font-bold">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <div className="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-300 text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
                   <span>Pending Today&apos;s Headcount</span>
                 </div>
               )}
@@ -809,10 +809,10 @@ export default function WorkforcePage() {
           </div>
 
           {/* Tab Switcher */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold self-start md:self-auto">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold w-full md:w-auto overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               onClick={() => setActiveTab("headcount")}
-              className={`px-3 py-1.5 rounded-lg transition ${
+              className={`flex-1 md:flex-initial whitespace-nowrap shrink-0 px-3 py-1.5 rounded-lg transition text-center ${
                 activeTab === "headcount"
                   ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900"
@@ -822,7 +822,7 @@ export default function WorkforcePage() {
             </button>
             <button
               onClick={() => setActiveTab("roster")}
-              className={`px-3 py-1.5 rounded-lg transition ${
+              className={`flex-1 md:flex-initial whitespace-nowrap shrink-0 px-3 py-1.5 rounded-lg transition text-center ${
                 activeTab === "roster"
                   ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900"
@@ -914,26 +914,15 @@ export default function WorkforcePage() {
 
             {/* Daily Headcount Deployment Table */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70">
                 <div>
                   <h2 className="font-black text-sm text-slate-900 tracking-tight flex items-center gap-2">
-                    <HardHat className="w-4 h-4 text-amber-500" />
+                    <HardHat className="w-4 h-4 text-amber-500 shrink-0" />
                     <span>Deployment Log: {currentSelectedSite?.name || "Single Site"}</span>
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Supervisor daily trade count submissions with gender distribution and contractor reference.
                   </p>
-                </div>
-
-                <div className="relative min-w-[200px]">
-                  <input
-                    type="text"
-                    placeholder="Search logs by date, contractor..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
-                  />
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
                 </div>
               </div>
 
@@ -961,7 +950,7 @@ export default function WorkforcePage() {
                   )}
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm min-h-[400px]">
+                <div>
                   <ExcelTableToolbar
                     table={excelHeadcount}
                     columns={headcountColumns}
@@ -1095,19 +1084,19 @@ export default function WorkforcePage() {
                     excelHeadcount.paginatedData.map((r) => (
                       <div key={`hc-card-${r.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
+                          <div className="min-w-0">
                             <div className="font-bold text-slate-900 text-sm">{formatDate(r.date)}</div>
-                            <div className="text-xs text-slate-500 font-mono mt-0.5 flex items-center gap-1.5">
-                              <span className="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-700">
+                            <div className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-1.5 min-w-0">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-700 shrink-0 whitespace-nowrap">
                                 {r.shift} SHIFT
                               </span>
-                              <span>·</span>
-                              <span>{r.contractorName || "Direct Site / Self"}</span>
+                              <span className="shrink-0">·</span>
+                              <span className="truncate">{r.contractorName || "Direct Site / Self"}</span>
                             </div>
                           </div>
 
                           <div className="shrink-0 text-right">
-                            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
+                            <span className="inline-block whitespace-nowrap px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
                               {r.grandTotal} Workers
                             </span>
                           </div>
@@ -1175,9 +1164,9 @@ export default function WorkforcePage() {
               {canWrite && (
                 <button
                   onClick={openCreateWorkerModal}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition"
+                  className="flex w-full sm:w-auto items-center justify-center gap-1.5 px-3.5 py-2.5 sm:py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition"
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
+                  <UserPlus className="w-3.5 h-3.5 shrink-0" />
                   <span>Register Worker</span>
                 </button>
               )}
@@ -1190,7 +1179,7 @@ export default function WorkforcePage() {
               showSearch={true}
               showExport={true}
             />
-            <div className="overflow-x-auto md:min-h-[400px]">
+            <div className="hidden lg:block overflow-x-auto md:min-h-[400px]">
               <table className="w-full text-left text-xs min-w-[700px]">
                 <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                   <tr>
@@ -1255,6 +1244,56 @@ export default function WorkforcePage() {
                   )}
                 </tbody>
               </table>
+            </div>
+            {/* Mobile & Tablet Registered Workers Cards (< lg screens) */}
+            <div className="lg:hidden p-3 bg-slate-50/60 space-y-3">
+              {excelWorkers.paginatedData.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+                  <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="font-semibold text-slate-700">No registered workers found</p>
+                  <p className="text-xs text-slate-400">No registered workers match your search or filters.</p>
+                </div>
+              ) : (
+                excelWorkers.paginatedData.map((w) => (
+                  <div key={`wk-card-${w.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-sm truncate">{w.name}</div>
+                        <div className="text-[11px] font-mono text-slate-400">{w.employeeCode}</div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
+                          {w.dailyWageRate ? `₹${(w.dailyWageRate / 100).toLocaleString("en-IN")}/day` : "—"}
+                        </span>
+                        {canWrite && (
+                          <button
+                            type="button"
+                            onClick={() => openEditWorkerModal(w)}
+                            title={`Edit ${w.name}`}
+                            className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center justify-center"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold font-mono text-[11px] whitespace-nowrap">
+                          {w.workerType}
+                        </span>
+                        <span className="text-slate-500 truncate">{w.defaultSite?.name || "Main Site"}</span>
+                      </div>
+                      {w.phone && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="font-mono text-slate-600 whitespace-nowrap">{w.phone}</span>
+                          <ContactActions phone={w.phone} message={`Namaste ${w.name},`} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
             <TablePagination
               currentPage={excelWorkers.currentPage}
@@ -1371,12 +1410,12 @@ export default function WorkforcePage() {
                 <div className="space-y-3">
                   {/* Category 1: Artisan (Direct Count) */}
                   <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5 font-black text-xs text-amber-950">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-1.5 font-black text-xs text-amber-950 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
                         <span>1. Skilled Workers (Masons, Carpenters, Plumbers)</span>
                       </div>
-                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 whitespace-nowrap shrink-0">
                         Direct Count: {artisanCount}
                       </span>
                     </div>
@@ -1398,12 +1437,12 @@ export default function WorkforcePage() {
 
                   {/* Category 2: Laborer (Male & Female) */}
                   <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200/80">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5 font-black text-xs text-emerald-950">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-1.5 font-black text-xs text-emerald-950 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
                         <span>2. General Laborers & Helpers</span>
                       </div>
-                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 whitespace-nowrap shrink-0">
                         Subtotal: {modalLaborerTotal}
                       </span>
                     </div>
@@ -1440,8 +1479,8 @@ export default function WorkforcePage() {
                 </div>
 
                 {/* Live Total Calculation Card */}
-                <div className="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between shadow-sm">
-                  <div>
+                <div className="p-3.5 bg-slate-900 text-white rounded-xl flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+                  <div className="min-w-0">
                     <div className="text-[10px] uppercase tracking-wider font-mono text-amber-400">
                       Total Calculated Site Workers:
                     </div>
@@ -1449,7 +1488,7 @@ export default function WorkforcePage() {
                       Artisans: <strong className="text-white">{artisanCount}</strong> &bull; Laborers: <strong className="text-white">{modalLaborerTotal}</strong> ({laborerMale}M / {laborerFemale}F)
                     </div>
                   </div>
-                  <div className="text-2xl font-black font-mono text-emerald-400">
+                  <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 whitespace-nowrap shrink-0">
                     {modalGrandTotal} <span className="text-xs font-normal text-slate-300">workers</span>
                   </div>
                 </div>

@@ -579,14 +579,14 @@ function MyReport({ initialDate }: { initialDate: string }) {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-              <p className="text-[11px] text-slate-400">{locked ? "Reviewed reports are locked." : "Goes straight to the admin."}</p>
+            <div className="flex flex-col-reverse gap-2.5 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <p className="text-center text-[11px] text-slate-400 sm:text-left">{locked ? "Reviewed reports are locked." : "Goes straight to the admin."}</p>
               <button
                 type="submit"
                 disabled={saving || locked || summary.trim().length < 5}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-brand px-5 py-2.5 text-sm font-bold text-slate-950 shadow-sm disabled:opacity-50"
+                className="inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-brand px-5 py-2.5 text-sm font-bold text-slate-950 shadow-sm disabled:opacity-50 sm:w-auto"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4 shrink-0" />}
                 {existing ? "Update report" : "Submit report"}
               </button>
             </div>
