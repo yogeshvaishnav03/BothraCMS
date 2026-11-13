@@ -2246,7 +2246,7 @@ export function TablePagination({
 
       <nav
         aria-label="Table pagination"
-        className="inline-flex flex-wrap items-stretch self-start sm:self-auto rounded-md border border-slate-200 bg-white divide-x divide-slate-200 overflow-hidden shadow-2xs"
+        className="inline-flex flex-nowrap items-stretch self-start sm:self-auto rounded-md border border-slate-200 bg-white divide-x divide-slate-200 overflow-x-auto max-w-full shadow-2xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <button
           type="button"
@@ -2254,7 +2254,7 @@ export function TablePagination({
           disabled={isFirst}
           aria-label="First page"
           title="First page"
-          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition ${
+          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs shrink-0 transition ${
             isFirst
               ? "text-slate-300 cursor-not-allowed bg-white"
               : "text-sky-600 hover:bg-slate-50 cursor-pointer"
@@ -2268,7 +2268,7 @@ export function TablePagination({
           disabled={isFirst}
           aria-label="Previous page"
           title="Previous page"
-          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition ${
+          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs shrink-0 transition ${
             isFirst
               ? "text-slate-300 cursor-not-allowed bg-white"
               : "text-sky-600 hover:bg-slate-50 cursor-pointer"
@@ -2281,7 +2281,7 @@ export function TablePagination({
           item === "..." ? (
             <span
               key={`ellipsis-${idx}`}
-              className="min-w-[30px] h-8 px-2 flex items-center justify-center text-xs text-slate-400 select-none bg-white"
+              className="min-w-[30px] h-8 px-2 flex items-center justify-center text-xs shrink-0 text-slate-400 select-none bg-white"
             >
               &hellip;
             </span>
@@ -2292,7 +2292,7 @@ export function TablePagination({
               onClick={() => onPageChange(item)}
               aria-label={`Page ${item}`}
               aria-current={item === safeCurrent ? "page" : undefined}
-              className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition cursor-pointer ${
+              className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs shrink-0 transition cursor-pointer ${
                 item === safeCurrent
                   ? "bg-slate-100 text-slate-900 font-bold"
                   : "bg-white text-sky-600 hover:bg-slate-50 font-medium"
@@ -2309,7 +2309,7 @@ export function TablePagination({
           disabled={isLast}
           aria-label="Next page"
           title="Next page"
-          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition ${
+          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs shrink-0 transition ${
             isLast
               ? "text-slate-300 cursor-not-allowed bg-white"
               : "text-sky-600 hover:bg-slate-50 cursor-pointer"
@@ -2323,7 +2323,7 @@ export function TablePagination({
           disabled={isLast}
           aria-label="Last page"
           title="Last page"
-          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs transition ${
+          className={`min-w-[32px] h-8 px-2.5 flex items-center justify-center text-xs shrink-0 transition ${
             isLast
               ? "text-slate-300 cursor-not-allowed bg-white"
               : "text-sky-600 hover:bg-slate-50 cursor-pointer"

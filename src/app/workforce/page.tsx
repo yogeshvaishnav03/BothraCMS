@@ -1184,24 +1184,24 @@ export default function WorkforcePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={openReportsModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 h-9 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer whitespace-nowrap shrink-0"
               title="View comprehensive labour expense reports & contractor costs"
             >
-              <BarChart3 className="w-4 h-4 text-amber-400" />
+              <BarChart3 className="w-4 h-4 text-amber-400 shrink-0" />
               <span>Labour Reports</span>
             </button>
 
             {canWrite && (
               <button
                 onClick={() => openUploadModal()}
-                className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 h-9 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer whitespace-nowrap shrink-0"
                 title="Supervisor: Upload daily site worker count"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 shrink-0" />
                 <span>Upload Site Headcount</span>
               </button>
             )}
@@ -1209,10 +1209,10 @@ export default function WorkforcePage() {
             <button
               onClick={loadData}
               disabled={loading}
-              className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition shadow-2xs"
+              className="w-9 h-9 flex items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition shadow-2xs shrink-0 cursor-pointer"
               title="Refresh worker records"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-amber-500" : ""}`} />
+              <RefreshCw className={`w-4 h-4 shrink-0 ${loading ? "animate-spin text-amber-500" : ""}`} />
             </button>
           </div>
         </div>

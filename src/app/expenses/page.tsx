@@ -941,23 +941,23 @@ export default function ExpensesPage() {
                           </td>
                           {/* Actions Column */}
                           <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-1.5 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditModal(exp)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer shadow-2xs"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                                 title="Update expense"
                               >
-                                <Edit2 className="w-3.5 h-3.5" />
+                                <Edit2 className="w-3.5 h-3.5 shrink-0" />
                                 <span>Update</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleConfirmDelete(exp)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
                                 title="Delete expense"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3.5 h-3.5 shrink-0" />
                                 <span>Delete</span>
                               </button>
                             </div>
@@ -1006,8 +1006,8 @@ export default function ExpensesPage() {
                         )}
                       </div>
 
-                      {/* Middle: Key Data Grid (Amount, Paid To, Date) - Category & user ID hidden */}
-                      <div className="grid grid-cols-2 gap-3 mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                      {/* Middle: Key Data (Amount & Date) */}
+                      <div className="flex items-center justify-between gap-3 mt-3 pt-2.5 border-t border-slate-100 text-xs">
                         <div className="min-w-0">
                           <div className="text-[11px] text-slate-400 font-medium">Amount</div>
                           <div className="font-display text-base font-extrabold text-slate-900 tabular-nums truncate" title={formatCurrency(exp.amountPaise ?? (exp.amount ? Math.round(exp.amount * 100) : 0))}>
@@ -1016,11 +1016,8 @@ export default function ExpensesPage() {
                         </div>
 
                         <div className="text-right min-w-0">
-                          <div className="text-[11px] text-slate-400 font-medium">Paid To / Shop</div>
-                          <div className="font-semibold text-slate-800 truncate" title={exp.paidTo}>
-                            {exp.paidTo}
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          <div className="text-[11px] text-slate-400 font-medium">Expense Date</div>
+                          <div className="text-xs font-semibold text-slate-700 font-mono mt-0.5">
                             {formatDate(exp.expenseDate)}
                           </div>
                         </div>
@@ -1034,7 +1031,7 @@ export default function ExpensesPage() {
                       )}
 
                       {/* Footer Actions: Receipt View, Update & Delete */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                         {receipt ? (
                           <button
                             type="button"
@@ -1045,30 +1042,30 @@ export default function ExpensesPage() {
                                 title: exp.title,
                               })
                             }
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-xs font-semibold text-slate-700 hover:text-amber-800 transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-xs font-semibold text-slate-700 hover:text-amber-800 transition cursor-pointer whitespace-nowrap shrink-0"
                           >
-                            <Camera className="w-3.5 h-3.5 text-amber-500" />
+                            <Camera className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                             <span>View Receipt</span>
                           </button>
                         ) : (
                           <span className="text-[11px] text-slate-400 italic">No receipt</span>
                         )}
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(exp)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer whitespace-nowrap shrink-0"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-3.5 h-3.5 shrink-0" />
                             <span>Update</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleConfirmDelete(exp)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer whitespace-nowrap shrink-0"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5 shrink-0" />
                             <span>Delete</span>
                           </button>
                         </div>
