@@ -75,7 +75,7 @@ export async function GET(
       }
 
       // Check financial permission if file is an invoice/bill/payment
-      // The person who uploaded the receipt or out-of-pocket bill may always view their own upload.
+      // The person who uploaded the receipt or cash expense bill may always view their own upload.
       if (FINANCIAL_CATEGORIES.has(attachment.category.toUpperCase())) {
         const isOwner = attachment.uploadedById === user.userId;
         if (!isOwner) {

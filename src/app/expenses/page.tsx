@@ -296,7 +296,7 @@ export default function ExpensesPage() {
       uploadForm.append("file", receiptFile, receiptFile.name);
       uploadForm.append("category", "RECEIPT");
       uploadForm.append("entityType", "PAYMENT");
-      uploadForm.append("notes", `Out-of-pocket receipt for ${title}`);
+      uploadForm.append("notes", `Cash expense receipt for ${title}`);
 
       const uploadRes = await fetch("/api/uploads", {
         method: "POST",
@@ -443,7 +443,7 @@ export default function ExpensesPage() {
     setEditPaidTo(exp.paidTo || "");
     setEditPaymentMode(exp.paymentMode || "PERSONAL_CASH");
     setEditSiteId(exp.site?.id || "");
-    const cleanNotes = exp.notes?.replace(/^\[Out-of-Pocket Expense\]\s*/i, "").split("•").slice(2).join("•").trim() || "";
+    const cleanNotes = exp.notes?.replace(/^\[(Out-of-Pocket|Cash) Expense\]\s*/i, "").split("•").slice(2).join("•").trim() || "";
     setEditNotes(cleanNotes);
     setEditReceiptFile(null);
     setEditReceiptPreview(exp.receipt?.url || null);
@@ -699,8 +699,8 @@ export default function ExpensesPage() {
         {/* Page Header */}
         <PageHeader
           icon={Receipt}
-          title="Out-of-Pocket Expenses"
-          subtitle="Record site expenses paid with your own money and upload the receipt photo to get reimbursed."
+          title="Cash Expenses"
+          subtitle="Record site expenses paid with cash and upload the receipt photo to get reimbursed."
         >
           <button
             onClick={() => {
@@ -710,7 +710,7 @@ export default function ExpensesPage() {
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-sm transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Out-of-Pocket Expense</span>
+            <span>Add Cash Expense</span>
           </button>
         </PageHeader>
 
@@ -828,9 +828,9 @@ export default function ExpensesPage() {
         ) : filteredExpenses.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
             <Receipt className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <div className="text-base font-bold text-slate-800">No out-of-pocket expenses yet</div>
+            <div className="text-base font-bold text-slate-800">No cash expenses yet</div>
             <div className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              When you pay for site supplies, fuel, or travel with personal money, add the expense here with a receipt photo so finance can reimburse you.
+              When you pay for site supplies, fuel, or travel with cash, add the expense here with a receipt photo so finance can record or reimburse you.
             </div>
             <button
               onClick={() => setShowLogModal(true)}
@@ -1086,7 +1086,7 @@ export default function ExpensesPage() {
           </div>
         )}
 
-        {/* Modal: Log New Out-of-Pocket Expense */}
+        {/* Modal: Log New Cash Expense */}
         {showLogModal && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
             <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-scale-in">
@@ -1096,9 +1096,9 @@ export default function ExpensesPage() {
                     <Receipt className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="leading-snug">Add Out-of-Pocket Expense</div>
+                    <div className="leading-snug">Add Cash Expense</div>
                     <div className="text-xs font-normal text-slate-500 mt-0.5 leading-snug">
-                      Submit a personal site expense with a receipt photo for reimbursement
+                      Submit a site cash expense with a receipt photo for reimbursement
                     </div>
                   </div>
                 </div>
@@ -1466,7 +1466,7 @@ export default function ExpensesPage() {
         {rejectingExpenseId && (
           <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
             <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 animate-scale-in">
-              <div className="font-bold text-slate-900 text-base mb-1">Decline Out-of-Pocket Claim</div>
+              <div className="font-bold text-slate-900 text-base mb-1">Decline Cash Expense Claim</div>
               <div className="text-xs text-slate-500 mb-3">
                 Provide a reason to inform the supervisor why this expense claim was not approved.
               </div>
@@ -1502,7 +1502,7 @@ export default function ExpensesPage() {
           </div>
         )}
 
-        {/* Modal: Edit / Update Out-of-Pocket Expense */}
+        {/* Modal: Edit / Update Cash Expense */}
         {editingExpense && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
             <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-scale-in">
@@ -1512,7 +1512,7 @@ export default function ExpensesPage() {
                     <Edit2 className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="leading-snug">Update Out-of-Pocket Expense</div>
+                    <div className="leading-snug">Update Cash Expense</div>
                     <div className="text-xs font-normal text-slate-500 mt-0.5 leading-snug">
                       Modify expense details or update the receipt photo
                     </div>

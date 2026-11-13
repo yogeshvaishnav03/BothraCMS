@@ -37,7 +37,7 @@ export async function POST(
     });
 
     if (!payment) {
-      return jsonError("Out-of-pocket expense claim not found", "NOT_FOUND", 404);
+      return jsonError("Cash expense claim not found", "NOT_FOUND", 404);
     }
 
     const approverName = `${user.name} (${user.role.replace("_", " ")})`;
@@ -60,7 +60,7 @@ export async function POST(
         userIds: [payment.createdBy],
         type: "PAYMENT_APPROVAL",
         title: "Expense Claim Declined",
-        message: `Your out-of-pocket expense claim for ₹${Math.round(payment.amount / 100).toLocaleString(
+        message: `Your cash expense claim for ₹${Math.round(payment.amount / 100).toLocaleString(
           "en-IN"
         )} was declined: ${data.rejectionReason.trim()}`,
         href: "/expenses",

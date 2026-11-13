@@ -29,7 +29,7 @@ export async function POST(
     });
 
     if (!payment) {
-      return jsonError("Out-of-pocket expense claim not found", "NOT_FOUND", 404);
+      return jsonError("Cash expense claim not found", "NOT_FOUND", 404);
     }
 
     if (payment.status === "POSTED") {
@@ -56,7 +56,7 @@ export async function POST(
         userIds: [payment.createdBy],
         type: "PAYMENT_APPROVAL",
         title: "Expense Claim Approved",
-        message: `Your out-of-pocket expense claim for ₹${Math.round(payment.amount / 100).toLocaleString(
+        message: `Your cash expense claim for ₹${Math.round(payment.amount / 100).toLocaleString(
           "en-IN"
         )} has been approved for reimbursement by ${approverName}.`,
         href: "/expenses",

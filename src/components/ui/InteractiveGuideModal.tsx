@@ -852,14 +852,14 @@ const PAGE_GUIDES: Record<string, PageGuideContent> = {
 
   "/expenses": {
     icon: Receipt,
-    titleEn: "Out-of-Pocket Expenses",
-    titleHi: "आउट-ऑफ़-पॉकेट खर्च (रीइम्बर्समेंट)",
-    subtitleEn: "Submit personal site expenses with receipt photos for reimbursement",
-    subtitleHi: "अपनी जेब से किए गए साइट खर्च की रसीद सहित एंट्री करें",
+    titleEn: "Cash Expenses",
+    titleHi: "नकद खर्च (Cash Expenses)",
+    subtitleEn: "Submit cash site expenses with receipt photos for reimbursement",
+    subtitleHi: "साइट नकद खर्च की रसीद सहित एंट्री करें",
     whoUsesEn: "Site Supervisors, Storekeepers, Accountants, Admins",
     whoUsesHi: "साइट सुपरवाइज़र, स्टोरकीपर, अकाउंटेंट, एडमिन",
-    summaryEn: "Use this when a staff member pays out of their own pocket (travel, emergency hardware, food, fuel) and needs the company to reimburse them after checking the bill photo.",
-    summaryHi: "जब कोई कर्मचारी अपनी जेब से साइट का जरूरी खर्च करे (यात्रा, पेट्रोल, इमरजेंसी सामान), तो रसीद फोटो के साथ यहाँ क्लेम दर्ज करें।",
+    summaryEn: "Use this when a staff member pays cash on site (travel, emergency hardware, food, fuel) and needs the company to record or reimburse them after checking the bill photo.",
+    summaryHi: "जब कोई कर्मचारी साइट का नकद खर्च करे (यात्रा, पेट्रोल, इमरजेंसी सामान), तो रसीद फोटो के साथ यहाँ एंट्री दर्ज करें।",
     steps: [
       {
         number: 1,

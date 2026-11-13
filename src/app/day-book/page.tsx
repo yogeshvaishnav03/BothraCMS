@@ -193,14 +193,14 @@ export default function DayBookPage() {
         key: "party",
         label: "Party / Vendor",
         width: "220px",
-        accessor: (p) => p.party?.name || (p.recipientType === "OUT_OF_POCKET" ? `Out-of-Pocket: ${p.recipientName || "Expense"}` : "Direct Expense"),
+        accessor: (p) => p.party?.name || (p.recipientType === "OUT_OF_POCKET" ? `Cash Expense: ${p.recipientName || "Expense"}` : "Direct Expense"),
         render: (p) => (
           <div>
             <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
               <span>{p.party?.name || p.recipientName || "Direct Expense"}</span>
               {p.recipientType === "OUT_OF_POCKET" && (
                 <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
-                  Out-of-Pocket
+                  Cash Expense
                 </span>
               )}
             </div>
@@ -2372,7 +2372,7 @@ export default function DayBookPage() {
                     >
                       <Receipt className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                       <span className="sm:hidden">Expense</span>
-                      <span className="hidden sm:inline">Out-of-Pocket Expense</span>
+                      <span className="hidden sm:inline">Cash Expense</span>
                     </Link>
                     {canWriteFinance && (
                       <button
@@ -2402,7 +2402,7 @@ export default function DayBookPage() {
                         className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition shadow-xs"
                       >
                         <Receipt className="w-4 h-4" />
-                        <span>Out-of-Pocket Expense</span>
+                        <span>Cash Expense</span>
                       </Link>
                       {canWriteFinance && (
                         <button

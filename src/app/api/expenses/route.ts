@@ -28,7 +28,7 @@ const createExpenseSchema = z.object({
   projectId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   // Receipt photo is MANDATORY as per business policy
-  receiptFileId: z.string().min(1, "Receipt photo attachment is mandatory for out-of-pocket claims"),
+  receiptFileId: z.string().min(1, "Receipt photo attachment is mandatory for cash expenses"),
   receiptFileName: z.string().optional().nullable(),
   receiptFileSize: z.number().optional().nullable(),
   receiptMimeType: z.string().optional().nullable(),
@@ -113,11 +113,11 @@ export async function GET(req: NextRequest) {
         referenceNumber: p.referenceNumber,
         title:
           p.approvalQuery
-            ?.replace(/^Out-of-Pocket Expense by [^:]+:\s*/i, "")
+            ?.replace(/^(Out-of-Pocket|Cash) Expense by [^:]+:\s*/i, "")
             ?.replace(/\s*\([₹\s]*[0-9,.]+\)\s*$/i, "")
             ?.trim() ||
-          p.notes?.replace(/^\[Out-of-Pocket Expense\]\s*/i, "").split("•")[0]?.trim() ||
-          "Out-of-Pocket Site Expense",
+          p.notes?.replace(/^\[(Out-of-Pocket|Cash) Expense\]\s*/i, "").split("•")[0]?.trim() ||
+          "Cash Site Expense",
         amount: Math.round((p.amount / 100) * 100) / 100, // Rupees
         amountPaise: p.amount,
         expenseDate: p.paymentDate,
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
     if (!ALLOWED_EXPENSE_ROLES.has(user.role)) {
-      return jsonError("Unauthorized: Role cannot log out-of-pocket expenses", "FORBIDDEN", 403);
+      return jsonError("Unauthorized: Role cannot log cash expenses", "FORBIDDEN", 403);
     }
 
     const body = await req.json();
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
     // STRICT MANDATORY VALIDATION: Receipt photo must be present
     if (!body.receiptFileId || typeof body.receiptFileId !== "string" || !body.receiptFileId.trim()) {
       return jsonError(
-        "Attaching a photo of the receipt or invoice bill is mandatory for out-of-pocket expenses",
+        "Attaching a photo of the receipt or invoice bill is mandatory for cash expenses",
         "RECEIPT_MANDATORY",
         400
       );
@@ -253,8 +253,8 @@ export async function POST(req: NextRequest) {
         recipientName: cleanPaidTo,
         payingAccount: "Supervisor Out-of-Pocket",
         costHead: data.category,
-        approvalQuery: `Out-of-Pocket Expense by ${user.name}: ${cleanTitle}`,
-        notes: `[Out-of-Pocket Expense] ${cleanTitle} • Paid to: ${cleanPaidTo} (${data.paymentMode})${
+        approvalQuery: `Cash Expense by ${user.name}: ${cleanTitle}`,
+        notes: `[Cash Expense] ${cleanTitle} • Paid to: ${cleanPaidTo} (${data.paymentMode})${
           data.notes ? ` • ${data.notes.trim()}` : ""
         }`,
         method,
@@ -287,7 +287,7 @@ export async function POST(req: NextRequest) {
           paymentId: payment.id,
           category: "RECEIPT",
           projectId: targetProjectId,
-          notes: `Out-of-pocket receipt for ${cleanTitle}`,
+          notes: `Cash expense receipt for ${cleanTitle}`,
         },
       });
     } else {
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
           category: "RECEIPT",
           uploadedById: user.userId,
           projectId: targetProjectId,
-          notes: `Out-of-pocket receipt for ${cleanTitle}`,
+          notes: `Cash expense receipt for ${cleanTitle}`,
         },
       });
     }
@@ -328,8 +328,8 @@ export async function POST(req: NextRequest) {
         userIds: accountantIds,
         includeAdmins: true,
         type: "PAYMENT_APPROVAL",
-        title: `Out-of-Pocket Expense Claim: ₹${data.amount.toLocaleString("en-IN")}`,
-        message: `${user.name} (${user.role.replace("_", " ")}) logged an out-of-pocket expense for "${cleanTitle}". Receipt attached for verification.`,
+        title: `Cash Expense Claim: ₹${data.amount.toLocaleString("en-IN")}`,
+        message: `${user.name} (${user.role.replace("_", " ")}) logged a cash expense for "${cleanTitle}". Receipt attached for verification.`,
         href: "/expenses",
         entityType: "PAYMENT",
         entityId: payment.id,

@@ -39,7 +39,7 @@ export async function PUT(
     });
 
     if (!payment) {
-      return jsonError("Out-of-pocket expense not found", "NOT_FOUND", 404);
+      return jsonError("Cash expense not found", "NOT_FOUND", 404);
     }
 
     // Allow creator or privileged roles to update
@@ -81,8 +81,8 @@ export async function PUT(
       data: {
         recipientName: cleanPaidTo,
         costHead: data.category,
-        approvalQuery: `Out-of-Pocket Expense by ${user.name}: ${cleanTitle}`,
-        notes: `[Out-of-Pocket Expense] ${cleanTitle} • Paid to: ${cleanPaidTo} (${data.paymentMode})${
+        approvalQuery: `Cash Expense by ${user.name}: ${cleanTitle}`,
+        notes: `[Cash Expense] ${cleanTitle} • Paid to: ${cleanPaidTo} (${data.paymentMode})${
           data.notes ? ` • ${data.notes.trim()}` : ""
         }`,
         method,
@@ -126,7 +126,7 @@ export async function PUT(
             paymentId: payment.id,
             category: "RECEIPT",
             projectId: targetProjectId,
-            notes: `Out-of-pocket receipt for ${cleanTitle}`,
+            notes: `Cash expense receipt for ${cleanTitle}`,
           },
         });
       } else {
@@ -144,7 +144,7 @@ export async function PUT(
             category: "RECEIPT",
             uploadedById: user.userId,
             projectId: targetProjectId,
-            notes: `Out-of-pocket receipt for ${cleanTitle}`,
+            notes: `Cash expense receipt for ${cleanTitle}`,
           },
         });
       }
@@ -189,7 +189,7 @@ export async function DELETE(
     });
 
     if (!payment) {
-      return jsonError("Out-of-pocket expense not found", "NOT_FOUND", 404);
+      return jsonError("Cash expense not found", "NOT_FOUND", 404);
     }
 
     // Allow creator or privileged roles to delete
@@ -218,7 +218,7 @@ export async function DELETE(
     return jsonSuccess({
       id: payment.id,
       deleted: true,
-      message: "Out-of-pocket expense deleted successfully",
+      message: "Cash expense deleted successfully",
     });
   } catch (error) {
     return handleApiError(error);

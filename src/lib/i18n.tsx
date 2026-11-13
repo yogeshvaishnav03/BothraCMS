@@ -56,7 +56,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.measurementBook": "Measurement Book",
     "nav.parties": "Vendors & Contractors",
     "nav.finance": "Payments & Bills",
-    "nav.expenses": "Out-of-Pocket Expenses",
+    "nav.expenses": "Cash Expenses",
     "nav.workforce": "Workers",
     "nav.attendance": "Attendance",
     "nav.muster": "Muster Roll",
