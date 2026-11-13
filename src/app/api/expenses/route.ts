@@ -112,7 +112,10 @@ export async function GET(req: NextRequest) {
         id: p.id,
         referenceNumber: p.referenceNumber,
         title:
-          p.approvalQuery?.replace(/^Out-of-Pocket Expense by [^:]+:\s*/i, "") ||
+          p.approvalQuery
+            ?.replace(/^Out-of-Pocket Expense by [^:]+:\s*/i, "")
+            ?.replace(/\s*\([₹\s]*[0-9,.]+\)\s*$/i, "")
+            ?.trim() ||
           p.notes?.replace(/^\[Out-of-Pocket Expense\]\s*/i, "").split("•")[0]?.trim() ||
           "Out-of-Pocket Site Expense",
         amount: Math.round((p.amount / 100) * 100) / 100, // Rupees
@@ -250,7 +253,7 @@ export async function POST(req: NextRequest) {
         recipientName: cleanPaidTo,
         payingAccount: "Supervisor Out-of-Pocket",
         costHead: data.category,
-        approvalQuery: `Out-of-Pocket Expense by ${user.name}: ${cleanTitle} (₹${data.amount.toLocaleString("en-IN")})`,
+        approvalQuery: `Out-of-Pocket Expense by ${user.name}: ${cleanTitle}`,
         notes: `[Out-of-Pocket Expense] ${cleanTitle} • Paid to: ${cleanPaidTo} (${data.paymentMode})${
           data.notes ? ` • ${data.notes.trim()}` : ""
         }`,
@@ -282,7 +285,7 @@ export async function POST(req: NextRequest) {
           paymentId: payment.id,
           category: "RECEIPT",
           projectId: targetProjectId,
-          notes: `Out-of-pocket receipt for ${cleanTitle} (₹${data.amount})`,
+          notes: `Out-of-pocket receipt for ${cleanTitle}`,
         },
       });
     } else {
@@ -300,7 +303,7 @@ export async function POST(req: NextRequest) {
           category: "RECEIPT",
           uploadedById: user.userId,
           projectId: targetProjectId,
-          notes: `Out-of-pocket receipt for ${cleanTitle} (₹${data.amount})`,
+          notes: `Out-of-pocket receipt for ${cleanTitle}`,
         },
       });
     }

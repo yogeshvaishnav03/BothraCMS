@@ -72,6 +72,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: "Other Site Expense",
 };
 
+export function cleanExpenseTitle(title?: string | null): string {
+  if (!title) return "Site Expense";
+  return title.replace(/\s*\([₹\s]*[0-9,.]+\)\s*$/i, "").trim();
+}
+
 export default function ExpensesPage() {
   const { activeSiteId } = useActiveSite();
   const { refreshUser, refreshSites } = useAppSession();
@@ -415,17 +420,17 @@ export default function ExpensesPage() {
     let rejectedAmount = 0;
 
     for (const exp of expenses) {
-      const amt = exp.amount || 0;
-      totalAmount += amt;
+      const amtPaise = exp.amountPaise ?? (exp.amount ? Math.round(exp.amount * 100) : 0);
+      totalAmount += amtPaise;
       if (exp.status === "PENDING_APPROVAL") {
         pendingCount += 1;
-        pendingAmount += amt;
+        pendingAmount += amtPaise;
       } else if (exp.status === "POSTED") {
         approvedCount += 1;
-        approvedAmount += amt;
+        approvedAmount += amtPaise;
       } else if (exp.status === "REJECTED") {
         rejectedCount += 1;
-        rejectedAmount += amt;
+        rejectedAmount += amtPaise;
       }
     }
 
@@ -447,7 +452,7 @@ export default function ExpensesPage() {
       const q = search.toLowerCase().trim();
       list = list.filter(
         (e) =>
-          e.title.toLowerCase().includes(q) ||
+          cleanExpenseTitle(e.title).toLowerCase().includes(q) ||
           e.paidTo.toLowerCase().includes(q) ||
           e.referenceNumber.toLowerCase().includes(q) ||
           e.creator?.name?.toLowerCase().includes(q) ||
@@ -468,7 +473,7 @@ export default function ExpensesPage() {
       {
         key: "title",
         label: "Expense Purpose / Description",
-        accessor: (e) => e.title,
+        accessor: (e) => cleanExpenseTitle(e.title),
         type: "text",
       },
       {
@@ -486,7 +491,7 @@ export default function ExpensesPage() {
       {
         key: "amount",
         label: "Amount (₹)",
-        accessor: (e) => Number(e.amount) || 0,
+        accessor: (e) => (e.amountPaise ? e.amountPaise / 100 : (Number(e.amount) || 0)),
         type: "currency",
         align: "right",
       },
@@ -718,7 +723,7 @@ export default function ExpensesPage() {
                             {formatDate(exp.expenseDate)}
                           </td>
                           <td className="py-3.5 px-4">
-                            <div className="font-bold text-slate-900">{exp.title}</div>
+                            <div className="font-bold text-slate-900">{cleanExpenseTitle(exp.title)}</div>
                             <div className="text-[11px] text-slate-400 font-mono">{exp.referenceNumber}</div>
                             {exp.site && (
                               <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
@@ -745,7 +750,7 @@ export default function ExpensesPage() {
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right font-black text-slate-900 font-mono tabular-nums text-sm">
-                            {formatCurrency(exp.amount)}
+                            {formatCurrency(exp.amountPaise ?? (exp.amount ? Math.round(exp.amount * 100) : 0))}
                           </td>
                           <td className="py-3.5 px-4 text-slate-700 text-xs">
                             <div className="font-bold">{exp.creator?.name || "Staff"}</div>
@@ -897,7 +902,7 @@ export default function ExpensesPage() {
                             )}
                           </div>
                         </div>
-                        <h4 className="font-bold text-slate-900 text-sm leading-snug">{exp.title}</h4>
+                        <h4 className="font-bold text-slate-900 text-sm leading-snug">{cleanExpenseTitle(exp.title)}</h4>
                         {exp.site && (
                           <div className="text-xs text-slate-500 flex items-center gap-1.5 min-w-0">
                             <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -910,8 +915,8 @@ export default function ExpensesPage() {
                       <div className="grid grid-cols-2 gap-3 mt-3 pt-2.5 border-t border-slate-100 text-xs">
                         <div className="min-w-0">
                           <div className="text-[11px] text-slate-400 font-medium">Amount</div>
-                          <div className="font-display text-base font-extrabold text-slate-900 tabular-nums truncate" title={formatCurrency(exp.amount)}>
-                            {formatCompactINR(exp.amount)}
+                          <div className="font-display text-base font-extrabold text-slate-900 tabular-nums truncate" title={formatCurrency(exp.amountPaise ?? (exp.amount ? Math.round(exp.amount * 100) : 0))}>
+                            {formatCompactINR(exp.amountPaise ?? (exp.amount ? Math.round(exp.amount * 100) : 0))}
                           </div>
                         </div>
 
@@ -1321,7 +1326,7 @@ export default function ExpensesPage() {
             <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92dvh] animate-scale-in">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
                 <div>
-                  <div className="font-bold text-slate-900 text-sm">{viewingReceipt.title}</div>
+                  <div className="font-bold text-slate-900 text-sm">{cleanExpenseTitle(viewingReceipt.title)}</div>
                   <div className="text-xs text-slate-400 font-mono">{viewingReceipt.fileName}</div>
                 </div>
                 <div className="flex items-center gap-2">
