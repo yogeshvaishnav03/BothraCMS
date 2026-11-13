@@ -1036,11 +1036,13 @@ export default function WorkforcePage() {
     if (!selectedSiteId) return null;
     const matching = records.filter((r) => r.siteId === selectedSiteId && r.date === selectedDate);
     if (matching.length === 0) return null;
+    const artisanTotal = matching.reduce((sum, r) => sum + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
     return {
       siteId: selectedSiteId,
       date: selectedDate,
       grandTotal: matching.reduce((sum, r) => sum + (Number(r.grandTotal) || 0), 0),
-      artisanCount: matching.reduce((sum, r) => sum + (r.artisanCount ?? r.artisanTotal ?? 0), 0),
+      artisanCount: artisanTotal,
+      artisanTotal: artisanTotal,
       laborerTotal: matching.reduce((sum, r) => sum + (r.laborerTotal ?? 0), 0),
       laborerMale: matching.reduce((sum, r) => sum + (r.laborerMale ?? 0), 0),
       laborerFemale: matching.reduce((sum, r) => sum + (r.laborerFemale ?? 0), 0),
@@ -1380,9 +1382,9 @@ export default function WorkforcePage() {
                 </div>
                 <div
                   className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate"
-                  title={String(selectedSiteTodayRecord ? (selectedSiteTodayRecord.artisanCount ?? selectedSiteTodayRecord.artisanTotal ?? 0) : siteTotalArtisan)}
+                  title={String(selectedSiteTodayRecord ? selectedSiteTodayRecord.artisanCount : siteTotalArtisan)}
                 >
-                  {formatCompactNumber(selectedSiteTodayRecord ? (selectedSiteTodayRecord.artisanCount ?? selectedSiteTodayRecord.artisanTotal ?? 0) : siteTotalArtisan)}
+                  {formatCompactNumber(selectedSiteTodayRecord ? selectedSiteTodayRecord.artisanCount : siteTotalArtisan)}
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1 flex items-center gap-1.5">
                   <span className="text-amber-700 font-bold">Direct Count</span>
