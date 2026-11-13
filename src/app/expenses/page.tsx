@@ -1031,7 +1031,7 @@ export default function ExpensesPage() {
                       )}
 
                       {/* Footer Actions: Receipt View, Update & Delete */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                      <div className={`mt-3 pt-2.5 border-t border-slate-100 grid ${receipt ? "grid-cols-3" : "grid-cols-2"} gap-2`}>
                         {receipt ? (
                           <button
                             type="button"
@@ -1042,33 +1042,30 @@ export default function ExpensesPage() {
                                 title: exp.title,
                               })
                             }
-                            className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-xs font-semibold text-slate-700 hover:text-amber-800 transition cursor-pointer whitespace-nowrap shrink-0"
+                            className="h-8 w-full flex items-center justify-center gap-1.5 px-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition cursor-pointer shadow-2xs"
                           >
                             <Camera className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            <span>View Receipt</span>
+                            <span className="truncate">View Receipt</span>
                           </button>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 italic">No receipt</span>
-                        )}
+                        ) : null}
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(exp)}
-                            className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer whitespace-nowrap shrink-0"
-                          >
-                            <Edit2 className="w-3.5 h-3.5 shrink-0" />
-                            <span>Update</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmDelete(exp)}
-                            className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer whitespace-nowrap shrink-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                            <span>Delete</span>
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(exp)}
+                          className="h-8 w-full flex items-center justify-center gap-1.5 px-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-xs font-semibold text-amber-800 transition cursor-pointer shadow-2xs"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Update</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmDelete(exp)}
+                          className="h-8 w-full flex items-center justify-center gap-1.5 px-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-800 transition cursor-pointer shadow-2xs"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span>Delete</span>
+                        </button>
                       </div>
                     </div>
                   );
