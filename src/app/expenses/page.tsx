@@ -74,7 +74,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: "Other Site Expense",
 };
 
-export function cleanExpenseTitle(title?: string | null): string {
+function cleanExpenseTitle(title?: string | null): string {
   if (!title) return "Site Expense";
   return title.replace(/\s*\([₹\s]*[0-9,.]+\)\s*$/i, "").trim();
 }

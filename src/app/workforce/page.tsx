@@ -79,7 +79,7 @@ interface HeadcountRecord {
   updatedAt: string;
 }
 
-export interface StagedHeadcountEntry {
+interface StagedHeadcountEntry {
   id: string;
   source: "CONTRACTOR" | "DIRECT";
   contractorId?: string;
