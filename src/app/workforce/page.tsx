@@ -151,24 +151,24 @@ export default function WorkforcePage() {
   const [stagedEntries, setStagedEntries] = useState<StagedHeadcountEntry[]>([]);
 
   // Contractor Workforce state
-  const [contractorSkilledCount, setContractorSkilledCount] = useState<number>(5);
-  const [contractorMaleCount, setContractorMaleCount] = useState<number>(8);
-  const [contractorFemaleCount, setContractorFemaleCount] = useState<number>(3);
-  const [contractorSkilledRate, setContractorSkilledRate] = useState<number>(900);
-  const [contractorMaleRate, setContractorMaleRate] = useState<number>(600);
-  const [contractorFemaleRate, setContractorFemaleRate] = useState<number>(500);
-  const [hasContractorRates, setHasContractorRates] = useState<boolean>(true);
-  const [contractorRateSource, setContractorRateSource] = useState<string>("PARTY");
+  const [contractorSkilledCount, setContractorSkilledCount] = useState<number>(0);
+  const [contractorMaleCount, setContractorMaleCount] = useState<number>(0);
+  const [contractorFemaleCount, setContractorFemaleCount] = useState<number>(0);
+  const [contractorSkilledRate, setContractorSkilledRate] = useState<number>(0);
+  const [contractorMaleRate, setContractorMaleRate] = useState<number>(0);
+  const [contractorFemaleRate, setContractorFemaleRate] = useState<number>(0);
+  const [hasContractorRates, setHasContractorRates] = useState<boolean>(false);
+  const [contractorRateSource, setContractorRateSource] = useState<string>("NONE");
   const [selectedContractorId, setSelectedContractorId] = useState<string>("");
 
   // Direct Workforce state
-  const [directSkilledCount, setDirectSkilledCount] = useState<number>(2);
-  const [directMaleCount, setDirectMaleCount] = useState<number>(3);
-  const [directFemaleCount, setDirectFemaleCount] = useState<number>(1);
+  const [directSkilledCount, setDirectSkilledCount] = useState<number>(0);
+  const [directMaleCount, setDirectMaleCount] = useState<number>(0);
+  const [directFemaleCount, setDirectFemaleCount] = useState<number>(0);
   const [directSkilledRate, setDirectSkilledRate] = useState<number>(1000);
   const [directMaleRate, setDirectMaleRate] = useState<number>(650);
   const [directFemaleRate, setDirectFemaleRate] = useState<number>(550);
-  const [directNotes, setDirectNotes] = useState<string>("Extra Team");
+  const [directNotes, setDirectNotes] = useState<string>("");
 
   const [editingStagedId, setEditingStagedId] = useState<string | null>(null);
 
@@ -193,28 +193,42 @@ export default function WorkforcePage() {
   const directTotalWorkers = (directSkilledCount || 0) + (directMaleCount || 0) + (directFemaleCount || 0);
 
   // Live Summary for Card 4: Daily Site Labour Expense Summary
+  // Exclude the item currently being edited so it's not double-counted with the active form
+  const uneditedStagedEntries = useMemo(() => {
+    if (!editingStagedId) return stagedEntries;
+    return stagedEntries.filter((e) => e.id !== editingStagedId);
+  }, [stagedEntries, editingStagedId]);
+
   const stagedContractorExpense = useMemo(() => {
-    return stagedEntries.filter((e) => e.source === "CONTRACTOR").reduce((sum, e) => sum + e.totalExpense, 0);
-  }, [stagedEntries]);
+    return uneditedStagedEntries.filter((e) => e.source === "CONTRACTOR").reduce((sum, e) => sum + e.totalExpense, 0);
+  }, [uneditedStagedEntries]);
 
   const stagedDirectExpense = useMemo(() => {
-    return stagedEntries.filter((e) => e.source === "DIRECT").reduce((sum, e) => sum + e.totalExpense, 0);
-  }, [stagedEntries]);
+    return uneditedStagedEntries.filter((e) => e.source === "DIRECT").reduce((sum, e) => sum + e.totalExpense, 0);
+  }, [uneditedStagedEntries]);
 
   const stagedContractorWorkers = useMemo(() => {
-    return stagedEntries.filter((e) => e.source === "CONTRACTOR").reduce((sum, e) => sum + e.totalWorkers, 0);
-  }, [stagedEntries]);
+    return uneditedStagedEntries.filter((e) => e.source === "CONTRACTOR").reduce((sum, e) => sum + e.totalWorkers, 0);
+  }, [uneditedStagedEntries]);
 
   const stagedDirectWorkers = useMemo(() => {
-    return stagedEntries.filter((e) => e.source === "DIRECT").reduce((sum, e) => sum + e.totalWorkers, 0);
-  }, [stagedEntries]);
+    return uneditedStagedEntries.filter((e) => e.source === "DIRECT").reduce((sum, e) => sum + e.totalWorkers, 0);
+  }, [uneditedStagedEntries]);
 
-  const displayContractorExpense = stagedEntries.length > 0 ? stagedContractorExpense : contractorTotalExpense;
-  const displayDirectExpense = stagedEntries.length > 0 ? stagedDirectExpense : directTotalExpense;
-  const displayContractorWorkers = stagedEntries.length > 0 ? stagedContractorWorkers : contractorTotalWorkers;
-  const displayDirectWorkers = stagedEntries.length > 0 ? stagedDirectWorkers : directTotalWorkers;
+  const displayContractorExpense = stagedContractorExpense + contractorTotalExpense;
+  const displayDirectExpense = stagedDirectExpense + directTotalExpense;
+  const displayContractorWorkers = stagedContractorWorkers + contractorTotalWorkers;
+  const displayDirectWorkers = stagedDirectWorkers + directTotalWorkers;
   const displayTotalWorkers = displayContractorWorkers + displayDirectWorkers;
   const displayTotalExpense = displayContractorExpense + displayDirectExpense;
+
+  const totalEntriesCount = useMemo(() => {
+    if (stagedEntries.length > 0) return stagedEntries.length;
+    let count = 0;
+    if (contractorTotalWorkers > 0) count++;
+    if (directTotalWorkers > 0) count++;
+    return count;
+  }, [stagedEntries.length, contractorTotalWorkers, directTotalWorkers]);
 
   // Table live totals row
   const tableTotals = useMemo(() => {
@@ -580,94 +594,37 @@ export default function WorkforcePage() {
         setDirectFemaleCount(0);
       }
 
-      // Stage the existing entry for editing
-      setStagedEntries([
-        {
-          id: existing.id,
-          source: existing.source || "CONTRACTOR",
-          contractorId: existing.contractorId,
-          contractorName: existing.contractorName || "Contractor Agency",
-          skilledCount: existing.artisanCount || 0,
-          skilledRate: sRate,
-          skilledAmount: (existing.artisanCount || 0) * sRate,
-          maleCount: existing.laborerMale || 0,
-          maleRate: mRate,
-          maleAmount: (existing.laborerMale || 0) * mRate,
-          femaleCount: existing.laborerFemale || 0,
-          femaleRate: fRate,
-          femaleAmount: (existing.laborerFemale || 0) * fRate,
-          totalWorkers: existing.grandTotal,
-          totalExpense: existing.totalExpense ? existing.totalExpense / 100 : ((existing.artisanCount || 0) * sRate + (existing.laborerMale || 0) * mRate + (existing.laborerFemale || 0) * fRate),
-          notes: existing.notes || "-",
-        },
-      ]);
+      setStagedEntries([]);
+      setEditingStagedId(null);
     } else {
-      // Default initial state matching user's exact mockup
       setModalSiteId(selectedSiteId || (sites.length > 0 ? sites[0].id : ""));
       setModalProjectId(selectedProjectId || "");
       setModalDate(selectedDate);
       setModalShift("GENERAL");
-      setContractorName("ABC Labour Services Pvt. Ltd.");
-      setContractorSkilledRate(900);
-      setContractorMaleRate(600);
-      setContractorFemaleRate(500);
-      setHasContractorRates(true);
-      setContractorRateSource("PARTY");
 
-      setContractorSkilledCount(5);
-      setContractorMaleCount(8);
-      setContractorFemaleCount(3);
+      const defaultContractor = parties.find((p) => p.type === "SUBCONTRACTOR" || p.dailyWageRate)?.name || (parties.length > 0 ? parties[0].name : "ABC Labour Services Pvt. Ltd.");
+      setContractorName(defaultContractor);
+      fetchContractorRates(defaultContractor);
 
-      setDirectSkilledCount(2);
-      setDirectMaleCount(3);
-      setDirectFemaleCount(1);
+      setContractorSkilledCount(0);
+      setContractorMaleCount(0);
+      setContractorFemaleCount(0);
+
+      setDirectSkilledCount(0);
+      setDirectMaleCount(0);
+      setDirectFemaleCount(0);
       setDirectSkilledRate(1000);
       setDirectMaleRate(650);
       setDirectFemaleRate(550);
-      setDirectNotes("Extra Team");
+      setDirectNotes("");
 
       setNotes("");
       setIsCustomContractor(false);
       setIsContractorDropdownOpen(false);
       setContractorSearchQuery("");
 
-      // Staged entries matching mockup
-      setStagedEntries([
-        {
-          id: "staged-1",
-          source: "CONTRACTOR",
-          contractorName: "ABC Labour Services Pvt. Ltd.",
-          skilledCount: 5,
-          skilledRate: 900,
-          skilledAmount: 4500,
-          maleCount: 8,
-          maleRate: 600,
-          maleAmount: 4800,
-          femaleCount: 3,
-          femaleRate: 500,
-          femaleAmount: 1500,
-          totalWorkers: 16,
-          totalExpense: 10800,
-          notes: "-",
-        },
-        {
-          id: "staged-2",
-          source: "DIRECT",
-          contractorName: "-",
-          skilledCount: 2,
-          skilledRate: 1000,
-          skilledAmount: 2000,
-          maleCount: 3,
-          maleRate: 650,
-          maleAmount: 1950,
-          femaleCount: 1,
-          femaleRate: 550,
-          femaleAmount: 550,
-          totalWorkers: 6,
-          totalExpense: 4500,
-          notes: "Extra Team",
-        },
-      ]);
+      setStagedEntries([]);
+      setEditingStagedId(null);
     }
     setShowUploadModal(true);
   };
@@ -2558,7 +2515,7 @@ export default function WorkforcePage() {
                   <Info className="w-4 h-4 text-blue-600 shrink-0" />
                   <div>
                     <span className="font-bold text-slate-900">
-                      {stagedEntries.length > 0 ? stagedEntries.length : 1} {stagedEntries.length === 1 ? "Entry" : "Entries"} &bull; {displayTotalWorkers} Workers
+                      {totalEntriesCount} {totalEntriesCount === 1 ? "Entry" : "Entries"} &bull; {displayTotalWorkers} Workers
                     </span>
                     <span className="text-[11px] text-slate-500 block">All entries will be saved together.</span>
                   </div>
@@ -2581,7 +2538,7 @@ export default function WorkforcePage() {
                   <button
                     type="button"
                     onClick={() => handleSaveAllHeadcounts()}
-                    disabled={submitting}
+                    disabled={submitting || (stagedEntries.length === 0 && contractorTotalWorkers === 0 && directTotalWorkers === 0)}
                     className="flex items-center gap-1.5 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
                   >
                     {submitting ? (
@@ -2592,7 +2549,7 @@ export default function WorkforcePage() {
                     ) : (
                       <>
                         <Save className="w-4 h-4 text-slate-950" />
-                        <span>Save All Headcounts ({stagedEntries.length || 1})</span>
+                        <span>Save All Headcounts ({totalEntriesCount || 1})</span>
                       </>
                     )}
                   </button>
