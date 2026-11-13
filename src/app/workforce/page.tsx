@@ -1031,9 +1031,21 @@ export default function WorkforcePage() {
     });
   }, [records, selectedSiteId, selectedProjectId, projects, searchQuery]);
 
-  // Selected site summary for today
+  // Selected site summary for today (aggregating all entries for that site and date)
   const selectedSiteTodayRecord = useMemo(() => {
-    return records.find((r) => r.siteId === selectedSiteId && r.date === selectedDate);
+    if (!selectedSiteId) return null;
+    const matching = records.filter((r) => r.siteId === selectedSiteId && r.date === selectedDate);
+    if (matching.length === 0) return null;
+    return {
+      siteId: selectedSiteId,
+      date: selectedDate,
+      grandTotal: matching.reduce((sum, r) => sum + (Number(r.grandTotal) || 0), 0),
+      artisanCount: matching.reduce((sum, r) => sum + (r.artisanCount ?? r.artisanTotal ?? 0), 0),
+      laborerTotal: matching.reduce((sum, r) => sum + (r.laborerTotal ?? 0), 0),
+      laborerMale: matching.reduce((sum, r) => sum + (r.laborerMale ?? 0), 0),
+      laborerFemale: matching.reduce((sum, r) => sum + (r.laborerFemale ?? 0), 0),
+      totalExpense: matching.reduce((sum, r) => sum + (Number(r.totalExpense) || 0), 0),
+    };
   }, [records, selectedSiteId, selectedDate]);
 
   // Summary statistics for the site
@@ -1286,6 +1298,28 @@ export default function WorkforcePage() {
                 </div>
               )}
             </div>
+
+            {/* Active Site Filter Indicator Tag */}
+            {selectedSiteId && (
+              <div className="w-full sm:w-auto sm:self-end sm:pb-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900">
+                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Filtered: {currentSelectedSite?.name || "Active Site"}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSiteId("");
+                      setSelectedProjectId("");
+                      setActiveSiteId("");
+                    }}
+                    className="text-amber-700 hover:text-amber-950 ml-1 p-0.5 rounded hover:bg-amber-200/60 transition cursor-pointer"
+                    title="Clear site filter"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Tab Switcher */}

@@ -40,13 +40,18 @@ import AttachmentManager from "@/components/attachments/AttachmentManager";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { canUser } from "@/lib/permissions";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
+import { useActiveSite } from "@/hooks/useActiveSite";
 
 export default function FinancePage() {
-  const { refreshUser } = useAppSession();
+  const { activeSiteId, setActiveSiteId } = useActiveSite();
+  const { refreshUser, refreshSites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const canReadFinance = canUser(currentUser, "finance:read");
   const canWriteFinance = canUser(currentUser, "finance:write");
   const canReverseFinance = canUser(currentUser, "finance:reverse");
+  const [sites, setSites] = useState<any[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [bills, setBills] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [parties, setParties] = useState<any[]>([]);
@@ -142,6 +147,12 @@ export default function FinancePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Synchronize finance page with global active site filter
+  useEffect(() => {
+    setSelectedSiteId(activeSiteId || "");
+    setSelectedProjectId("");
+  }, [activeSiteId]);
+
   const loadData = useCallback(() => {
     setLoading(true);
     const noCacheInit: RequestInit = {
@@ -151,6 +162,7 @@ export default function FinancePage() {
     const t = Date.now();
     Promise.all([
       refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
+      refreshSites().then((data) => ({ success: true, data })),
       fetch(`/api/finance/bills?_t=${t}`, noCacheInit).then((r) => r.json()),
       fetch(`/api/finance/payments?_t=${t}`, noCacheInit).then((r) => r.json()),
       fetch(`/api/parties?_t=${t}`, noCacheInit).then((r) => r.json()),
@@ -158,12 +170,15 @@ export default function FinancePage() {
       fetch(`/api/materials?_t=${t}`, noCacheInit).then((r) => r.json()),
       fetch(`/api/workforce?_t=${t}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
     ])
-      .then(([meRes, billsRes, paymentsRes, partiesRes, projRes, matRes, wfRes]) => {
+      .then(([meRes, sitesRes, billsRes, paymentsRes, partiesRes, projRes, matRes, wfRes]) => {
         if (meRes.success && meRes.data) {
           setCurrentUser(meRes.data.user);
           if (meRes.data.user.role === "SUPER_ADMIN") {
             setAutoApprove(true);
           }
+        }
+        if (sitesRes && sitesRes.success && sitesRes.data) {
+          setSites(sitesRes.data || []);
         }
         if (billsRes.success) setBills(billsRes.data || []);
         if (paymentsRes.success) setPayments(paymentsRes.data || []);
@@ -176,7 +191,7 @@ export default function FinancePage() {
         console.error("Authoritative finance data load failed:", err);
       })
       .finally(() => setLoading(false));
-  }, [refreshUser]);
+  }, [refreshUser, refreshSites]);
 
   useEffect(() => {
     loadData();
@@ -551,14 +566,51 @@ export default function FinancePage() {
     }
   };
 
-  const totalBilledAll = bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
-  const posted = payments.filter((p: any) => p.status === "POSTED");
+  // Filter bills & payments by active site and target project
+  const siteScopedBills = useMemo(() => {
+    if (!selectedSiteId && !selectedProjectId) return bills;
+    const siteProjectIds = selectedSiteId
+      ? new Set(projects.filter((p) => p.siteId === selectedSiteId).map((p) => p.id))
+      : null;
+
+    return bills.filter((b) => {
+      if (selectedProjectId) {
+        return b.projectId === selectedProjectId;
+      }
+      if (selectedSiteId && siteProjectIds) {
+        const bSiteId = b.project?.siteId || (b.projectId ? projects.find((pr) => pr.id === b.projectId)?.siteId : null);
+        return bSiteId === selectedSiteId || (b.projectId && siteProjectIds.has(b.projectId));
+      }
+      return true;
+    });
+  }, [bills, selectedSiteId, selectedProjectId, projects]);
+
+  const siteScopedPayments = useMemo(() => {
+    if (!selectedSiteId && !selectedProjectId) return payments;
+    const siteProjectIds = selectedSiteId
+      ? new Set(projects.filter((p) => p.siteId === selectedSiteId).map((p) => p.id))
+      : null;
+
+    return payments.filter((p) => {
+      if (selectedProjectId) {
+        return p.projectId === selectedProjectId;
+      }
+      if (selectedSiteId && siteProjectIds) {
+        const pSiteId = p.project?.siteId || (p.projectId ? projects.find((pr) => pr.id === p.projectId)?.siteId : null);
+        return pSiteId === selectedSiteId || (p.projectId && siteProjectIds.has(p.projectId));
+      }
+      return true;
+    });
+  }, [payments, selectedSiteId, selectedProjectId, projects]);
+
+  const totalBilledAll = siteScopedBills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
+  const posted = siteScopedPayments.filter((p: any) => p.status === "POSTED");
   // Out of the bank; TDS held back from contractors is counted when it is deposited.
   const totalPaidAll = posted.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
   // Bills are settled by the full amount, TDS included.
   const totalOutstandingAll = totalBilledAll - posted.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
-  const partyBills = bills.filter(
+  const partyBills = siteScopedBills.filter(
     (b) => b.partyId === selectedPartyId && b.outstandingAmount > 0
   );
 
@@ -627,16 +679,16 @@ export default function FinancePage() {
 
   const paymentCounts = useMemo(() => {
     return {
-      all: payments.length,
-      posted: payments.filter((p) => p.status === "POSTED" || p.status === "APPROVED").length,
-      pending: payments.filter((p) => p.status === "PENDING_APPROVAL").length,
-      rejected: payments.filter((p) => p.status === "REJECTED").length,
-      reversed: payments.filter((p) => p.status === "REVERSED").length,
-      vendors: payments.filter((p) => (p.recipientType || p.party?.type || "VENDOR") === "VENDOR").length,
-      contractors: payments.filter((p) => (p.recipientType || p.party?.type) === "CONTRACTOR").length,
-      employees: payments.filter((p) => (p.recipientType || p.party?.type) === "EMPLOYEE").length,
+      all: siteScopedPayments.length,
+      posted: siteScopedPayments.filter((p) => p.status === "POSTED" || p.status === "APPROVED").length,
+      pending: siteScopedPayments.filter((p) => p.status === "PENDING_APPROVAL").length,
+      rejected: siteScopedPayments.filter((p) => p.status === "REJECTED").length,
+      reversed: siteScopedPayments.filter((p) => p.status === "REVERSED").length,
+      vendors: siteScopedPayments.filter((p) => (p.recipientType || p.party?.type || "VENDOR") === "VENDOR").length,
+      contractors: siteScopedPayments.filter((p) => (p.recipientType || p.party?.type) === "CONTRACTOR").length,
+      employees: siteScopedPayments.filter((p) => (p.recipientType || p.party?.type) === "EMPLOYEE").length,
     };
-  }, [payments]);
+  }, [siteScopedPayments]);
 
   const handleDatePreset = (preset: "ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM") => {
     setDatePreset(preset);
@@ -739,7 +791,7 @@ export default function FinancePage() {
   };
 
   const filteredPayments = useMemo(() => {
-    return payments.filter((p) => {
+    return siteScopedPayments.filter((p) => {
       const payee = (p.recipientName || p.party?.name || "Recipient").toLowerCase();
       const rType = (p.recipientType || p.party?.type || "VENDOR").toUpperCase();
       const payingAcc = (p.payingAccount || "Company Primary Account").toLowerCase();
@@ -862,7 +914,7 @@ export default function FinancePage() {
       return true;
     });
   }, [
-    payments,
+    siteScopedPayments,
     paymentSearch,
     paymentFromDate,
     paymentToDate,
@@ -888,7 +940,7 @@ export default function FinancePage() {
   }, [filteredPayments, paymentStatus]);
 
   const filteredBills = useMemo(() => {
-    return bills.filter((b) => {
+    return siteScopedBills.filter((b) => {
       if (billSearch.trim()) {
         const q = billSearch.trim().toLowerCase();
         const match =
@@ -902,7 +954,7 @@ export default function FinancePage() {
       if (billStatus === "PENDING" && b.outstandingAmount === 0) return false;
       return true;
     });
-  }, [bills, billSearch, billStatus]);
+  }, [siteScopedBills, billSearch, billStatus]);
 
   const paymentColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -1105,6 +1157,82 @@ export default function FinancePage() {
         {/* Feedback alerts */}
         {statusMessage && <Alert tone="success">{statusMessage}</Alert>}
         {errorMessage && <Alert tone="error">{errorMessage}</Alert>}
+
+        {/* Construction Site & Project Filter Bar */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-0">
+            {/* Target Construction Site Selector */}
+            <div className="min-w-[220px]">
+              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                Target Construction Site:
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedSiteId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedSiteId(val);
+                    setSelectedProjectId("");
+                    setActiveSiteId(val);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="">All Sites (All Payments &amp; Bills)</option>
+                  {sites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.code || "Site"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Target Project Selector */}
+            {selectedSiteId && (
+              <div className="min-w-[200px]">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                  Target Project:
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="">All Projects on Site</option>
+                    {projects.filter((p) => p.siteId === selectedSiteId).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Active Site Filter Indicator Tag */}
+            {selectedSiteId && (
+              <div className="w-full sm:w-auto sm:self-end sm:pb-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900">
+                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Filtered: {sites.find((s) => s.id === selectedSiteId)?.name || "Active Site"}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSiteId("");
+                      setSelectedProjectId("");
+                      setActiveSiteId("");
+                    }}
+                    className="text-amber-700 hover:text-amber-950 ml-1 p-0.5 rounded hover:bg-amber-200/60 transition cursor-pointer"
+                    title="Clear site filter"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Financial KPI Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
