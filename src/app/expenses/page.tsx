@@ -690,18 +690,6 @@ export default function ExpensesPage() {
         accessor: (e) => e.creator?.name || "Staff",
         type: "text",
       },
-      {
-        key: "status",
-        label: "Status",
-        accessor: (e) =>
-          e.status === "POSTED"
-            ? "Approved"
-            : e.status === "REJECTED"
-            ? "Declined"
-            : "Waiting for Approval",
-        type: "text",
-        align: "center",
-      },
     ],
     []
   );
@@ -947,29 +935,6 @@ export default function ExpensesPage() {
                               {exp.creator?.role?.replace("_", " ") || "Supervisor"}
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 text-center">
-                            {exp.status === "POSTED" ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Approved
-                              </span>
-                            ) : exp.status === "REJECTED" ? (
-                              <span
-                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-100 text-rose-800"
-                                title={exp.rejectionReason || "Declined"}
-                              >
-                                <XCircle className="w-3.5 h-3.5 text-rose-600" /> Declined
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
-                                <Clock className="w-3.5 h-3.5 text-amber-600" /> Waiting for Approval
-                              </span>
-                            )}
-                            {exp.rejectionReason && (
-                              <div className="text-[10px] text-rose-600 font-medium mt-0.5 max-w-[150px] mx-auto truncate" title={exp.rejectionReason}>
-                                {exp.rejectionReason}
-                              </div>
-                            )}
-                          </td>
                           {/* Receipt Photo Column */}
                           <td className="py-3.5 px-4 text-center">
                             {receipt ? (
@@ -1044,28 +1009,11 @@ export default function ExpensesPage() {
 
                   return (
                     <div key={`exp-card-${exp.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
-                      {/* Top: Ref #, Status Badge, Title & Site */}
+                      {/* Top: Ref #, Staff & Title */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-slate-400 font-mono truncate">{exp.referenceNumber}</span>
-                          <div className="shrink-0">
-                            {exp.status === "POSTED" ? (
-                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Approved
-                              </span>
-                            ) : exp.status === "REJECTED" ? (
-                              <span
-                                className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800"
-                                title={exp.rejectionReason || "Declined"}
-                              >
-                                <XCircle className="w-3 h-3 text-rose-600" /> Declined
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                                <Clock className="w-3 h-3 text-amber-600" /> Waiting for Approval
-                              </span>
-                            )}
-                          </div>
+                          <span className="text-[11px] font-semibold text-slate-500">{exp.creator?.name || "Staff"}</span>
                         </div>
                         <h4 className="font-bold text-slate-900 text-sm leading-snug">{cleanExpenseTitle(exp.title)}</h4>
                         {exp.site && (
