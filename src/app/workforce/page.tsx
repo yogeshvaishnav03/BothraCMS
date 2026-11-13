@@ -97,24 +97,6 @@ export interface StagedHeadcountEntry {
   totalExpense: number; // in rupees
   notes?: string;
 }
-  shift: "GENERAL" | "DAY" | "NIGHT";
-  artisanCount: number;
-  craftsmanCount: number;
-  laborerMale: number;
-  laborerFemale: number;
-  laborerTotal: number;
-  artisanTotal?: number;
-  craftsmanTotal?: number;
-  totalMale?: number;
-  totalFemale?: number;
-  grandTotal: number;
-  contractorName?: string;
-  notes?: string;
-  supervisorId: string;
-  supervisorName: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface WorkerRosterItem {
   id: string;
