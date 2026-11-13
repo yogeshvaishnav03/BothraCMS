@@ -1160,9 +1160,9 @@ export default function FinancePage() {
 
         {/* Construction Site & Project Filter Bar */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
             {/* Target Construction Site Selector */}
-            <div className="min-w-[220px]">
+            <div className="w-full sm:w-auto min-w-[200px]">
               <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
                 Target Construction Site:
               </label>
@@ -1189,7 +1189,7 @@ export default function FinancePage() {
 
             {/* Target Project Selector */}
             {selectedSiteId && (
-              <div className="min-w-[200px]">
+              <div className="w-full sm:w-auto min-w-[180px]">
                 <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
                   Target Project:
                 </label>
@@ -1206,28 +1206,6 @@ export default function FinancePage() {
                       </option>
                     ))}
                   </select>
-                </div>
-              </div>
-            )}
-
-            {/* Active Site Filter Indicator Tag */}
-            {selectedSiteId && (
-              <div className="w-full sm:w-auto sm:self-end sm:pb-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900">
-                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Filtered: {sites.find((s) => s.id === selectedSiteId)?.name || "Active Site"}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSiteId("");
-                      setSelectedProjectId("");
-                      setActiveSiteId("");
-                    }}
-                    className="text-amber-700 hover:text-amber-950 ml-1 p-0.5 rounded hover:bg-amber-200/60 transition cursor-pointer"
-                    title="Clear site filter"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
                 </div>
               </div>
             )}

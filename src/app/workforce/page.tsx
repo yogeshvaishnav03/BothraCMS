@@ -1222,10 +1222,10 @@ export default function WorkforcePage() {
         {errorMessage && <Alert tone="error">{errorMessage}</Alert>}
 
         {/* Single Site Selector & Navigation Bar */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-0">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
             {/* Target Site Selector */}
-            <div className="min-w-[220px]">
+            <div className="w-full sm:w-auto min-w-[200px]">
               <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
                 Target Construction Site:
               </label>
@@ -1252,7 +1252,7 @@ export default function WorkforcePage() {
 
             {/* Target Project Selector */}
             {selectedSiteId && (
-              <div className="min-w-[200px]">
+              <div className="w-full sm:w-auto min-w-[180px]">
                 <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
                   Target Project:
                 </label>
@@ -1287,7 +1287,7 @@ export default function WorkforcePage() {
             </div>
 
             {/* Today's Site Status Tag */}
-            <div className="w-full sm:w-auto sm:self-end sm:pb-1">
+            <div className="w-full sm:w-auto sm:self-end sm:pb-0.5">
               {selectedSiteTodayRecord ? (
                 <div className="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1300,35 +1300,13 @@ export default function WorkforcePage() {
                 </div>
               )}
             </div>
-
-            {/* Active Site Filter Indicator Tag */}
-            {selectedSiteId && (
-              <div className="w-full sm:w-auto sm:self-end sm:pb-1">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900">
-                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Filtered: {currentSelectedSite?.name || "Active Site"}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSiteId("");
-                      setSelectedProjectId("");
-                      setActiveSiteId("");
-                    }}
-                    className="text-amber-700 hover:text-amber-950 ml-1 p-0.5 rounded hover:bg-amber-200/60 transition cursor-pointer"
-                    title="Clear site filter"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Tab Switcher */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold w-full md:w-auto overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-bold w-full xl:w-auto shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               onClick={() => setActiveTab("headcount")}
-              className={`flex-1 md:flex-initial whitespace-nowrap shrink-0 px-3 py-1.5 rounded-lg transition text-center ${
+              className={`flex-1 xl:flex-initial whitespace-nowrap shrink-0 px-3 py-1.5 rounded-lg transition text-center ${
                 activeTab === "headcount"
                   ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900"
@@ -1338,7 +1316,7 @@ export default function WorkforcePage() {
             </button>
             <button
               onClick={() => setActiveTab("roster")}
-              className={`flex-1 md:flex-initial whitespace-nowrap shrink-0 px-3 py-1.5 rounded-lg transition text-center ${
+              className={`flex-1 xl:flex-initial whitespace-nowrap shrink-0 px-3 py-1.5 rounded-lg transition text-center ${
                 activeTab === "roster"
                   ? "bg-white text-slate-900 shadow-2xs"
                   : "text-slate-600 hover:text-slate-900"
