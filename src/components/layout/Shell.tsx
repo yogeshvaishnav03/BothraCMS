@@ -373,8 +373,12 @@ export default function Shell({ children }: ShellProps) {
     >
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[260px] bg-gradient-chrome text-slate-200 shrink-0 lg:sticky lg:top-0 lg:h-screen border-r border-white/5 print:hidden no-print">
-        <div className="px-5 pt-5 pb-4 flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-brand flex items-center justify-center font-display font-extrabold text-slate-950 text-xl shadow-glow shrink-0">
+        <Link
+          href="/"
+          className="px-5 pt-5 pb-4 flex items-center gap-3 min-w-0 group hover:opacity-95 transition cursor-pointer"
+          title="Go to Dashboard"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-brand flex items-center justify-center font-display font-extrabold text-slate-950 text-xl shadow-glow shrink-0 group-hover:scale-105 transition-transform">
             B
           </div>
           <div className="min-w-0 flex-1">
@@ -382,13 +386,13 @@ export default function Shell({ children }: ShellProps) {
               Bothra <span className="text-gradient-brand">CMS</span>
             </div>
             <div
-              className="text-[11px] text-slate-500 font-medium truncate"
+              className="text-[11px] text-slate-500 font-medium truncate group-hover:text-slate-400 transition-colors"
               title={user?.organizationName || "Bothra Infrastructure"}
             >
               {user?.organizationName || "Bothra Infrastructure"}
             </div>
           </div>
-        </div>
+        </Link>
 
         <div className="px-4 pb-3">
           <div className="text-[10px] text-slate-500 uppercase tracking-[0.12em] font-semibold mb-1.5 flex items-center justify-between px-1">
@@ -455,7 +459,11 @@ export default function Shell({ children }: ShellProps) {
 
       {/* Mobile Top Header */}
       <header className="lg:hidden glass-dark text-white px-4 py-3 mobile-header-safe flex items-center justify-between sticky top-0 z-40 shrink-0 border-b border-white/10 print:hidden no-print">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 min-w-0 hover:opacity-90 active:scale-98 transition cursor-pointer"
+          title="Go to Dashboard"
+        >
           <div className="w-8 h-8 rounded-lg bg-gradient-brand flex items-center justify-center font-display font-extrabold text-slate-950 text-base shadow-glow shrink-0">
             B
           </div>
@@ -465,7 +473,7 @@ export default function Shell({ children }: ShellProps) {
             </div>
             <div className="text-[10px] text-slate-400 truncate">{currentNav ? t(currentNav.key, currentNav.defaultLabel) : ""}</div>
           </div>
-        </div>
+        </Link>
 
         <div className="flex items-center gap-1.5">
           {!isAppInstalled && (
