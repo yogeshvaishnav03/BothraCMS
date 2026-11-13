@@ -29,6 +29,8 @@ import {
   Smartphone,
   ExternalLink,
   Filter,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 
 interface ExpenseItem {
@@ -119,10 +121,31 @@ export default function ExpensesPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectSubmitting, setRejectSubmitting] = useState(false);
 
+  // Modal: Edit / Update Expense
+  const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editExpenseDate, setEditExpenseDate] = useState("");
+  const [editCategory, setEditCategory] = useState("MATERIALS");
+  const [editPaidTo, setEditPaidTo] = useState("");
+  const [editPaymentMode, setEditPaymentMode] = useState("PERSONAL_UPI");
+  const [editSiteId, setEditSiteId] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editReceiptFile, setEditReceiptFile] = useState<File | null>(null);
+  const [editReceiptPreview, setEditReceiptPreview] = useState<string | null>(null);
+  const [updatingExpense, setUpdatingExpense] = useState(false);
+  const [editReceiptError, setEditReceiptError] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const editCameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Modal: Delete Expense Confirmation
+  const [deletingExpense, setDeletingExpense] = useState<ExpenseItem | null>(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
+
   const isApprover = currentUser?.role && ["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT"].includes(currentUser.role);
 
   useEffect(() => {
-    const anyModal = showLogModal || Boolean(viewingReceipt) || Boolean(rejectingExpenseId) || Boolean(pendingApproveExpenseId);
+    const anyModal = showLogModal || Boolean(viewingReceipt) || Boolean(rejectingExpenseId) || Boolean(pendingApproveExpenseId) || Boolean(editingExpense) || Boolean(deletingExpense);
     if (!anyModal) return;
     document.body.style.overflow = "hidden";
     const onKeyDown = (e: KeyboardEvent) => {
@@ -131,6 +154,8 @@ export default function ExpensesPage() {
         setViewingReceipt(null);
         setRejectingExpenseId(null);
         setPendingApproveExpenseId(null);
+        setEditingExpense(null);
+        setDeletingExpense(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -138,7 +163,7 @@ export default function ExpensesPage() {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [showLogModal, viewingReceipt, rejectingExpenseId, pendingApproveExpenseId]);
+  }, [showLogModal, viewingReceipt, rejectingExpenseId, pendingApproveExpenseId, editingExpense, deletingExpense]);
 
   const loadExpenses = (statusOverride?: string) => {
     setLoading(true);
@@ -405,6 +430,170 @@ export default function ExpensesPage() {
       loadExpenses();
     } finally {
       setRejectSubmitting(false);
+    }
+  };
+
+  const handleOpenEditModal = (exp: ExpenseItem) => {
+    setEditingExpense(exp);
+    setEditTitle(cleanExpenseTitle(exp.title));
+    const amtRupees = exp.amount ? exp.amount : (exp.amountPaise ? exp.amountPaise / 100 : 0);
+    setEditAmount(amtRupees ? String(amtRupees) : "");
+    setEditExpenseDate(exp.expenseDate ? new Date(exp.expenseDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]);
+    setEditCategory(exp.category || "MATERIALS");
+    setEditPaidTo(exp.paidTo || "");
+    setEditPaymentMode(exp.paymentMode || "PERSONAL_CASH");
+    setEditSiteId(exp.site?.id || exp.project?.site?.id || "");
+    const cleanNotes = exp.notes?.replace(/^\[Out-of-Pocket Expense\]\s*/i, "").split("•").slice(2).join("•").trim() || "";
+    setEditNotes(cleanNotes);
+    setEditReceiptFile(null);
+    setEditReceiptPreview(exp.receipt?.url || null);
+    setEditReceiptError(null);
+  };
+
+  const handleEditPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setEditReceiptError("Receipt file is too large (max 5 MB). Please compress or take another photo.");
+      return;
+    }
+
+    setEditReceiptError(null);
+    setEditReceiptFile(file);
+
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setEditReceiptPreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setEditReceiptPreview(null);
+    }
+  };
+
+  const handleClearEditPhoto = () => {
+    setEditReceiptFile(null);
+    setEditReceiptPreview(null);
+    if (editFileInputRef.current) editFileInputRef.current.value = "";
+    if (editCameraInputRef.current) editCameraInputRef.current.value = "";
+  };
+
+  const handleUpdateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExpense) return;
+
+    const amtNum = parseFloat(editAmount);
+    if (!amtNum || isNaN(amtNum) || amtNum <= 0) {
+      setEditReceiptError("Please enter a valid amount greater than ₹0.");
+      return;
+    }
+
+    if (!editTitle.trim()) {
+      setEditReceiptError("Please provide an expense purpose.");
+      return;
+    }
+
+    if (!editPaidTo.trim()) {
+      setEditReceiptError("Please enter paid to (shop or person).");
+      return;
+    }
+
+    setUpdatingExpense(true);
+    setEditReceiptError(null);
+
+    try {
+      let newReceiptFileId: string | undefined = undefined;
+
+      // Upload new receipt photo if changed
+      if (editReceiptFile) {
+        const uploadForm = new FormData();
+        uploadForm.append("file", editReceiptFile);
+        uploadForm.append("category", "RECEIPT");
+        uploadForm.append("entityType", "PAYMENT");
+        uploadForm.append("entityId", editingExpense.id);
+        uploadForm.append("notes", `Updated receipt for ${editTitle.trim()}`);
+
+        const uploadRes = await fetch("/api/uploads", {
+          method: "POST",
+          body: uploadForm,
+        });
+
+        const uploadJson = await uploadRes.json();
+        if (uploadRes.ok && uploadJson.success) {
+          newReceiptFileId = uploadJson.data?.fileId || uploadJson.data?.id;
+        }
+      }
+
+      const res = await fetch(`/api/expenses/${editingExpense.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          amount: amtNum,
+          expenseDate: editExpenseDate,
+          category: editCategory,
+          paidTo: editPaidTo.trim(),
+          paymentMode: editPaymentMode,
+          siteId: editSiteId || undefined,
+          notes: editNotes.trim() || undefined,
+          receiptFileId: newReceiptFileId || editingExpense.receipt?.fileId,
+          receiptFileName: editReceiptFile?.name || editingExpense.receipt?.fileName,
+          receiptFileSize: editReceiptFile?.size || editingExpense.receipt?.fileSize,
+          receiptMimeType: editReceiptFile?.type || editingExpense.receipt?.mimeType,
+        }),
+      });
+
+      const resJson = await res.json();
+      if (!res.ok || !resJson.success) {
+        throw new Error(resJson.error?.message || "Could not update the expense claim.");
+      }
+
+      setFeedback({
+        tone: "success",
+        message: `Expense "${cleanExpenseTitle(editTitle)}" updated successfully!`,
+      });
+      setEditingExpense(null);
+      loadExpenses();
+      window.dispatchEvent(new CustomEvent("refreshExpenses"));
+    } catch (err: any) {
+      setEditReceiptError(err.message || "Failed to update expense. Please try again.");
+    } finally {
+      setUpdatingExpense(false);
+    }
+  };
+
+  const handleConfirmDelete = (exp: ExpenseItem) => {
+    setDeletingExpense(exp);
+  };
+
+  const handleDeleteExpense = async () => {
+    if (!deletingExpense) return;
+    setDeletingLoading(true);
+    try {
+      const res = await fetch(`/api/expenses/${deletingExpense.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Could not delete this expense.");
+      }
+
+      setFeedback({
+        tone: "success",
+        message: `Expense "${cleanExpenseTitle(deletingExpense.title)}" deleted successfully!`,
+      });
+      setDeletingExpense(null);
+      loadExpenses();
+      window.dispatchEvent(new CustomEvent("refreshExpenses"));
+    } catch (err: any) {
+      setFeedback({
+        tone: "error",
+        message: err.message || "Could not delete this expense. Please try again.",
+      });
+    } finally {
+      setDeletingLoading(false);
     }
   };
 
@@ -806,48 +995,24 @@ export default function ExpensesPage() {
                           {/* Actions Column */}
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
-                              {isApprover && isPending ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleApproveExpense(exp.id)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer shadow-xs"
-                                    title="Approve for reimbursement"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                    <span>Approve</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRejectingExpenseId(exp.id);
-                                      setRejectionReason("");
-                                    }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
-                                    title="Decline reimbursement"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                    <span>Decline</span>
-                                  </button>
-                                </>
-                              ) : receipt ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setViewingReceipt({
-                                      url: receipt.url,
-                                      fileName: receipt.fileName,
-                                      title: exp.title,
-                                    })
-                                  }
-                                  className="text-amber-600 hover:text-amber-700 text-xs font-bold inline-flex items-center gap-1"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  <span>Details</span>
-                                </button>
-                              ) : (
-                                <span className="text-slate-400 text-xs">—</span>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(exp)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer shadow-2xs"
+                                title="Update expense"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                <span>Update</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmDelete(exp)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs"
+                                title="Delete expense"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -938,88 +1103,45 @@ export default function ExpensesPage() {
                         </div>
                       )}
 
-                      {/* Footer Actions: Receipt View & Approvals */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2">
-                        {isApprover && isPending ? (
-                          <>
-                            {receipt ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setViewingReceipt({
-                                    url: receipt.url,
-                                    fileName: receipt.fileName,
-                                    title: exp.title,
-                                  })
-                                }
-                                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-xs font-semibold text-slate-700 hover:text-amber-800 transition cursor-pointer"
-                              >
-                                <Camera className="w-3.5 h-3.5 text-amber-500" />
-                                <span>View Receipt</span>
-                              </button>
-                            ) : (
-                              <div className="text-[11px] text-slate-400 italic text-center">No receipt attached</div>
-                            )}
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleApproveExpense(exp.id)}
-                                className="inline-flex w-full items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition cursor-pointer shadow-xs"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Approve</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRejectingExpenseId(exp.id);
-                                  setRejectionReason("");
-                                }}
-                                className="inline-flex w-full items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                                <span>Decline</span>
-                              </button>
-                            </div>
-                          </>
+                      {/* Footer Actions: Receipt View, Update & Delete */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        {receipt ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewingReceipt({
+                                url: receipt.url,
+                                fileName: receipt.fileName,
+                                title: exp.title,
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-xs font-semibold text-slate-700 hover:text-amber-800 transition cursor-pointer"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-amber-500" />
+                            <span>View Receipt</span>
+                          </button>
                         ) : (
-                          <div className="flex items-center justify-between gap-2">
-                            {receipt ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setViewingReceipt({
-                                    url: receipt.url,
-                                    fileName: receipt.fileName,
-                                    title: exp.title,
-                                  })
-                                }
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 text-xs font-semibold text-slate-700 hover:text-amber-800 transition cursor-pointer"
-                              >
-                                <Camera className="w-3.5 h-3.5 text-amber-500" />
-                                <span>View Receipt</span>
-                              </button>
-                            ) : (
-                              <span className="text-[11px] text-slate-400 italic">No receipt attached</span>
-                            )}
-                            {receipt && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setViewingReceipt({
-                                    url: receipt.url,
-                                    fileName: receipt.fileName,
-                                    title: exp.title,
-                                  })
-                                }
-                                className="text-amber-600 hover:text-amber-700 text-xs font-bold inline-flex items-center gap-1"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>Details</span>
-                              </button>
-                            )}
-                          </div>
+                          <span className="text-[11px] text-slate-400 italic">No receipt</span>
                         )}
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(exp)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>Update</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmDelete(exp)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1452,6 +1574,330 @@ export default function ExpensesPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Edit / Update Out-of-Pocket Expense */}
+        {editingExpense && (
+          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-scale-in">
+              <div className="p-4 sm:p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-start sm:items-center justify-between gap-2">
+                <div className="font-bold text-slate-900 text-base sm:text-lg flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+                  <div className="p-1.5 bg-amber-100 text-amber-700 rounded-lg shrink-0 mt-0.5 sm:mt-0">
+                    <Edit2 className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="leading-snug">Update Out-of-Pocket Expense</div>
+                    <div className="text-xs font-normal text-slate-500 mt-0.5 leading-snug">
+                      Modify expense details or update the receipt photo
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setEditingExpense(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateExpense} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 sm:space-y-4">
+                {editReceiptError && <Alert tone="error">{editReceiptError}</Alert>}
+
+                {/* Expense Purpose / Title */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Expense Purpose / Items Purchased <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Bought 2 bags cement & binding wire"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                {/* Amount & Date */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Amount Spent (₹) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="1"
+                      required
+                      placeholder="e.g. 1500"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Expense Date <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={editExpenseDate}
+                      onChange={(e) => setEditExpenseDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Paid To & Payment Mode */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Paid To (Shop / Person) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Sharma Hardware"
+                      value={editPaidTo}
+                      onChange={(e) => setEditPaidTo(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      How You Paid <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={editPaymentMode}
+                      onChange={(e) => setEditPaymentMode(e.target.value as any)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="PERSONAL_UPI">Personal UPI (GPay / PhonePe / Paytm)</option>
+                      <option value="PERSONAL_CASH">Personal Cash</option>
+                      <option value="PERSONAL_CARD">Personal Debit / Credit Card</option>
+                      <option value="OTHER">Other Personal Mode</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Category & Site */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Expense Category <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="MATERIALS">Materials & Hardware</option>
+                      <option value="EQUIPMENT">Fuel & Generator Diesel</option>
+                      <option value="TRANSPORT">Transport & Delivery / Auto / Tempo</option>
+                      <option value="LABOUR">Labour Tea & Refreshments</option>
+                      <option value="SITE_OFFICE">Site Office & Consumables</option>
+                      <option value="REPAIRS">Minor Repairs & Tools</option>
+                      <option value="OTHER">Other Site Expense</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Construction Site
+                    </label>
+                    <select
+                      value={editSiteId}
+                      onChange={(e) => setEditSiteId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="">General Site / HQ</option>
+                      {sites.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Receipt Photo Section */}
+                <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-300">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
+                    <label className="text-xs font-black text-amber-950 uppercase tracking-wide whitespace-nowrap">
+                      📷 Receipt Photo
+                    </label>
+                    <span className="text-[11px] text-amber-700 font-semibold whitespace-nowrap">JPG, PNG, WebP or PDF</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mb-2.5">
+                    Keep the existing receipt or choose a replacement photo/PDF.
+                  </p>
+
+                  <div className="relative">
+                    <input
+                      type="file"
+                      ref={editCameraInputRef}
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleEditPhotoSelect}
+                      className="sr-only"
+                      id="edit-receipt-camera-input"
+                    />
+                    <input
+                      type="file"
+                      ref={editFileInputRef}
+                      accept="image/*,application/pdf"
+                      onChange={handleEditPhotoSelect}
+                      className="sr-only"
+                      id="edit-receipt-photo-input"
+                    />
+
+                    {editReceiptPreview || editReceiptFile ? (
+                      <div className="bg-white p-3 rounded-lg border border-amber-200 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {editReceiptPreview ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={editReceiptPreview}
+                              alt="Receipt preview"
+                              className="w-12 h-12 object-cover rounded-md border border-slate-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-md bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                              <Receipt className="w-6 h-6" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-xs text-slate-900 truncate">
+                              {editReceiptFile?.name || editingExpense.receipt?.fileName || "receipt-photo.jpg"}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {editReceiptFile ? `${(editReceiptFile.size / 1024).toFixed(1)} KB • New file selected` : "Current receipt attached ✓"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => editFileInputRef.current?.click()}
+                            className="px-2 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded border border-amber-200"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleClearEditPhoto}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md transition"
+                            title="Remove receipt"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => editCameraInputRef.current?.click()}
+                          className="py-3 px-3 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Camera className="w-4 h-4 text-amber-700" />
+                          <span className="font-bold text-xs text-slate-900">Take Photo</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => editFileInputRef.current?.click()}
+                          className="py-3 px-3 border-2 border-dashed border-slate-300 hover:border-slate-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4 text-slate-700" />
+                          <span className="font-bold text-xs text-slate-900">Choose Receipt / PDF</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Remarks */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Notes / Remarks (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Add any extra notes..."
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setEditingExpense(null)}
+                    className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updatingExpense}
+                    className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {updatingExpense ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving Changes...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 text-slate-950" />
+                        <span>Save Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Delete Expense Confirmation */}
+        {deletingExpense && (
+          <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 animate-scale-in space-y-3">
+              <div className="flex items-center gap-2.5 text-rose-600 font-bold text-base">
+                <Trash2 className="w-5 h-5" />
+                <span>Delete Expense</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Are you sure you want to delete the expense <strong className="text-slate-900">"{cleanExpenseTitle(deletingExpense.title)}"</strong> for <strong className="text-slate-900">{formatCurrency(deletingExpense.amountPaise ?? (deletingExpense.amount ? Math.round(deletingExpense.amount * 100) : 0))}</strong>?
+              </p>
+              <p className="text-[11px] text-slate-400">
+                This record and its attached receipt photo will be permanently removed.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={deletingLoading}
+                  onClick={() => setDeletingExpense(null)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingLoading}
+                  onClick={handleDeleteExpense}
+                  className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {deletingLoading ? "Deleting..." : "Delete Permanently"}
+                </button>
+              </div>
             </div>
           </div>
         )}
