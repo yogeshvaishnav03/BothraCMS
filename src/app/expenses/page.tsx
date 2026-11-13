@@ -666,12 +666,6 @@ export default function ExpensesPage() {
         type: "text",
       },
       {
-        key: "paidTo",
-        label: "Paid To (Shop / Recipient)",
-        accessor: (e) => e.paidTo,
-        type: "text",
-      },
-      {
         key: "category",
         label: "Category",
         accessor: (e) => CATEGORY_LABELS[e.category] || e.category,
@@ -908,18 +902,6 @@ export default function ExpensesPage() {
                                 <span>{exp.site.name}</span>
                               </div>
                             )}
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-700">
-                            <div className="font-semibold text-slate-900">{exp.paidTo}</div>
-                            <div className="text-[11px] text-slate-500 font-mono">
-                              {exp.paymentMode === "PERSONAL_UPI"
-                                ? "Personal UPI / GPay"
-                                : exp.paymentMode === "PERSONAL_CASH"
-                                ? "Personal Cash"
-                                : exp.paymentMode === "PERSONAL_CARD"
-                                ? "Personal Card"
-                                : "Other"}
-                            </div>
                           </td>
                           <td className="py-3.5 px-4">
                             <span className="font-semibold text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700">
