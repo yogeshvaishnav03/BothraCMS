@@ -170,4 +170,94 @@ describe("Workforce Headcount Database Persistence Tests", () => {
     });
     expect(postCheck).toBeNull();
   });
+
+  it("6. Atomically saves bulk entries with contractor and direct workforce rates", async () => {
+    // Create contractor party with daily wage rate
+    const contractorParty = await prisma.party.create({
+      data: {
+        organizationId: testOrgId,
+        name: "ABC Labour Services Pvt. Ltd.",
+        type: "SUBCONTRACTOR",
+        dailyWageRate: 90000, // ₹900
+        maleHelperWageRate: 60000, // ₹600
+        femaleHelperWageRate: 50000, // ₹500
+      },
+    });
+
+    // 1 Contractor entry + 1 Direct entry
+    const bulkResults = await WorkforceHeadcountService.saveBulkRecords(
+      testOrgId,
+      [
+        {
+          siteId: testSiteId,
+          date: "2026-11-12",
+          shift: "GENERAL",
+          source: "CONTRACTOR",
+          contractorId: contractorParty.id,
+          contractorName: contractorParty.name,
+          artisanCount: 5,
+          skilledRate: 90000,
+          skilledAmount: 450000,
+          laborerMale: 8,
+          maleRate: 60000,
+          maleAmount: 480000,
+          laborerFemale: 3,
+          femaleRate: 50000,
+          femaleAmount: 150000,
+          totalExpense: 1080000, // ₹10,800
+          notes: "Main contractor crew",
+        },
+        {
+          siteId: testSiteId,
+          date: "2026-11-12",
+          shift: "GENERAL",
+          source: "DIRECT",
+          artisanCount: 2,
+          skilledRate: 100000, // ₹1,000
+          skilledAmount: 200000,
+          laborerMale: 3,
+          maleRate: 65000, // ₹650
+          maleAmount: 195000,
+          laborerFemale: 1,
+          femaleRate: 55000, // ₹550
+          femaleAmount: 55000,
+          totalExpense: 450000, // ₹4,500
+          notes: "Extra Team",
+        },
+      ],
+      {
+        userId: testUserId,
+        name: "Test Supervisor",
+        role: "SITE_SUPERVISOR",
+      }
+    );
+
+    expect(bulkResults.length).toBe(2);
+    expect(bulkResults[0].source).toBe("CONTRACTOR");
+    expect(bulkResults[0].totalExpense).toBe(1080000);
+    expect(bulkResults[1].source).toBe("DIRECT");
+    expect(bulkResults[1].totalExpense).toBe(450000);
+
+    // Verify rate card retrieval
+    const rates = await WorkforceHeadcountService.getContractorRates(testOrgId, contractorParty.name);
+    expect(rates.hasRates).toBe(true);
+    expect(rates.skilledRate).toBe(90000);
+    expect(rates.maleRate).toBe(60000);
+    expect(rates.femaleRate).toBe(50000);
+
+    // Verify 7 reports generation
+    const reports = await WorkforceHeadcountService.getLabourExpenseReports(testOrgId, {
+      siteId: testSiteId,
+      startDate: "2026-11-01",
+      endDate: "2026-11-30",
+    });
+
+    expect(reports.dailyReport.length).toBeGreaterThanOrEqual(1);
+    expect(reports.contractorReport.length).toBeGreaterThanOrEqual(1);
+    expect(reports.directReport.length).toBeGreaterThanOrEqual(1);
+    expect(reports.skilledVsUnskilled.totalSkilledExpense).toBeGreaterThan(0);
+    expect(reports.skilledVsUnskilled.totalUnskilledExpense).toBeGreaterThan(0);
+    expect(reports.grandTotals.totalExpense).toBe(1530000); // ₹15,300 in paise
+    expect(reports.grandTotals.totalWorkers).toBe(22); // 16 + 6
+  });
 });

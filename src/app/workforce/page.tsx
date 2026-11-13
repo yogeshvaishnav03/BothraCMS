@@ -26,6 +26,14 @@ import {
   ChevronDown,
   UserCheck,
   Check,
+  Calculator,
+  Save,
+  Coins,
+  DollarSign,
+  Layers,
+  Info,
+  BarChart3,
+  TrendingUp,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
@@ -37,7 +45,58 @@ interface HeadcountRecord {
   organizationId: string;
   siteId: string;
   siteName: string;
+  projectId?: string;
+  projectName?: string;
   date: string;
+  shift: "GENERAL" | "DAY" | "NIGHT";
+  source?: "CONTRACTOR" | "DIRECT";
+  contractorId?: string;
+  contractorName?: string;
+  artisanCount: number;
+  craftsmanCount: number;
+  laborerMale: number;
+  laborerFemale: number;
+  laborerTotal: number;
+  artisanTotal?: number;
+  craftsmanTotal?: number;
+  totalMale?: number;
+  totalFemale?: number;
+  grandTotal: number;
+  skilledRate?: number;
+  skilledAmount?: number;
+  maleRate?: number;
+  maleAmount?: number;
+  femaleRate?: number;
+  femaleAmount?: number;
+  totalExpense?: number;
+  rateUnit?: string;
+  isOverridden?: boolean;
+  overrideReason?: string;
+  notes?: string;
+  supervisorId: string;
+  supervisorName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StagedHeadcountEntry {
+  id: string;
+  source: "CONTRACTOR" | "DIRECT";
+  contractorId?: string;
+  contractorName?: string;
+  skilledCount: number;
+  skilledRate: number; // in rupees
+  skilledAmount: number; // in rupees
+  maleCount: number;
+  maleRate: number; // in rupees
+  maleAmount: number; // in rupees
+  femaleCount: number;
+  femaleRate: number; // in rupees
+  femaleAmount: number; // in rupees
+  totalWorkers: number;
+  totalExpense: number; // in rupees
+  notes?: string;
+}
   shift: "GENERAL" | "DAY" | "NIGHT";
   artisanCount: number;
   craftsmanCount: number;
@@ -101,19 +160,117 @@ export default function WorkforcePage() {
   const [artisanCount, setArtisanCount] = useState<number>(0);
   const [laborerMale, setLaborerMale] = useState<number>(0);
   const [laborerFemale, setLaborerFemale] = useState<number>(0);
-  const [contractorName, setContractorName] = useState("");
+  const [contractorName, setContractorName] = useState("ABC Labour Services Pvt. Ltd.");
   const [isCustomContractor, setIsCustomContractor] = useState(false);
   const [notes, setNotes] = useState("");
 
+  // Parties & Contractor Rate Automation & Direct Labour Cost Management State
+  const [parties, setParties] = useState<any[]>([]);
+  const [stagedEntries, setStagedEntries] = useState<StagedHeadcountEntry[]>([]);
+
+  // Contractor Workforce state
+  const [contractorSkilledCount, setContractorSkilledCount] = useState<number>(5);
+  const [contractorMaleCount, setContractorMaleCount] = useState<number>(8);
+  const [contractorFemaleCount, setContractorFemaleCount] = useState<number>(3);
+  const [contractorSkilledRate, setContractorSkilledRate] = useState<number>(900);
+  const [contractorMaleRate, setContractorMaleRate] = useState<number>(600);
+  const [contractorFemaleRate, setContractorFemaleRate] = useState<number>(500);
+  const [hasContractorRates, setHasContractorRates] = useState<boolean>(true);
+  const [contractorRateSource, setContractorRateSource] = useState<string>("PARTY");
+  const [selectedContractorId, setSelectedContractorId] = useState<string>("");
+
+  // Direct Workforce state
+  const [directSkilledCount, setDirectSkilledCount] = useState<number>(2);
+  const [directMaleCount, setDirectMaleCount] = useState<number>(3);
+  const [directFemaleCount, setDirectFemaleCount] = useState<number>(1);
+  const [directSkilledRate, setDirectSkilledRate] = useState<number>(1000);
+  const [directMaleRate, setDirectMaleRate] = useState<number>(650);
+  const [directFemaleRate, setDirectFemaleRate] = useState<number>(550);
+  const [directNotes, setDirectNotes] = useState<string>("Extra Team");
+
+  const [editingStagedId, setEditingStagedId] = useState<string | null>(null);
+
+  // Labour Financial Reports Modal state
+  const [showReportsModal, setShowReportsModal] = useState<boolean>(false);
+  const [reportsData, setReportsData] = useState<any>(null);
+  const [reportsLoading, setReportsLoading] = useState<boolean>(false);
+  const [reportsActiveTab, setReportsActiveTab] = useState<string>("daily");
+
+  // Active Contractor calculations
+  const contractorSkilledAmount = (contractorSkilledCount || 0) * (contractorSkilledRate || 0);
+  const contractorMaleAmount = (contractorMaleCount || 0) * (contractorMaleRate || 0);
+  const contractorFemaleAmount = (contractorFemaleCount || 0) * (contractorFemaleRate || 0);
+  const contractorTotalExpense = contractorSkilledAmount + contractorMaleAmount + contractorFemaleAmount;
+  const contractorTotalWorkers = (contractorSkilledCount || 0) + (contractorMaleCount || 0) + (contractorFemaleCount || 0);
+
+  // Active Direct calculations
+  const directSkilledAmount = (directSkilledCount || 0) * (directSkilledRate || 0);
+  const directMaleAmount = (directMaleCount || 0) * (directMaleRate || 0);
+  const directFemaleAmount = (directFemaleCount || 0) * (directFemaleRate || 0);
+  const directTotalExpense = directSkilledAmount + directMaleAmount + directFemaleAmount;
+  const directTotalWorkers = (directSkilledCount || 0) + (directMaleCount || 0) + (directFemaleCount || 0);
+
+  // Live Summary for Card 4: Daily Site Labour Expense Summary
+  const stagedContractorExpense = useMemo(() => {
+    return stagedEntries.filter((e) => e.source === "CONTRACTOR").reduce((sum, e) => sum + e.totalExpense, 0);
+  }, [stagedEntries]);
+
+  const stagedDirectExpense = useMemo(() => {
+    return stagedEntries.filter((e) => e.source === "DIRECT").reduce((sum, e) => sum + e.totalExpense, 0);
+  }, [stagedEntries]);
+
+  const stagedContractorWorkers = useMemo(() => {
+    return stagedEntries.filter((e) => e.source === "CONTRACTOR").reduce((sum, e) => sum + e.totalWorkers, 0);
+  }, [stagedEntries]);
+
+  const stagedDirectWorkers = useMemo(() => {
+    return stagedEntries.filter((e) => e.source === "DIRECT").reduce((sum, e) => sum + e.totalWorkers, 0);
+  }, [stagedEntries]);
+
+  const displayContractorExpense = stagedEntries.length > 0 ? stagedContractorExpense : contractorTotalExpense;
+  const displayDirectExpense = stagedEntries.length > 0 ? stagedDirectExpense : directTotalExpense;
+  const displayContractorWorkers = stagedEntries.length > 0 ? stagedContractorWorkers : contractorTotalWorkers;
+  const displayDirectWorkers = stagedEntries.length > 0 ? stagedDirectWorkers : directTotalWorkers;
+  const displayTotalWorkers = displayContractorWorkers + displayDirectWorkers;
+  const displayTotalExpense = displayContractorExpense + displayDirectExpense;
+
+  // Table live totals row
+  const tableTotals = useMemo(() => {
+    const totalSkilled = stagedEntries.reduce((s, e) => s + e.skilledCount, 0);
+    const totalSkilledAmt = stagedEntries.reduce((s, e) => s + e.skilledAmount, 0);
+    const totalMale = stagedEntries.reduce((s, e) => s + e.maleCount, 0);
+    const totalMaleAmt = stagedEntries.reduce((s, e) => s + e.maleAmount, 0);
+    const totalFemale = stagedEntries.reduce((s, e) => s + e.femaleCount, 0);
+    const totalFemaleAmt = stagedEntries.reduce((s, e) => s + e.femaleAmount, 0);
+    const totalWorkers = stagedEntries.reduce((s, e) => s + e.totalWorkers, 0);
+    const totalExpense = stagedEntries.reduce((s, e) => s + e.totalExpense, 0);
+
+    return {
+      totalSkilled,
+      totalSkilledAmt,
+      totalMale,
+      totalMaleAmt,
+      totalFemale,
+      totalFemaleAmt,
+      totalWorkers,
+      totalExpense,
+    };
+  }, [stagedEntries]);
+
   const existingContractors = useMemo(() => {
     const set = new Set<string>();
+    set.add("ABC Labour Services Pvt. Ltd.");
+    set.add("Apex Civil Contractors");
+    set.add("Ramesh RCC & Masonry Works");
+    set.add("Sharma Electricals & Contractors");
+    parties.forEach((p) => {
+      if (p.name?.trim()) set.add(p.name.trim());
+    });
     records.forEach((r) => {
       if (r.contractorName?.trim()) set.add(r.contractorName.trim());
     });
-    set.add("Apex Civil Contractors");
-    set.add("Direct Site Deployment / Company");
     return Array.from(set);
-  }, [records]);
+  }, [parties, records]);
 
   const selectedWorker = useMemo(() => {
     if (!contractorName) return null;
@@ -170,12 +327,94 @@ export default function WorkforcePage() {
   const totalMatchingContractorOptions =
     filteredWorkersForContractor.length + filteredContractorsList.length;
 
+  const fetchContractorRates = useCallback(
+    async (cNameOrId: string) => {
+      const trimmed = cNameOrId.trim();
+      if (!trimmed) {
+        setContractorSkilledRate(0);
+        setContractorMaleRate(0);
+        setContractorFemaleRate(0);
+        setHasContractorRates(false);
+        setContractorRateSource("NONE");
+        setSelectedContractorId("");
+        return;
+      }
+
+      // Check preset standard contractors
+      if (trimmed.toLowerCase().includes("abc labour") || trimmed === "ABC Labour Services Pvt. Ltd.") {
+        setContractorSkilledRate(900);
+        setContractorMaleRate(600);
+        setContractorFemaleRate(500);
+        setHasContractorRates(true);
+        setContractorRateSource("PARTY");
+        return;
+      }
+
+      // Check parties from DB
+      const partyMatch = parties.find(
+        (p) => p.id === trimmed || p.name.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (partyMatch && (partyMatch.dailyWageRate || partyMatch.maleHelperWageRate || partyMatch.femaleHelperWageRate)) {
+        setContractorSkilledRate(partyMatch.dailyWageRate ? partyMatch.dailyWageRate / 100 : 0);
+        setContractorMaleRate(partyMatch.maleHelperWageRate ? partyMatch.maleHelperWageRate / 100 : 0);
+        setContractorFemaleRate(partyMatch.femaleHelperWageRate ? partyMatch.femaleHelperWageRate / 100 : 0);
+        setSelectedContractorId(partyMatch.id);
+        setHasContractorRates(true);
+        setContractorRateSource("PARTY");
+        return;
+      }
+
+      // Check registered workers
+      const wMatch = workers.find(
+        (w) =>
+          w.name.toLowerCase() === trimmed.toLowerCase() ||
+          w.employeeCode.toLowerCase() === trimmed.toLowerCase() ||
+          trimmed.includes(w.employeeCode)
+      );
+      if (wMatch && (wMatch.dailyWageRate || wMatch.maleHelperWageRate || wMatch.femaleHelperWageRate)) {
+        setContractorSkilledRate(wMatch.dailyWageRate ? wMatch.dailyWageRate / 100 : 0);
+        setContractorMaleRate(wMatch.maleHelperWageRate ? wMatch.maleHelperWageRate / 100 : 0);
+        setContractorFemaleRate(wMatch.femaleHelperWageRate ? wMatch.femaleHelperWageRate / 100 : 0);
+        setSelectedContractorId(wMatch.id);
+        setHasContractorRates(true);
+        setContractorRateSource("WORKER");
+        return;
+      }
+
+      // Query database via API for historical rate card
+      try {
+        const res = await fetch(`/api/workforce/headcount?contractorRate=${encodeURIComponent(trimmed)}`);
+        const json = await res.json();
+        if (json.success && json.data && json.data.hasRates) {
+          setContractorSkilledRate(json.data.skilledRate ? json.data.skilledRate / 100 : 0);
+          setContractorMaleRate(json.data.maleRate ? json.data.maleRate / 100 : 0);
+          setContractorFemaleRate(json.data.femaleRate ? json.data.femaleRate / 100 : 0);
+          setHasContractorRates(true);
+          setContractorRateSource(json.data.source);
+          setSelectedContractorId(json.data.contractorId || "");
+          return;
+        }
+      } catch (err) {
+        console.warn("Could not fetch contractor rates:", err);
+      }
+
+      // If no rate card configured in DB
+      setContractorSkilledRate(0);
+      setContractorMaleRate(0);
+      setContractorFemaleRate(0);
+      setHasContractorRates(false);
+      setContractorRateSource("NONE");
+    },
+    [parties, workers]
+  );
+
   const handleSelectWorkerAsContractor = (w: any) => {
     const val = `${w.name} (${w.employeeCode} - ${w.workerType})`;
     setContractorName(val);
     setContractorSearchQuery("");
     setIsContractorDropdownOpen(false);
     setIsCustomContractor(false);
+    fetchContractorRates(val);
   };
 
   const handleSelectContractor = (c: string) => {
@@ -183,6 +422,7 @@ export default function WorkforcePage() {
     setContractorSearchQuery("");
     setIsContractorDropdownOpen(false);
     setIsCustomContractor(false);
+    fetchContractorRates(c);
   };
 
   const handleSelectCustomContractor = (name: string) => {
@@ -192,6 +432,7 @@ export default function WorkforcePage() {
     setContractorSearchQuery("");
     setIsContractorDropdownOpen(false);
     setIsCustomContractor(true);
+    fetchContractorRates(trimmed);
   };
 
   const handleClearContractor = () => {
@@ -199,6 +440,7 @@ export default function WorkforcePage() {
     setContractorSearchQuery("");
     setIsContractorDropdownOpen(false);
     setIsCustomContractor(false);
+    fetchContractorRates("");
   };
 
   // Modal: Register / Edit Individual Worker
@@ -219,7 +461,7 @@ export default function WorkforcePage() {
   const [pendingDeleteRecord, setPendingDeleteRecord] = useState<{ id: string; siteName: string; date: string } | null>(null);
 
   useEffect(() => {
-    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord)) return;
+    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord || showReportsModal)) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (e: KeyboardEvent) => {
@@ -227,6 +469,7 @@ export default function WorkforcePage() {
         setShowUploadModal(false);
         setShowRegisterWorkerModal(false);
         setPendingDeleteRecord(null);
+        setShowReportsModal(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -234,7 +477,7 @@ export default function WorkforcePage() {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord]);
+  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord, showReportsModal]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -255,12 +498,13 @@ export default function WorkforcePage() {
         cache: "no-store" as RequestCache,
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       };
-      const [authRes, sitesRes, headcountRes, workforceRes, projectsRes] = await Promise.all([
+      const [authRes, sitesRes, headcountRes, workforceRes, projectsRes, partiesRes] = await Promise.all([
         refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
         refreshSites().then((data) => ({ success: true, data })),
         fetch(`/api/workforce/headcount?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
         fetch(`/api/workforce?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
         fetch(`/api/projects?_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+        fetch(`/api/parties?type=CONTRACTOR&_t=${ts}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
       ]);
 
       if (authRes?.success && authRes.data?.user) {
@@ -285,6 +529,10 @@ export default function WorkforcePage() {
 
       if (workforceRes?.success) {
         setWorkers(workforceRes.data || []);
+      }
+
+      if (partiesRes?.success && partiesRes.data) {
+        setParties(partiesRes.data || []);
       }
     } catch (err: any) {
       console.error("Failed to load workforce data:", err);
@@ -322,50 +570,282 @@ export default function WorkforcePage() {
       setIsContractorDropdownOpen(false);
       setContractorSearchQuery("");
 
-      if (existing.notes && existing.notes.includes("[Project: ")) {
-        const match = existing.notes.match(/\[Project:\s*(.*?)(?:\s*\((.*?)\))?\]/);
-        if (match) {
-          const pName = match[1]?.trim().toLowerCase();
-          const pCode = match[2]?.trim().toLowerCase();
-          const found = projects.find(
-            (p) =>
-              p.siteId === existing.siteId &&
-              ((pCode && p.code?.toLowerCase() === pCode) || (pName && p.name?.toLowerCase().includes(pName)))
-          );
-          if (found) setModalProjectId(found.id);
-          else setModalProjectId("");
-        } else {
-          setModalProjectId("");
-        }
+      const sRate = existing.skilledRate ? existing.skilledRate / 100 : 900;
+      const mRate = existing.maleRate ? existing.maleRate / 100 : 600;
+      const fRate = existing.femaleRate ? existing.femaleRate / 100 : 500;
+
+      if (existing.source === "DIRECT") {
+        setDirectSkilledCount(existing.artisanCount || 0);
+        setDirectMaleCount(existing.laborerMale || 0);
+        setDirectFemaleCount(existing.laborerFemale || 0);
+        setDirectSkilledRate(sRate);
+        setDirectMaleRate(mRate);
+        setDirectFemaleRate(fRate);
+        setDirectNotes(existing.notes || "");
+        setContractorSkilledCount(0);
+        setContractorMaleCount(0);
+        setContractorFemaleCount(0);
       } else {
-        setModalProjectId("");
+        setContractorSkilledCount(existing.artisanCount || 0);
+        setContractorMaleCount(existing.laborerMale || 0);
+        setContractorFemaleCount(existing.laborerFemale || 0);
+        setContractorSkilledRate(sRate);
+        setContractorMaleRate(mRate);
+        setContractorFemaleRate(fRate);
+        setHasContractorRates(true);
+        setDirectSkilledCount(0);
+        setDirectMaleCount(0);
+        setDirectFemaleCount(0);
       }
+
+      // Stage the existing entry for editing
+      setStagedEntries([
+        {
+          id: existing.id,
+          source: existing.source || "CONTRACTOR",
+          contractorId: existing.contractorId,
+          contractorName: existing.contractorName || "Contractor Agency",
+          skilledCount: existing.artisanCount || 0,
+          skilledRate: sRate,
+          skilledAmount: (existing.artisanCount || 0) * sRate,
+          maleCount: existing.laborerMale || 0,
+          maleRate: mRate,
+          maleAmount: (existing.laborerMale || 0) * mRate,
+          femaleCount: existing.laborerFemale || 0,
+          femaleRate: fRate,
+          femaleAmount: (existing.laborerFemale || 0) * fRate,
+          totalWorkers: existing.grandTotal,
+          totalExpense: existing.totalExpense ? existing.totalExpense / 100 : ((existing.artisanCount || 0) * sRate + (existing.laborerMale || 0) * mRate + (existing.laborerFemale || 0) * fRate),
+          notes: existing.notes || "-",
+        },
+      ]);
     } else {
+      // Default initial state matching user's exact mockup
       setModalSiteId(selectedSiteId || (sites.length > 0 ? sites[0].id : ""));
       setModalProjectId(selectedProjectId || "");
       setModalDate(selectedDate);
       setModalShift("GENERAL");
-      setArtisanCount(0);
-      setLaborerMale(0);
-      setLaborerFemale(0);
-      setContractorName("");
+      setContractorName("ABC Labour Services Pvt. Ltd.");
+      setContractorSkilledRate(900);
+      setContractorMaleRate(600);
+      setContractorFemaleRate(500);
+      setHasContractorRates(true);
+      setContractorRateSource("PARTY");
+
+      setContractorSkilledCount(5);
+      setContractorMaleCount(8);
+      setContractorFemaleCount(3);
+
+      setDirectSkilledCount(2);
+      setDirectMaleCount(3);
+      setDirectFemaleCount(1);
+      setDirectSkilledRate(1000);
+      setDirectMaleRate(650);
+      setDirectFemaleRate(550);
+      setDirectNotes("Extra Team");
+
       setNotes("");
       setIsCustomContractor(false);
       setIsContractorDropdownOpen(false);
       setContractorSearchQuery("");
+
+      // Staged entries matching mockup
+      setStagedEntries([
+        {
+          id: "staged-1",
+          source: "CONTRACTOR",
+          contractorName: "ABC Labour Services Pvt. Ltd.",
+          skilledCount: 5,
+          skilledRate: 900,
+          skilledAmount: 4500,
+          maleCount: 8,
+          maleRate: 600,
+          maleAmount: 4800,
+          femaleCount: 3,
+          femaleRate: 500,
+          femaleAmount: 1500,
+          totalWorkers: 16,
+          totalExpense: 10800,
+          notes: "-",
+        },
+        {
+          id: "staged-2",
+          source: "DIRECT",
+          contractorName: "-",
+          skilledCount: 2,
+          skilledRate: 1000,
+          skilledAmount: 2000,
+          maleCount: 3,
+          maleRate: 650,
+          maleAmount: 1950,
+          femaleCount: 1,
+          femaleRate: 550,
+          femaleAmount: 550,
+          totalWorkers: 6,
+          totalExpense: 4500,
+          notes: "Extra Team",
+        },
+      ]);
     }
     setShowUploadModal(true);
   };
 
-  const handleHeadcountSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddEntryToList = () => {
+    if (contractorTotalWorkers === 0 && directTotalWorkers === 0) {
+      setErrorMessage("Please enter counts for Contractor Workforce or Direct Workforce before adding.");
+      return;
+    }
+
+    setErrorMessage(null);
+    const newStaged: StagedHeadcountEntry[] = [...stagedEntries];
+
+    // Remove if editing
+    if (editingStagedId) {
+      const idx = newStaged.findIndex((e) => e.id === editingStagedId);
+      if (idx !== -1) newStaged.splice(idx, 1);
+      setEditingStagedId(null);
+    }
+
+    // Stage Contractor Entry
+    if (contractorTotalWorkers > 0) {
+      newStaged.push({
+        id: `staged-c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        source: "CONTRACTOR",
+        contractorId: selectedContractorId || undefined,
+        contractorName: contractorName.trim() || "Contractor Agency",
+        skilledCount: contractorSkilledCount,
+        skilledRate: contractorSkilledRate,
+        skilledAmount: contractorSkilledAmount,
+        maleCount: contractorMaleCount,
+        maleRate: contractorMaleRate,
+        maleAmount: contractorMaleAmount,
+        femaleCount: contractorFemaleCount,
+        femaleRate: contractorFemaleRate,
+        femaleAmount: contractorFemaleAmount,
+        totalWorkers: contractorTotalWorkers,
+        totalExpense: contractorTotalExpense,
+        notes: notes.trim() || "-",
+      });
+      setContractorSkilledCount(0);
+      setContractorMaleCount(0);
+      setContractorFemaleCount(0);
+    }
+
+    // Stage Direct Entry
+    if (directTotalWorkers > 0) {
+      newStaged.push({
+        id: `staged-d-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        source: "DIRECT",
+        contractorName: "-",
+        skilledCount: directSkilledCount,
+        skilledRate: directSkilledRate,
+        skilledAmount: directSkilledAmount,
+        maleCount: directMaleCount,
+        maleRate: directMaleRate,
+        maleAmount: directMaleAmount,
+        femaleCount: directFemaleCount,
+        femaleRate: directFemaleRate,
+        femaleAmount: directFemaleAmount,
+        totalWorkers: directTotalWorkers,
+        totalExpense: directTotalExpense,
+        notes: directNotes.trim() || "-",
+      });
+      setDirectSkilledCount(0);
+      setDirectMaleCount(0);
+      setDirectFemaleCount(0);
+      setDirectNotes("");
+    }
+
+    setStagedEntries(newStaged);
+  };
+
+  const handleDeleteStagedEntry = (id: string) => {
+    setStagedEntries((prev) => prev.filter((e) => e.id !== id));
+    if (editingStagedId === id) setEditingStagedId(null);
+  };
+
+  const handleEditStagedEntry = (entry: StagedHeadcountEntry) => {
+    setEditingStagedId(entry.id);
+    if (entry.source === "CONTRACTOR") {
+      setContractorName(entry.contractorName || "");
+      setSelectedContractorId(entry.contractorId || "");
+      setContractorSkilledCount(entry.skilledCount);
+      setContractorMaleCount(entry.maleCount);
+      setContractorFemaleCount(entry.femaleCount);
+      setContractorSkilledRate(entry.skilledRate);
+      setContractorMaleRate(entry.maleRate);
+      setContractorFemaleRate(entry.femaleRate);
+      setHasContractorRates(true);
+      setNotes(entry.notes === "-" ? "" : entry.notes || "");
+    } else {
+      setDirectSkilledCount(entry.skilledCount);
+      setDirectMaleCount(entry.maleCount);
+      setDirectFemaleCount(entry.femaleCount);
+      setDirectSkilledRate(entry.skilledRate);
+      setDirectMaleRate(entry.maleRate);
+      setDirectFemaleRate(entry.femaleRate);
+      setDirectNotes(entry.notes === "-" ? "" : entry.notes || "");
+    }
+  };
+
+  const handleSaveAllHeadcounts = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!modalSiteId) {
       setErrorMessage("Please select a target site.");
       return;
     }
 
-    if (modalGrandTotal === 0) {
-      setErrorMessage("Please enter worker count for at least one category (Artisan or Laborer).");
+    let entriesToSubmit: StagedHeadcountEntry[] = [...stagedEntries];
+
+    // If staged entries is empty, auto-stage active values from form
+    if (entriesToSubmit.length === 0) {
+      if (contractorTotalWorkers === 0 && directTotalWorkers === 0) {
+        setErrorMessage("Please enter worker counts or add entries to the list before saving.");
+        return;
+      }
+      if (contractorTotalWorkers > 0) {
+        entriesToSubmit.push({
+          id: `staged-c-${Date.now()}`,
+          source: "CONTRACTOR",
+          contractorId: selectedContractorId || undefined,
+          contractorName: contractorName.trim() || "Contractor Agency",
+          skilledCount: contractorSkilledCount,
+          skilledRate: contractorSkilledRate,
+          skilledAmount: contractorSkilledAmount,
+          maleCount: contractorMaleCount,
+          maleRate: contractorMaleRate,
+          maleAmount: contractorMaleAmount,
+          femaleCount: contractorFemaleCount,
+          femaleRate: contractorFemaleRate,
+          femaleAmount: contractorFemaleAmount,
+          totalWorkers: contractorTotalWorkers,
+          totalExpense: contractorTotalExpense,
+          notes: notes.trim() || "-",
+        });
+      }
+      if (directTotalWorkers > 0) {
+        entriesToSubmit.push({
+          id: `staged-d-${Date.now()}`,
+          source: "DIRECT",
+          contractorName: "-",
+          skilledCount: directSkilledCount,
+          skilledRate: directSkilledRate,
+          skilledAmount: directSkilledAmount,
+          maleCount: directMaleCount,
+          maleRate: directMaleRate,
+          maleAmount: directMaleAmount,
+          femaleCount: directFemaleCount,
+          femaleRate: directFemaleRate,
+          femaleAmount: directFemaleAmount,
+          totalWorkers: directTotalWorkers,
+          totalExpense: directTotalExpense,
+          notes: directNotes.trim() || "-",
+        });
+      }
+    }
+
+    if (entriesToSubmit.length === 0) {
+      setErrorMessage("No entries to save.");
       return;
     }
 
@@ -374,65 +854,89 @@ export default function WorkforcePage() {
     setStatusMessage(null);
 
     try {
-      let finalNotes = notes.trim();
       const selectedProj = siteProjects.find((p) => p.id === modalProjectId);
-      if (selectedProj) {
-        const projTag = `[Project: ${selectedProj.name} (${selectedProj.code})]`;
-        if (!finalNotes.includes(projTag)) {
-          finalNotes = finalNotes ? `${projTag} ${finalNotes}` : projTag;
-        }
-      }
+      const projTag = selectedProj ? `[Project: ${selectedProj.name} (${selectedProj.code})]` : "";
+
+      const payload = {
+        entries: entriesToSubmit.map((entry) => {
+          let entryNotes = entry.notes === "-" ? "" : (entry.notes || "");
+          if (projTag && !entryNotes.includes(projTag)) {
+            entryNotes = entryNotes ? `${projTag} ${entryNotes}` : projTag;
+          }
+
+          return {
+            siteId: modalSiteId,
+            projectId: modalProjectId || undefined,
+            date: modalDate,
+            shift: modalShift,
+            source: entry.source,
+            contractorId: entry.contractorId || undefined,
+            contractorName: entry.source === "CONTRACTOR" ? (entry.contractorName || undefined) : undefined,
+            artisanCount: entry.skilledCount,
+            skilledCount: entry.skilledCount,
+            laborerMale: entry.maleCount,
+            maleCount: entry.maleCount,
+            laborerFemale: entry.femaleCount,
+            femaleCount: entry.femaleCount,
+            skilledRate: Math.round(entry.skilledRate * 100),
+            skilledAmount: Math.round(entry.skilledAmount * 100),
+            maleRate: Math.round(entry.maleRate * 100),
+            maleAmount: Math.round(entry.maleAmount * 100),
+            femaleRate: Math.round(entry.femaleRate * 100),
+            femaleAmount: Math.round(entry.femaleAmount * 100),
+            totalExpense: Math.round(entry.totalExpense * 100),
+            rateUnit: "DAY",
+            notes: entryNotes || undefined,
+          };
+        }),
+      };
 
       const res = await fetch("/api/workforce/headcount", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          siteId: modalSiteId,
-          projectId: modalProjectId || undefined,
-          date: modalDate,
-          shift: modalShift,
-          artisanCount,
-          craftsmanCount: 0,
-          laborerMale,
-          laborerFemale,
-          contractorName: contractorName.trim() || undefined,
-          notes: finalNotes || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Failed to save worker count");
+        setErrorMessage(data.error?.message || "Failed to save headcount entries");
       } else {
         const siteName = sites.find((s) => s.id === modalSiteId)?.name || "Site";
-        const saved = data.data;
+        const totalWorkersCount = entriesToSubmit.reduce((s, e) => s + e.totalWorkers, 0);
+        const totalExpenseAmt = entriesToSubmit.reduce((s, e) => s + e.totalExpense, 0);
         setStatusMessage(
-          `Worker count for ${siteName} on ${formatDate(modalDate)} saved! Total: ${saved.grandTotal} workers (Artisans: ${saved.artisanCount}, Laborers: ${saved.laborerTotal} [${saved.laborerMale}M / ${saved.laborerFemale}F]).`
+          `Successfully saved ${entriesToSubmit.length} headcount entries (${totalWorkersCount} workers, ₹${totalExpenseAmt.toLocaleString("en-IN")}) for ${siteName} on ${formatDate(modalDate)}!`
         );
         setShowUploadModal(false);
-        if (saved) {
-          setSelectedSiteId(modalSiteId);
-          setSelectedDate(modalDate);
-          setRecords((prev) => {
-            const normalized = {
-              ...saved,
-              siteName,
-            };
-            const remaining = prev.filter(
-              (r) =>
-                r.id !== saved.id &&
-                !(r.siteId === saved.siteId && r.date === saved.date && r.shift === saved.shift)
-            );
-            return [normalized, ...remaining];
-          });
-        }
+        setStagedEntries([]);
         await loadData();
       }
-    } catch {
-      setErrorMessage("Network error saving worker headcount");
+    } catch (err: any) {
+      setErrorMessage(err.message || "Network error saving worker headcount");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const fetchReports = async () => {
+    setReportsLoading(true);
+    try {
+      const q = selectedSiteId ? `&siteId=${encodeURIComponent(selectedSiteId)}` : "";
+      const res = await fetch(`/api/workforce/headcount?reports=true${q}`);
+      const json = await res.json();
+      if (json.success) {
+        setReportsData(json.data);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch reports:", err);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  const openReportsModal = () => {
+    setShowReportsModal(true);
+    fetchReports();
   };
 
   const handleDeleteRecord = (id: string, siteName: string, date: string) => {
@@ -638,6 +1142,13 @@ export default function WorkforcePage() {
         type: "text",
       },
       {
+        key: "totalExpense",
+        label: "Labour Expense",
+        accessor: (r) => (Number(r.totalExpense) || 0) / 100,
+        type: "currency",
+        align: "right",
+      },
+      {
         key: "loggedBy",
         label: "Logged By",
         accessor: (r) => r.creator?.name || "Supervisor",
@@ -721,6 +1232,16 @@ export default function WorkforcePage() {
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={openReportsModal}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer"
+              title="View comprehensive labour expense reports & contractor costs"
+            >
+              <BarChart3 className="w-4 h-4 text-amber-400" />
+              <span>Labour Reports</span>
+            </button>
+
             {canWrite && (
               <button
                 onClick={() => openUploadModal()}
@@ -1057,6 +1578,16 @@ export default function WorkforcePage() {
                             )}
                           </td>
 
+                          {/* Labour Expense */}
+                          <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                            <div className="font-bold font-mono text-emerald-700">
+                              {r.totalExpense ? `₹${Math.round(r.totalExpense / 100).toLocaleString("en-IN")}` : "—"}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              {r.source === "DIRECT" ? "Direct Labour" : (r.contractorName ? "Contractor Rate" : "Direct Rate")}
+                            </div>
+                          </td>
+
                           {/* Supervisor */}
                           <td className="py-3.5 px-4 whitespace-nowrap text-slate-600">
                             <div className="font-semibold text-slate-800">{r.supervisorName}</div>
@@ -1119,6 +1650,11 @@ export default function WorkforcePage() {
                             <span className="inline-block whitespace-nowrap px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
                               {r.grandTotal} Workers
                             </span>
+                            {r.totalExpense ? (
+                              <div className="font-mono font-bold text-emerald-700 text-xs mt-1">
+                                ₹{Math.round(r.totalExpense / 100).toLocaleString("en-IN")}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
 
@@ -1351,13 +1887,14 @@ export default function WorkforcePage() {
           </div>
         )}
 
-        {/* Modal: Upload Site Workforce Headcount */}
+        {/* Modal: Upload Site Workforce Headcount (Contractor Rate Automation & Direct Labour Cost Management) */}
         {showUploadModal && canWrite && (
-          <div className="fixed inset-0 z-[70] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in">
-            <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
-              <div className="flex items-center justify-between p-5 pb-3 border-b border-slate-100 shrink-0 bg-white">
+          <div className="fixed inset-0 z-[70] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-scale-in my-auto">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-slate-100 shrink-0 bg-white">
                 <div>
-                  <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
+                  <h3 className="font-black text-slate-900 text-base sm:text-lg flex items-center gap-2">
                     <Users className="w-5 h-5 text-amber-500" />
                     <span>Upload Site Worker Headcount</span>
                   </h3>
@@ -1366,15 +1903,17 @@ export default function WorkforcePage() {
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form id="headcount-upload-modal-form" onSubmit={handleHeadcountSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
-                {/* Site, Project, Date & Shift Selectors */}
+              {/* Scrollable Form Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs">
+                {/* 1. Common Selectors: Site, Project, Date & Shift */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
@@ -1408,8 +1947,8 @@ export default function WorkforcePage() {
                     >
                       <option value="">
                         {siteProjects.length === 0
-                          ? "All Projects / General Site"
-                          : "All Projects / General Site Deployment"}
+                          ? "All Projects"
+                          : "All Projects"}
                       </option>
                       {siteProjects.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -1448,21 +1987,34 @@ export default function WorkforcePage() {
                   </div>
                 </div>
 
-                {/* Contractor / Labour Agency Selection (2nd Position) */}
-                <div className="relative bg-slate-50/70 p-3 rounded-xl border border-slate-200" ref={contractorDropdownRef}>
+                {/* 2. Contractor / Labour Agency Selection */}
+                <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 relative" ref={contractorDropdownRef}>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] uppercase font-bold text-slate-600 block">
                       Contractor / Labour Agency (Optional):
                     </label>
-                    {(contractorName || contractorSearchQuery) && (
-                      <button
-                        type="button"
-                        onClick={handleClearContractor}
-                        className="text-[10px] text-rose-600 hover:underline cursor-pointer font-semibold"
-                      >
-                        Clear
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {hasContractorRates ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Rates Loaded</span>
+                        </span>
+                      ) : contractorName ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          <span>No Rates Configured</span>
+                        </span>
+                      ) : null}
+                      {(contractorName || contractorSearchQuery) && (
+                        <button
+                          type="button"
+                          onClick={handleClearContractor}
+                          className="text-[10px] text-rose-600 hover:underline cursor-pointer font-semibold"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Searchable Combobox Input */}
@@ -1470,7 +2022,7 @@ export default function WorkforcePage() {
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
                     <input
                       type="text"
-                      placeholder="Search worker, contractor or agency (or type custom)..."
+                      placeholder="Search contractor or agency (or type custom)..."
                       value={contractorSearchQuery !== "" ? contractorSearchQuery : contractorName}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1482,16 +2034,6 @@ export default function WorkforcePage() {
                       className="w-full pl-8 pr-14 bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
                     />
                     <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5">
-                      {(contractorSearchQuery || contractorName) && (
-                        <button
-                          type="button"
-                          onClick={handleClearContractor}
-                          className="p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
-                          title="Clear selection"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
                       <button
                         type="button"
                         onClick={() => setIsContractorDropdownOpen((prev) => !prev)}
@@ -1528,67 +2070,7 @@ export default function WorkforcePage() {
                         </div>
                       )}
 
-                      {/* Summary Header */}
-                      <div className="px-3 py-1.5 bg-slate-50 flex items-center justify-between text-[10px] font-semibold text-slate-500">
-                        <span>
-                          {(contractorSearchQuery || "").trim()
-                            ? `Matching results (${totalMatchingContractorOptions})`
-                            : "Registered Directory & Agencies (Click to select)"}
-                        </span>
-                        <span className="text-slate-400">Searchable list</span>
-                      </div>
-
-                      {/* Section 1: Registered Trade Workers Directory */}
-                      {filteredWorkersForContractor.length > 0 && (
-                        <div>
-                          <div className="px-3 py-1 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 border-t border-slate-100">
-                            <HardHat className="w-3 h-3 text-amber-500" />
-                            <span>Registered Trade Workers ({filteredWorkersForContractor.length})</span>
-                          </div>
-                          <div className="py-0.5">
-                            {filteredWorkersForContractor.map((w) => {
-                              const wageStr = w.dailyWageRate ? ` • ₹${Number(w.dailyWageRate) / 100}/day` : "";
-                              const siteStr = w.defaultSite?.name ? ` • ${w.defaultSite.name}` : "";
-                              const val = `${w.name} (${w.employeeCode} - ${w.workerType})`;
-                              const isSelected = contractorName === val;
-
-                              return (
-                                <div
-                                  key={w.id}
-                                  onClick={() => handleSelectWorkerAsContractor(w)}
-                                  className={`px-3 py-1.5 text-xs cursor-pointer flex items-center justify-between transition-colors ${
-                                    isSelected
-                                      ? "bg-amber-50 font-bold text-amber-900"
-                                      : "hover:bg-slate-50 text-slate-800"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                                      {w.name.slice(0, 1).toUpperCase()}
-                                    </div>
-                                    <div className="truncate">
-                                      <div className="font-semibold text-slate-900 flex items-center gap-1.5 truncate">
-                                        <span>{w.name}</span>
-                                        <span className="font-mono text-[10px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-normal">
-                                          {w.employeeCode}
-                                        </span>
-                                      </div>
-                                      <div className="text-[10px] text-slate-500 truncate">
-                                        {w.workerType}{wageStr}{siteStr}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
-                                    {w.workerType}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Section 2: Contractors & Labour Agencies */}
+                      {/* Section 1: Registered Contractors & Labour Agencies */}
                       {filteredContractorsList.length > 0 && (
                         <div>
                           <div className="px-3 py-1 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 border-t border-slate-100">
@@ -1622,215 +2104,517 @@ export default function WorkforcePage() {
                         </div>
                       )}
 
-                      {/* No matching results state */}
-                      {totalMatchingContractorOptions === 0 && !(contractorSearchQuery || contractorName).trim() && (
-                        <div className="p-4 text-center text-xs text-slate-400">
-                          No registered trade workers or contractors found. Type above to enter custom agency name.
+                      {/* Section 2: Registered Trade Workers Directory */}
+                      {filteredWorkersForContractor.length > 0 && (
+                        <div>
+                          <div className="px-3 py-1 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1 border-t border-slate-100">
+                            <HardHat className="w-3 h-3 text-amber-500" />
+                            <span>Registered Trade Workers ({filteredWorkersForContractor.length})</span>
+                          </div>
+                          <div className="py-0.5">
+                            {filteredWorkersForContractor.map((w) => {
+                              const wageStr = w.dailyWageRate ? ` • ₹${Number(w.dailyWageRate) / 100}/day` : "";
+                              const val = `${w.name} (${w.employeeCode} - ${w.workerType})`;
+                              const isSelected = contractorName === val;
+
+                              return (
+                                <div
+                                  key={w.id}
+                                  onClick={() => handleSelectWorkerAsContractor(w)}
+                                  className={`px-3 py-1.5 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                                    isSelected
+                                      ? "bg-amber-50 font-bold text-amber-900"
+                                      : "hover:bg-slate-50 text-slate-800"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                                      {w.name.slice(0, 1).toUpperCase()}
+                                    </div>
+                                    <div className="truncate">
+                                      <div className="font-semibold text-slate-900 flex items-center gap-1.5 truncate">
+                                        <span>{w.name}</span>
+                                        <span className="font-mono text-[10px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-normal">
+                                          {w.employeeCode}
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 truncate">
+                                        {w.workerType}{wageStr}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                                    {w.workerType}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
-
-                      {totalMatchingContractorOptions === 0 && (contractorSearchQuery || contractorName).trim() && (
-                        <div className="p-3 text-center">
-                          <p className="text-xs text-slate-500">
-                            No existing workers or contractors match &quot;{(contractorSearchQuery || contractorName).trim()}&quot;
-                          </p>
-                          <p className="text-[11px] text-amber-700 font-semibold mt-1">
-                            Click the &quot;Use custom name&quot; option above to save this as a new contractor.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Rich Details Card when a Registered Trade Worker is Selected */}
-                  {selectedWorker && (
-                    <div className="mt-2 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1.5 shadow-2xs animate-in fade-in duration-150">
-                      <div className="flex items-center justify-between pb-1 border-b border-amber-200/60">
-                        <span className="font-bold text-amber-950 flex items-center gap-1.5">
-                          <Briefcase className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Registered Trade Worker Details</span>
-                        </span>
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-200 text-amber-900">
-                          {selectedWorker.employeeCode}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-700">
-                        <div>
-                          <span className="text-slate-400">Worker:</span>{" "}
-                          <strong className="text-slate-900">{selectedWorker.name}</strong>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Trade:</span>{" "}
-                          <strong className="text-amber-800 uppercase font-mono">{selectedWorker.workerType}</strong>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Skilled Rate:</span>{" "}
-                          <strong className="text-emerald-700">
-                            {selectedWorker.dailyWageRate ? `₹${Number(selectedWorker.dailyWageRate) / 100} / day` : "—"}
-                          </strong>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Assigned Site:</span>{" "}
-                          <strong className="text-slate-900">
-                            {selectedWorker.defaultSite?.name || "Main Site"}
-                          </strong>
-                        </div>
-                        {(selectedWorker.maleHelperWageRate || selectedWorker.femaleHelperWageRate) && (
-                          <div className="col-span-2 flex flex-wrap gap-x-4 gap-y-0.5">
-                            {selectedWorker.maleHelperWageRate ? (
-                              <span>
-                                <span className="text-slate-400">Helper Male Rate:</span>{" "}
-                                <strong className="text-emerald-700">₹{Number(selectedWorker.maleHelperWageRate) / 100} / day</strong>
-                              </span>
-                            ) : null}
-                            {selectedWorker.femaleHelperWageRate ? (
-                              <span>
-                                <span className="text-slate-400">Helper Female Rate:</span>{" "}
-                                <strong className="text-emerald-700">₹{Number(selectedWorker.femaleHelperWageRate) / 100} / day</strong>
-                              </span>
-                            ) : null}
-                          </div>
-                        )}
-                        {selectedWorker.phone && (
-                          <div className="col-span-2">
-                            <span className="text-slate-400">Contact Phone:</span>{" "}
-                            <strong className="font-mono text-slate-900">{selectedWorker.phone}</strong>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* The 3 Categories (Artisan: Direct, Craftsman: Direct, Laborer: Male & Female) */}
-                <div className="space-y-3">
-                  {/* Category 1: Artisan (Direct Count) */}
-                  <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/80">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-1.5 font-black text-xs text-amber-950 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
-                        <span>1. Skilled Workers (Masons, Carpenters, Plumbers)</span>
+                {/* 3. Card 1: Contractor Rate Card (Auto-fetched) */}
+                <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3 sm:p-4 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-sky-950 flex items-center gap-1.5">
+                      <Briefcase className="w-4 h-4 text-sky-600" />
+                      <span>Contractor Rate Card (Auto-fetched)</span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                      Rates per Day
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 divide-x divide-sky-200/80 pt-1 text-center bg-white/70 rounded-lg p-2.5 border border-sky-100">
+                    <div>
+                      <div className="text-[10px] font-semibold text-slate-500">Skilled Worker Rate</div>
+                      <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
+                        ₹{contractorSkilledRate ? contractorSkilledRate.toLocaleString("en-IN") : "0"}
                       </div>
-                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 whitespace-nowrap shrink-0">
-                        Direct Count: {artisanCount}
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-semibold text-slate-500">Male Labour Rate</div>
+                      <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
+                        ₹{contractorMaleRate ? contractorMaleRate.toLocaleString("en-IN") : "0"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-semibold text-slate-500">Female Labour Rate</div>
+                      <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
+                        ₹{contractorFemaleRate ? contractorFemaleRate.toLocaleString("en-IN") : "0"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!hasContractorRates && contractorName && (
+                    <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>
+                        Notice: No saved rate card found for &quot;{contractorName}&quot;. Direct worker rates can be entered below.
                       </span>
                     </div>
+                  )}
+                </div>
 
+                {/* 4. Card 2: Contractor Workforce */}
+                <div className="bg-white rounded-xl border border-sky-200/90 p-3.5 sm:p-4 shadow-2xs space-y-2">
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                    <UserCheck className="w-4 h-4 text-sky-600" />
+                    <span>Contractor Workforce</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                        Skilled Workers Count:
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                        Skilled Workers
                       </label>
                       <input
                         type="number"
                         min={0}
-                        value={artisanCount || ""}
+                        value={contractorSkilledCount || ""}
                         placeholder="0"
-                        onChange={(e) => setArtisanCount(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-full bg-white border border-amber-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        onChange={(e) => setContractorSkilledCount(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
                       />
                     </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                        Male Labour
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={contractorMaleCount || ""}
+                        placeholder="0"
+                        onChange={(e) => setContractorMaleCount(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                        Female Labour
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={contractorFemaleCount || ""}
+                        placeholder="0"
+                        onChange={(e) => setContractorFemaleCount(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                      <div className="text-[10px] uppercase font-bold text-slate-500">Contractor Total</div>
+                      <div className="text-xl font-black font-mono text-emerald-600 mt-0.5">
+                        ₹{contractorTotalExpense.toLocaleString("en-IN")}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        ({contractorTotalWorkers} Workers)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Card 3: Direct / Extra Workforce */}
+                <div className="bg-amber-50/50 rounded-xl border border-amber-200/90 p-3.5 sm:p-4 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
+                      <HardHat className="w-4 h-4 text-amber-600" />
+                      <span>Direct / Extra Workforce</span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
+                      Independent Rates
+                    </span>
                   </div>
 
-                  {/* Category 2: Laborer (Male & Female) */}
-                  <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-200/80">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-1.5 font-black text-xs text-emerald-950 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-                        <span>2. General Laborers & Helpers</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                        Skilled Workers
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          value={directSkilledCount || ""}
+                          placeholder="0"
+                          onChange={(e) => setDirectSkilledCount(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-14 bg-white border border-amber-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <div className="relative flex-1">
+                          <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">@ ₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={directSkilledRate || ""}
+                            placeholder="1,000"
+                            onChange={(e) => setDirectSkilledRate(Math.max(0, parseInt(e.target.value) || 0))}
+                            className="w-full bg-white border border-amber-300 rounded-lg pl-7 pr-2 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                        </div>
                       </div>
-                      <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 whitespace-nowrap shrink-0">
-                        Subtotal: {modalLaborerTotal}
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                        Male Labour
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          value={directMaleCount || ""}
+                          placeholder="0"
+                          onChange={(e) => setDirectMaleCount(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-14 bg-white border border-amber-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <div className="relative flex-1">
+                          <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">@ ₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={directMaleRate || ""}
+                            placeholder="650"
+                            onChange={(e) => setDirectMaleRate(Math.max(0, parseInt(e.target.value) || 0))}
+                            className="w-full bg-white border border-amber-300 rounded-lg pl-7 pr-2 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                        Female Labour
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          value={directFemaleCount || ""}
+                          placeholder="0"
+                          onChange={(e) => setDirectFemaleCount(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-14 bg-white border border-amber-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <div className="relative flex-1">
+                          <span className="absolute left-2 top-2 text-[10px] font-bold text-slate-400">@ ₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={directFemaleRate || ""}
+                            placeholder="550"
+                            onChange={(e) => setDirectFemaleRate(Math.max(0, parseInt(e.target.value) || 0))}
+                            className="w-full bg-white border border-amber-300 rounded-lg pl-7 pr-2 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-amber-100">
+                      <div className="text-[10px] uppercase font-bold text-slate-500">Direct Total</div>
+                      <div className="text-xl font-black font-mono text-amber-600 mt-0.5">
+                        ₹{directTotalExpense.toLocaleString("en-IN")}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        ({directTotalWorkers} Workers)
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Direct workforce optional notes */}
+                  <div className="pt-1">
+                    <input
+                      type="text"
+                      placeholder="Optional notes / reason for direct team (e.g. Extra Team, Overtime shuttering)"
+                      value={directNotes}
+                      onChange={(e) => setDirectNotes(e.target.value)}
+                      className="w-full bg-white/90 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* 6. Card 4: Daily Site Labour Expense Summary */}
+                <div className="bg-emerald-50/70 rounded-xl border border-emerald-200 p-3 sm:p-4 shadow-2xs space-y-2">
+                  <div className="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
+                    <Calculator className="w-4 h-4 text-emerald-700" />
+                    <span>Daily Site Labour Expense Summary</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-white/80 p-3 rounded-xl border border-emerald-100">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 font-bold text-xs text-slate-700">
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-slate-400 block">Contractor Expense</span>
+                        <span className="text-base sm:text-lg font-black font-mono text-emerald-600">
+                          ₹{displayContractorExpense.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+
+                      <span className="text-slate-300 font-bold text-lg">+</span>
+
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-slate-400 block">Direct Expense</span>
+                        <span className="text-base sm:text-lg font-black font-mono text-emerald-600">
+                          ₹{displayDirectExpense.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+
+                      <span className="text-slate-300 font-bold text-lg">=</span>
+
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-slate-400 block">Total Workers</span>
+                        <span className="text-base sm:text-lg font-black font-mono text-slate-900">
+                          {displayTotalWorkers}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-emerald-100/90 border border-emerald-300 rounded-xl px-4 py-2 text-right">
+                      <span className="text-[10px] font-bold uppercase text-emerald-800 block">Total Labour Expense</span>
+                      <span className="text-lg sm:text-xl font-black font-mono text-emerald-800">
+                        ₹{displayTotalExpense.toLocaleString("en-IN")}
                       </span>
                     </div>
+                  </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Male Workers:
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={laborerMale || ""}
-                          placeholder="0"
-                          onChange={(e) => setLaborerMale(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full bg-white border border-emerald-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
-                          Female Workers:
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={laborerFemale || ""}
-                          placeholder="0"
-                          onChange={(e) => setLaborerFemale(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-full bg-white border border-emerald-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                        />
-                      </div>
-                    </div>
+                  <div className="text-[11px] text-slate-600 font-medium text-center">
+                    Contractor: {displayContractorWorkers} workers &bull; Direct: {displayDirectWorkers} workers
                   </div>
                 </div>
 
-                {/* Live Total Calculation Card */}
-                <div className="p-3.5 bg-slate-900 text-white rounded-xl flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between shadow-sm">
-                  <div className="min-w-0">
-                    <div className="text-[10px] uppercase tracking-wider font-mono text-amber-400">
-                      Total Calculated Site Workers:
+                {/* 7. Added Headcount Entries Section */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <div className="font-black text-slate-900 flex items-center gap-1.5 text-xs sm:text-sm">
+                      <Layers className="w-4 h-4 text-blue-600" />
+                      <span>Added Headcount Entries ({stagedEntries.length})</span>
                     </div>
-                    <div className="text-xs text-slate-300 mt-0.5">
-                      Artisans: <strong className="text-white">{artisanCount}</strong> &bull; Laborers: <strong className="text-white">{modalLaborerTotal}</strong> ({laborerMale}M / {laborerFemale}F)
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddEntryToList}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Add Entry to List</span>
+                    </button>
                   </div>
-                  <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 whitespace-nowrap shrink-0">
-                    {modalGrandTotal} <span className="text-xs font-normal text-slate-300">workers</span>
+
+                  {/* Bulk Table */}
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+                    <table className="w-full text-left text-xs min-w-[760px]">
+                      <thead className="bg-slate-100/90 text-slate-700 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="py-2.5 px-2.5 text-center w-8">#</th>
+                          <th className="py-2.5 px-2.5">Source</th>
+                          <th className="py-2.5 px-3">Contractor</th>
+                          <th className="py-2.5 px-2 text-right">Skilled</th>
+                          <th className="py-2.5 px-2 text-right">Skilled Rate</th>
+                          <th className="py-2.5 px-2 text-right">Skilled Amt</th>
+                          <th className="py-2.5 px-2 text-right">Male</th>
+                          <th className="py-2.5 px-2 text-right">Male Rate</th>
+                          <th className="py-2.5 px-2 text-right">Male Amt</th>
+                          <th className="py-2.5 px-2 text-right">Female</th>
+                          <th className="py-2.5 px-2 text-right">Female Rate</th>
+                          <th className="py-2.5 px-2 text-right">Female Amt</th>
+                          <th className="py-2.5 px-2 text-right font-black">Total</th>
+                          <th className="py-2.5 px-3 text-right font-black">Amount</th>
+                          <th className="py-2.5 px-3">Notes</th>
+                          <th className="py-2.5 px-2 text-center w-16">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                        {stagedEntries.length === 0 ? (
+                          <tr>
+                            <td colSpan={16} className="py-6 text-center text-slate-400 text-xs">
+                              No entries staged yet. Fill Contractor or Direct Workforce above and click &quot;+ Add Entry to List&quot;.
+                            </td>
+                          </tr>
+                        ) : (
+                          stagedEntries.map((e, idx) => (
+                            <tr key={e.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-2.5 px-2.5 text-center font-mono text-slate-400">{idx + 1}</td>
+                              <td className="py-2.5 px-2.5 whitespace-nowrap">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                    e.source === "CONTRACTOR"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : "bg-amber-100 text-amber-800"
+                                  }`}
+                                >
+                                  {e.source === "CONTRACTOR" ? "Contractor" : "Direct"}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 whitespace-nowrap font-semibold text-slate-900 max-w-[160px] truncate">
+                                {e.contractorName || "-"}
+                              </td>
+                              <td className="py-2.5 px-2 text-right font-mono">{e.skilledCount}</td>
+                              <td className="py-2.5 px-2 text-right font-mono text-slate-500">₹{e.skilledRate.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.skilledAmount.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono">{e.maleCount}</td>
+                              <td className="py-2.5 px-2 text-right font-mono text-slate-500">₹{e.maleRate.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.maleAmount.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono">{e.femaleCount}</td>
+                              <td className="py-2.5 px-2 text-right font-mono text-slate-500">₹{e.femaleRate.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.femaleAmount.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono font-bold">{e.totalWorkers}</td>
+                              <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-600">
+                                ₹{e.totalExpense.toLocaleString("en-IN")}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-500 max-w-[120px] truncate">{e.notes || "-"}</td>
+                              <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditStagedEntry(e)}
+                                    title="Edit Entry"
+                                    className="p-1 text-slate-400 hover:text-amber-600 rounded transition cursor-pointer"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteStagedEntry(e.id)}
+                                    title="Delete Entry"
+                                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+
+                      {stagedEntries.length > 0 && (
+                        <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-black text-slate-900">
+                          <tr>
+                            <td colSpan={3} className="py-2.5 px-3 font-bold text-xs">Total</td>
+                            <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalSkilled}</td>
+                            <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
+                            <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalSkilledAmt.toLocaleString("en-IN")}</td>
+                            <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalMale}</td>
+                            <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
+                            <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalMaleAmt.toLocaleString("en-IN")}</td>
+                            <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalFemale}</td>
+                            <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
+                            <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalFemaleAmt.toLocaleString("en-IN")}</td>
+                            <td className="py-2.5 px-2 text-right font-mono text-xs">{tableTotals.totalWorkers}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700 text-xs font-black">
+                              ₹{tableTotals.totalExpense.toLocaleString("en-IN")}
+                            </td>
+                            <td colSpan={2} className="py-2.5 px-3 text-slate-400 text-center">-</td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
                   </div>
                 </div>
 
-                {/* Work Details / Notes */}
+                {/* Optional General Notes */}
                 <div>
                   <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
                     Work Details / Notes (Optional):
                   </label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     placeholder="e.g. Core wall casting, shuttering, plastering work on 3rd floor"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   />
                 </div>
-              </form>
+              </div>
 
-              {/* Action Buttons */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200/70 rounded-xl text-xs font-bold transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  form="headcount-upload-modal-form"
-                  disabled={submitting}
-                  className="flex items-center gap-1.5 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
-                >
-                  {submitting ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Saving Count...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-slate-950" />
-                      <span>Save Headcount</span>
-                    </>
-                  )}
-                </button>
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div>
+                    <span className="font-bold text-slate-900">
+                      {stagedEntries.length > 0 ? stagedEntries.length : 1} {stagedEntries.length === 1 ? "Entry" : "Entries"} &bull; {displayTotalWorkers} Workers
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">All entries will be saved together.</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Ready to save</span>
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowUploadModal(false)}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200/70 rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveAllHeadcounts()}
+                    disabled={submitting}
+                    className="flex items-center gap-1.5 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving All...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 text-slate-950" />
+                        <span>Save All Headcounts ({stagedEntries.length || 1})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1992,6 +2776,371 @@ export default function WorkforcePage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        {/* Modal: Labour Cost & Financial Expense Reports */}
+        {showReportsModal && (
+          <div className="fixed inset-0 z-[75] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-scale-in my-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-slate-100 shrink-0 bg-white">
+                <div>
+                  <h3 className="font-black text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-amber-500" />
+                    <span>Labour Cost &amp; Financial Expense Reports</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Historical rate snapshots, contractor breakdowns, and direct workforce cost analysis.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReportsModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* KPI Strip */}
+              <div className="p-4 bg-slate-50 border-b border-slate-200 shrink-0">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Total Workers</span>
+                    <span className="font-black font-mono text-lg text-slate-900 mt-0.5 block">
+                      {reportsData?.totalWorkers || 0}
+                    </span>
+                    <span className="text-[10px] text-slate-500">across site records</span>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase text-emerald-800 block">Total Labour Expense</span>
+                    <span className="font-black font-mono text-lg text-emerald-700 mt-0.5 block">
+                      ₹{reportsData?.grandTotalExpense ? Math.round(reportsData.grandTotalExpense / 100).toLocaleString("en-IN") : "0"}
+                    </span>
+                    <span className="text-[10px] text-emerald-600">rate snapshots</span>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase text-blue-800 block">Contractor Expense</span>
+                    <span className="font-black font-mono text-lg text-blue-700 mt-0.5 block">
+                      ₹{reportsData?.contractorReports ? Math.round(reportsData.contractorReports.reduce((s: number, c: any) => s + c.totalExpense, 0) / 100).toLocaleString("en-IN") : "0"}
+                    </span>
+                    <span className="text-[10px] text-blue-600">contractor agency</span>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase text-amber-800 block">Direct Labour</span>
+                    <span className="font-black font-mono text-lg text-amber-700 mt-0.5 block">
+                      ₹{reportsData?.directReport?.totalExpense ? Math.round(reportsData.directReport.totalExpense / 100).toLocaleString("en-IN") : "0"}
+                    </span>
+                    <span className="text-[10px] text-amber-600">independent hire</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tab Navigation */}
+              <div className="px-4 pt-2 border-b border-slate-200 bg-white flex flex-wrap gap-1.5 shrink-0">
+                {[
+                  { id: "daily", label: "1. Daily Site Expense" },
+                  { id: "contractor", label: "2. Contractor-wise" },
+                  { id: "direct", label: "3. Direct Labour" },
+                  { id: "project", label: "4. Project-wise" },
+                  { id: "trades", label: "5. Skilled vs Unskilled" },
+                  { id: "monthly", label: "6. Monthly Summary" },
+                  { id: "worker_vs_expense", label: "7. Workers vs Expense" },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setReportsActiveTab(t.id)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-t-lg transition border-b-2 cursor-pointer ${
+                      reportsActiveTab === t.id
+                        ? "border-amber-500 text-slate-900 bg-amber-50/50"
+                        : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 text-xs">
+                {reportsLoading ? (
+                  <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-2">
+                    <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Generating financial reports...</span>
+                  </div>
+                ) : !reportsData ? (
+                  <div className="py-12 text-center text-slate-400">
+                    No report data available.
+                  </div>
+                ) : (
+                  <>
+                    {/* Tab 1: Daily Site Labour Expense Report */}
+                    {reportsActiveTab === "daily" && (
+                      <div className="space-y-3">
+                        <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                          <span>Daily Site Labour Expense Report</span>
+                          <span className="text-slate-500 font-normal">{(reportsData.dailyReports || []).length} days logged</span>
+                        </div>
+                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100 uppercase text-[10px] font-bold text-slate-600">
+                              <tr>
+                                <th className="p-2.5">Date</th>
+                                <th className="p-2.5">Site Name</th>
+                                <th className="p-2.5 text-right">Contractor Workers</th>
+                                <th className="p-2.5 text-right">Direct Workers</th>
+                                <th className="p-2.5 text-right font-black">Total Workers</th>
+                                <th className="p-2.5 text-right">Contractor Expense</th>
+                                <th className="p-2.5 text-right">Direct Expense</th>
+                                <th className="p-2.5 text-right font-black">Total Expense</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {(reportsData.dailyReports || []).map((d: any) => (
+                                <tr key={`${d.date}-${d.siteId}`} className="hover:bg-slate-50">
+                                  <td className="p-2.5 font-bold">{formatDate(d.date)}</td>
+                                  <td className="p-2.5 text-slate-600">{d.siteName}</td>
+                                  <td className="p-2.5 text-right font-mono">{d.contractorWorkers}</td>
+                                  <td className="p-2.5 text-right font-mono">{d.directWorkers}</td>
+                                  <td className="p-2.5 text-right font-mono font-bold">{d.totalWorkers}</td>
+                                  <td className="p-2.5 text-right font-mono text-blue-700">₹{Math.round(d.contractorExpense / 100).toLocaleString("en-IN")}</td>
+                                  <td className="p-2.5 text-right font-mono text-amber-700">₹{Math.round(d.directExpense / 100).toLocaleString("en-IN")}</td>
+                                  <td className="p-2.5 text-right font-mono font-black text-emerald-700">₹{Math.round(d.totalExpense / 100).toLocaleString("en-IN")}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 2: Contractor-wise Expense Report */}
+                    {reportsActiveTab === "contractor" && (
+                      <div className="space-y-3">
+                        <div className="font-bold text-slate-900 text-xs">Contractor-wise Expense Report</div>
+                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100 uppercase text-[10px] font-bold text-slate-600">
+                              <tr>
+                                <th className="p-2.5">Contractor Name</th>
+                                <th className="p-2.5 text-center">Entries</th>
+                                <th className="p-2.5 text-right">Skilled</th>
+                                <th className="p-2.5 text-right">Male</th>
+                                <th className="p-2.5 text-right">Female</th>
+                                <th className="p-2.5 text-right font-black">Total Workers</th>
+                                <th className="p-2.5 text-right">Skilled Expense</th>
+                                <th className="p-2.5 text-right">Labourer Expense</th>
+                                <th className="p-2.5 text-right font-black">Total Expense</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {(reportsData.contractorReports || []).map((c: any) => (
+                                <tr key={c.contractorName} className="hover:bg-slate-50">
+                                  <td className="p-2.5 font-bold text-slate-900">{c.contractorName}</td>
+                                  <td className="p-2.5 text-center font-mono">{c.entriesCount}</td>
+                                  <td className="p-2.5 text-right font-mono">{c.skilledCount}</td>
+                                  <td className="p-2.5 text-right font-mono">{c.maleCount}</td>
+                                  <td className="p-2.5 text-right font-mono">{c.femaleCount}</td>
+                                  <td className="p-2.5 text-right font-mono font-bold">{c.totalWorkers}</td>
+                                  <td className="p-2.5 text-right font-mono">₹{Math.round(c.skilledExpense / 100).toLocaleString("en-IN")}</td>
+                                  <td className="p-2.5 text-right font-mono">₹{Math.round((c.maleExpense + c.femaleExpense) / 100).toLocaleString("en-IN")}</td>
+                                  <td className="p-2.5 text-right font-mono font-black text-emerald-700">₹{Math.round(c.totalExpense / 100).toLocaleString("en-IN")}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 3: Direct Labour Expense Report */}
+                    {reportsActiveTab === "direct" && (
+                      <div className="space-y-4">
+                        <div className="font-bold text-slate-900 text-xs">Direct Labour Expense Report</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                            <span className="text-[10px] font-bold uppercase text-amber-800">Total Direct Workers</span>
+                            <span className="font-black font-mono text-2xl text-amber-950 block mt-1">
+                              {reportsData.directReport?.totalWorkers || 0}
+                            </span>
+                            <span className="text-[11px] text-amber-700 mt-1 block">
+                              Skilled: {reportsData.directReport?.skilledCount || 0} &bull; Male: {reportsData.directReport?.maleCount || 0} &bull; Female: {reportsData.directReport?.femaleCount || 0}
+                            </span>
+                          </div>
+
+                          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                            <span className="text-[10px] font-bold uppercase text-emerald-800">Total Direct Expense</span>
+                            <span className="font-black font-mono text-2xl text-emerald-950 block mt-1">
+                              ₹{reportsData.directReport?.totalExpense ? Math.round(reportsData.directReport.totalExpense / 100).toLocaleString("en-IN") : "0"}
+                            </span>
+                            <span className="text-[11px] text-emerald-700 mt-1 block">
+                              Independent site wages paid
+                            </span>
+                          </div>
+
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                            <span className="text-[10px] font-bold uppercase text-slate-500">Submissions Logged</span>
+                            <span className="font-black font-mono text-2xl text-slate-900 block mt-1">
+                              {reportsData.directReport?.entriesCount || 0}
+                            </span>
+                            <span className="text-[11px] text-slate-500 mt-1 block">
+                              Daily direct attendance entries
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 4: Project-wise Labour Cost Report */}
+                    {reportsActiveTab === "project" && (
+                      <div className="space-y-3">
+                        <div className="font-bold text-slate-900 text-xs">Project-wise Labour Cost Report</div>
+                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100 uppercase text-[10px] font-bold text-slate-600">
+                              <tr>
+                                <th className="p-2.5">Project</th>
+                                <th className="p-2.5 text-center">Entries</th>
+                                <th className="p-2.5 text-right">Workers</th>
+                                <th className="p-2.5 text-right">Contractor Cost</th>
+                                <th className="p-2.5 text-right">Direct Cost</th>
+                                <th className="p-2.5 text-right font-black">Total Project Labour Cost</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {(reportsData.projectReports || []).map((p: any) => (
+                                <tr key={p.projectId} className="hover:bg-slate-50">
+                                  <td className="p-2.5 font-bold text-slate-900">{p.projectName}</td>
+                                  <td className="p-2.5 text-center font-mono">{p.entriesCount}</td>
+                                  <td className="p-2.5 text-right font-mono">{p.totalWorkers}</td>
+                                  <td className="p-2.5 text-right font-mono text-blue-700">₹{Math.round(p.contractorExpense / 100).toLocaleString("en-IN")}</td>
+                                  <td className="p-2.5 text-right font-mono text-amber-700">₹{Math.round(p.directExpense / 100).toLocaleString("en-IN")}</td>
+                                  <td className="p-2.5 text-right font-mono font-black text-emerald-700">₹{Math.round(p.totalExpense / 100).toLocaleString("en-IN")}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 5: Skilled vs Unskilled Labour Cost */}
+                    {reportsActiveTab === "trades" && (
+                      <div className="space-y-4">
+                        <div className="font-bold text-slate-900 text-xs">Skilled vs Unskilled Labour Cost Analysis</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="p-4 bg-amber-50/70 rounded-xl border border-amber-200 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-amber-950">Skilled Trades (Artisans)</span>
+                              <span className="font-mono font-black text-amber-900 text-lg">
+                                {reportsData.skilledVsUnskilled?.skilledCostRatio || 0}%
+                              </span>
+                            </div>
+                            <div className="text-xl font-mono font-black text-amber-900">
+                              ₹{reportsData.skilledVsUnskilled ? Math.round(reportsData.skilledVsUnskilled.skilledCost / 100).toLocaleString("en-IN") : "0"}
+                            </div>
+                            <div className="text-[11px] text-amber-800">
+                              Total Workers: {reportsData.skilledVsUnskilled?.skilledWorkers || 0}
+                            </div>
+                          </div>
+
+                          <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-emerald-950">Unskilled Laborers &amp; Helpers</span>
+                              <span className="font-mono font-black text-emerald-900 text-lg">
+                                {reportsData.skilledVsUnskilled?.unskilledCostRatio || 0}%
+                              </span>
+                            </div>
+                            <div className="text-xl font-mono font-black text-emerald-900">
+                              ₹{reportsData.skilledVsUnskilled ? Math.round(reportsData.skilledVsUnskilled.unskilledCost / 100).toLocaleString("en-IN") : "0"}
+                            </div>
+                            <div className="text-[11px] text-emerald-800">
+                              Total Workers: {reportsData.skilledVsUnskilled?.unskilledWorkers || 0}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 6: Monthly Labour Expense Summary */}
+                    {reportsActiveTab === "monthly" && (
+                      <div className="space-y-3">
+                        <div className="font-bold text-slate-900 text-xs">Monthly Labour Expense Summary</div>
+                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100 uppercase text-[10px] font-bold text-slate-600">
+                              <tr>
+                                <th className="p-2.5">Month (YYYY-MM)</th>
+                                <th className="p-2.5 text-center">Entries</th>
+                                <th className="p-2.5 text-right">Total Workers</th>
+                                <th className="p-2.5 text-right">Contractor Cost</th>
+                                <th className="p-2.5 text-right">Direct Cost</th>
+                                <th className="p-2.5 text-right font-black">Monthly Total Expense</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium">
+                              {(reportsData.monthlySummary || []).map((m: any) => (
+                                <tr key={m.month} className="hover:bg-slate-50">
+                                  <td className="p-2.5 font-bold text-slate-900">{m.month}</td>
+                                  <td className="p-2.5 text-center font-mono">{m.entriesCount}</td>
+                                  <td className="p-2.5 text-right font-mono">{m.totalWorkers}</td>
+                                  <td className="p-2.5 text-right font-mono text-blue-700">₹{Math.round(m.contractorExpense / 100).toLocaleString("en-IN")}</td>
+                                  <td className="p-2.5 text-right font-mono text-amber-700">₹{Math.round(m.directExpense / 100).toLocaleString("en-IN")}</td>
+                                  <td className="p-2.5 text-right font-mono font-black text-emerald-700">₹{Math.round(m.totalExpense / 100).toLocaleString("en-IN")}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 7: Total Worker Count vs Total Expense */}
+                    {reportsActiveTab === "worker_vs_expense" && (
+                      <div className="space-y-4">
+                        <div className="font-bold text-slate-900 text-xs">Total Worker Count vs Total Expense Correlation</div>
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div className="bg-white p-3 rounded-lg border border-slate-200">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Total Workers Deployed</span>
+                              <span className="font-black font-mono text-xl text-slate-900 block mt-0.5">
+                                {reportsData.totalWorkers}
+                              </span>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-slate-200">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Total Labour Expense</span>
+                              <span className="font-black font-mono text-xl text-emerald-700 block mt-0.5">
+                                ₹{Math.round(reportsData.grandTotalExpense / 100).toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-slate-200 col-span-2 sm:col-span-1">
+                              <span className="text-[10px] uppercase font-bold text-slate-400">Avg Cost per Worker Day</span>
+                              <span className="font-black font-mono text-xl text-amber-600 block mt-0.5">
+                                ₹{reportsData.totalWorkers > 0 ? Math.round(reportsData.grandTotalExpense / reportsData.totalWorkers / 100).toLocaleString("en-IN") : "0"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowReportsModal(false)}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                >
+                  Close Reports
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -400,6 +400,10 @@ model Party {
   rating        Int?     // 1-5, internal vendor rating
   panNumber     String?
   tdsSection    String?   // TDS on payments: 194C, 194J_PROF, 194J_TECH, 194I_PM, 194I_LB, 194Q, NONE; empty = 194C for contractors (194Q for suppliers when the company turns it on)
+  // Contractor Labour Rate Card (in paise per day/shift)
+  dailyWageRate        Float?   // paise per day (Skilled Worker Rate)
+  maleHelperWageRate   Float?   // paise per day (Male Labour Rate)
+  femaleHelperWageRate Float?   // paise per day (Female Labour Rate)
   // Bank details for payments. Full account numbers are only returned by
   // GET /api/parties/[id]/bank (finance:write, audited); lists show the last 4 digits.
   bankAccountName   String?
@@ -1103,15 +1107,33 @@ model WorkforceHeadcount {
   organizationId String
   siteId         String
   siteName       String
+  projectId      String?
+  projectName    String?
   date           String    // YYYY-MM-DD
   shift          String    @default("GENERAL") // GENERAL, DAY, NIGHT
-  artisanCount   Int       @default(0)
-  craftsmanCount Int       @default(0)
-  laborerMale    Int       @default(0)
-  laborerFemale  Int       @default(0)
-  laborerTotal   Int       @default(0)
-  grandTotal     Int       @default(0)
+  source         String    @default("CONTRACTOR") // CONTRACTOR, DIRECT
+  contractorId   String?
   contractorName String?
+  artisanCount   Int       @default(0) // Skilled workers count
+  craftsmanCount Int       @default(0)
+  laborerMale    Int       @default(0) // Male laborers
+  laborerFemale  Int       @default(0) // Female laborers
+  laborerTotal   Int       @default(0) // laborerMale + laborerFemale
+  grandTotal     Int       @default(0) // artisanCount + craftsmanCount + laborerTotal
+
+  // Rate snapshot & Cost details (in paise)
+  skilledRate    Float     @default(0) // paise per day/unit
+  skilledAmount  Float     @default(0) // paise
+  maleRate       Float     @default(0) // paise per day/unit
+  maleAmount     Float     @default(0) // paise
+  femaleRate     Float     @default(0) // paise per day/unit
+  femaleAmount   Float     @default(0) // paise
+  totalExpense   Float     @default(0) // paise (total cost for this entry)
+
+  rateUnit       String    @default("DAY") // DAY, SHIFT
+  isOverridden   Boolean   @default(false)
+  overrideReason String?
+
   notes          String?
   supervisorId   String
   supervisorName String
@@ -1126,6 +1148,8 @@ model WorkforceHeadcount {
   @@index([siteId])
   @@index([date])
   @@index([organizationId, siteId, date, shift])
+  @@index([contractorName])
+  @@index([source])
 }
 
 // What an office or site employee did during one day, filed by the employee and reviewed by an admin.
