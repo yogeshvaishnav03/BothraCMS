@@ -442,7 +442,7 @@ export default function ExpensesPage() {
     setEditCategory(exp.category || "MATERIALS");
     setEditPaidTo(exp.paidTo || "");
     setEditPaymentMode(exp.paymentMode || "PERSONAL_CASH");
-    setEditSiteId(exp.site?.id || exp.project?.site?.id || "");
+    setEditSiteId(exp.site?.id || "");
     const cleanNotes = exp.notes?.replace(/^\[Out-of-Pocket Expense\]\s*/i, "").split("•").slice(2).join("•").trim() || "";
     setEditNotes(cleanNotes);
     setEditReceiptFile(null);
