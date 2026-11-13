@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert } from "@/components/ui/Alert";
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import Shell from "@/components/layout/Shell";
 import { ContactActions } from "@/components/ui/ContactActions";
 import { formatDate, formatDateTime, formatCompactNumber } from "@/lib/formatters";
