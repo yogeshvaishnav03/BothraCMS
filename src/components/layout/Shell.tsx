@@ -231,7 +231,7 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.tasks", defaultLabel: "Tasks & Work", href: "/tasks", icon: CheckSquare },
         { key: "nav.measurementBook", defaultLabel: "Measurement Book", href: "/measurement-book", icon: BookOpen },
         { key: "nav.materials", defaultLabel: "Materials & Stock", href: "/materials", icon: Boxes },
-        { key: "nav.materialRequests", defaultLabel: "Material Requests", href: "/material-requests", icon: PackagePlus },
+        { key: "nav.materialRequests", defaultLabel: "Material Order History", href: "/material-requests", icon: PackageCheck },
         { key: "nav.drawings", defaultLabel: "Drawings", href: "/drawings", icon: Layers },
       ],
     },

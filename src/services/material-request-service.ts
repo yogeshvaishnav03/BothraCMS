@@ -29,7 +29,25 @@ const requestInclude = {
   items: {
     include: {
       material: { select: { id: true, name: true, sku: true, unitCode: true } },
-      purchaseOrder: { select: { id: true, orderNumber: true, status: true, totalAmount: true, vendor: { select: { id: true, name: true } } } },
+      purchaseOrder: {
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          totalAmount: true,
+          unitRate: true,
+          quantity: true,
+          unitCode: true,
+          materialId: true,
+          vendorPartyId: true,
+          storeId: true,
+          siteId: true,
+          projectId: true,
+          expectedDeliveryDate: true,
+          vendor: { select: { id: true, name: true, phone: true } },
+          store: { select: { id: true, name: true } },
+        },
+      },
     },
   },
 } as const;
