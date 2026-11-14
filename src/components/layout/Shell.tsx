@@ -37,7 +37,6 @@ import {
   Zap,
   Search,
   UserCog,
-  NotebookPen,
   PackagePlus,
   Layers,
   Wallet,
@@ -252,7 +251,6 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.people",
       label: "People",
       items: [
-        { key: "nav.myDay", defaultLabel: "Daily Work Reports", href: "/work-reports", icon: NotebookPen },
         { key: "nav.workforce", defaultLabel: "Workers", href: "/workforce", icon: Users },
         { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
         ...(canUser(user, "attendance:write") ? [{ key: "nav.muster", defaultLabel: "Muster Roll", href: "/attendance/muster", icon: ClipboardCheck }] : []),

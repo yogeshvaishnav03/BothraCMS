@@ -26,7 +26,6 @@ import {
   Users,
   Wallet,
   GitCommitHorizontal,
-  NotebookPen,
   Building2,
   ExternalLink,
 } from "lucide-react";
@@ -1231,64 +1230,6 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
-
-          {/* ── Staff today: attendance and work reports ───────────────────── */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
-                <NotebookPen className="w-4 h-4 text-amber-500" aria-hidden />
-                {hi ? "स्टाफ़ की रिपोर्ट" : "Staff work reports"}
-              </h2>
-              <Link href={`/work-reports?tab=team&date=${date}`} className="text-xs font-semibold text-amber-600 hover:text-amber-700">
-                {hi ? "खोलें" : "Open"}
-              </Link>
-            </div>
-            {!data ? (
-              <div className="skeleton h-32" />
-            ) : (
-              <>
-                <div className="flex items-end gap-2">
-                  <span className="font-display text-3xl font-extrabold text-slate-900 tabular-nums">{data.people.submitted}</span>
-                  <span className="text-sm text-slate-500 pb-1">/ {data.people.expected} {hi ? "रिपोर्ट आईं" : "reports in"}</span>
-                </div>
-                <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-brand transition-all"
-                    style={{ width: `${data.people.expected ? Math.min(100, (data.people.submitted / data.people.expected) * 100) : 0}%` }}
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                  {[
-                    { v: data.people.present, l: hi ? "हाज़िर" : "Present" },
-                    { v: data.people.hours, l: hi ? "घंटे" : "Hours" },
-                    { v: data.people.withBlockers, l: hi ? "रुकावटें" : "Delays / Issues" },
-                  ].map((x) => (
-                    <div key={x.l} className="rounded-xl bg-slate-50 py-2">
-                      <div className="text-base font-bold text-slate-900 tabular-nums">{x.v}</div>
-                      <div className="text-[11px] text-slate-500">{x.l}</div>
-                    </div>
-                  ))}
-                </div>
-                {data.people.missing.length > 0 && (
-                  <div className="mt-4">
-                    <div className="text-xs font-semibold text-slate-700 mb-2">{hi ? "रिपोर्ट बाकी" : "Not filed yet"}</div>
-                    <ul className="space-y-2">
-                      {data.people.missing.map((m) => (
-                        <li key={m.userId} className="flex items-center justify-between gap-2 min-w-0">
-                          <span className="text-sm text-slate-800 truncate min-w-0 flex-1">{m.name}</span>
-                          <ContactActions
-                            phone={m.phone}
-                            chatUserId={m.userId}
-                            message={`Hi ${m.name.split(" ")[0]}, please file your daily work report in Bothra CMS (Daily Work).`} className="shrink-0 flex-nowrap"
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </>
             )}
           </div>
         </div>

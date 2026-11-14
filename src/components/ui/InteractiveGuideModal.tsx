@@ -30,7 +30,6 @@ import {
   ClipboardCheck,
   UserCog,
   ShieldAlert,
-  NotebookPen,
   PackagePlus,
   Layers,
   Wallet,
@@ -1146,47 +1145,6 @@ const PAGE_GUIDES: Record<string, PageGuideContent> = {
     ],
     proTipsHi: [
       "नया GFC नक्शा अपलोड करते समय पुराने को Superseded (रद्द) मार्क कर दें।",
-    ],
-  },
-
-  "/work-reports": {
-    icon: NotebookPen,
-    titleEn: "Daily Work Reports",
-    titleHi: "दैनिक कार्य रिपोर्ट (Daily Work Reports)",
-    subtitleEn: "Log what you worked on today, hours spent, and any delays or issues",
-    subtitleHi: "आज किए गए काम, समय और किसी रुकावट की जानकारी दर्ज करें",
-    whoUsesEn: "Engineers, Supervisors, Office Staff, Managers",
-    whoUsesHi: "इंजीनियर, सुपरवाइज़र, ऑफिस स्टाफ, मैनेजर",
-    summaryEn: "Every staff member can submit a short summary at the end of the workday showing tasks completed, hours worked, and any site issues that need management attention.",
-    summaryHi: "दिन के अंत में हर कर्मचारी अपने काम, घंटों और साइट की किसी भी समस्या की छोटी रिपोर्ट यहाँ भर सकता है।",
-    steps: [
-      {
-        number: 1,
-        titleEn: "Select Date & Project",
-        titleHi: "तारीख और साइट चुनें",
-        descEn: "Pick the date and project site you worked on today.",
-        descHi: "आज की तारीख और जिस साइट पर काम किया उसे चुनें।",
-      },
-      {
-        number: 2,
-        titleEn: "Write Summary & Any Issues",
-        titleHi: "काम और समस्या लिखें",
-        descEn: "Write at least 5 characters describing completed work, enter hours, and note any material shortage or delay.",
-        descHi: "आज क्या काम हुआ यह कम से कम 5 अक्षरों में लिखें, घंटे डालें और कोई रुकावट हो तो बताएं।",
-      },
-    ],
-    jargon: [
-      {
-        term: "Daily Work Report vs Site DSR",
-        meaningEn: "Daily Work Report is each staff member's personal log; Daily Site Report (in Day Book) covers overall site contractor progress.",
-        meaningHi: "Daily Work Report हर कर्मचारी का अपना लॉग है; साइट DSR पूरे प्रोजेक्ट की प्रगति बताती है।",
-      },
-    ],
-    proTipsEn: [
-      "Download Attendance + Work Reports CSV anytime under the Reports export options.",
-    ],
-    proTipsHi: [
-      "महीने के अंत में हाजिरी और काम की पूरी रिपोर्ट CSV में डाउनलोड की जा सकती है।",
     ],
   },
 

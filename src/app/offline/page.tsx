@@ -11,7 +11,7 @@ export default function OfflinePage() {
         <CloudOff className="mx-auto h-10 w-10 text-amber-500" />
         <h1 className="mt-3 font-display text-lg font-extrabold text-slate-900">You are offline</h1>
         <p className="mt-2 text-sm text-slate-600">
-          This page has not been opened on this device before, so it is not saved offline yet. Pages you have already opened &mdash; like Projects and Daily Work Reports &mdash;
+          This page has not been opened on this device before, so it is not saved offline yet. Pages you have already opened &mdash; like Projects and Tasks &mdash;
           still work, and anything you save will sync automatically when you are back online.
         </p>
         <div className="mt-4 flex justify-center gap-2">
