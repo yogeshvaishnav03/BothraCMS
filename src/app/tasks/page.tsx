@@ -761,16 +761,6 @@ export default function TasksPage() {
                       <span>History</span>
                     </button>
 
-                    {/* Discussion / Comments Button */}
-                    <button
-                      onClick={() => handleOpenComments(t)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition"
-                      title="Comments, follow-ups & assistance requests"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{commentCount}</span>
-                    </button>
-
                     {/* Photographs & Attachments */}
                     <button
                       onClick={() => {
@@ -793,15 +783,6 @@ export default function TasksPage() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                     )}
-
-                    {/* Audit History */}
-                    <button
-                      onClick={() => setAuditTarget({ id: t.id, title: t.title })}
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition"
-                      title="View Change History"
-                    >
-                      <History className="w-4 h-4" />
-                    </button>
 
                     {/* Delete Task */}
                     {canWriteTasks && (
