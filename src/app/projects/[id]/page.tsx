@@ -42,6 +42,7 @@ import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import ProjectBudget from "@/components/projects/ProjectBudget";
 import ProjectMilestones from "@/components/projects/ProjectMilestones";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { canUser } from "@/lib/permissions";
 
 export default function ProjectDetailsPage() {
@@ -50,13 +51,13 @@ export default function ProjectDetailsPage() {
 
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"PROGRESS" | "BUDGET" | "DSR" | "TASKS" | "MATERIALS" | "DOCUMENTS">("PROGRESS");
+  const [activeTab, setActiveTab] = useState<"PROGRESS" | "BUDGET" | "TASKS" | "MATERIALS" | "DOCUMENTS">("PROGRESS");
   const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab")?.toUpperCase();
-    if (tab && ["PROGRESS", "BUDGET", "DSR", "TASKS", "MATERIALS", "DOCUMENTS"].includes(tab)) setActiveTab(tab as any);
+    if (tab && ["PROGRESS", "BUDGET", "TASKS", "MATERIALS", "DOCUMENTS"].includes(tab)) setActiveTab(tab as any);
     refreshUser()
       .then((u) => setCurrentUser(u || null))
       .catch(() => {});
@@ -446,13 +447,6 @@ export default function ProjectDetailsPage() {
               <span>History</span>
             </button>
             <button
-              onClick={() => setShowReportModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
-            >
-              <ClipboardList className="w-4 h-4 text-amber-400" />
-              <span>Daily Report</span>
-            </button>
-            <button
               onClick={() => setShowTaskModal(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
             >
@@ -517,16 +511,6 @@ export default function ProjectDetailsPage() {
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Daily Reports Filed
-            </span>
-            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
-              <span title={String(project.dailyReports?.length || 0)}>{formatCompactNumber(project.dailyReports?.length || 0)}</span>
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">Supervisor progress logs</div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Active Tasks
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
@@ -586,17 +570,7 @@ export default function ProjectDetailsPage() {
               Budget vs Actual
             </button>
           )}
-          <button
-            onClick={() => setActiveTab("DSR")}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
-              activeTab === "DSR"
-                ? "border-amber-600 text-amber-700"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <ClipboardList className="w-4 h-4" />
-            Daily Site Reports ({project.dailyReports?.length || 0})
-          </button>
+
           <button
             onClick={() => setActiveTab("TASKS")}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
@@ -644,65 +618,7 @@ export default function ProjectDetailsPage() {
           <ProjectBudget projectId={project.id} canEdit={canUser(currentUser, "finance:write")} />
         )}
 
-        {/* Tab 1: Daily Site Reports (DSR History) */}
-        {activeTab === "DSR" && (
-          <div className="space-y-4">
-            {project.dailyReports?.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-                <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <div className="text-sm font-bold text-slate-700">No daily reports recorded yet</div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Site supervisors submit daily progress and blocker notes from the Projects tab.
-                </p>
-              </div>
-            ) : (
-              project.dailyReports.map((report: any) => (
-                <div key={report.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black bg-slate-900 text-slate-100 px-2.5 py-1 rounded">
-                        {report.reportDate}
-                      </span>
-                      <span className="text-xs text-slate-500 font-medium">
-                        Filed by <span className="font-semibold text-slate-800">{report.creator?.name}</span> ({report.creator?.role})
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-slate-400">
-                      {new Date(report.createdAt).toLocaleTimeString("en-IN", { timeStyle: "short" })}
-                    </span>
-                  </div>
 
-                  <div className="space-y-2 text-xs">
-                    <div>
-                      <span className="font-bold text-slate-700 uppercase tracking-wider block text-[10px] text-slate-400">
-                        Work Progress Summary
-                      </span>
-                      <p className="text-slate-800 leading-relaxed font-medium mt-0.5">{report.progress}</p>
-                    </div>
-
-                    {report.blockers && (
-                      <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-amber-900">
-                        <span className="font-bold block text-[10px] uppercase text-amber-800">
-                          Site Blockers / Impediments
-                        </span>
-                        <p className="mt-0.5">{report.blockers}</p>
-                      </div>
-                    )}
-
-                    {report.safetyNotes && (
-                      <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 text-emerald-900">
-                        <span className="font-bold block text-[10px] uppercase text-emerald-800">
-                          Safety & Compliance Observations
-                        </span>
-                        <p className="mt-0.5">{report.safetyNotes}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
 
         {/* Tab 2: Tasks */}
         {activeTab === "TASKS" && (
@@ -945,17 +861,19 @@ export default function ProjectDetailsPage() {
                       <Tag className="w-3.5 h-3.5 text-slate-400" />
                       Task Type
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "STANDARD", label: "Standard Site Task" },
+                        { value: "PERSONAL", label: "Personal Task (My Todo)" },
+                        { value: "REQUEST_OWNER", label: "Raise Request for Owner" },
+                        { value: "REQUEST_MANAGER", label: "Raise Request for Manager" },
+                        { value: "REQUEST_ARCHITECT", label: "Raise Request for Architect" },
+                      ]}
                       value={taskType}
-                      onChange={(e: any) => setTaskType(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    >
-                      <option value="STANDARD">Standard Site Task</option>
-                      <option value="PERSONAL">Personal Task (My Todo)</option>
-                      <option value="REQUEST_OWNER">Raise Request for Owner</option>
-                      <option value="REQUEST_MANAGER">Raise Request for Manager</option>
-                      <option value="REQUEST_ARCHITECT">Raise Request for Architect</option>
-                    </select>
+                      onChange={setTaskType}
+                      placeholder="Select Task Type..."
+                      searchPlaceholder="Search task type..."
+                    />
                   </div>
 
                   <div>
@@ -963,16 +881,18 @@ export default function ProjectDetailsPage() {
                       <Flag className="w-3.5 h-3.5 text-slate-400" />
                       Priority
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "LOW", label: "Low" },
+                        { value: "MEDIUM", label: "Medium" },
+                        { value: "HIGH", label: "High" },
+                        { value: "CRITICAL", label: "Critical (Urgent / Blocker)" },
+                      ]}
                       value={taskPriority}
-                      onChange={(e) => setTaskPriority(e.target.value as any)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical (Urgent / Blocker)</option>
-                    </select>
+                      onChange={(v) => setTaskPriority(v as any)}
+                      placeholder="Select Priority..."
+                      searchPlaceholder="Search priority..."
+                    />
                   </div>
                 </div>
 
@@ -982,18 +902,20 @@ export default function ProjectDetailsPage() {
                       <UserCheck className="w-3.5 h-3.5 text-slate-400" />
                       Assign To Employee
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "Unassigned / Current User" },
+                        ...(Array.isArray(employees) ? employees : []).map((emp) => ({
+                          value: emp.id,
+                          label: emp.name,
+                          badge: emp.role?.replace(/_/g, " "),
+                        })),
+                      ]}
                       value={taskAssigneeId}
-                      onChange={(e) => setTaskAssigneeId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    >
-                      <option value="">Unassigned / Current User</option>
-                      {(Array.isArray(employees) ? employees : []).map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.role?.replace(/_/g, " ")})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setTaskAssigneeId}
+                      placeholder="Select Employee..."
+                      searchPlaceholder="Search employee name or role..."
+                    />
                   </div>
 
                   <div>
@@ -1001,23 +923,25 @@ export default function ProjectDetailsPage() {
                       <Layers className="w-3.5 h-3.5 text-slate-400" />
                       Trade / Work Category
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "General Construction / Site Work" },
+                        { value: "Civil & RCC / Structural", label: "Civil & RCC / Structural" },
+                        { value: "Masonry & Brickwork", label: "Masonry & Brickwork" },
+                        { value: "Electrical & Power", label: "Electrical & Power" },
+                        { value: "Plumbing & Sanitary", label: "Plumbing & Sanitary" },
+                        { value: "Finishing, Plaster & Painting", label: "Finishing, Plaster & Painting" },
+                        { value: "Flooring & Tiling", label: "Flooring & Tiling" },
+                        { value: "Carpentry & Joinery", label: "Carpentry & Joinery" },
+                        { value: "HVAC & Mechanical", label: "HVAC & Mechanical" },
+                        { value: "Safety, Quality & Inspection", label: "Safety, Quality & Inspection" },
+                        { value: "Material & Procurement", label: "Material & Procurement" },
+                      ]}
                       value={taskTrade}
-                      onChange={(e) => setTaskTrade(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    >
-                      <option value="">General Construction / Site Work</option>
-                      <option value="Civil & RCC / Structural">Civil & RCC / Structural</option>
-                      <option value="Masonry & Brickwork">Masonry & Brickwork</option>
-                      <option value="Electrical & Power">Electrical & Power</option>
-                      <option value="Plumbing & Sanitary">Plumbing & Sanitary</option>
-                      <option value="Finishing, Plaster & Painting">Finishing, Plaster & Painting</option>
-                      <option value="Flooring & Tiling">Flooring & Tiling</option>
-                      <option value="Carpentry & Joinery">Carpentry & Joinery</option>
-                      <option value="HVAC & Mechanical">HVAC & Mechanical</option>
-                      <option value="Safety, Quality & Inspection">Safety, Quality & Inspection</option>
-                      <option value="Material & Procurement">Material & Procurement</option>
-                    </select>
+                      onChange={setTaskTrade}
+                      placeholder="Select Trade / Work Category..."
+                      searchPlaceholder="Search category..."
+                    />
                   </div>
                 </div>
 
@@ -1077,71 +1001,6 @@ export default function ProjectDetailsPage() {
                     className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-lg shadow-sm transition-colors"
                   >
                     {submitting ? "Adding..." : "Add Task"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Daily Report */}
-        {showReportModal && (
-          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <ClipboardList className="w-5 h-5 text-amber-500" />
-                  <span>Submit Daily Site Report</span>
-                </div>
-                <button
-                  onClick={() => setShowReportModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateReport} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Work Progress Summary *
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={reportProgress}
-                    onChange={(e) => setReportProgress(e.target.value)}
-                    placeholder="Describe progress achieved on site today..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Blockers / Material Constraints
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={reportBlockers}
-                    onChange={(e) => setReportBlockers(e.target.value)}
-                    placeholder="Any site issues, material delays, or plant downtime..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowReportModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-sm"
-                  >
-                    Record Report
                   </button>
                 </div>
               </form>

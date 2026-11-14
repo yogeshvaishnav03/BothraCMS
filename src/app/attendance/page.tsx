@@ -632,7 +632,30 @@ export default function AttendancePage() {
     }
   };
 
-  const LABOR_TRADES = useMemo(() => new Set(["MASON", "CARPENTER", "ELECTRICIAN", "PLUMBER", "HELPER"]), []);
+  const LABOR_TRADES = useMemo(
+    () =>
+      new Set([
+        "MASON",
+        "CARPENTER",
+        "ELECTRICIAN",
+        "PLUMBER",
+        "HELPER",
+        "FOREMAN",
+        "PAINTER",
+        "WELDER",
+        "FITTER",
+        "BARBENDER",
+        "BAR_BENDER",
+        "LABOUR",
+        "LABOR",
+        "WORKER",
+        "OPERATOR",
+        "DRIVER",
+        "PEON",
+        "GUARD",
+      ]),
+    []
+  );
 
   // Unique staff roles present in sessions for filter dropdown
   const availableRoles = useMemo(() => {
@@ -875,20 +898,20 @@ export default function AttendancePage() {
                 {isSuperAdmin ? <ShieldCheck className="w-5 h-5 text-amber-400" /> : <Clock className="w-5 h-5" />}
               </div>
               <div>
-                <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex flex-wrap items-center gap-2">
-                  <span className="whitespace-nowrap">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight">
                     {isSuperAdmin
                       ? "Staff Attendance & Check-Ins"
                       : activeTab === "all"
                       ? "All Staff Attendance"
                       : "My Attendance"}
-                  </span>
+                  </h1>
                   {isSuperAdmin && (
-                    <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black uppercase whitespace-nowrap shrink-0 shadow-2xs">
+                    <span className="inline-flex items-center text-[10px] font-mono px-2.5 py-1 rounded-full bg-amber-400 text-slate-950 font-black uppercase tracking-wider whitespace-nowrap shrink-0 shadow-2xs leading-none">
                       All Sites
                     </span>
                   )}
-                </h1>
+                </div>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {isSuperAdmin
                     ? "View and track attendance across all employees, site supervisors, and managers."

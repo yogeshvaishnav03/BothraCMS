@@ -529,18 +529,7 @@ export default function ProjectsPage() {
                 <span>Add Site</span>
               </button>
             )}
-            {canSubmitDailyReport && (
-              <button
-                onClick={() => {
-                  if (projects.length > 0) setReportProjectId(projects[0].id);
-                  setShowDailyReportModal(true);
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all"
-              >
-                <ClipboardList className="w-4 h-4 text-amber-400" />
-                <span>Submit Daily Report</span>
-              </button>
-            )}
+
             {canWriteProjects && (
               <button
                 onClick={() => {
@@ -1148,18 +1137,18 @@ export default function ProjectsPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Project Location / Site *
                   </label>
-                  <select
-                    value={selectedSiteId}
-                    onChange={(e) => setSelectedSiteId(e.target.value)}
+                  <SearchableSelect
                     required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {sites.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code})
-                      </option>
-                    ))}
-                  </select>
+                    options={sites.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                      badge: s.code || undefined,
+                    }))}
+                    value={selectedSiteId}
+                    onChange={setSelectedSiteId}
+                    placeholder="Select project location / site..."
+                    searchPlaceholder="Search site name or code..."
+                  />
                 </div>
 
                 <div>
@@ -1413,118 +1402,7 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {/* Modal: Submit Daily Site Report */}
-        {showDailyReportModal && canSubmitDailyReport && (
-          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
-              <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
-                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                  <ClipboardList className="w-5 h-5 text-amber-500" />
-                  <span>Submit Daily Site Operations Report</span>
-                </div>
-                <button
-                  onClick={() => setShowDailyReportModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
 
-              <form id="daily-report-modal-form" onSubmit={handleCreateReport} className="flex-1 overflow-y-auto p-5 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Target Project *
-                    </label>
-                    <SearchableSelect
-                      required
-                      options={projects.map((p) => ({
-                        value: p.id,
-                        label: p.name,
-                        badge: p.code || undefined,
-                      }))}
-                      value={reportProjectId}
-                      onChange={setReportProjectId}
-                      placeholder="Select Target Project..."
-                      searchPlaceholder="Search project name or code..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Report Date *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={reportDate}
-                      onChange={(e) => setReportDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Daily Work Progress Summary *
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="e.g. Completed 4th floor column casting; shuttering work underway on eastern wing with 14 masons and 8 helpers."
-                    value={reportProgress}
-                    onChange={(e) => setReportProgress(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Delays / Issues (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Delayed delivery of 32mm steel rebar due to transporter strike"
-                    value={reportBlockers}
-                    onChange={(e) => setReportBlockers(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Safety Notes & Environmental Checks
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Toolbox meeting conducted at 8:30 AM; 100% PPE compliance; zero incidents"
-                    value={reportSafetyNotes}
-                    onChange={(e) => setReportSafetyNotes(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
-                </div>
-
-              </form>
-
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowDailyReportModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  form="daily-report-modal-form"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
-                >
-                  {submitting ? "Submitting..." : "Submit Daily Report"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
         {pendingDeleteProject && (
           <div
             className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"

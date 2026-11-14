@@ -1670,18 +1670,20 @@ export default function MaterialsPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Target Task
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "None / Not linked to task" },
+                        ...tasks.map((t) => ({
+                          value: t.id,
+                          label: t.title,
+                          badge: t.status || undefined,
+                        })),
+                      ]}
                       value={taskId}
-                      onChange={(e) => setTaskId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                    >
-                      <option value="">Select Task (Optional)</option>
-                      {tasks.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setTaskId}
+                      placeholder="Select Task (Optional)"
+                      searchPlaceholder="Search task title..."
+                    />
                   </div>
                 </div>
 

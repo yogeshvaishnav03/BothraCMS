@@ -136,7 +136,26 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const LABOR_TRADES = new Set(["MASON", "CARPENTER", "ELECTRICIAN", "PLUMBER", "HELPER"]);
+    const LABOR_TRADES = new Set([
+      "MASON",
+      "CARPENTER",
+      "ELECTRICIAN",
+      "PLUMBER",
+      "HELPER",
+      "FOREMAN",
+      "PAINTER",
+      "WELDER",
+      "FITTER",
+      "BARBENDER",
+      "BAR_BENDER",
+      "LABOUR",
+      "LABOR",
+      "WORKER",
+      "OPERATOR",
+      "DRIVER",
+      "PEON",
+      "GUARD",
+    ]);
 
     const userByEmpCode = new Map(
       orgUsers.map((u) => [`USR-${u.id.slice(-6).toUpperCase()}`, u])

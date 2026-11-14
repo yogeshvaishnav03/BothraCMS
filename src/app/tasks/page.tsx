@@ -897,35 +897,39 @@ export default function TasksPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Task Type
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "STANDARD", label: "Standard Task" },
+                        { value: "PERSONAL", label: "Personal Task (My Todo)" },
+                        { value: "REQUEST_OWNER", label: "Raise Request for Owner" },
+                        { value: "REQUEST_MANAGER", label: "Raise Request for Manager" },
+                        { value: "REQUEST_ARCHITECT", label: "Raise Request for Architect" },
+                      ]}
                       value={taskType}
-                      onChange={(e: any) => setTaskType(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      <option value="STANDARD">Standard Task</option>
-                      <option value="PERSONAL">Personal Task (My Todo)</option>
-                      <option value="REQUEST_OWNER">Raise Request for Owner</option>
-                      <option value="REQUEST_MANAGER">Raise Request for Manager</option>
-                      <option value="REQUEST_ARCHITECT">Raise Request for Architect</option>
-                    </select>
+                      onChange={setTaskType}
+                      placeholder="Select Task Type..."
+                      searchPlaceholder="Search task type..."
+                    />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Assign To Employee
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "Unassigned / Current User" },
+                        ...(Array.isArray(employees) ? employees : []).map((emp) => ({
+                          value: emp.id,
+                          label: emp.name,
+                          badge: emp.role,
+                        })),
+                      ]}
                       value={assigneeUserId}
-                      onChange={(e) => setAssigneeUserId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      <option value="">Unassigned / Current User</option>
-                      {(Array.isArray(employees) ? employees : []).map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.role})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setAssigneeUserId}
+                      placeholder="Select Employee..."
+                      searchPlaceholder="Search employee name or role..."
+                    />
                   </div>
                 </div>
 
@@ -934,16 +938,18 @@ export default function TasksPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Priority
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "LOW", label: "Low" },
+                        { value: "MEDIUM", label: "Medium" },
+                        { value: "HIGH", label: "High" },
+                        { value: "CRITICAL", label: "Critical" },
+                      ]}
                       value={priority}
-                      onChange={(e: any) => setPriority(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical</option>
-                    </select>
+                      onChange={(v) => setPriority(v as any)}
+                      placeholder="Select Priority..."
+                      searchPlaceholder="Search priority..."
+                    />
                   </div>
 
                   <div>

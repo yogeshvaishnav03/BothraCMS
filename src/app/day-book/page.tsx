@@ -2942,14 +2942,14 @@ export default function DayBookPage() {
               </div>
 
               {/* Mode switch tabs */}
-              <div className="p-2 bg-slate-100 flex gap-1 border-b border-slate-200 overflow-x-auto shrink-0" role="tablist">
+              <div className="p-2.5 bg-slate-100 flex gap-1.5 border-b border-slate-200 overflow-x-auto shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist">
                 {canWriteFinance && (
                   <button
                     type="button"
                     role="tab"
                     aria-selected={modalMode === "PAYMENT"}
                     onClick={() => setModalMode("PAYMENT")}
-                    className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition whitespace-nowrap shrink-0 ${
                       modalMode === "PAYMENT"
                         ? "bg-amber-500 text-slate-950 shadow-xs"
                         : "bg-white text-slate-700 hover:bg-slate-50"
@@ -2964,7 +2964,7 @@ export default function DayBookPage() {
                     role="tab"
                     aria-selected={modalMode === "BILL"}
                     onClick={() => setModalMode("BILL")}
-                    className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition whitespace-nowrap shrink-0 ${
                       modalMode === "BILL"
                         ? "bg-amber-500 text-slate-950 shadow-xs"
                         : "bg-white text-slate-700 hover:bg-slate-50"
@@ -2982,7 +2982,7 @@ export default function DayBookPage() {
                       if (selectedSiteId) setWfSiteId(selectedSiteId);
                       setModalMode("WORKFORCE");
                     }}
-                    className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition whitespace-nowrap shrink-0 ${
                       modalMode === "WORKFORCE"
                         ? "bg-amber-500 text-slate-950 shadow-xs"
                         : "bg-white text-slate-700 hover:bg-slate-50"
@@ -2997,7 +2997,7 @@ export default function DayBookPage() {
                     role="tab"
                     aria-selected={modalMode === "DSR"}
                     onClick={() => setModalMode("DSR")}
-                    className={`flex-1 py-1.5 px-2 text-xs font-bold rounded-lg transition whitespace-nowrap ${
+                    className={`flex-1 py-2 px-3 text-xs font-bold rounded-lg transition whitespace-nowrap shrink-0 ${
                       modalMode === "DSR"
                         ? "bg-amber-500 text-slate-950 shadow-xs"
                         : "bg-white text-slate-700 hover:bg-slate-50"
@@ -3049,22 +3049,18 @@ export default function DayBookPage() {
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Recipient / Party *
                         </label>
-                        <select
-                          value={paymentPartyId}
-                          onChange={(e) => setPaymentPartyId(e.target.value)}
+                        <SearchableSelect
                           required
-                          className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
-                        >
-                          {parties.length === 0 ? (
-                            <option value="">No vendors yet (add one under Vendors & Contractors)</option>
-                          ) : (
-                            parties.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} ({p.partyType || p.type || "Vendor"})
-                              </option>
-                            ))
-                          )}
-                        </select>
+                          options={parties.map((p) => ({
+                            value: p.id,
+                            label: p.name,
+                            badge: p.partyType || p.type || "Vendor",
+                          }))}
+                          value={paymentPartyId}
+                          onChange={setPaymentPartyId}
+                          placeholder={parties.length === 0 ? "No vendors yet" : "Select recipient or vendor..."}
+                          searchPlaceholder="Search recipient or vendor..."
+                        />
                       </div>
 
                       <div>
@@ -3099,10 +3095,17 @@ export default function DayBookPage() {
                             {pendingPartyBills.length} unpaid bill(s) available
                           </span>
                         </div>
-                        <select
+                        <SearchableSelect
+                          options={[
+                            { value: "", label: "Advance / General Expense (Not linked to a bill)" },
+                            ...pendingPartyBills.map((b) => ({
+                              value: b.id,
+                              label: `Bill #${formatShortBillNumber(b.billNumber)}`,
+                              badge: `Pending: ${formatCurrency(b.outstandingAmount ?? b.totalAmount)}`,
+                            })),
+                          ]}
                           value={selectedPaymentBillId}
-                          onChange={(e) => {
-                            const bId = e.target.value;
+                          onChange={(bId) => {
                             setSelectedPaymentBillId(bId);
                             if (bId) {
                               const b = pendingPartyBills.find((pb) => pb.id === bId);
@@ -3114,15 +3117,9 @@ export default function DayBookPage() {
                               }
                             }
                           }}
-                          className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
-                        >
-                          <option value="">Advance / General Expense (Not linked to a bill)</option>
-                          {pendingPartyBills.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              Bill #{formatShortBillNumber(b.billNumber)} — Pending: {formatCurrency(b.outstandingAmount ?? b.totalAmount)}
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Select bill to allocate or keep as advance..."
+                          searchPlaceholder="Search unpaid bills..."
+                        />
                         {selectedPaymentBillId && (
                           <p className="text-[11px] text-emerald-600 mt-1 font-medium">
                             ✓ Payment will be allocated to Bill #{pendingPartyBills.find((b) => b.id === selectedPaymentBillId)?.billNumber} and deduct its balance.
@@ -3302,22 +3299,18 @@ export default function DayBookPage() {
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Vendor / Contractor *
                         </label>
-                        <select
-                          value={billPartyId}
-                          onChange={(e) => setBillPartyId(e.target.value)}
+                        <SearchableSelect
                           required
-                          className="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 focus:outline-none focus:border-amber-500"
-                        >
-                          {parties.length === 0 ? (
-                            <option value="">No vendors yet (add one under Vendors & Contractors)</option>
-                          ) : (
-                            parties.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} ({p.partyType || p.type || "Vendor"})
-                              </option>
-                            ))
-                          )}
-                        </select>
+                          options={parties.map((p) => ({
+                            value: p.id,
+                            label: p.name,
+                            badge: p.partyType || p.type || "Vendor",
+                          }))}
+                          value={billPartyId}
+                          onChange={setBillPartyId}
+                          placeholder={parties.length === 0 ? "No vendors yet" : "Select vendor or contractor..."}
+                          searchPlaceholder="Search vendor or contractor..."
+                        />
                       </div>
 
                       <div>

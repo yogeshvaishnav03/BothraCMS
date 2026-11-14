@@ -386,16 +386,16 @@ export default function PlaceOrderModal({
                 </div>
 
                 {/* Vendor Notification Dispatch Center */}
-                <div className="bg-slate-900 text-slate-100 rounded-xl p-4 border border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div className="bg-slate-50 text-slate-900 rounded-xl p-4 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                     <div className="flex items-center gap-2">
-                      <Send className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                      <Send className="w-4 h-4 text-amber-600" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
                         {t("order.vendorNotification", "Vendor Notification Dispatch")}
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-400">
-                      Vendor: <strong className="text-white">{orderResult.notification.vendorName}</strong>
+                    <span className="text-[11px] text-slate-500">
+                      Vendor: <strong className="text-slate-900">{orderResult.notification.vendorName}</strong>
                     </span>
                   </div>
 
@@ -405,15 +405,15 @@ export default function PlaceOrderModal({
                         href={orderResult.notification.whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-900/30 transition transform active:scale-98"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition transform active:scale-98"
                       >
                         <MessageSquare className="w-4 h-4" />
                         <span>{t("order.sendWhatsApp", "Send WhatsApp to Vendor")}</span>
-                        <ExternalLink className="w-3 h-3 opacity-70" />
+                        <ExternalLink className="w-3 h-3 opacity-80" />
                       </a>
                     ) : (
-                      <div className="p-3 bg-slate-800/80 rounded-xl text-xs text-slate-400 flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-slate-500" />
+                      <div className="p-2.5 bg-slate-100 rounded-xl text-xs text-slate-500 flex items-center gap-2 border border-slate-200">
+                        <Phone className="w-4 h-4 text-slate-400" />
                         <span>No vendor phone registered</span>
                       </div>
                     )}
@@ -421,32 +421,32 @@ export default function PlaceOrderModal({
                     {orderResult.notification.mailtoUrl ? (
                       <a
                         href={orderResult.notification.mailtoUrl}
-                        className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-900/30 transition"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-sm transition"
                       >
                         <Mail className="w-4 h-4" />
                         <span>{t("order.sendEmail", "Send Email to Vendor")}</span>
                       </a>
                     ) : (
-                      <div className="p-3 bg-slate-800/80 rounded-xl text-xs text-slate-400 flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-slate-500" />
+                      <div className="p-2.5 bg-slate-100 rounded-xl text-xs text-slate-500 flex items-center gap-2 border border-slate-200">
+                        <Mail className="w-4 h-4 text-slate-400" />
                         <span>No vendor email registered</span>
                       </div>
                     )}
                   </div>
 
                   <div className="mt-3">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
-                      <span>Formatted Purchase Order Summary:</span>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                      <span className="font-semibold">Formatted Purchase Order Summary:</span>
                       <button
                         type="button"
                         onClick={handleCopyMessage}
-                        className="flex items-center gap-1 text-amber-400 hover:underline font-semibold"
+                        className="flex items-center gap-1 text-amber-600 hover:text-amber-700 font-bold"
                       >
-                        {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                         <span>{copied ? "Copied!" : t("order.copyText", "Copy Text")}</span>
                       </button>
                     </div>
-                    <pre className="p-3 bg-slate-950 rounded-lg text-[11px] font-mono text-slate-300 max-h-44 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-800">
+                    <pre className="p-3 bg-white rounded-lg text-[11px] font-mono text-slate-700 max-h-44 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-200 shadow-2xs">
                       {orderResult.notification.message}
                     </pre>
                   </div>

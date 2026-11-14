@@ -960,7 +960,7 @@ export default function SuperAdminDashboardPage() {
                   <h2 className="text-base font-black text-slate-900">
                     Payments Waiting for Approval
                   </h2>
-                  <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-black whitespace-nowrap shrink-0 shadow-2xs">
+                  <span className="inline-flex items-center text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-bold whitespace-nowrap shrink-0 shadow-2xs leading-normal">
                     {pendingPayments.length} Pending
                   </span>
                 </div>
