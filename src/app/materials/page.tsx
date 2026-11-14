@@ -1435,22 +1435,19 @@ export default function MaterialsPage() {
                       <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading stores...</span>
                     )}
                   </div>
-                  <select
+                  <SearchableSelect
+                    options={stores.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                      subLabel: s.site?.name || "General Yard",
+                      badge: s.code || undefined,
+                    }))}
                     value={selectedStoreId}
-                    onChange={(e) => setSelectedStoreId(e.target.value)}
+                    onChange={(val) => setSelectedStoreId(val)}
+                    placeholder={stores.length === 0 ? "Loading stores..." : "Select store or yard..."}
+                    searchPlaceholder="Search store or yard by name..."
                     required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {stores.length === 0 ? (
-                      <option value="">Loading stores...</option>
-                    ) : (
-                      stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.site?.name || "General Yard"})
-                        </option>
-                      ))
-                    )}
-                  </select>
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1618,22 +1615,19 @@ export default function MaterialsPage() {
                       <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading stores...</span>
                     )}
                   </div>
-                  <select
+                  <SearchableSelect
+                    options={stores.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                      subLabel: s.site?.name || "General Yard",
+                      badge: s.code || undefined,
+                    }))}
                     value={selectedStoreId}
-                    onChange={(e) => setSelectedStoreId(e.target.value)}
+                    onChange={(val) => setSelectedStoreId(val)}
+                    placeholder={stores.length === 0 ? "Loading stores..." : "Select store or yard..."}
+                    searchPlaceholder="Search store or yard by name..."
                     required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                  >
-                    {stores.length === 0 ? (
-                      <option value="">Loading stores...</option>
-                    ) : (
-                      stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.site?.name || "General Yard"})
-                        </option>
-                      ))
-                    )}
-                  </select>
+                  />
                 </div>
 
                 <div>
@@ -1755,22 +1749,19 @@ export default function MaterialsPage() {
                         <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading...</span>
                       )}
                     </div>
-                    <select
+                    <SearchableSelect
+                      options={stores.map((s) => ({
+                        value: s.id,
+                        label: s.name,
+                        subLabel: s.site?.name || "General Yard",
+                        badge: s.code || undefined,
+                      }))}
                       value={transferSourceStoreId}
-                      onChange={(e) => setTransferSourceStoreId(e.target.value)}
+                      onChange={(val) => setTransferSourceStoreId(val)}
+                      placeholder={stores.length === 0 ? "Loading..." : "Select source store..."}
+                      searchPlaceholder="Search source store..."
                       required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      {stores.length === 0 ? (
-                        <option value="">Loading stores...</option>
-                      ) : (
-                        stores.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({s.site?.name || "General Yard"})
-                          </option>
-                        ))
-                      )}
-                    </select>
+                    />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -1781,22 +1772,19 @@ export default function MaterialsPage() {
                         <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading...</span>
                       )}
                     </div>
-                    <select
+                    <SearchableSelect
+                      options={stores.map((s) => ({
+                        value: s.id,
+                        label: s.name,
+                        subLabel: s.site?.name || "General Yard",
+                        badge: s.code || undefined,
+                      }))}
                       value={transferTargetStoreId}
-                      onChange={(e) => setTransferTargetStoreId(e.target.value)}
+                      onChange={(val) => setTransferTargetStoreId(val)}
+                      placeholder={stores.length === 0 ? "Loading..." : "Select target store..."}
+                      searchPlaceholder="Search target store..."
                       required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      {stores.length === 0 ? (
-                        <option value="">Loading stores...</option>
-                      ) : (
-                        stores.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({s.site?.name || "General Yard"})
-                          </option>
-                        ))
-                      )}
-                    </select>
+                    />
                   </div>
                 </div>
 
