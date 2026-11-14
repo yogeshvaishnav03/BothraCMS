@@ -64,10 +64,7 @@ const KIND_STYLE: Record<Entry["kind"], { dot: string; icon: React.ElementType }
 
 const FILTERS: { id: string; label: string; kinds: Entry["kind"][] }[] = [
   { id: "all", label: "All", kinds: [] },
-  { id: "status", label: "Status", kinds: ["STATUS", "CREATED"] },
   { id: "photos", label: "Photos", kinds: [] },
-  { id: "notes", label: "Notes", kinds: ["UPDATE", "COMMENT"] },
-  { id: "edits", label: "Edits", kinds: ["EDIT"] },
 ];
 
 function relativeTime(iso: string): string {
