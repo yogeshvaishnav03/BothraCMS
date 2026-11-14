@@ -956,12 +956,14 @@ export default function SuperAdminDashboardPage() {
                 <Landmark className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <span>Payments Waiting for Approval</span>
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-600 text-white font-black">
-                    {pendingPayments.length} Waiting for Approval
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-black text-slate-900">
+                    Payments Waiting for Approval
+                  </h2>
+                  <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-black whitespace-nowrap shrink-0 shadow-2xs">
+                    {pendingPayments.length} Pending
                   </span>
-                </h2>
+                </div>
                 <p className="text-xs text-slate-600 mt-0.5">
                   Approve payments to Vendors, Contractors, and Employees. Check the paying bank account and approve.
                 </p>
@@ -1037,15 +1039,17 @@ export default function SuperAdminDashboardPage() {
                           <div className="font-bold text-slate-900 flex items-center gap-1.5">
                             <span>{payee}</span>
                             <span
-                              className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                              className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border whitespace-nowrap ${
                                 rType === "EMPLOYEE"
                                   ? "bg-amber-50 text-amber-800 border-amber-300"
                                   : rType === "CONTRACTOR"
                                   ? "bg-purple-50 text-purple-800 border-purple-300"
+                                  : rType === "OUT_OF_POCKET"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
                                   : "bg-blue-50 text-blue-800 border-blue-300"
                               }`}
                             >
-                              {rType}
+                              {rType === "OUT_OF_POCKET" ? "Cash Expense" : rType}
                             </span>
                           </div>
                           {p.party && (

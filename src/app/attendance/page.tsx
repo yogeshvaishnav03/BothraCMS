@@ -875,8 +875,8 @@ export default function AttendancePage() {
                 {isSuperAdmin ? <ShieldCheck className="w-5 h-5 text-amber-400" /> : <Clock className="w-5 h-5" />}
               </div>
               <div>
-                <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>
+                <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex flex-wrap items-center gap-2">
+                  <span className="whitespace-nowrap">
                     {isSuperAdmin
                       ? "Staff Attendance & Check-Ins"
                       : activeTab === "all"
@@ -884,7 +884,7 @@ export default function AttendancePage() {
                       : "My Attendance"}
                   </span>
                   {isSuperAdmin && (
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black uppercase">
+                    <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black uppercase whitespace-nowrap shrink-0 shadow-2xs">
                       All Sites
                     </span>
                   )}
@@ -900,26 +900,26 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             {isPrivileged && (
               <>
                 <button
                   type="button"
                   onClick={handleOpenAlterModal}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs transition shadow-sm cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs transition shadow-sm cursor-pointer whitespace-nowrap"
                   title="Add or update attendance for another staff member"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  <span>Add / Edit Staff Attendance</span>
+                  <span>Add / Edit Staff</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleOpenShiftSettings}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer whitespace-nowrap"
                   title="Alter Shift Timings and Automatic Checkout Reminders"
                 >
                   <Sliders className="w-3.5 h-3.5 text-slate-600" />
-                  <span>Shift Timings & Reminders</span>
+                  <span>Shift Timings</span>
                 </button>
               </>
             )}
@@ -927,27 +927,27 @@ export default function AttendancePage() {
             {(["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR", "HR_VIEWER"].includes(currentUser?.role) || canUser(currentUser, "attendance:write")) && (
               <Link
                 href="/attendance/muster"
-                className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-slate-800"
+                className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-slate-800 whitespace-nowrap"
               >
                 <Users className="h-3.5 w-3.5" /> Muster Roll
               </Link>
             )}
             <button
-              onClick={() => loadData()}
-              disabled={loading}
-              className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition shadow-2xs"
-              title="Refresh attendance records"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-amber-500" : ""}`} />
-            </button>
-            <button
               onClick={handleExportCsv}
               disabled={filteredSessions.length === 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition shadow-2xs disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition shadow-2xs disabled:opacity-50 whitespace-nowrap"
               title="Export Attendance Statement (CSV)"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Export Statement</span>
+              <span>Export CSV</span>
+            </button>
+            <button
+              onClick={() => loadData()}
+              disabled={loading}
+              className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition shadow-2xs shrink-0"
+              title="Refresh attendance records"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-amber-500" : ""}`} />
             </button>
           </div>
         </div>

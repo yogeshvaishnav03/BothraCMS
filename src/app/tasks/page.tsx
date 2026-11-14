@@ -33,6 +33,7 @@ import {
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import TaskTimeline from "@/components/tasks/TaskTimeline";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { canUser } from "@/lib/permissions";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -854,24 +855,24 @@ export default function TasksPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Target Project
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      ...availableProjects.map((p: any) => ({
+                        value: p.id,
+                        label: p.name,
+                        badge: p.code || undefined,
+                        subLabel: p.site?.name || p.siteName || undefined,
+                      })),
+                      {
+                        value: "OTHER",
+                        label: "Other / General Operations",
+                        subLabel: availableProjects.length === 0 ? "Default Site" : "Not site-specific",
+                      },
+                    ]}
                     value={projectId || (availableProjects.length > 0 ? availableProjects[0].id : "OTHER")}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                  >
-                    {availableProjects.length === 0 ? (
-                      <option value="OTHER">Other / General Operations (Default Site)</option>
-                    ) : (
-                      <>
-                        {availableProjects.map((p: any) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.code})
-                          </option>
-                        ))}
-                        <option value="OTHER">Other / General Operations (Not site-specific)</option>
-                      </>
-                    )}
-                  </select>
+                    onChange={(val) => setProjectId(val)}
+                    searchPlaceholder="Search project by name or code..."
+                  />
                   {availableProjects.length === 0 ? (
                     <p className="mt-1 text-[11px] text-slate-500">
                       No project-specific site assigned. Task will be logged under General Site Operations.
