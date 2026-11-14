@@ -113,6 +113,16 @@ function getRoleBadge(role?: string) {
         label: "Foreman",
         className: "bg-stone-100 text-stone-800 border-stone-300 font-bold",
       };
+    case "HR_VIEWER":
+      return {
+        label: "HR Viewer",
+        className: "bg-teal-100 text-teal-900 border-teal-300 font-bold",
+      };
+    case "AUDITOR":
+      return {
+        label: "Auditor",
+        className: "bg-rose-100 text-rose-900 border-rose-300 font-bold",
+      };
     default:
       return {
         label: role ? role.replace(/_/g, " ") : "Staff",
@@ -622,18 +632,27 @@ export default function AttendancePage() {
     }
   };
 
-  // Unique roles present in sessions for filter dropdown
+  const LABOR_TRADES = useMemo(() => new Set(["MASON", "CARPENTER", "ELECTRICIAN", "PLUMBER", "HELPER"]), []);
+
+  // Unique staff roles present in sessions for filter dropdown
   const availableRoles = useMemo(() => {
     const roleSet = new Set<string>();
     sessions.forEach((s) => {
-      if (s.employeeRole) roleSet.add(s.employeeRole);
+      const roleUpper = (s.employeeRole || "").toUpperCase();
+      if (s.employeeRole && !LABOR_TRADES.has(roleUpper)) {
+        roleSet.add(s.employeeRole);
+      }
     });
     return Array.from(roleSet);
-  }, [sessions]);
+  }, [sessions, LABOR_TRADES]);
 
-  // Filtered sessions
+  // Filtered sessions (strictly Staff Attendance)
   const filteredSessions = useMemo(() => {
     return sessions.filter((s) => {
+      // Exclude site labor trades from staff attendance
+      const roleUpper = (s.employeeRole || "").toUpperCase();
+      if (LABOR_TRADES.has(roleUpper)) return false;
+
       // Month tab filter
       if (selectedMonthTab !== "ALL") {
         if (!s.workDate.startsWith(selectedMonthTab)) return false;
@@ -1421,6 +1440,17 @@ export default function AttendancePage() {
                 {activeTab === "all" && isPrivileged
                   ? "Real-time records of all employees, supervisors, and administrators with site and GPS verification."
                   : "Complete shift records with check-in, check-out, working hours, and verified GPS coordinates."}
+                {activeTab === "all" && isPrivileged && (
+                  <span className="block mt-1 text-[11px] text-slate-500">
+                    Looking for site labor / trade worker attendance?{" "}
+                    <Link
+                      href="/attendance/muster"
+                      className="font-bold text-amber-600 hover:text-amber-700 underline"
+                    >
+                      Open Site Muster Roll →
+                    </Link>
+                  </span>
+                )}
               </p>
             </div>
 

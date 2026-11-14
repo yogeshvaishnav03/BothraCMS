@@ -136,12 +136,62 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    const LABOR_TRADES = new Set(["MASON", "CARPENTER", "ELECTRICIAN", "PLUMBER", "HELPER"]);
+
     const userByEmpCode = new Map(
       orgUsers.map((u) => [`USR-${u.id.slice(-6).toUpperCase()}`, u])
     );
+    const userByName = new Map(
+      orgUsers.map((u) => [u.name.toLowerCase().trim(), u])
+    );
+    const userById = new Map(
+      orgUsers.map((u) => [u.id, u])
+    );
+
+    // Filter sessions to Staff Attendance only (Site labor / muster roll entries are tracked in /attendance/muster)
+    const staffSessions = sessions.filter((s) => {
+      // Exclude site muster entries (created on Muster Roll page for site labor)
+      if (s.notes === "Site muster" || s.notes?.includes("Site muster")) {
+        return false;
+      }
+
+      const empCode = (s.workforceMember?.employeeCode || "").trim().toUpperCase();
+      const workerType = (s.workforceMember?.workerType || "").trim().toUpperCase();
+
+      // If linked to an organization User via USR- code, it is definitively staff
+      if (empCode.startsWith("USR-") || userByEmpCode.has(empCode)) {
+        return true;
+      }
+
+      // If member name matches a system User, it is staff
+      if (s.workforceMember?.name && userByName.has(s.workforceMember.name.toLowerCase().trim())) {
+        return true;
+      }
+
+      // If creator is a system user and worker is not an explicit labor trade
+      if (s.createdBy && userById.has(s.createdBy) && !LABOR_TRADES.has(workerType)) {
+        // Exclude explicit worker codes (EMP- or WRK-) when not mapped to an org user
+        if (empCode.startsWith("EMP-") || empCode.startsWith("WRK-")) {
+          return false;
+        }
+        return true;
+      }
+
+      // Exclude all labor trades (Helper, Mason, Electrician, Carpenter, Plumber)
+      if (LABOR_TRADES.has(workerType)) {
+        return false;
+      }
+
+      // Exclude any worker code not associated with a user
+      if (empCode.startsWith("EMP-") || empCode.startsWith("WRK-")) {
+        return false;
+      }
+
+      return true;
+    });
 
     // Enrich sessions with formatted hours, duration, and staff details
-    const enrichedSessions = sessions.map((s) => {
+    const enrichedSessions = staffSessions.map((s) => {
       let durationMinutes = 0;
       if (s.checkInAt && s.checkOutAt) {
         durationMinutes = Math.max(
@@ -164,13 +214,17 @@ export async function GET(req: NextRequest) {
           ? "0m"
           : "In Progress";
 
-      const linkedUser = s.workforceMember?.employeeCode
-        ? userByEmpCode.get(s.workforceMember.employeeCode)
-        : undefined;
+      const linkedUser =
+        (s.workforceMember?.employeeCode ? userByEmpCode.get(s.workforceMember.employeeCode) : undefined) ||
+        (s.workforceMember?.name ? userByName.get(s.workforceMember.name.toLowerCase().trim()) : undefined) ||
+        (s.createdBy ? userById.get(s.createdBy) : undefined);
       const employeeName =
         linkedUser?.name || s.workforceMember?.name || s.creator?.name || "Staff Member";
       const employeeRole =
-        linkedUser?.role || s.workforceMember?.workerType || s.creator?.role || "STAFF";
+        linkedUser?.role ||
+        (s.workforceMember?.workerType && !LABOR_TRADES.has(s.workforceMember.workerType.toUpperCase()) ? s.workforceMember.workerType : null) ||
+        s.creator?.role ||
+        "STAFF";
       const employeeCode =
         s.workforceMember?.employeeCode || (s.creator ? `USR-${s.creator.id.slice(-6).toUpperCase()}` : "N/A");
 
