@@ -132,7 +132,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           let resolvedSiteId = siteIdToUse;
           if (!resolvedSiteId) {
             const firstSite = await prisma.site.findFirst({
-              where: { organizationId: user.organizationId, isArchived: false },
+              where: { organizationId: user.organizationId, status: "ACTIVE" },
               select: { id: true },
             });
             resolvedSiteId = firstSite?.id;
@@ -144,6 +144,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 organizationId: user.organizationId,
                 name: "Main Construction Site",
                 code: "MAIN",
+                address: "Site Yard",
                 status: "ACTIVE",
               },
             });
