@@ -906,7 +906,7 @@ export default function TasksPage() {
                         { value: "REQUEST_ARCHITECT", label: "Raise Request for Architect" },
                       ]}
                       value={taskType}
-                      onChange={setTaskType}
+                      onChange={(v) => setTaskType(v as any)}
                       placeholder="Select Task Type..."
                       searchPlaceholder="Search task type..."
                     />
