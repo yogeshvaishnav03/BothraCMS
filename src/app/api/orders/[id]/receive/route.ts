@@ -128,13 +128,35 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         if (anyStore) {
           targetStoreId = anyStore.id;
         } else {
+          // Store requires a non-null siteId relation. Resolve or create a site:
+          let resolvedSiteId = siteIdToUse;
+          if (!resolvedSiteId) {
+            const firstSite = await prisma.site.findFirst({
+              where: { organizationId: user.organizationId, isArchived: false },
+              select: { id: true },
+            });
+            resolvedSiteId = firstSite?.id;
+          }
+
+          if (!resolvedSiteId) {
+            const defaultSite = await prisma.site.create({
+              data: {
+                organizationId: user.organizationId,
+                name: "Main Construction Site",
+                code: "MAIN",
+                status: "ACTIVE",
+              },
+            });
+            resolvedSiteId = defaultSite.id;
+          }
+
           // Auto-create a default main yard store if none exists
           const newStore = await prisma.store.create({
             data: {
               organizationId: user.organizationId,
               name: "Main Site Yard",
-              code: "MAIN-YARD",
-              siteId: siteIdToUse || null,
+              status: "ACTIVE",
+              siteId: resolvedSiteId,
             },
           });
           targetStoreId = newStore.id;
