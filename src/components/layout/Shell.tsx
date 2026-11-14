@@ -38,6 +38,7 @@ import {
   Search,
   UserCog,
   PackagePlus,
+  PackageCheck,
   Layers,
   Wallet,
   Landmark,
