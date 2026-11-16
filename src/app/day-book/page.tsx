@@ -3322,7 +3322,8 @@ export default function DayBookPage() {
                                 </button>
                               </div>
                             </div>
-                          ))}
+                          );
+                        })}
                         </div>
                       )}
                     </div>
@@ -3530,7 +3531,8 @@ export default function DayBookPage() {
                                 </button>
                               </div>
                             </div>
-                          ))}
+                          );
+                        })}
                         </div>
                       )}
                     </div>
@@ -3848,7 +3850,6 @@ export default function DayBookPage() {
                                     className="w-full h-full object-cover group-hover:scale-105 transition"
                                   />
                                 )}
-                              />
                               <div className="absolute inset-0 bg-slate-950/40 lg:bg-slate-950/50 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition flex items-center justify-center gap-2">
                                 <button
                                   type="button"
@@ -3871,7 +3872,8 @@ export default function DayBookPage() {
                                 {preview.name} ({(preview.size / 1024).toFixed(0)} KB)
                               </div>
                             </div>
-                          ))}
+                          );
+                        })}
                         </div>
                       )}
 

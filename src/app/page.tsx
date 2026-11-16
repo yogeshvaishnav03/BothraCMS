@@ -3383,12 +3383,13 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )
-            )}
-          </div>
-        )}
+                  );
+                })}
+              </div>
+            )
+          )}
+        </div>
+      )}
 
         {/* Modal: Confirm Dashboard Photo Delete */}
         {pendingDeletePhoto && (
