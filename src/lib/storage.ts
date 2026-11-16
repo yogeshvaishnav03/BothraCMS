@@ -91,6 +91,9 @@ export class LocalStorageProvider implements IStorageProvider {
 
     // Persist to database so files survive across serverless instances (Vercel)
     try {
+      if (buffer.length > 25 * 1024 * 1024) {
+        return { key: safeKey, url: `/api/uploads/${safeKey}` };
+      }
       const orgId = safeKey.includes("_") ? safeKey.split("_")[0] : undefined;
       let resolvedOrgId = orgId;
       if (!resolvedOrgId || resolvedOrgId.length < 10) {
@@ -538,6 +541,8 @@ export function isCloudStorage(): boolean {
  */
 export async function backupFileToDatabase(organizationId: string, keys: string[], buffer: Buffer): Promise<void> {
   if (isCloudStorage()) return;
+  // If file buffer exceeds 25 MB, do not write base64 to postgres to avoid connection drops and memory exhaustion
+  if (buffer.length > 25 * 1024 * 1024) return;
   const b64 = buffer.toString("base64");
   for (const key of Array.from(new Set(keys))) {
     await prisma.idempotencyRecord.upsert({

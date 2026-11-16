@@ -71,8 +71,8 @@ export async function PUT(
     }
 
     const isVideo = file.type.startsWith("video/");
-    const maxLimitBytes = isVideo ? 60 * 1024 * 1024 : 15 * 1024 * 1024;
-    const maxLimitMb = isVideo ? 60 : 15;
+    const maxLimitBytes = isVideo ? 250 * 1024 * 1024 : 15 * 1024 * 1024;
+    const maxLimitMb = isVideo ? 250 : 15;
 
     if (file.size > maxLimitBytes) {
       return jsonError(

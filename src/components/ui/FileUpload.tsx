@@ -40,7 +40,7 @@ export function FileUpload({
       const res = await fetch("/api/attachments", { method: "POST", body: form });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.data?.url) onChange({ url: json.data.url, name: json.data.fileName || file.name });
-      else setError(json?.error?.message || "Could not upload file. Use JPG, PNG, WebP, Video (MP4/WebM), or PDF under 50 MB.");
+      else setError(json?.error?.message || "Could not upload file. Use JPG, PNG, WebP, Video (MP4/WebM), or PDF under 250 MB.");
     } catch {
       setError("Could not upload file. Check your connection and try again.");
     } finally {

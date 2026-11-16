@@ -18,7 +18,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const MAX_STANDARD_SIZE = 25 * 1024 * 1024; // 25 MB
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100 MB for site evidence video
+const MAX_VIDEO_SIZE = 250 * 1024 * 1024; // 250 MB for site evidence video
 
 const PresignRequestSchema = z.object({
   fileName: z.string().min(1).max(255),

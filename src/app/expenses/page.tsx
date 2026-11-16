@@ -237,8 +237,8 @@ export default function ExpensesPage() {
     }
 
     if (isVideo) {
-      if (rawFile.size > 60 * 1024 * 1024) {
-        setReceiptError("Video receipt exceeds the 60 MB limit. Please choose a smaller video.");
+      if (rawFile.size > 250 * 1024 * 1024) {
+        setReceiptError("Video receipt exceeds the 250 MB limit. Please choose a smaller video.");
         return;
       }
       setReceiptFile(rawFile);
@@ -474,8 +474,8 @@ export default function ExpensesPage() {
     }
 
     if (isVideo) {
-      if (file.size > 60 * 1024 * 1024) {
-        setEditReceiptError("Video receipt exceeds the 60 MB limit.");
+      if (file.size > 250 * 1024 * 1024) {
+        setEditReceiptError("Video receipt exceeds the 250 MB limit.");
         return;
       }
       setEditReceiptError(null);
@@ -1267,12 +1267,12 @@ export default function ExpensesPage() {
                 <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-300">
                   <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
                     <label className="text-xs font-black text-amber-950 uppercase tracking-wide whitespace-nowrap">
-                      📷 Receipt Photo <span className="text-rose-600 font-black">* MANDATORY</span>
+                      📷 Receipt Photo / Video <span className="text-rose-600 font-black">* MANDATORY</span>
                     </label>
-                    <span className="text-[11px] text-amber-700 font-semibold whitespace-nowrap">JPG, PNG, WebP or PDF</span>
+                    <span className="text-[11px] text-amber-700 font-semibold whitespace-nowrap">Photo, Video or PDF</span>
                   </div>
                   <p className="text-[11px] text-slate-600 mb-2.5">
-                    Upload a clear, well-lit photo or PDF (under 5 MB) of the shop bill, cash memo, or UPI payment screenshot.
+                    Upload a clear photo, video (under 250 MB), or PDF of the shop bill, cash memo, or UPI payment screenshot.
                   </p>
 
                   <div className="relative">

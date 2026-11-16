@@ -194,8 +194,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
 
       const isVideo = billFile.type.startsWith("video/");
-      const maxLimitBytes = isVideo ? 60 * 1024 * 1024 : 20 * 1024 * 1024;
-      const maxLimitMb = isVideo ? 60 : 20;
+      const maxLimitBytes = isVideo ? 250 * 1024 * 1024 : 20 * 1024 * 1024;
+      const maxLimitMb = isVideo ? 250 : 20;
 
       if (billFile.size > maxLimitBytes) {
         return jsonError(

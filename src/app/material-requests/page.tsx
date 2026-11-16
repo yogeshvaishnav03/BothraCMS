@@ -352,7 +352,7 @@ function ReceiveOrderModal({
                   <Camera className="h-5 w-5" />
                 </div>
                 <div className="text-sm font-bold text-slate-800">Take Photo / Video or Upload Bill</div>
-                <p className="mt-0.5 text-xs text-slate-400">Attach vendor bill, delivery challan, photo or video (up to 60MB)</p>
+                <p className="mt-0.5 text-xs text-slate-400">Attach vendor bill, delivery challan, photo or video (up to 250MB)</p>
                 <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs ring-1 ring-slate-200">
                   <Upload className="h-3.5 w-3.5 text-slate-500" /> Browse File / Camera
                 </span>

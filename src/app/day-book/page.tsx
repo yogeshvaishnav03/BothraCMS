@@ -1040,8 +1040,8 @@ export default function DayBookPage() {
         continue;
       }
       if (isVideo) {
-        if (rawFile.size > 60 * 1024 * 1024) {
-          setFileValidationError(`Video "${rawFile.name}" exceeds the 60 MB limit.`);
+        if (rawFile.size > 250 * 1024 * 1024) {
+          setFileValidationError(`Video "${rawFile.name}" exceeds the 250 MB limit.`);
           continue;
         }
         validFiles.push(rawFile);
@@ -1093,8 +1093,8 @@ export default function DayBookPage() {
         continue;
       }
       if (isVideo) {
-        if (rawFile.size > 60 * 1024 * 1024) {
-          setFileValidationError(`Video "${rawFile.name}" exceeds the 60 MB limit.`);
+        if (rawFile.size > 250 * 1024 * 1024) {
+          setFileValidationError(`Video "${rawFile.name}" exceeds the 250 MB limit.`);
           continue;
         }
         validFiles.push(rawFile);
@@ -1148,8 +1148,8 @@ export default function DayBookPage() {
         continue;
       }
       if (isVideo) {
-        if (rawFile.size > 60 * 1024 * 1024) {
-          setFileValidationError(`Video "${rawFile.name}" exceeds the 60 MB limit.`);
+        if (rawFile.size > 250 * 1024 * 1024) {
+          setFileValidationError(`Video "${rawFile.name}" exceeds the 250 MB limit.`);
           continue;
         }
         validFiles.push(rawFile);

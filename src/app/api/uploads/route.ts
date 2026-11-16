@@ -14,7 +14,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
-const MAX_VIDEO_SIZE_BYTES = 60 * 1024 * 1024; // 60 MB for videos
+const MAX_VIDEO_SIZE_BYTES = 250 * 1024 * 1024; // 250 MB for videos
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     const isVideo = file.type.startsWith("video/");
     const maxLimit = isVideo ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
-    const maxLimitMb = isVideo ? 60 : 15;
+    const maxLimitMb = isVideo ? 250 : 15;
 
     if (file.size > maxLimit) {
       return jsonError(

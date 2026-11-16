@@ -74,7 +74,7 @@ export function PhotoPicker({
         if (res.ok && json?.data?.url) {
           added.push({ url: json.data.url, name: json.data.fileName || file.name });
         } else {
-          setError(json?.error?.message || json?.message || `Could not upload ${file.name}. Use JPG, PNG, WebP, or MP4/WebM video under 50 MB.`);
+          setError(json?.error?.message || json?.message || `Could not upload ${file.name}. Use JPG, PNG, WebP, or MP4/WebM video under 250 MB.`);
         }
       } catch (e) {
         if (isNetworkError(e)) added.push({ url: URL.createObjectURL(file), name: file.name, file });

@@ -377,8 +377,8 @@ export default function ChatPage() {
     }
 
     if (isVideo) {
-      if (rawFile.size > 60 * 1024 * 1024) {
-        setActionError("Video file exceeds the 60 MB limit. Please select a shorter or smaller clip.");
+      if (rawFile.size > 250 * 1024 * 1024) {
+        setActionError("Video file exceeds the 250 MB limit. Please select a shorter or smaller clip.");
         return;
       }
       setActionError(null);
@@ -1531,7 +1531,7 @@ export default function ChatPage() {
                             ? "bg-amber-100 text-amber-800 border-amber-300"
                             : "text-slate-500 hover:text-amber-600 hover:bg-amber-50 border-slate-200 hover:border-amber-300"
                         } disabled:opacity-50`}
-                        title="Attach photo or video (up to 60MB)"
+                        title="Attach photo or video (up to 250MB)"
                       >
                         {selectedImage?.type.startsWith("video/") ? (
                           <Video className="w-4 h-4 text-amber-800" />
