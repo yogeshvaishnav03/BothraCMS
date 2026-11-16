@@ -627,11 +627,14 @@ export default function ChatPage() {
 
     try {
       let uploadedImageUrl: string | null = null;
+      const isVideoMessage = Boolean(
+        selectedImage &&
+          (selectedImage.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(selectedImage.name))
+      );
 
       // 1. Upload compressed photo/video if selected
       if (selectedImage) {
-        const isVid = selectedImage.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(selectedImage.name);
-        const fileToUpload = isVid
+        const fileToUpload = isVideoMessage
           ? await compressVideoFile(selectedImage)
           : await compressImageFile(selectedImage, { preset: "photo" });
 
@@ -651,7 +654,7 @@ export default function ChatPage() {
 
         // Emergency fallback: only inline tiny compressed photo (<2MB) if upload failed
         if (!uploadedImageUrl) {
-          if (!isVid && fileToUpload.size < 2 * 1024 * 1024) {
+          if (!isVideoMessage && fileToUpload.size < 2 * 1024 * 1024) {
             try {
               uploadedImageUrl = await compressImageToDataUrl(fileToUpload, 1200, 0.8);
             } catch (compressErr) {
@@ -670,7 +673,7 @@ export default function ChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: content || (uploadedImageUrl ? "[Photo]" : ""),
+          content: content || (uploadedImageUrl ? (isVideoMessage ? "[Video]" : "[Photo]") : ""),
           imageUrl: uploadedImageUrl,
         }),
       });
