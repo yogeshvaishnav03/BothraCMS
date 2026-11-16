@@ -11,6 +11,7 @@ import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber, form
 import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
+import { uploadClientMedia } from "@/lib/upload-client";
 import {
   CalendarDays,
   DollarSign,
@@ -1407,17 +1408,13 @@ export default function DayBookPage() {
         if (paymentId && paymentPhotos.length > 0) {
           for (let i = 0; i < paymentPhotos.length; i++) {
             const photo = paymentPhotos[i];
-            const fd = new FormData();
-            fd.append("file", photo);
-            fd.append("entityType", "PAYMENT");
-            fd.append("entityId", paymentId);
-            if (paymentProjectId) fd.append("projectId", paymentProjectId);
-            fd.append("category", "RECEIPT");
-            fd.append("notes", `Payment voucher ${paymentRef.trim()}`);
             try {
-              await fetch("/api/attachments", {
-                method: "POST",
-                body: fd,
+              await uploadClientMedia(photo, {
+                entityType: "PAYMENT",
+                entityId: paymentId,
+                projectId: paymentProjectId || undefined,
+                category: "RECEIPT",
+                createAttachment: true,
               });
             } catch (err) {
               console.error("Failed uploading payment photo:", photo.name, err);
@@ -1489,17 +1486,13 @@ export default function DayBookPage() {
         if (billId && billPhotos.length > 0) {
           for (let i = 0; i < billPhotos.length; i++) {
             const photo = billPhotos[i];
-            const fd = new FormData();
-            fd.append("file", photo);
-            fd.append("entityType", "BILL");
-            fd.append("entityId", billId);
-            if (billProjectId) fd.append("projectId", billProjectId);
-            fd.append("category", "INVOICE");
-            fd.append("notes", `Bill #${generatedBillNo} document`);
             try {
-              await fetch("/api/attachments", {
-                method: "POST",
-                body: fd,
+              await uploadClientMedia(photo, {
+                entityType: "BILL",
+                entityId: billId,
+                projectId: billProjectId || undefined,
+                category: "INVOICE",
+                createAttachment: true,
               });
             } catch (err) {
               console.error("Failed uploading bill photo:", photo.name, err);
@@ -1615,22 +1608,18 @@ export default function DayBookPage() {
       if (data.success) {
         const reportId = data.data?.id;
 
-        // Upload any attached photos to /api/attachments linked to this report
+        // Upload any attached photos/videos via universal upload client (supports chunking up to 250MB)
         if (reportId && dsrPhotos.length > 0) {
           setUploadingPhotosCount(dsrPhotos.length);
           for (let i = 0; i < dsrPhotos.length; i++) {
             const photo = dsrPhotos[i];
-            const fd = new FormData();
-            fd.append("file", photo);
-            fd.append("entityType", "DAILY_REPORT");
-            fd.append("entityId", reportId);
-            fd.append("projectId", dsrProjectId);
-            fd.append("category", "PHOTO");
-            fd.append("notes", `Site DSR Photo - ${selectedDate}`);
             try {
-              await fetch("/api/attachments", {
-                method: "POST",
-                body: fd,
+              await uploadClientMedia(photo, {
+                entityType: "DAILY_REPORT",
+                entityId: reportId,
+                projectId: dsrProjectId,
+                category: "PHOTO",
+                createAttachment: true,
               });
             } catch (photoErr) {
               console.error("Failed uploading photo:", photo.name, photoErr);

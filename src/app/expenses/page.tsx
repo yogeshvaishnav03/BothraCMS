@@ -9,6 +9,7 @@ import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatCompactINR, formatDate } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
+import { uploadClientMedia } from "@/lib/upload-client";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   Receipt,
@@ -306,24 +307,14 @@ export default function ExpensesPage() {
     setUploadingReceipt(true);
 
     try {
-      // Step 1: Upload receipt photo to /api/uploads
-      const uploadForm = new FormData();
-      uploadForm.append("file", receiptFile, receiptFile.name);
-      uploadForm.append("category", "RECEIPT");
-      uploadForm.append("entityType", "PAYMENT");
-      uploadForm.append("notes", `Cash expense receipt for ${title}`);
-
-      const uploadRes = await fetch("/api/uploads", {
-        method: "POST",
-        body: uploadForm,
+      // Step 1: Upload receipt photo/video via universal upload client (supports chunking up to 250MB)
+      const uploadResult = await uploadClientMedia(receiptFile, {
+        category: "RECEIPT",
+        entityType: "PAYMENT",
+        createAttachment: true,
       });
 
-      const uploadJson = await uploadRes.json();
-      if (!uploadRes.ok || !uploadJson.success) {
-        throw new Error(uploadJson.error?.message || "Could not upload the receipt photo. Check your connection and try again.");
-      }
-
-      const receiptFileId = uploadJson.data?.fileId || uploadJson.data?.id;
+      const receiptFileId = uploadResult?.fileId;
       if (!receiptFileId) {
         throw new Error("Upload did not finish properly. Please remove the receipt and upload it again.");
       }
@@ -542,23 +533,20 @@ export default function ExpensesPage() {
     try {
       let newReceiptFileId: string | undefined = undefined;
 
-      // Upload new receipt photo if changed
+      // Upload new receipt photo/video if changed
       if (editReceiptFile) {
-        const uploadForm = new FormData();
-        uploadForm.append("file", editReceiptFile);
-        uploadForm.append("category", "RECEIPT");
-        uploadForm.append("entityType", "PAYMENT");
-        uploadForm.append("entityId", editingExpense.id);
-        uploadForm.append("notes", `Updated receipt for ${editTitle.trim()}`);
-
-        const uploadRes = await fetch("/api/uploads", {
-          method: "POST",
-          body: uploadForm,
-        });
-
-        const uploadJson = await uploadRes.json();
-        if (uploadRes.ok && uploadJson.success) {
-          newReceiptFileId = uploadJson.data?.fileId || uploadJson.data?.id;
+        try {
+          const uploadResult = await uploadClientMedia(editReceiptFile, {
+            category: "RECEIPT",
+            entityType: "PAYMENT",
+            entityId: editingExpense.id,
+            createAttachment: true,
+          });
+          if (uploadResult?.fileId) {
+            newReceiptFileId = uploadResult.fileId;
+          }
+        } catch (err: any) {
+          console.warn("Failed to upload updated receipt:", err);
         }
       }
 

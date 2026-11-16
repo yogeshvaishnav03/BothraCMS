@@ -5,6 +5,7 @@ import { Camera, CloudOff, Loader2, X } from "lucide-react";
 import { isNetworkError, isOffline, type QueuedPhoto } from "@/lib/offline-queue";
 import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
+import { uploadClientMedia } from "@/lib/upload-client";
 
 export interface PickedPhoto {
   url: string;
@@ -66,23 +67,25 @@ export function PhotoPicker({
         setUploading((n) => n - 1);
         continue;
       }
-      const form = new FormData();
-      form.append("file", file, file.name);
-      form.append("entityType", entityType);
-      if (entityId) form.append("entityId", entityId);
-      if (projectId) form.append("projectId", projectId);
-      form.append("category", "PHOTO");
       try {
-        const res = await fetch("/api/attachments", { method: "POST", body: form });
-        const json = await res.json().catch(() => null);
-        if (res.ok && json?.data?.url) {
-          added.push({ url: json.data.url, name: json.data.fileName || file.name });
+        const uploadResult = await uploadClientMedia(file, {
+          entityType,
+          entityId,
+          projectId,
+          category: "PHOTO",
+          createAttachment: true,
+        });
+        if (uploadResult?.url) {
+          added.push({ url: uploadResult.url, name: uploadResult.fileName || file.name });
         } else {
-          setError(json?.error?.message || json?.message || `Could not upload ${file.name}. Use JPG, PNG, WebP, or MP4/WebM video under 250 MB.`);
+          setError(`Could not upload ${file.name}. Use JPG, PNG, WebP, or MP4/WebM video under 250 MB.`);
         }
-      } catch (e) {
-        if (isNetworkError(e)) added.push({ url: URL.createObjectURL(file), name: file.name, file });
-        else setError(`Could not upload ${file.name}. Check the file format and size, then try again.`);
+      } catch (e: any) {
+        if (isNetworkError(e)) {
+          added.push({ url: URL.createObjectURL(file), name: file.name, file });
+        } else {
+          setError(e?.message || `Could not upload ${file.name}.`);
+        }
       }
       setUploading((n) => n - 1);
     }

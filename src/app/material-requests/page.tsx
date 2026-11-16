@@ -13,6 +13,7 @@ import { formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { submitOrQueue } from "@/lib/offline-queue";
 import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
+import { uploadClientMedia } from "@/lib/upload-client";
 import {
   Building2,
   CalendarClock,
@@ -200,7 +201,21 @@ function ReceiveOrderModal({
       if (unitRate) formData.append("unitRate", unitRate);
       if (totalAmount) formData.append("totalAmount", totalAmount);
       if (notes) formData.append("notes", notes.trim());
-      formData.append("file", billFile, billFile.name);
+
+      // If file is > 3.5 MB, upload via chunked client first to prevent Vercel 413 error
+      if (billFile.size > 3.5 * 1024 * 1024) {
+        const uploadResult = await uploadClientMedia(billFile, {
+          category: "INVOICE",
+          entityType: "BILL",
+          projectId: order.projectId,
+          createAttachment: true,
+        });
+        if (uploadResult?.fileId) {
+          formData.append("attachmentId", uploadResult.fileId);
+        }
+      } else {
+        formData.append("file", billFile, billFile.name);
+      }
 
       const res = await fetch(`/api/orders/${order.id}/receive`, {
         method: "POST",

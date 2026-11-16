@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import { FileUp, Loader2, Paperclip, X } from "lucide-react";
 import { compressImageFile, presetForAttachmentCategory } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
+import { uploadClientMedia } from "@/lib/upload-client";
 
 /** Uploads one PDF, image, or video to /api/attachments and hands back its url. */
 export function FileUpload({
@@ -35,18 +36,20 @@ export function FileUpload({
       : await compressImageFile(rawFile, {
           preset: presetForAttachmentCategory(category, entityType),
         });
-    const form = new FormData();
-    form.append("file", file, file.name);
-    form.append("entityType", entityType);
-    if (projectId) form.append("projectId", projectId);
-    form.append("category", category);
     try {
-      const res = await fetch("/api/attachments", { method: "POST", body: form });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.data?.url) onChange({ url: json.data.url, name: json.data.fileName || file.name });
-      else setError(json?.error?.message || "Could not upload file. Use JPG, PNG, WebP, Video (MP4/WebM), or PDF under 250 MB.");
-    } catch {
-      setError("Could not upload file. Check your connection and try again.");
+      const uploadResult = await uploadClientMedia(file, {
+        entityType,
+        projectId,
+        category,
+        createAttachment: true,
+      });
+      if (uploadResult?.url) {
+        onChange({ url: uploadResult.url, name: uploadResult.fileName || file.name });
+      } else {
+        setError("Could not upload file. Use JPG, PNG, WebP, Video (MP4/WebM), or PDF under 250 MB.");
+      }
+    } catch (err: any) {
+      setError(err?.message || "Could not upload file. Check your connection and try again.");
     } finally {
       setBusy(false);
       if (ref.current) ref.current.value = "";

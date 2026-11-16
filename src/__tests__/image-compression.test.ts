@@ -246,7 +246,8 @@ describe("Client-Side Automatic Image Compression", () => {
 
     it("accepts /api/uploads relative URLs in chat so photos do not inline base64 into Postgres", () => {
       const chatSrc = readSrc("app/chat/page.tsx");
-      expect(chatSrc).toContain('returnedUrl.startsWith("/")');
+      expect(chatSrc).toContain("uploadClientMedia");
+      expect(chatSrc).toContain("uploadedImageUrl = uploadRes.url");
     });
   });
 });

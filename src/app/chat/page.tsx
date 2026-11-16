@@ -9,6 +9,7 @@ import { whatsappLink } from "@/lib/contact-links";
 import { formatDateTime } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
+import { uploadClientMedia } from "@/lib/upload-client";
 import { useLanguage } from "@/lib/i18n";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import {
@@ -635,46 +636,32 @@ export default function ChatPage() {
           : await compressImageFile(selectedImage, { preset: "photo" });
 
         try {
-          const formData = new FormData();
-          formData.append("file", fileToUpload, fileToUpload.name);
-          formData.append("category", "PHOTO");
-          formData.append("entityType", "CHAT");
-          formData.append("entityId", activeConversationId);
-
-          const uploadRes = await fetch("/api/uploads", {
-            method: "POST",
-            body: formData,
+          const uploadRes = await uploadClientMedia(fileToUpload, {
+            entityType: "CHAT",
+            entityId: activeConversationId,
+            category: "PHOTO",
+            createAttachment: false,
           });
-
-          const ct = uploadRes.headers.get("content-type") || "";
-          if (uploadRes.ok && ct.includes("application/json")) {
-            const uploadJson = await uploadRes.json();
-            const returnedUrl = uploadJson?.data?.url;
-            if (
-              uploadJson.success &&
-              typeof returnedUrl === "string" &&
-              (returnedUrl.startsWith("/") ||
-                returnedUrl.startsWith("http://") ||
-                returnedUrl.startsWith("https://"))
-            ) {
-              uploadedImageUrl = returnedUrl;
-            }
+          if (uploadRes?.url) {
+            uploadedImageUrl = uploadRes.url;
           }
         } catch (uploadErr) {
-          console.warn("Storage upload failed, falling back to data URL:", uploadErr);
+          console.warn("Storage upload failed:", uploadErr);
         }
 
-        // Emergency fallback: only inline compressed data URL in DB if /api/uploads failed
+        // Emergency fallback: only inline tiny compressed photo (<2MB) if upload failed
         if (!uploadedImageUrl) {
-          try {
-            uploadedImageUrl = await compressImageToDataUrl(compressedImage, 1200, 0.8);
-          } catch (compressErr) {
-            console.warn("Failed to build fallback image data URL:", compressErr);
+          if (!isVid && fileToUpload.size < 2 * 1024 * 1024) {
+            try {
+              uploadedImageUrl = await compressImageToDataUrl(fileToUpload, 1200, 0.8);
+            } catch (compressErr) {
+              console.warn("Failed to build fallback image data URL:", compressErr);
+            }
           }
         }
 
         if (!uploadedImageUrl && !content) {
-          throw new Error("Unable to attach image. Please try again with another photo.");
+          throw new Error("Unable to attach media. Please check your connection and try again.");
         }
       }
 

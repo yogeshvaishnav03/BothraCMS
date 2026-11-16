@@ -18,6 +18,7 @@ import {
 import { formatFileSize } from "@/lib/formatters";
 import { compressImageFile, presetForAttachmentCategory } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
+import { uploadClientMedia } from "@/lib/upload-client";
 
 interface AttachmentItem {
   id: string;
@@ -173,25 +174,15 @@ export default function AttachmentManager({
       console.warn("Direct presigned upload unavailable, using server fallback:", directErr);
     }
 
-    // Fallback: Standard multipart upload through /api/attachments
-    const formData = new FormData();
-    formData.append("file", file, file.name);
-    formData.append("entityType", entityType);
-    formData.append("entityId", entityId);
-    if (projectId) formData.append("projectId", projectId);
-    if (folderId) formData.append("folderId", folderId);
-    formData.append("category", fileCategory);
-    if (notes) formData.append("notes", notes);
-
-    const res = await fetch("/api/attachments", {
-      method: "POST",
-      body: formData,
+    // Fallback: Upload through universal upload client (supports chunking up to 250MB without Vercel 413)
+    await uploadClientMedia(file, {
+      entityType,
+      entityId,
+      projectId: projectId || undefined,
+      folderId: folderId || undefined,
+      category: fileCategory,
+      createAttachment: true,
     });
-
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.success) {
-      throw new Error(data?.error?.message || "Could not upload file. Make sure it is a JPG, PNG, WebP, or PDF under 10 MB.");
-    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
