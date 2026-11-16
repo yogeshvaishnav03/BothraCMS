@@ -549,9 +549,10 @@ export default function WorkforcePage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingDeleteRecord, setPendingDeleteRecord] = useState<{ id: string; siteName: string; date: string } | null>(null);
+  const [pendingDeleteWorker, setPendingDeleteWorker] = useState<{ id: string; name: string; employeeCode: string } | null>(null);
 
   useEffect(() => {
-    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord || showReportsModal)) return;
+    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord || pendingDeleteWorker || showReportsModal)) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (e: KeyboardEvent) => {
@@ -559,6 +560,7 @@ export default function WorkforcePage() {
         setShowUploadModal(false);
         setShowRegisterWorkerModal(false);
         setPendingDeleteRecord(null);
+        setPendingDeleteWorker(null);
         setShowReportsModal(false);
       }
     };
@@ -567,7 +569,7 @@ export default function WorkforcePage() {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord, showReportsModal]);
+  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord, pendingDeleteWorker, showReportsModal]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -1000,6 +1002,41 @@ export default function WorkforcePage() {
     } finally {
       setSubmitting(false);
       setPendingDeleteRecord(null);
+    }
+  };
+
+  const handleDeleteWorker = (w: WorkerRosterItem) => {
+    setPendingDeleteWorker({ id: w.id, name: w.name, employeeCode: w.employeeCode });
+  };
+
+  const executeDeleteWorker = async () => {
+    if (!pendingDeleteWorker) return;
+    const { id, name, employeeCode } = pendingDeleteWorker;
+    setSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch(`/api/workforce?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to delete worker");
+      } else {
+        setStatusMessage(`Worker "${name}" (${employeeCode}) deleted successfully.`);
+        setWorkers((prev) => prev.filter((w) => w.id !== id));
+        if (editingWorker?.id === id) {
+          setShowRegisterWorkerModal(false);
+          setEditingWorker(null);
+        }
+        await loadData();
+      }
+    } catch {
+      setErrorMessage("Network error deleting worker");
+    } finally {
+      setSubmitting(false);
+      setPendingDeleteWorker(null);
     }
   };
 
@@ -1839,13 +1876,13 @@ export default function WorkforcePage() {
                         theme="darkHeader"
                       />
                     ))}
-                    {canWrite && <th className="py-3 px-4 text-right">Edit</th>}
+                    {canWrite && <th className="py-3 px-4 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {excelWorkers.paginatedData.length === 0 ? (
                     <tr>
-                      <td colSpan={workerColumns.length} className="py-12 text-center text-slate-400">
+                      <td colSpan={workerColumns.length + (canWrite ? 1 : 0)} className="py-12 text-center text-slate-400">
                         No registered workers match your search or filters.
                       </td>
                     </tr>
@@ -1887,14 +1924,24 @@ export default function WorkforcePage() {
                       <td className="py-3 px-4 text-slate-600">{w.defaultSite?.name || "Main Site"}</td>
                       {canWrite && (
                         <td className="py-3 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => openEditWorkerModal(w)}
-                            title={`Edit ${w.name}`}
-                            className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center justify-center"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditWorkerModal(w)}
+                              title={`Edit ${w.name}`}
+                              className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center justify-center transition"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteWorker(w)}
+                              title={`Delete ${w.name}`}
+                              className="p-1.5 rounded-lg ring-1 ring-rose-200 text-rose-600 hover:text-rose-700 hover:bg-rose-50 inline-flex items-center justify-center transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -1936,14 +1983,24 @@ export default function WorkforcePage() {
                           )}
                         </div>
                         {canWrite && (
-                          <button
-                            type="button"
-                            onClick={() => openEditWorkerModal(w)}
-                            title={`Edit ${w.name}`}
-                            className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center justify-center"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => openEditWorkerModal(w)}
+                              title={`Edit ${w.name}`}
+                              className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 inline-flex items-center justify-center transition"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteWorker(w)}
+                              title={`Delete ${w.name}`}
+                              className="p-1.5 rounded-lg ring-1 ring-rose-200 text-rose-600 hover:text-rose-700 hover:bg-rose-50 inline-flex items-center justify-center transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2918,26 +2975,38 @@ export default function WorkforcePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowRegisterWorkerModal(false);
-                      setEditingWorker(null);
-                      setSelectedContractorPartyId("");
-                      setDuplicateWarning(null);
-                    }}
-                    className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition disabled:opacity-50"
-                  >
-                    {submitting ? "Saving..." : editingWorker ? "Save Changes" : "Register Worker"}
-                  </button>
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                  {editingWorker ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteWorker(editingWorker)}
+                      className="px-3 py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete Worker</span>
+                    </button>
+                  ) : <div />}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRegisterWorkerModal(false);
+                        setEditingWorker(null);
+                        setSelectedContractorPartyId("");
+                        setDuplicateWarning(null);
+                      }}
+                      className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {submitting ? "Saving..." : editingWorker ? "Save Changes" : "Register Worker"}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -3338,6 +3407,45 @@ export default function WorkforcePage() {
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
                 >
                   {submitting ? "Deleting..." : "Delete Record"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {pendingDeleteWorker && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setPendingDeleteWorker(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-base">
+                <Trash2 className="w-5 h-5 shrink-0" />
+                <span>Delete Registered Worker?</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete worker{" "}
+                <strong className="text-slate-900">{pendingDeleteWorker.name}</strong>{" "}
+                (<span className="font-mono text-slate-700 font-semibold">{pendingDeleteWorker.employeeCode}</span>)?
+                This worker will be deactivated and removed from the active registered roster.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteWorker(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={executeDeleteWorker}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 transition"
+                >
+                  {submitting ? "Deleting..." : "Delete Worker"}
                 </button>
               </div>
             </div>
