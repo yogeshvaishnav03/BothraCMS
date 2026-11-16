@@ -68,6 +68,21 @@ export async function bootstrapWebsiteDataRuntime(): Promise<boolean> {
       }
     }
 
+    // Purge removed users (Lakashy Bothra and Mohan Lal)
+    const purgeEmails = ["lakashy@buildtrack.pro", "store@buildtrack.pro"];
+    for (const remEmail of purgeEmails) {
+      const u = await client.user.findFirst({ where: { email: remEmail }, select: { id: true, name: true } });
+      if (u) {
+        await client.stockMovement.updateMany({ where: { createdBy: u.id }, data: { createdBy: "usr-super-1" } }).catch(() => {});
+        await client.project.updateMany({ where: { managerUserId: u.id }, data: { managerUserId: null } }).catch(() => {});
+        await client.task.updateMany({ where: { assigneeUserId: u.id }, data: { assigneeUserId: null } }).catch(() => {});
+        await client.conversationParticipant.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await client.projectAssignment.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await client.user.delete({ where: { id: u.id } }).catch(() => {});
+        console.log(`[RUNTIME_SEEDER] Purged removed user: ${remEmail}`);
+      }
+    }
+
     // 3. Sites
     for (const s of dataset.sites || []) {
       await client.site.upsert({

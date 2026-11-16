@@ -37,13 +37,6 @@ const USERS = [
     role: "ACCOUNTANT",
     jobTitle: "Accountant",
   },
-  {
-    id: "usr-store-1",
-    name: "Mohan Lal",
-    email: "store@buildtrack.pro",
-    role: "STOREKEEPER",
-    jobTitle: "Storekeeper",
-  },
 ];
 
 const DEFAULT_PASSWORD = "Password123!";
@@ -106,6 +99,20 @@ async function bootstrapAllUsers() {
           },
         });
         console.log(`  + Created ${u.role}: ${normalizedEmail}`);
+      }
+    }
+
+    // Purge unwanted users (Lakashy Bothra and Mohan Lal)
+    for (const remEmail of ["lakashy@buildtrack.pro", "store@buildtrack.pro"]) {
+      const u = await prisma.user.findFirst({ where: { email: remEmail } });
+      if (u) {
+        await prisma.stockMovement.updateMany({ where: { createdBy: u.id }, data: { createdBy: "usr-super-1" } }).catch(() => {});
+        await prisma.project.updateMany({ where: { managerUserId: u.id }, data: { managerUserId: null } }).catch(() => {});
+        await prisma.task.updateMany({ where: { assigneeUserId: u.id }, data: { assigneeUserId: null } }).catch(() => {});
+        await prisma.conversationParticipant.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await prisma.projectAssignment.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await prisma.user.delete({ where: { id: u.id } }).catch(() => {});
+        console.log(`  🗑️ Purged removed user: ${remEmail}`);
       }
     }
 

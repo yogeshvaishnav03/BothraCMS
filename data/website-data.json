@@ -23,17 +23,6 @@
       "status": "ACTIVE"
     },
     {
-      "id": "usr-lakashy-1",
-      "organizationId": "1eb45938-3964-41ab-8145-c8ff93c90c73",
-      "name": "Lakashy Bothra",
-      "email": "lakashy@buildtrack.pro",
-      "password": "Password123!",
-      "role": "SUPER_ADMIN",
-      "jobTitle": "Managing Director & Executive Head",
-      "phone": "+91-98290-00002",
-      "status": "ACTIVE"
-    },
-    {
       "id": "usr-admin-1",
       "organizationId": "1eb45938-3964-41ab-8145-c8ff93c90c73",
       "name": "Vikram Malhotra",
@@ -75,17 +64,6 @@
       "role": "ACCOUNTANT",
       "jobTitle": "Chief Financial Officer & Senior Accountant",
       "phone": "+91-98290-00006",
-      "status": "ACTIVE"
-    },
-    {
-      "id": "usr-store-1",
-      "organizationId": "1eb45938-3964-41ab-8145-c8ff93c90c73",
-      "name": "Mohan Lal",
-      "email": "store@buildtrack.pro",
-      "password": "Password123!",
-      "role": "STOREKEEPER",
-      "jobTitle": "Central Store & Inventory Manager",
-      "phone": "+91-98290-00007",
       "status": "ACTIVE"
     }
   ],
@@ -988,7 +966,7 @@
       "projectId": "prj-chp-tow-a",
       "referenceDoc": "Challan #UTC-9821 / Gate Pass #GP-101",
       "notes": "500 Bags UltraTech OPC 53 Cement unloaded at Chaupasni central depot. Physical inspection verified.",
-      "createdBy": "usr-store-1"
+      "createdBy": "usr-sup-1"
     },
     {
       "id": "sm-rcpt-stl-001",
@@ -1004,7 +982,7 @@
       "projectId": "prj-chp-tow-a",
       "referenceDoc": "Weighbridge Slip #WB-4412 / Challan #TTS-3301",
       "notes": "10 Tonnes 12mm TMT Rebars received and stacked in Bay B.",
-      "createdBy": "usr-store-1"
+      "createdBy": "usr-sup-1"
     },
     {
       "id": "sm-iss-cem-001",

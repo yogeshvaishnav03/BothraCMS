@@ -121,7 +121,6 @@ export async function POST(req: NextRequest) {
         if (
           userCount === 0 ||
           normalizedEmail === "superadmin@buildtrack.pro" ||
-          normalizedEmail === "lakashy@buildtrack.pro" ||
           normalizedEmail === "admin@buildtrack.pro"
         ) {
           const { bootstrapWebsiteDataRuntime } = await import("@/lib/runtime-seeder");

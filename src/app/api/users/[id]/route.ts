@@ -26,3 +26,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return handleApiError(error);
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const user = await requireUserContext(req, "users:manage");
+    return jsonSuccess(await UserAdminService.delete(user, params.id));
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

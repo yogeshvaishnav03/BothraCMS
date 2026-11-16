@@ -204,6 +204,22 @@ async function loadWebsiteData(options = {}) {
       counts.users++;
     }
 
+    // Purge removed users (Lakashy Bothra and Mohan Lal)
+    const purgeEmails = ["lakashy@buildtrack.pro", "store@buildtrack.pro"];
+    for (const remEmail of purgeEmails) {
+      const u = await prisma.user.findFirst({ where: { email: remEmail } });
+      if (u) {
+        console.log(`🗑️ Removing user: ${u.name} (${remEmail})...`);
+        await prisma.stockMovement.updateMany({ where: { createdBy: u.id }, data: { createdBy: "usr-super-1" } }).catch(() => {});
+        await prisma.project.updateMany({ where: { managerUserId: u.id }, data: { managerUserId: null } }).catch(() => {});
+        await prisma.task.updateMany({ where: { assigneeUserId: u.id }, data: { assigneeUserId: null } }).catch(() => {});
+        await prisma.conversationParticipant.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await prisma.projectAssignment.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await prisma.user.delete({ where: { id: u.id } }).catch(() => {});
+        console.log(`✅ Removed ${remEmail}`);
+      }
+    }
+
     // 3. Sites
     console.log(`📍 Upserting ${dataset.sites?.length || 0} Operational Sites...`);
     for (const s of dataset.sites || []) {
@@ -686,12 +702,10 @@ async function loadWebsiteData(options = {}) {
     console.table(counts);
     console.log("\n🔑 DEFAULT SYSTEM LOGIN CREDENTIALS:");
     console.log("  • Master Super Admin : superadmin@buildtrack.pro  /  Password123!");
-    console.log("  • Lakashy Bothra     : lakashy@buildtrack.pro     /  Password123!");
     console.log("  • Org Administrator  : admin@buildtrack.pro       /  Password123!");
     console.log("  • Project Manager    : pm@buildtrack.pro          /  Password123!");
     console.log("  • Site Supervisor    : supervisor@buildtrack.pro  /  Password123!");
     console.log("  • Accountant         : finance@buildtrack.pro     /  Password123!");
-    console.log("  • Storekeeper        : store@buildtrack.pro       /  Password123!");
     console.log("============================================================\n");
 
     return { success: true, counts, durationSec };

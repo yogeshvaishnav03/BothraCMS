@@ -30,6 +30,7 @@ import {
   UserCog,
   UserX,
   Users,
+  Trash2,
   X,
   Eye,
   EyeOff,
@@ -137,6 +138,7 @@ export default function TeamPage() {
   const [pendingTeamAction, setPendingTeamAction] = useState<
     | { kind: "deactivate"; member: TeamMember }
     | { kind: "resetPassword"; member: TeamMember }
+    | { kind: "delete"; member: TeamMember }
     | null
   >(null);
 
@@ -469,6 +471,10 @@ export default function TeamPage() {
     try {
       if (action.kind === "deactivate") {
         await performStatusToggle(action.member, "INACTIVE");
+      } else if (action.kind === "delete") {
+        await call(`/api/users/${action.member.id}`, "DELETE");
+        setMembers((prev) => prev.filter((u) => u.id !== action.member.id));
+        setNotice(`Removed ${action.member.name} successfully.`);
       } else {
         const data = await call(`/api/users/${action.member.id}/reset-password`, "POST");
         setCredentials({
@@ -681,6 +687,13 @@ export default function TeamPage() {
                               )}
                             >
                               {inactive ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => setPendingTeamAction({ kind: "delete", member: m })}
+                              title="Remove user"
+                              className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:ring-rose-200"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </>
                         )}
@@ -1379,10 +1392,19 @@ export default function TeamPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="font-bold text-slate-900 text-base">
-                {pendingTeamAction.kind === "deactivate" ? "Deactivate Team Member?" : "Reset Password?"}
+                {pendingTeamAction.kind === "delete"
+                  ? "Remove Team Member?"
+                  : pendingTeamAction.kind === "deactivate"
+                  ? "Deactivate Team Member?"
+                  : "Reset Password?"}
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                {pendingTeamAction.kind === "deactivate" ? (
+                {pendingTeamAction.kind === "delete" ? (
+                  <>
+                    Are you sure you want to permanently remove <strong className="text-slate-900">{pendingTeamAction.member.name}</strong> ({pendingTeamAction.member.email})?
+                    Their account and access will be completely deleted.
+                  </>
+                ) : pendingTeamAction.kind === "deactivate" ? (
                   <>
                     Deactivate <strong className="text-slate-900">{pendingTeamAction.member.name}</strong>? They will be
                     signed out and cannot log in until reactivated.
@@ -1408,7 +1430,13 @@ export default function TeamPage() {
                   onClick={executePendingTeamAction}
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
                 >
-                  {saving ? "Processing..." : pendingTeamAction.kind === "deactivate" ? "Deactivate" : "Reset Password"}
+                  {saving
+                    ? "Processing..."
+                    : pendingTeamAction.kind === "delete"
+                    ? "Remove User"
+                    : pendingTeamAction.kind === "deactivate"
+                    ? "Deactivate"
+                    : "Reset Password"}
                 </button>
               </div>
             </div>

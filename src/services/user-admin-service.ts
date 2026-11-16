@@ -494,4 +494,101 @@ export class UserAdminService {
     });
     return { temporaryPassword: finalPassword };
   }
+
+  static async delete(actor: UserContext, userId: string) {
+    if (actor.userId === userId) {
+      throw new Error("You cannot remove your own account.");
+    }
+    const target = await findInOrg(actor, userId);
+
+    if (target.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") {
+      throw new AuthorizationError("Only a Super Admin can remove another Super Admin account.");
+    }
+
+    const orgId = actor.organizationId;
+    await prisma.$transaction(async (tx) => {
+      // 1. Unassign from projects & tasks
+      await tx.project.updateMany({
+        where: { organizationId: orgId, managerUserId: target.id },
+        data: { managerUserId: null },
+      });
+
+      await tx.task.updateMany({
+        where: { organizationId: orgId, assigneeUserId: target.id },
+        data: { assigneeUserId: null },
+      });
+
+      await tx.task.updateMany({
+        where: { organizationId: orgId, completedById: target.id },
+        data: { completedById: null },
+      });
+
+      await tx.task.updateMany({
+        where: { organizationId: orgId, verifiedById: target.id },
+        data: { verifiedById: null },
+      });
+
+      // 2. Reassign creator fields to actor if needed
+      await tx.task.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      });
+
+      await tx.stockMovement.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      });
+
+      await tx.bill.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      });
+
+      await tx.payment.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      });
+
+      await tx.dailySiteReport.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      });
+
+      // 3. Delete assignments & permissions
+      await tx.projectAssignment.deleteMany({
+        where: { userId: target.id },
+      });
+
+      await tx.folderPermission.deleteMany({
+        where: { userId: target.id },
+      });
+
+      await tx.notification.deleteMany({
+        where: { userId: target.id },
+      });
+
+      await tx.conversationParticipant.deleteMany({
+        where: { userId: target.id },
+      });
+
+      // 4. Delete user
+      await tx.user.delete({
+        where: { id: target.id },
+      });
+
+      // 5. Audit log
+      await tx.auditEvent.create({
+        data: {
+          organizationId: orgId,
+          actorUserId: actor.userId,
+          action: "USER_DELETED",
+          entityType: "USER",
+          entityId: target.id,
+          reason: `User removed: ${target.name} (${target.email})`,
+        },
+      });
+    });
+
+    return { success: true, deletedId: target.id, email: target.email };
+  }
 }
