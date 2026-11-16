@@ -1,11 +1,11 @@
 "use client";
 
 export interface UploadClientMediaOptions {
-  entityType?: string;
-  entityId?: string;
-  category?: string;
-  projectId?: string;
-  folderId?: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  category?: string | null;
+  projectId?: string | null;
+  folderId?: string | null;
   createAttachment?: boolean;
   onProgress?: (percent: number, statusText: string) => void;
 }

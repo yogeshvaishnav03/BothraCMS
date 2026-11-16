@@ -39,7 +39,7 @@ export function FileUpload({
     try {
       const uploadResult = await uploadClientMedia(file, {
         entityType,
-        projectId,
+        projectId: projectId || undefined,
         category,
         createAttachment: true,
       });
