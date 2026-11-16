@@ -11,7 +11,11 @@ export function optimizeDbUrl(rawUrl?: string): string | undefined {
   try {
     const url = new URL(rawUrl);
     const isNeon = url.hostname.includes("neon.tech");
-    const isPooler = url.hostname.includes("-pooler");
+    const isPooler =
+      url.hostname.includes("-pooler") ||
+      url.hostname.includes(".pooler.") ||
+      url.port === "6543" ||
+      rawUrl.includes("pgbouncer=true");
 
     // CRITICAL FIX: Neon recent connection strings include channel_binding=require.
     // Prisma's Rust query engine DOES NOT support SCRAM channel binding (SCRAM-SHA-256-PLUS)
@@ -30,7 +34,12 @@ export function optimizeDbUrl(rawUrl?: string): string | undefined {
     // Set pool timeout to 30s
     url.searchParams.set("pool_timeout", "30");
 
-    // If using a pooled host (e.g. Neon connection pooler), pgbouncer=true is required by Prisma
+    // In serverless, limit max connections per container to 5 to prevent exhausting pool connections
+    if (!url.searchParams.has("connection_limit")) {
+      url.searchParams.set("connection_limit", "5");
+    }
+
+    // If using a pooled host (e.g. Neon connection pooler, Supabase pooler), pgbouncer=true is required by Prisma
     if (isPooler) {
       url.searchParams.set("pgbouncer", "true");
     }
@@ -62,10 +71,10 @@ export function getDirectDbUrl(): string | undefined {
   return undefined;
 }
 
-// Select best connection string
+// Select best connection string (prefer explicit DATABASE_URL)
 let rawUrl =
-  process.env.POSTGRES_PRISMA_URL ||
   process.env.DATABASE_URL ||
+  process.env.POSTGRES_PRISMA_URL ||
   process.env.POSTGRES_URL ||
   process.env.POSTGRES_URL_NON_POOLING;
 
@@ -107,3 +116,17 @@ export const prisma =
   });
 
 globalForPrisma.prisma = prisma;
+
+let ddlSynced = false;
+export async function ensurePostgresColumns() {
+  if (ddlSynced) return;
+  try {
+    const raw = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
+    if (raw && (raw.startsWith("postgres://") || raw.startsWith("postgresql://"))) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "assignedSiteIdsJson" TEXT;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "extraPermissionsJson" TEXT;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "contractorId" TEXT;`).catch(() => {});
+      ddlSynced = true;
+    }
+  } catch {}
+}

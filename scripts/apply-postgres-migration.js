@@ -789,19 +789,19 @@ async function applyMigration() {
   try {
     console.log("⚡ [POSTGRES_MIGRATOR] Applying schema DDL to PostgreSQL...");
 
-    for (const sql of POSTGRES_TABLES) {
-      try {
-        await prisma.$executeRawUnsafe(sql);
-      } catch (err) {
-        // Table may already exist
-      }
-    }
-
     for (const sql of POSTGRES_COLUMNS) {
       try {
         await prisma.$executeRawUnsafe(sql);
       } catch (err) {
         // Column may already exist
+      }
+    }
+
+    for (const sql of POSTGRES_TABLES) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+      } catch (err) {
+        // Table may already exist
       }
     }
 

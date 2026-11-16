@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { prisma, ensurePostgresColumns } from "@/lib/db";
 import { verifyPassword, createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { Role } from "@/lib/permissions";
@@ -54,15 +54,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let user;
-    try {
-      user = await prisma.user.findFirst({
-        where: { email: normalizedEmail },
-        include: { organization: true },
-      });
-    } catch (dbErr: any) {
+    const userSelect = {
+      id: true,
+      email: true,
+      name: true,
+      passwordHash: true,
+      role: true,
+      status: true,
+      organizationId: true,
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+        },
+      },
+    };
+
+    let user: any = null;
+    let lastDbErr: any = null;
+    const maxRetries = 3;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        user = await prisma.user.findFirst({
+          where: { email: normalizedEmail },
+          select: userSelect,
+        });
+        lastDbErr = null;
+        break;
+      } catch (dbErr: any) {
+        lastDbErr = dbErr;
+        console.warn(`[AUTH] Database query attempt ${attempt}/${maxRetries} failed:`, dbErr?.message || dbErr);
+
+        if (attempt < maxRetries) {
+          try {
+            await prisma.$disconnect();
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+          try {
+            await prisma.$connect();
+            await ensurePostgresColumns();
+          } catch {}
+        }
+      }
+    }
+
+    if (lastDbErr) {
       // Diagnostic logged securely to protected server stdout/stderr (secrets redacted)
-      console.error("[AUTH] Authoritative database connection error during login:", dbErr?.message || dbErr);
+      console.error("[AUTH] Authoritative database connection error during login:", lastDbErr?.message || lastDbErr);
 
       // Generic client-facing error never leaks DATABASE_URL, localhost, port, or cloud provider details
       return jsonError(
@@ -86,11 +126,15 @@ export async function POST(req: NextRequest) {
     await resetRateLimitAsync(globalAcctKey);
     await resetRateLimitAsync(ipRateLimitKey);
 
-    // Update last login timestamp in database
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    // Update last login timestamp in database (non-fatal if transient db hiccup)
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    } catch (updateErr) {
+      console.warn("[AUTH] Notice: Unable to update lastLoginAt (non-fatal):", updateErr);
+    }
 
     const token = await createSessionToken({
       userId: user.id,
