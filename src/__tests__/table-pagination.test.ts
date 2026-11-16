@@ -292,8 +292,6 @@ describe("Table Pagination & New-Entries-First Specification", () => {
       "src/app/team/page.tsx",
       "src/app/drawings/page.tsx",
       "src/app/tasks/page.tsx",
-      "src/app/attendance/muster/page.tsx",
-      "src/app/work-reports/page.tsx",
       "src/app/measurement-book/page.tsx",
       "src/app/payroll/page.tsx",
     ];

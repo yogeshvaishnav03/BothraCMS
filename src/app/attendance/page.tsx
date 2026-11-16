@@ -947,14 +947,7 @@ export default function AttendancePage() {
               </>
             )}
 
-            {(["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR", "HR_VIEWER"].includes(currentUser?.role) || canUser(currentUser, "attendance:write")) && (
-              <Link
-                href="/attendance/muster"
-                className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-slate-800 whitespace-nowrap"
-              >
-                <Users className="h-3.5 w-3.5" /> Muster Roll
-              </Link>
-            )}
+
             <button
               onClick={handleExportCsv}
               disabled={filteredSessions.length === 0}
@@ -1463,17 +1456,7 @@ export default function AttendancePage() {
                 {activeTab === "all" && isPrivileged
                   ? "Real-time records of all employees, supervisors, and administrators with site and GPS verification."
                   : "Complete shift records with check-in, check-out, working hours, and verified GPS coordinates."}
-                {activeTab === "all" && isPrivileged && (
-                  <span className="block mt-1 text-[11px] text-slate-500">
-                    Looking for site labor / trade worker attendance?{" "}
-                    <Link
-                      href="/attendance/muster"
-                      className="font-bold text-amber-600 hover:text-amber-700 underline"
-                    >
-                      Open Site Muster Roll →
-                    </Link>
-                  </span>
-                )}
+
               </p>
             </div>
 

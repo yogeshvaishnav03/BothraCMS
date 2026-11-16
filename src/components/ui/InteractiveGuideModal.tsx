@@ -794,60 +794,7 @@ const PAGE_GUIDES: Record<string, PageGuideContent> = {
     ],
   },
 
-  "/attendance/muster": {
-    icon: ClipboardCheck,
-    titleEn: "Workers Muster Roll",
-    titleHi: "श्रमिक मस्टर रोल (दैनिक हाजिरी)",
-    subtitleEn: "Mark daily attendance for registered site workers & contractor gangs",
-    subtitleHi: "मजदूरों और कारीगरों की रोज की हाजिरी और दिहाड़ी दर्ज करें",
-    whoUsesEn: "Site Supervisors, Timekeepers, Project Managers",
-    whoUsesHi: "साइट सुपरवाइज़र, मुंशी, प्रोजेक्ट मैनेजर",
-    summaryEn: "Mark today's attendance once for your entire site team. Marked workers and wage totals flow automatically into Payroll, Day Book summaries, and monthly muster exports.",
-    summaryHi: "पूरी साइट की टीम की हाजिरी एक साथ लगाएं। यहाँ दर्ज की गई हाजिरी सीधे पेरोल और मासिक मस्टर रोल रिपोर्ट में जुड़ जाती है।",
-    steps: [
-      {
-        number: 1,
-        titleEn: "Pick Project Site & Date",
-        titleHi: "साइट और तारीख चुनें",
-        descEn: "Select the site and date at the top, or turn on the toggle to show workers registered under all sites.",
-        descHi: "ऊपर प्रोजेक्ट और तारीख चुनें। दूसरे प्रोजेक्ट के मजदूर देखने के लिए 'All sites' टॉगल चालू करें।",
-      },
-      {
-        number: 2,
-        titleEn: "Tap Present, Half Day, Absent, or Holiday",
-        titleHi: "हाजिरी (P / HD / A / Paid) चुनें",
-        descEn: "Tap status buttons per worker, or click 'Mark Remaining Present' to mark all unmarked workers in one tap.",
-        descHi: "हर मजदूर के आगे बटन दबाएं, या बचे हुए सभी मजदूरों को एक साथ हाजिर करने के लिए 'Mark Remaining Present' दबाएं।",
-      },
-      {
-        number: 3,
-        titleEn: "Save Muster Roll",
-        titleHi: "मस्टर रोल सेव करें",
-        descEn: "Click 'Save Muster Roll'. Wages calculate automatically based on each worker's daily rate.",
-        descHi: "'Save Muster Roll' दबाएं। हर मजदूर की दिहाड़ी अपने-आप जुड़ जाएगी।",
-      },
-    ],
-    jargon: [
-      {
-        term: "Muster Roll",
-        meaningEn: "Official daily register showing which skilled trades and helpers worked on site and how many hours/days count toward pay.",
-        meaningHi: "रोजगार व दिहाड़ी का आधिकारिक रजिस्टर जिसमें रोज़ काम करने वाले सभी श्रमिकों की हाजिरी दर्ज होती है।",
-      },
-      {
-        term: "Paid Holiday (H)",
-        meaningEn: "Worker stays home on a festival or sanctioned holiday while still receiving full daily wage.",
-        meaningHi: "सरकारी या घोषित छुट्टी जिस दिन काम बंद रहने पर भी मजदूर को पूरी दिहाड़ी मिलती है।",
-      },
-    ],
-    proTipsEn: [
-      "Add new workers anytime under People -> Workers before marking their attendance here.",
-      "Once saved, changes appear immediately on the Dashboard crew summary.",
-    ],
-    proTipsHi: [
-      "नए मजदूर जोड़ने के लिए Workers पेज पर जाएं, फिर यहाँ उनकी हाजिरी दिखेगी।",
-      "सेव करते ही डैशबोर्ड पर आज की श्रमिक संख्या तुरंत अपडेट हो जाती है।",
-    ],
-  },
+
 
   "/expenses": {
     icon: Receipt,
