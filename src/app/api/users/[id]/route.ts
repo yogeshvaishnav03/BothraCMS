@@ -14,6 +14,7 @@ const updateUserSchema = z.object({
   jobTitle: z.string().trim().max(80).nullable().optional(),
   password: z.string().min(6, "Password must be at least 6 characters").optional(),
   extraPermissions: z.array(z.string()).max(40).optional(),
+  assignedSiteIds: z.array(z.string()).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

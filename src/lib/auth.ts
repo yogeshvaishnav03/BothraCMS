@@ -24,6 +24,7 @@ export interface UserContext extends SessionPayload {
   timezone: string;
   extraPermissions?: Permission[];
   permissions?: Permission[];
+  assignedSiteIds?: string[];
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -93,6 +94,7 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
       role: string;
       status: string;
       extraPermissionsJson?: string | null;
+      assignedSiteIdsJson?: string | null;
       organization: {
         status: string;
         name: string;
@@ -102,7 +104,7 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
     } | null = null;
 
     try {
-      user = await prisma.user.findUnique({
+      user = (await prisma.user.findUnique({
         where: { id: session.userId },
         select: {
           id: true,
@@ -112,6 +114,7 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
           role: true,
           status: true,
           extraPermissionsJson: true,
+          assignedSiteIdsJson: true,
           organization: {
             select: {
               status: true,
@@ -121,9 +124,13 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
             },
           },
         },
-      });
+      })) as any;
     } catch (colErr: any) {
-      if (colErr?.code !== "P2022" && !String(colErr?.message || "").includes("extraPermissionsJson")) {
+      if (
+        colErr?.code !== "P2022" &&
+        !String(colErr?.message || "").includes("extraPermissionsJson") &&
+        !String(colErr?.message || "").includes("assignedSiteIdsJson")
+      ) {
         throw colErr;
       }
       // Graceful fallback when schema migration is still rolling out
@@ -157,6 +164,13 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
     ) {
       const extraPermissions = normalizeExtraPermissions(user.extraPermissionsJson);
       const permissions = computeEffectivePermissions(user.role, extraPermissions);
+      let assignedSiteIds: string[] = [];
+      if (user.assignedSiteIdsJson) {
+        try {
+          const parsed = JSON.parse(user.assignedSiteIdsJson);
+          if (Array.isArray(parsed)) assignedSiteIds = parsed.filter(Boolean);
+        } catch {}
+      }
       return {
         userId: user.id,
         organizationId: user.organizationId,
@@ -168,6 +182,7 @@ export async function getUserContext(req?: NextRequest): Promise<UserContext | n
         timezone: user.organization.timezone,
         extraPermissions,
         permissions,
+        assignedSiteIds,
       };
     }
 

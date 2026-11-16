@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
       timezone: user.timezone,
       extraPermissions: user.extraPermissions || [],
       permissions,
+      assignedSiteIds: user.assignedSiteIds || [],
     },
   });
 }

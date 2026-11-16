@@ -20,13 +20,22 @@ export async function GET(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
+    const isOwnerOrAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
+    const allowAll = req.nextUrl.searchParams.get("all") === "1";
+    const hasSiteFilter = !isOwnerOrAdmin && !allowAll && user.assignedSiteIds && user.assignedSiteIds.length > 0;
+
+    const baseWhere: any = {
+      organizationId: user.organizationId,
+      status: "ACTIVE",
+    };
+    if (hasSiteFilter) {
+      baseWhere.id = { in: user.assignedSiteIds };
+    }
+
     const compact = req.nextUrl.searchParams.get("compact") === "1";
     if (compact) {
       const sites = await prisma.site.findMany({
-        where: {
-          organizationId: user.organizationId,
-          status: "ACTIVE",
-        },
+        where: baseWhere,
         select: {
           id: true,
           name: true,
@@ -47,10 +56,7 @@ export async function GET(req: NextRequest) {
     }
 
     const sites = await prisma.site.findMany({
-      where: {
-        organizationId: user.organizationId,
-        status: "ACTIVE",
-      },
+      where: baseWhere,
       include: {
         stores: {
           where: { status: "ACTIVE" },

@@ -35,6 +35,8 @@ import {
   EyeOff,
   Sparkles,
   Lock,
+  Building2,
+  MapPin,
 } from "lucide-react";
 
 interface TeamMember {
@@ -46,6 +48,7 @@ interface TeamMember {
   phone: string | null;
   jobTitle: string | null;
   extraPermissions?: Permission[];
+  assignedSiteIds?: string[];
   lastLoginAt: string | null;
   createdAt: string;
 }
@@ -81,19 +84,33 @@ function lastSeen(iso: string | null) {
   return `Last seen ${new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
 }
 
-const EMPTY: {
+interface TeamFormState {
   name: string;
   email: string;
   role: string;
   phone: string;
   jobTitle: string;
   extraPermissions: Permission[];
-} = { name: "", email: "", role: "SITE_SUPERVISOR", phone: "", jobTitle: "", extraPermissions: [] };
+  assignedSiteScope: "ALL" | "SPECIFIC";
+  assignedSiteIds: string[];
+}
+
+const EMPTY: TeamFormState = {
+  name: "",
+  email: "",
+  role: "SITE_SUPERVISOR",
+  phone: "",
+  jobTitle: "",
+  extraPermissions: [],
+  assignedSiteScope: "ALL",
+  assignedSiteIds: [],
+};
 
 export default function TeamPage() {
-  const { refreshUser } = useAppSession();
+  const { refreshUser, sites: sessionSites } = useAppSession();
   const [me, setMe] = useState<any>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [availableSites, setAvailableSites] = useState<{ id: string; name: string; code: string; address?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -164,7 +181,21 @@ export default function TeamPage() {
       .then((u) => u && setMe(u))
       .catch(() => {});
     load();
+    fetch("/api/sites?compact=1&all=1")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res?.data && Array.isArray(res.data)) {
+          setAvailableSites(res.data);
+        }
+      })
+      .catch(() => {});
   }, [refreshUser]);
+
+  const allSites = useMemo(() => {
+    if (availableSites.length > 0) return availableSites;
+    if (Array.isArray(sessionSites) && sessionSites.length > 0) return sessionSites;
+    return [];
+  }, [availableSites, sessionSites]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -196,6 +227,7 @@ export default function TeamPage() {
     setEditing(m);
     setEditPassword("");
     setShowEditPasswordText(false);
+    const hasSpecific = Array.isArray(m.assignedSiteIds) && m.assignedSiteIds.length > 0;
     setForm({
       name: m.name,
       email: m.email,
@@ -203,6 +235,8 @@ export default function TeamPage() {
       phone: m.phone || "",
       jobTitle: m.jobTitle || "",
       extraPermissions: m.extraPermissions || [],
+      assignedSiteScope: hasSpecific ? "SPECIFIC" : "ALL",
+      assignedSiteIds: hasSpecific ? [...m.assignedSiteIds!] : [],
     });
     setShowForm(true);
   };
@@ -350,6 +384,9 @@ export default function TeamPage() {
     setSaving(true);
     setError(null);
     try {
+      const assignedSiteIdsToSend =
+        form.assignedSiteScope === "SPECIFIC" ? form.assignedSiteIds : [];
+
       if (editing) {
         const baseSet = new Set<Permission>(ROLE_PERMISSIONS[form.role as Role] || []);
         const extraPermissions = (form.extraPermissions || []).filter((p) => !baseSet.has(p));
@@ -359,6 +396,7 @@ export default function TeamPage() {
           phone: form.phone || null,
           jobTitle: form.jobTitle || null,
           extraPermissions,
+          assignedSiteIds: assignedSiteIdsToSend,
         };
         if (editPassword.trim()) {
           patchPayload.password = editPassword.trim();
@@ -390,6 +428,7 @@ export default function TeamPage() {
           phone: form.phone || null,
           jobTitle: form.jobTitle || null,
           extraPermissions,
+          assignedSiteIds: assignedSiteIdsToSend,
         });
         setCredentials({ name: data.user.name, email: data.user.email, password: data.temporaryPassword, isNew: true });
         setShowCredentialPassword(true);
@@ -575,6 +614,35 @@ export default function TeamPage() {
                       {m.jobTitle && <div className="text-xs text-slate-500 truncate">{m.jobTitle}</div>}
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1", meta.tone)}>{meta.label}</span>
+                        {/* Assigned Sites badge */}
+                        {(() => {
+                          const hasSpecificSites = Array.isArray(m.assignedSiteIds) && m.assignedSiteIds.length > 0;
+                          if (hasSpecificSites) {
+                            const siteNames = m.assignedSiteIds!
+                              .map((sid) => allSites.find((s) => s.id === sid)?.name || sid)
+                              .join(", ");
+                            return (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 ring-1 ring-amber-200/80"
+                                title={`Assigned Sites: ${siteNames}`}
+                              >
+                                <MapPin className="w-2.5 h-2.5 text-amber-600" />
+                                {m.assignedSiteIds!.length === 1
+                                  ? allSites.find((s) => s.id === m.assignedSiteIds![0])?.name || "1 Site"
+                                  : `${m.assignedSiteIds!.length} Sites`}
+                              </span>
+                            );
+                          }
+                          return (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                              title="Full access to all active sites in company"
+                            >
+                              <Building2 className="w-2.5 h-2.5 text-slate-400" />
+                              All Sites
+                            </span>
+                          );
+                        })()}
                         {(() => {
                           const base = new Set<Permission>(ROLE_PERMISSIONS[m.role as Role] || []);
                           const activeGroups = new Set(
@@ -749,6 +817,186 @@ export default function TeamPage() {
                       </label>
                     ))}
                   </div>
+                </div>
+
+                {/* Assigned Sites & Locations (Single or Multiple Site Access) */}
+                <div className="pt-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-amber-600" />
+                      <label className={cn(labelCls, "mb-0")}>Assigned Sites &amp; Locations</label>
+                    </div>
+                    {form.assignedSiteScope === "SPECIFIC" && allSites.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              assignedSiteIds: allSites.map((s) => s.id),
+                            }))
+                          }
+                          className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 transition cursor-pointer"
+                        >
+                          Select All
+                        </button>
+                        <span className="text-slate-300">•</span>
+                        <button
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, assignedSiteIds: [] }))}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-rose-600 transition cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-2.5 leading-snug">
+                    Assign this person to a single site, multiple sites (e.g. a supervisor handling 2 or more sites), or grant access across all sites.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2.5">
+                    <label
+                      onClick={() => setForm((prev) => ({ ...prev, assignedSiteScope: "ALL" }))}
+                      className={cn(
+                        "cursor-pointer rounded-xl p-2.5 border transition flex items-start gap-2.5",
+                        form.assignedSiteScope === "ALL"
+                          ? "border-amber-400 bg-amber-50/70 ring-1 ring-amber-300 shadow-2xs"
+                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="assignedSiteScope"
+                        checked={form.assignedSiteScope === "ALL"}
+                        onChange={() => setForm((prev) => ({ ...prev, assignedSiteScope: "ALL" }))}
+                        className="sr-only"
+                      />
+                      <Building2 className={cn("w-4 h-4 shrink-0 mt-0.5", form.assignedSiteScope === "ALL" ? "text-amber-600" : "text-slate-400")} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900">All Sites (Company-wide)</div>
+                        <div className="text-[11px] text-slate-500 leading-tight mt-0.5">Access to all active sites in the organization</div>
+                      </div>
+                    </label>
+
+                    <label
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          assignedSiteScope: "SPECIFIC",
+                          assignedSiteIds:
+                            prev.assignedSiteIds.length > 0
+                              ? prev.assignedSiteIds
+                              : allSites.length > 0
+                              ? [allSites[0].id]
+                              : [],
+                        }))
+                      }
+                      className={cn(
+                        "cursor-pointer rounded-xl p-2.5 border transition flex items-start gap-2.5",
+                        form.assignedSiteScope === "SPECIFIC"
+                          ? "border-amber-400 bg-amber-50/70 ring-1 ring-amber-300 shadow-2xs"
+                          : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="assignedSiteScope"
+                        checked={form.assignedSiteScope === "SPECIFIC"}
+                        onChange={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            assignedSiteScope: "SPECIFIC",
+                            assignedSiteIds:
+                              prev.assignedSiteIds.length > 0
+                                ? prev.assignedSiteIds
+                                : allSites.length > 0
+                                ? [allSites[0].id]
+                                : [],
+                          }))
+                        }
+                        className="sr-only"
+                      />
+                      <MapPin className={cn("w-4 h-4 shrink-0 mt-0.5", form.assignedSiteScope === "SPECIFIC" ? "text-amber-600" : "text-slate-400")} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>Specific Sites</span>
+                          {form.assignedSiteScope === "SPECIFIC" && form.assignedSiteIds.length > 0 && (
+                            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900">
+                              {form.assignedSiteIds.length}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-500 leading-tight mt-0.5">Select 1 or more specific sites</div>
+                      </div>
+                    </label>
+                  </div>
+
+                  {form.assignedSiteScope === "SPECIFIC" && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 space-y-1.5 max-h-52 overflow-y-auto">
+                      {allSites.length === 0 ? (
+                        <p className="text-xs text-slate-400 py-2 text-center">No active sites found.</p>
+                      ) : (
+                        allSites.map((site) => {
+                          const isChecked = form.assignedSiteIds.includes(site.id);
+                          return (
+                            <label
+                              key={site.id}
+                              className={cn(
+                                "flex items-center gap-2.5 p-2 rounded-lg border transition cursor-pointer text-xs",
+                                isChecked
+                                  ? "bg-white border-amber-300 shadow-2xs font-semibold text-slate-900"
+                                  : "bg-white/70 border-slate-200 text-slate-600 hover:bg-white"
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  setForm((prev) => {
+                                    const next = isChecked
+                                      ? prev.assignedSiteIds.filter((id) => id !== site.id)
+                                      : [...prev.assignedSiteIds, site.id];
+                                    return { ...prev, assignedSiteIds: next };
+                                  });
+                                }}
+                                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="truncate">{site.name}</span>
+                                  {site.code && (
+                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-slate-100 text-slate-600 font-bold shrink-0">
+                                      {site.code}
+                                    </span>
+                                  )}
+                                </div>
+                                {site.address && (
+                                  <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">
+                                    {site.address}
+                                  </div>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })
+                      )}
+                      {form.assignedSiteScope === "SPECIFIC" && form.assignedSiteIds.length === 0 && (
+                        <p className="text-[11px] text-rose-500 font-semibold px-1 pt-1">
+                          ⚠️ Please check at least one site, or choose &quot;All Sites&quot;.
+                        </p>
+                      )}
+                      {form.assignedSiteScope === "SPECIFIC" && form.assignedSiteIds.length > 0 && (
+                        <div className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-lg px-2.5 py-1.5 mt-1 flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>
+                            {form.name || "This person"} will be assigned to{" "}
+                            <strong>{form.assignedSiteIds.length} site{form.assignedSiteIds.length > 1 ? "s" : ""}</strong> and can easily switch between them.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Extra Accessibility Modules beyond the primary role */}

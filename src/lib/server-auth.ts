@@ -92,6 +92,7 @@ export async function userHasProjectAccess(
     },
     select: {
       id: true,
+      siteId: true,
       managerUserId: true,
       assignments: {
         where: {
@@ -104,6 +105,18 @@ export async function userHasProjectAccess(
   });
 
   if (!project) return false;
+
+  // If user is restricted to specific sites, projects on other sites are blocked
+  if (user.assignedSiteIds && user.assignedSiteIds.length > 0) {
+    if (project.siteId && !user.assignedSiteIds.includes(project.siteId)) {
+      return false;
+    }
+    // If project is on their assigned site, access is granted
+    if (project.siteId && user.assignedSiteIds.includes(project.siteId)) {
+      return true;
+    }
+  }
+
   if (project.managerUserId === user.userId) return true;
   if (project.assignments.length > 0) return true;
 
@@ -150,7 +163,7 @@ export async function getUserAccessibleProjectIds(
 ): Promise<string[] | null> {
   if (isOrgOwnerOrAdmin(user) || user.role === "ACCOUNTANT") return null;
 
-  const [managedProjects, assignedProjects, taskProjects] = await Promise.all([
+  const [managedProjects, assignedProjects, taskProjects, siteProjects] = await Promise.all([
     prisma.project.findMany({
       where: {
         organizationId: user.organizationId,
@@ -176,6 +189,16 @@ export async function getUserAccessibleProjectIds(
       },
       select: { projectId: true },
     }),
+    user.assignedSiteIds && user.assignedSiteIds.length > 0
+      ? prisma.project.findMany({
+          where: {
+            organizationId: user.organizationId,
+            siteId: { in: user.assignedSiteIds },
+            isArchived: false,
+          },
+          select: { id: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const ids = new Set<string>();
@@ -184,6 +207,7 @@ export async function getUserAccessibleProjectIds(
   taskProjects.forEach((t) => {
     if (t.projectId) ids.add(t.projectId);
   });
+  siteProjects.forEach((s) => ids.add(s.id));
 
   return Array.from(ids);
 }

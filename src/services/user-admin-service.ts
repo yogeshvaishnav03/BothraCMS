@@ -41,16 +41,81 @@ const PUBLIC_USER_SELECT = {
   phone: true,
   jobTitle: true,
   extraPermissionsJson: true,
+  assignedSiteIdsJson: true,
   lastLoginAt: true,
   createdAt: true,
 } as const;
 
-function formatPublicUser<T extends { extraPermissionsJson?: string | null }>(row: T) {
-  const { extraPermissionsJson, ...rest } = row;
+function formatPublicUser<T extends { extraPermissionsJson?: string | null; assignedSiteIdsJson?: string | null }>(row: T) {
+  const { extraPermissionsJson, assignedSiteIdsJson, ...rest } = row as any;
+  let assignedSiteIds: string[] = [];
+  if (assignedSiteIdsJson) {
+    try {
+      const parsed = JSON.parse(assignedSiteIdsJson);
+      if (Array.isArray(parsed)) assignedSiteIds = parsed.filter(Boolean);
+    } catch {}
+  }
   return {
     ...rest,
     extraPermissions: normalizeExtraPermissions(extraPermissionsJson),
+    assignedSiteIds,
   };
+}
+
+async function validateAndSanitizeAssignedSiteIds(actor: UserContext, requested?: string[]): Promise<string[]> {
+  if (!requested || requested.length === 0) return [];
+  const validSites = await prisma.site.findMany({
+    where: {
+      organizationId: actor.organizationId,
+      id: { in: requested },
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  const validSiteIds = new Set(validSites.map((s) => s.id));
+  return requested.filter((id) => validSiteIds.has(id));
+}
+
+async function syncUserSiteProjectAssignments(
+  actor: UserContext,
+  userId: string,
+  userRole: string,
+  assignedSiteIds: string[]
+) {
+  try {
+    if (assignedSiteIds.length > 0) {
+      const projectsOnSites = await prisma.project.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          siteId: { in: assignedSiteIds },
+          isArchived: false,
+        },
+        select: { id: true },
+      });
+
+      for (const p of projectsOnSites) {
+        await prisma.projectAssignment.upsert({
+          where: {
+            projectId_userId: { projectId: p.id, userId },
+          },
+          update: {
+            status: "ACTIVE",
+            role: userRole,
+          },
+          create: {
+            organizationId: actor.organizationId,
+            projectId: p.id,
+            userId,
+            role: userRole,
+            status: "ACTIVE",
+            assignedById: actor.userId,
+          },
+        }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn("Notice: project assignment sync skipped or partial:", err);
+  }
 }
 
 function validateAndSanitizeExtraPermissions(actor: UserContext, requested: string[]): Permission[] {
@@ -95,12 +160,35 @@ async function findInOrg(actor: UserContext, userId: string) {
 
 export class UserAdminService {
   static async list(actor: UserContext) {
-    const rows = await prisma.user.findMany({
-      where: { organizationId: actor.organizationId },
-      select: PUBLIC_USER_SELECT,
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    });
-    return rows.map(formatPublicUser);
+    try {
+      const rows = await prisma.user.findMany({
+        where: { organizationId: actor.organizationId },
+        select: PUBLIC_USER_SELECT,
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      });
+      return rows.map(formatPublicUser);
+    } catch (err: any) {
+      if (err?.code === "P2022" || String(err?.message || "").includes("assignedSiteIdsJson")) {
+        const rows = await prisma.user.findMany({
+          where: { organizationId: actor.organizationId },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            status: true,
+            phone: true,
+            jobTitle: true,
+            extraPermissionsJson: true,
+            lastLoginAt: true,
+            createdAt: true,
+          },
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        });
+        return rows.map(formatPublicUser);
+      }
+      throw err;
+    }
   }
 
   static async create(
@@ -112,6 +200,7 @@ export class UserAdminService {
       phone?: string | null;
       jobTitle?: string | null;
       extraPermissions?: string[];
+      assignedSiteIds?: string[];
     }
   ) {
     assertCanAssignRole(actor, input.role);
@@ -128,21 +217,54 @@ export class UserAdminService {
         ? validateAndSanitizeExtraPermissions(actor, input.extraPermissions)
         : [];
 
+    const assignedSiteIds = await validateAndSanitizeAssignedSiteIds(actor, input.assignedSiteIds);
     const temporaryPassword = generateTemporaryPassword();
-    const rawUser = await prisma.user.create({
-      data: {
-        organizationId: actor.organizationId,
-        name: input.name.trim(),
-        email,
-        role: input.role,
-        phone: input.phone?.trim() || null,
-        jobTitle: input.jobTitle?.trim() || null,
-        extraPermissionsJson: extraPermissions.length > 0 ? JSON.stringify(extraPermissions) : null,
-        passwordHash: await hashPassword(temporaryPassword),
-      },
-      select: PUBLIC_USER_SELECT,
-    });
+
+    const createData: any = {
+      organizationId: actor.organizationId,
+      name: input.name.trim(),
+      email,
+      role: input.role,
+      phone: input.phone?.trim() || null,
+      jobTitle: input.jobTitle?.trim() || null,
+      extraPermissionsJson: extraPermissions.length > 0 ? JSON.stringify(extraPermissions) : null,
+      assignedSiteIdsJson: assignedSiteIds.length > 0 ? JSON.stringify(assignedSiteIds) : null,
+      passwordHash: await hashPassword(temporaryPassword),
+    };
+
+    let rawUser: any;
+    try {
+      rawUser = await prisma.user.create({
+        data: createData,
+        select: PUBLIC_USER_SELECT,
+      });
+    } catch (err: any) {
+      if (err?.code === "P2022" || String(err?.message || "").includes("assignedSiteIdsJson")) {
+        delete createData.assignedSiteIdsJson;
+        rawUser = await prisma.user.create({
+          data: createData,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            status: true,
+            phone: true,
+            jobTitle: true,
+            extraPermissionsJson: true,
+            lastLoginAt: true,
+            createdAt: true,
+          },
+        });
+      } else {
+        throw err;
+      }
+    }
     const user = formatPublicUser(rawUser);
+
+    if (assignedSiteIds.length > 0) {
+      await syncUserSiteProjectAssignments(actor, user.id, user.role, assignedSiteIds);
+    }
 
     await prisma.auditEvent.create({
       data: {
@@ -156,6 +278,7 @@ export class UserAdminService {
           email: user.email,
           role: user.role,
           extraPermissions: user.extraPermissions,
+          assignedSiteIds: user.assignedSiteIds,
         }),
         reason: `Added ${user.name} as ${user.role}`,
       },
@@ -175,6 +298,7 @@ export class UserAdminService {
       jobTitle?: string | null;
       password?: string;
       extraPermissions?: string[];
+      assignedSiteIds?: string[];
     }
   ) {
     const target = await findInOrg(actor, userId);
@@ -220,6 +344,10 @@ export class UserAdminService {
       const nextExtras = validateAndSanitizeExtraPermissions(actor, input.extraPermissions);
       data.extraPermissionsJson = nextExtras.length > 0 ? JSON.stringify(nextExtras) : null;
     }
+    if (input.assignedSiteIds !== undefined) {
+      const sanitizedSites = await validateAndSanitizeAssignedSiteIds(actor, input.assignedSiteIds);
+      data.assignedSiteIdsJson = sanitizedSites.length > 0 ? JSON.stringify(sanitizedSites) : null;
+    }
     if (input.password !== undefined && input.password.trim()) {
       const trimmedPwd = input.password.trim();
       if (trimmedPwd.length < 6) {
@@ -228,8 +356,38 @@ export class UserAdminService {
       data.passwordHash = await hashPassword(trimmedPwd);
     }
 
-    const updatedRaw = await prisma.user.update({ where: { id: target.id }, data, select: PUBLIC_USER_SELECT });
+    let updatedRaw: any;
+    try {
+      updatedRaw = await prisma.user.update({ where: { id: target.id }, data, select: PUBLIC_USER_SELECT });
+    } catch (err: any) {
+      if (err?.code === "P2022" || String(err?.message || "").includes("assignedSiteIdsJson")) {
+        delete data.assignedSiteIdsJson;
+        updatedRaw = await prisma.user.update({
+          where: { id: target.id },
+          data,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            status: true,
+            phone: true,
+            jobTitle: true,
+            extraPermissionsJson: true,
+            lastLoginAt: true,
+            createdAt: true,
+          },
+        });
+      } else {
+        throw err;
+      }
+    }
     const updated = formatPublicUser(updatedRaw);
+
+    if (input.assignedSiteIds !== undefined) {
+      const sanitizedSites = await validateAndSanitizeAssignedSiteIds(actor, input.assignedSiteIds);
+      await syncUserSiteProjectAssignments(actor, target.id, input.role || target.role, sanitizedSites);
+    }
 
     // Sync renamed staff names into linked WorkforceMember and headcount records so
     // Day Book, Command Center timeline, and Attendance views immediately show the new name.
@@ -274,6 +432,13 @@ export class UserAdminService {
         : "USER_UPDATED";
 
     const beforeExtras = normalizeExtraPermissions((target as { extraPermissionsJson?: string | null }).extraPermissionsJson);
+    let beforeAssignedSiteIds: string[] = [];
+    if ((target as any).assignedSiteIdsJson) {
+      try {
+        const parsed = JSON.parse((target as any).assignedSiteIdsJson);
+        if (Array.isArray(parsed)) beforeAssignedSiteIds = parsed.filter(Boolean);
+      } catch {}
+    }
     await prisma.auditEvent.create({
       data: {
         organizationId: actor.organizationId,
@@ -288,6 +453,7 @@ export class UserAdminService {
           phone: target.phone,
           jobTitle: target.jobTitle,
           extraPermissions: beforeExtras,
+          assignedSiteIds: beforeAssignedSiteIds,
         }),
         afterJson: JSON.stringify({
           name: updated.name,
@@ -296,6 +462,7 @@ export class UserAdminService {
           phone: updated.phone,
           jobTitle: updated.jobTitle,
           extraPermissions: updated.extraPermissions,
+          assignedSiteIds: updated.assignedSiteIds,
         }),
         reason: `${action.replace(/_/g, " ").toLowerCase()}: ${updated.name}`,
       },

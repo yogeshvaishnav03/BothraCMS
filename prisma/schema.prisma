@@ -78,6 +78,7 @@ model User {
   phone                String?   // mobile, used for WhatsApp / call buttons
   jobTitle             String?   // e.g. Site Engineer, Architect, Accounts Head
   extraPermissionsJson String?   // Optional JSON array of additional Permission keys granted on top of role
+  assignedSiteIdsJson  String?   // Optional JSON array of Site IDs this user is assigned to. If null or empty, has access to all sites.
   lastLoginAt          DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

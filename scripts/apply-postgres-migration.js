@@ -96,6 +96,7 @@ const POSTGRES_COLUMNS = [
   `ALTER TABLE "PayrollLine" ADD COLUMN IF NOT EXISTS "tdsManual" BOOLEAN DEFAULT false;`,
   `ALTER TABLE "PayrollLine" ADD COLUMN IF NOT EXISTS "tds" INTEGER DEFAULT 0;`,
   // Phase 13: staff check-in location and selfie, Razorpay fees
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "assignedSiteIdsJson" TEXT;`,
   `ALTER TABLE "Site" ADD COLUMN IF NOT EXISTS "geofenceM" INTEGER;`,
   `ALTER TABLE "StaffAttendance" ADD COLUMN IF NOT EXISTS "checkInSiteId" TEXT;`,
   `ALTER TABLE "StaffAttendance" ADD COLUMN IF NOT EXISTS "checkInDistanceM" INTEGER;`,
