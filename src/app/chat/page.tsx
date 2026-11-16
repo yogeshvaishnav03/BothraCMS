@@ -642,8 +642,8 @@ export default function ChatPage() {
           const uploadRes = await uploadClientMedia(fileToUpload, {
             entityType: "CHAT",
             entityId: activeConversationId,
-            category: "PHOTO",
-            createAttachment: false,
+            category: isVideoMessage ? "VIDEO" : "PHOTO",
+            createAttachment: true,
           });
           if (uploadRes?.url) {
             uploadedImageUrl = uploadRes.url;
@@ -1254,7 +1254,20 @@ export default function ChatPage() {
                           const senderName = m.sender?.name || "User";
                           const senderRole = m.sender?.role || "";
                           const hasPhoto = Boolean(m.imageUrl);
-                          const hasCaption = m.content && m.content !== "[Photo]";
+                          const isVideo = Boolean(
+                            m.imageUrl &&
+                            (
+                              m.content === "[Video]" ||
+                              m.content?.startsWith("[Video]") ||
+                              /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(m.imageUrl) ||
+                              m.imageUrl.startsWith("data:video/")
+                            )
+                          );
+                          const hasCaption = Boolean(
+                            m.content &&
+                            m.content !== "[Photo]" &&
+                            m.content !== "[Video]"
+                          );
                           const isEditing = editingMessageId === m.id;
                           const canEdit = m.isMine;
                           const canDelete = m.isMine || isSuperAdmin;
@@ -1327,14 +1340,14 @@ export default function ChatPage() {
                                 >
                                   {/* Shared Photo / Video Preview */}
                                   {m.imageUrl && (
-                                    /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(m.imageUrl) || m.imageUrl.startsWith("data:video/") ? (
-                                      <div className="relative group overflow-hidden rounded-xl bg-slate-950">
+                                    isVideo ? (
+                                      <div className="relative group overflow-hidden rounded-xl bg-slate-950 p-0.5">
                                         <video
                                           src={m.imageUrl}
                                           controls
                                           playsInline
                                           preload="metadata"
-                                          className="max-h-72 w-auto max-w-full rounded-xl object-contain"
+                                          className="max-h-72 w-auto max-w-full rounded-xl object-contain bg-black"
                                         />
                                       </div>
                                     ) : (
@@ -1766,55 +1779,68 @@ export default function ChatPage() {
             className="relative max-w-4xl max-h-[90dvh] flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-full flex items-center justify-between pb-3 text-white">
-              <span className="text-xs font-semibold flex items-center gap-1.5 text-slate-300">
-                {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(fullscreenImage) || fullscreenImage.startsWith("data:video/") ? (
-                  <Video className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <ImageIcon className="w-4 h-4 text-amber-400" />
-                )}
-                <span>
-                  {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(fullscreenImage) || fullscreenImage.startsWith("data:video/")
-                    ? "Shared Video Preview"
-                    : "Shared Photo Preview"}
-                </span>
-              </span>
-              <div className="flex items-center gap-2">
-                <a
-                  href={fullscreenImage}
-                  download="chat-media"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                  title="Download / Open original full size"
-                >
-                  <Download className="w-4 h-4" />
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setFullscreenImage(null)}
-                  className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                  title="Close preview"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(fullscreenImage) || fullscreenImage.startsWith("data:video/") ? (
-              <video
-                src={fullscreenImage}
-                controls
-                autoPlay
-                playsInline
-                className="max-h-[78dvh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
-              />
-            ) : (
-              <img
-                src={fullscreenImage}
-                alt="Shared full photo"
-                className="max-h-[78dvh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
-              />
-            )}
+            {(() => {
+              const isFullscreenVideo = Boolean(
+                fullscreenImage &&
+                (
+                  /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(fullscreenImage) ||
+                  fullscreenImage.startsWith("data:video/") ||
+                  messages.some((msg) => msg.imageUrl === fullscreenImage && (msg.content === "[Video]" || msg.content?.startsWith("[Video]")))
+                )
+              );
+
+              return (
+                <>
+                  <div className="w-full flex items-center justify-between pb-3 text-white">
+                    <span className="text-xs font-semibold flex items-center gap-1.5 text-slate-300">
+                      {isFullscreenVideo ? (
+                        <Video className="w-4 h-4 text-amber-400" />
+                      ) : (
+                        <ImageIcon className="w-4 h-4 text-amber-400" />
+                      )}
+                      <span>
+                        {isFullscreenVideo ? "Shared Video Preview" : "Shared Photo Preview"}
+                      </span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={fullscreenImage}
+                        download="chat-media"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                        title="Download / Open original full size"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setFullscreenImage(null)}
+                        className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                        title="Close preview"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                  {isFullscreenVideo ? (
+                    <video
+                      src={fullscreenImage}
+                      controls
+                      autoPlay
+                      playsInline
+                      className="max-h-[78dvh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700 bg-black"
+                    />
+                  ) : (
+                    <img
+                      src={fullscreenImage}
+                      alt="Shared full photo"
+                      className="max-h-[78dvh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
+                    />
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

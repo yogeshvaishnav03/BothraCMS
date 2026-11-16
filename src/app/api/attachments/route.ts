@@ -280,7 +280,7 @@ export async function POST(req: NextRequest) {
         uploadedBy: attachment.uploadedBy.name,
         uploadedById: attachment.uploadedById,
         createdAt: attachment.createdAt,
-        url: `/api/uploads/${attachment.fileId}`,
+        url: `/api/uploads/${attachment.fileId}${safeExt}`,
       },
       201
     );

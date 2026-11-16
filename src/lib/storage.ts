@@ -160,12 +160,18 @@ export class LocalStorageProvider implements IStorageProvider {
     }
 
     // Fallback 1: If exact file name not found, search directories for exact filename or org-prefixed match
+    const pureId = safeKey.replace(/\.[^/.]+$/, "");
     const dirs = [primaryDir, path.join(process.cwd(), "storage", "uploads", "private"), path.join(os.tmpdir(), "storage", "uploads", "private")];
     for (const d of dirs) {
       try {
         if (fs.existsSync(d)) {
           const files = await fs.promises.readdir(d);
-          const match = files.find((f) => f === safeKey || f.endsWith(`_${safeKey}`));
+          const match = files.find(
+            (f) =>
+              f === safeKey ||
+              f.endsWith(`_${safeKey}`) ||
+              (pureId && pureId.length > 8 && (f.includes(pureId) || f.endsWith(`_${pureId}`) || f.startsWith(`${pureId}`)))
+          );
           if (match) {
             return await fs.promises.readFile(path.join(d, match));
           }
@@ -182,7 +188,6 @@ export class LocalStorageProvider implements IStorageProvider {
         `FILE_${safeKey}`,
         safeKey,
       ];
-      const pureId = safeKey.split(".")[0];
       if (pureId && pureId !== safeKey) {
         keysToSearch.push(`FILE_BLOB_${pureId}`, `FILE_${pureId}`, pureId);
       }
@@ -199,13 +204,23 @@ export class LocalStorageProvider implements IStorageProvider {
         );
       }
 
-      const record = await prisma.idempotencyRecord.findFirst({
+      let record = await prisma.idempotencyRecord.findFirst({
         where: {
           key: { in: keysToSearch },
           operation: "FILE_BLOB",
         },
         select: { responseBodyJson: true },
       });
+
+      if (!record?.responseBodyJson && pureId && pureId.length > 8) {
+        record = await prisma.idempotencyRecord.findFirst({
+          where: {
+            operation: "FILE_BLOB",
+            key: { contains: pureId },
+          },
+          select: { responseBodyJson: true },
+        });
+      }
 
       if (record?.responseBodyJson) {
         const buffer = Buffer.from(record.responseBodyJson, "base64");

@@ -24,19 +24,26 @@ export async function GET(
 ) {
   try {
     const user = await requireUserContext(req);
-    const fileId = params.id;
+    const rawFileId = params.id;
 
-    if (!fileId || typeof fileId !== "string" || fileId.trim().length === 0) {
+    if (!rawFileId || typeof rawFileId !== "string" || rawFileId.trim().length === 0) {
       return jsonError("Invalid or missing file identifier", "BAD_REQUEST", 400);
     }
 
-    // 1. Check Attachment model (by fileId, id, or diskFileName exact match)
+    const pureId = rawFileId.replace(/\.[^/.]+$/, "");
+    const fileId = pureId;
+
+    // 1. Check Attachment model (by pureId, rawFileId, id, or diskFileName)
     const attachment = await prisma.attachment.findFirst({
       where: {
+        ...(user.role !== "SUPER_ADMIN" ? { organizationId: user.organizationId } : {}),
         OR: [
-          { fileId: fileId },
-          { id: fileId },
-          { diskFileName: fileId },
+          { fileId: rawFileId },
+          { fileId: pureId },
+          { id: rawFileId },
+          { id: pureId },
+          { diskFileName: rawFileId },
+          { diskFileName: { contains: pureId } },
         ],
       },
     });
@@ -94,7 +101,14 @@ export async function GET(
               organizationId: user.organizationId,
               OR: [
                 { id: attachment.entityId || "" },
-                { messages: { some: { OR: [{ id: attachment.entityId || "" }, { imageUrl: `/api/uploads/${fileId}` }, { imageUrl: fileId }] } } },
+                { messages: { some: { OR: [
+                  { id: attachment.entityId || "" },
+                  { imageUrl: `/api/uploads/${rawFileId}` },
+                  { imageUrl: `/api/uploads/${pureId}` },
+                  { imageUrl: rawFileId },
+                  { imageUrl: pureId },
+                  { imageUrl: { contains: pureId } },
+                ] } } },
               ],
             },
           },
@@ -108,11 +122,15 @@ export async function GET(
       originalName = attachment.fileName;
       mimeType = attachment.mimeType;
     } else {
-      // 2. Check AuditEvent record for legacy or audit uploads (exact match only)
+      // 2. Check AuditEvent record for legacy or audit uploads
       const auditRecord = await prisma.auditEvent.findFirst({
         where: {
           action: "DOCUMENT_UPLOADED",
-          entityId: fileId,
+          OR: [
+            { entityId: rawFileId },
+            { entityId: pureId },
+            { afterJson: { contains: pureId } },
+          ],
         },
       });
 
@@ -128,7 +146,7 @@ export async function GET(
           meta = {};
         }
 
-        diskFileName = meta.diskFileName || fileId;
+        diskFileName = meta.diskFileName || rawFileId;
         originalName = meta.originalName || "document";
         mimeType = meta.mimeType || "application/octet-stream";
 
@@ -140,14 +158,19 @@ export async function GET(
           isConfidential = true;
         }
       } else {
-        // 3. Fallback: Check ChatMessage directly (exact matching, NO broad contains)
+        // 3. Fallback: Check ChatMessage directly
         const chatMsg = await prisma.chatMessage.findFirst({
           where: {
             OR: [
-              { id: fileId },
-              { imageUrl: fileId },
-              { imageUrl: `/api/uploads/${fileId}` },
-              { imageUrl: `api/uploads/${fileId}` },
+              { id: rawFileId },
+              { id: pureId },
+              { imageUrl: rawFileId },
+              { imageUrl: pureId },
+              { imageUrl: `/api/uploads/${rawFileId}` },
+              { imageUrl: `/api/uploads/${pureId}` },
+              { imageUrl: `api/uploads/${rawFileId}` },
+              { imageUrl: `api/uploads/${pureId}` },
+              { imageUrl: { contains: pureId } },
             ],
           },
           include: {
@@ -175,40 +198,42 @@ export async function GET(
 
           isConfidential = true;
 
-          // If stored as inline base64 data URL, return buffer directly for safe raster types only
-          if (chatMsg.imageUrl && chatMsg.imageUrl.startsWith("data:image/")) {
+          const isVideoMsg =
+            chatMsg.content === "[Video]" ||
+            chatMsg.content?.startsWith("[Video]") ||
+            /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(chatMsg.imageUrl || "") ||
+            /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(rawFileId);
+
+          // If stored as inline base64 data URL, return buffer directly
+          if (chatMsg.imageUrl && chatMsg.imageUrl.startsWith("data:")) {
             const [metaPart, base64Part] = chatMsg.imageUrl.split(",");
             const detectedMime = metaPart.split(";")[0].replace("data:", "").toLowerCase();
-            if (!SAFE_INLINE_RASTER_MIMES.has(detectedMime) || !base64Part) {
-              return jsonError("Unsupported inline image format", "UNSUPPORTED_MEDIA_TYPE", 415);
-            }
-            const buffer = Buffer.from(base64Part, "base64");
+            const buffer = Buffer.from(base64Part || "", "base64");
             return new NextResponse(new Uint8Array(buffer), {
               status: 200,
               headers: {
                 "Content-Type": detectedMime,
-                "Content-Disposition": `inline; filename="chat-photo.jpg"`,
+                "Content-Disposition": `inline; filename="${isVideoMsg ? "chat-video.mp4" : "chat-photo.jpg"}"`,
                 "Cache-Control": "private, no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
                 "X-Content-Type-Options": "nosniff",
-                "Content-Security-Policy": "default-src 'none'; img-src 'self'",
+                "Content-Security-Policy": "default-src 'self' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:;",
               },
             });
           }
 
-          diskFileName = fileId;
-          originalName = "chat-photo.jpg";
-          mimeType = "image/jpeg";
+          diskFileName = isVideoMsg ? `${pureId}.mp4` : `${pureId}.jpg`;
+          originalName = isVideoMsg ? "chat-video.mp4" : "chat-photo.jpg";
+          mimeType = isVideoMsg ? "video/mp4" : "image/jpeg";
         } else {
           // If NOT in Attachment, NOT in AuditEvent, and NOT in ChatMessage:
-          // Immediately return 404! Do NOT guess or serve random files!
           return jsonError("Document not found or outside organization scope", "NOT_FOUND", 404);
         }
       }
     }
 
     if (!diskFileName) {
-      diskFileName = fileId;
+      diskFileName = rawFileId;
     }
 
     // Prevent directory traversal and fetch via storage provider
@@ -216,7 +241,7 @@ export async function GET(
     // to prevent routing multi-gigabyte daily traffic through the Vercel serverless function runtime.
     const s3Client = getS3Client();
     if (s3Client) {
-      const storageKey = attachment?.diskFileName || diskFileName || fileId;
+      const storageKey = attachment?.diskFileName || diskFileName || rawFileId;
       const downloadUrl = await createPresignedDownloadUrl(storageKey, originalName, 900);
       return NextResponse.redirect(downloadUrl, 302);
     }
@@ -225,32 +250,53 @@ export async function GET(
     const storage = getStorageProvider();
     let fileBuffer = await storage.get(safeDiskName);
 
-    // If still null, try searching directly with fileId basename
-    if (!fileBuffer && fileId !== safeDiskName) {
-      fileBuffer = await storage.get(path.basename(fileId));
+    // If still null, try searching directly with pureId and rawFileId
+    if (!fileBuffer && pureId !== safeDiskName) {
+      fileBuffer = await storage.get(pureId);
+    }
+    if (!fileBuffer && rawFileId !== safeDiskName && rawFileId !== pureId) {
+      fileBuffer = await storage.get(rawFileId);
     }
 
     // If still null, query persistent database blob from IdempotencyRecord
     if (!fileBuffer) {
       try {
         const candidateKeys = [
-          `FILE_BLOB_${fileId}`,
+          `FILE_BLOB_${rawFileId}`,
+          `FILE_BLOB_${pureId}`,
           `FILE_BLOB_${safeDiskName}`,
-          `FILE_${fileId}`,
-          `FILE_${safeDiskName}`,
-          fileId,
+          `FILE_BLOB_${user.organizationId}_${pureId}.mp4`,
+          `FILE_BLOB_${user.organizationId}_${pureId}.webm`,
+          `FILE_BLOB_${user.organizationId}_${pureId}.jpg`,
+          `FILE_BLOB_${user.organizationId}_${pureId}.png`,
+          `FILE_${rawFileId}`,
+          `FILE_${pureId}`,
+          rawFileId,
+          pureId,
           safeDiskName,
         ];
         if (attachment?.id) candidateKeys.push(`FILE_BLOB_${attachment.id}`, attachment.id);
         if (attachment?.diskFileName) candidateKeys.push(`FILE_BLOB_${path.basename(attachment.diskFileName)}`);
 
-        const blobRecord = await prisma.idempotencyRecord.findFirst({
+        let blobRecord = await prisma.idempotencyRecord.findFirst({
           where: {
+            organizationId: user.organizationId,
             key: { in: candidateKeys },
             operation: "FILE_BLOB",
           },
-          select: { responseBodyJson: true },
+          select: { responseBodyJson: true, key: true },
         });
+
+        if (!blobRecord?.responseBodyJson && pureId && pureId.length > 8) {
+          blobRecord = await prisma.idempotencyRecord.findFirst({
+            where: {
+              organizationId: user.organizationId,
+              operation: "FILE_BLOB",
+              key: { contains: pureId },
+            },
+            select: { responseBodyJson: true, key: true },
+          });
+        }
 
         if (blobRecord?.responseBodyJson) {
           fileBuffer = Buffer.from(blobRecord.responseBodyJson, "base64");
@@ -260,9 +306,30 @@ export async function GET(
       }
     }
 
-    // Infer correct MIME type if missing or application/octet-stream
+    // Inspect magic bytes if buffer is present to ensure 100% accurate MIME type
+    if (fileBuffer && fileBuffer.length >= 8) {
+      if (fileBuffer.subarray(4, 8).toString("ascii") === "ftyp") {
+        mimeType = "video/mp4";
+        if (originalName.endsWith(".jpg") || originalName === "chat-photo.jpg" || originalName === "document") {
+          originalName = "chat-video.mp4";
+        }
+      } else if (fileBuffer[0] === 0x1a && fileBuffer[1] === 0x45 && fileBuffer[2] === 0xdf && fileBuffer[3] === 0xa3) {
+        mimeType = "video/webm";
+        if (originalName.endsWith(".jpg") || originalName === "chat-photo.jpg" || originalName === "document") {
+          originalName = "chat-video.webm";
+        }
+      } else if (fileBuffer[0] === 0x89 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x4e && fileBuffer[3] === 0x47) {
+        mimeType = "image/png";
+      } else if (fileBuffer[0] === 0xff && fileBuffer[1] === 0xd8 && fileBuffer[2] === 0xff) {
+        mimeType = "image/jpeg";
+      } else if (fileBuffer[0] === 0x25 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x44 && fileBuffer[3] === 0x46) {
+        mimeType = "application/pdf";
+      }
+    }
+
+    // Infer correct MIME type if still missing or generic
     if (!mimeType || mimeType === "application/octet-stream") {
-      const ext = path.extname(safeDiskName || originalName || fileId).toLowerCase();
+      const ext = path.extname(safeDiskName || originalName || rawFileId).toLowerCase();
       if (ext === ".jpg" || ext === ".jpeg") mimeType = "image/jpeg";
       else if (ext === ".png") mimeType = "image/png";
       else if (ext === ".webp") mimeType = "image/webp";
@@ -273,19 +340,6 @@ export async function GET(
       else if (ext === ".mov") mimeType = "video/quicktime";
       else if (ext === ".3gp") mimeType = "video/3gpp";
       else if (ext === ".avi") mimeType = "video/x-msvideo";
-      else if (fileBuffer && fileBuffer.length >= 4) {
-        if (fileBuffer[0] === 0x89 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x4e && fileBuffer[3] === 0x47) {
-          mimeType = "image/png";
-        } else if (fileBuffer[0] === 0xff && fileBuffer[1] === 0xd8 && fileBuffer[2] === 0xff) {
-          mimeType = "image/jpeg";
-        } else if (fileBuffer[0] === 0x25 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x44 && fileBuffer[3] === 0x46) {
-          mimeType = "application/pdf";
-        } else if (fileBuffer.length >= 8 && fileBuffer.toString("ascii", 4, 8) === "ftyp") {
-          mimeType = "video/mp4";
-        } else if (fileBuffer[0] === 0x1a && fileBuffer[1] === 0x45 && fileBuffer[2] === 0xdf && fileBuffer[3] === 0xa3) {
-          mimeType = "video/webm";
-        }
-      }
     }
 
     if (!fileBuffer) {

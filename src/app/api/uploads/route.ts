@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
         mimeType: file.type,
         sizeBytes: file.size,
         category,
-        url: `/api/uploads/${fileId}`,
+        url: `/api/uploads/${fileId}${safeExt}`,
         auditId: audit.id,
       },
       201

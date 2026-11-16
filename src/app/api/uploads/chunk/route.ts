@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create Attachment record if requested or standard entity attachment
-    if (createAttachment || (entityType !== "CHAT" && entityType !== "TEMP")) {
+    if (createAttachment || entityType !== "TEMP") {
       await prisma.attachment.create({
         data: {
           organizationId: user.organizationId,
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
     });
 
     return jsonSuccess({
-      url: `/api/uploads/${fileId}`,
+      url: `/api/uploads/${fileId}${safeExt}`,
       fileId,
       diskFileName,
       fileName: sanitizedOriginalName,
