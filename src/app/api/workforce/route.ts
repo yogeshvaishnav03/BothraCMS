@@ -4,12 +4,17 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission, hasPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import {
+  generateNextWorkerCode,
+  validateWorkerPhone,
+  WorkforceService,
+} from "@/services/workforce-service";
 
 export const dynamic = "force-dynamic";
 
 const createWorkerSchema = z.object({
-  employeeCode: z.string().min(2),
-  name: z.string().min(2),
+  employeeCode: z.string().trim().min(2).optional(),
+  name: z.string().trim().min(2, "Worker full name is required"),
   workerType: z.enum([
     "MASON",
     "CARPENTER",
@@ -19,11 +24,12 @@ const createWorkerSchema = z.object({
     "FOREMAN",
     "SITE_ENGINEER",
   ]),
-  phone: z.string().optional(),
-  defaultSiteId: z.string().min(1).optional(),
-  dailyWageRate: z.number().min(0).optional(), // paise (Skilled Workers / Primary Rate)
-  maleHelperWageRate: z.number().min(0).optional(), // paise (Laborers & Helpers Male)
-  femaleHelperWageRate: z.number().min(0).optional(), // paise (Laborers & Helpers Female)
+  phone: z.string().trim().nullable().optional(),
+  defaultSiteId: z.string().min(1).nullable().optional(),
+  contractorId: z.string().min(1).nullable().optional(),
+  dailyWageRate: z.number().min(0).nullable().optional(), // paise (Skilled Workers / Primary Rate)
+  maleHelperWageRate: z.number().min(0).nullable().optional(), // paise (Laborers & Helpers Male)
+  femaleHelperWageRate: z.number().min(0).nullable().optional(), // paise (Laborers & Helpers Female)
 });
 
 export async function GET(req: NextRequest) {
@@ -32,6 +38,11 @@ export async function GET(req: NextRequest) {
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
     const { searchParams } = new URL(req.url);
+    if (searchParams.get("nextCode") === "1") {
+      const nextCode = await generateNextWorkerCode(user.organizationId);
+      return jsonSuccess({ nextCode });
+    }
+
     const siteId = searchParams.get("siteId");
     const workerType = searchParams.get("workerType");
 
@@ -155,6 +166,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createWorkerSchema.parse(body);
 
+    // Validate phone number format if provided
+    if (data.phone && !validateWorkerPhone(data.phone)) {
+      return jsonError("Phone number must contain between 10 and 15 digits", "INVALID_PHONE", 422);
+    }
+
     if (data.defaultSiteId) {
       const site = await prisma.site.findFirst({
         where: { id: data.defaultSiteId, organizationId: user.organizationId },
@@ -164,27 +180,86 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const existingCode = await prisma.workforceMember.findFirst({
-      where: { organizationId: user.organizationId, employeeCode: data.employeeCode },
-    });
-    if (existingCode) {
-      return jsonError(`Worker with employee code '${data.employeeCode}' already exists`, "DUPLICATE_CODE", 409);
+    // If contractorId is specified, verify contractor exists and prevent duplicate registrations
+    if (data.contractorId) {
+      const party = await prisma.party.findFirst({
+        where: {
+          id: data.contractorId,
+          organizationId: user.organizationId,
+          active: true,
+          isArchived: false,
+        },
+      });
+      if (!party) {
+        return jsonError("Selected contractor not found or is inactive in Vendors & Contractors", "CONTRACTOR_NOT_FOUND", 404);
+      }
+
+      const duplicate = await WorkforceService.checkDuplicateContractor(
+        user.organizationId,
+        data.contractorId,
+        data.name
+      );
+      if (duplicate) {
+        return jsonError(
+          `Contractor '${data.name}' is already registered as an active workforce member (${duplicate.employeeCode}). Duplicate registration is not permitted.`,
+          "DUPLICATE_WORKER",
+          409
+        );
+      }
     }
 
-    const worker = await prisma.workforceMember.create({
-      data: {
-        organizationId: user.organizationId,
-        employeeCode: data.employeeCode,
-        name: data.name,
-        workerType: data.workerType,
-        phone: data.phone,
-        defaultSiteId: data.defaultSiteId,
-        dailyWageRate: data.dailyWageRate,
-        maleHelperWageRate: data.maleHelperWageRate,
-        femaleHelperWageRate: data.femaleHelperWageRate,
-      },
-      include: { defaultSite: true },
-    });
+    // Determine unique worker ID code (WRK-8015, WRK-8016, ...)
+    let finalCode = (data.employeeCode || "").trim();
+    if (!finalCode) {
+      finalCode = await generateNextWorkerCode(user.organizationId);
+    } else {
+      const clash = await prisma.workforceMember.findFirst({
+        where: { organizationId: user.organizationId, employeeCode: finalCode },
+        select: { id: true },
+      });
+      if (clash) {
+        finalCode = await generateNextWorkerCode(user.organizationId, finalCode);
+      }
+    }
+
+    const createData: any = {
+      organizationId: user.organizationId,
+      employeeCode: finalCode,
+      name: data.name.trim(),
+      workerType: data.workerType,
+      phone: data.phone?.trim() || null,
+      defaultSiteId: data.defaultSiteId || null,
+      contractorId: data.contractorId || null,
+      dailyWageRate: data.dailyWageRate ?? null,
+      maleHelperWageRate: data.maleHelperWageRate ?? null,
+      femaleHelperWageRate: data.femaleHelperWageRate ?? null,
+    };
+
+    let worker: any;
+    try {
+      worker = await prisma.workforceMember.create({
+        data: createData,
+        include: { defaultSite: true },
+      });
+    } catch (err: any) {
+      if (err?.code === "P2022" || String(err?.message || "").includes("contractorId")) {
+        // Fallback if contractorId column is pending DB migration
+        delete createData.contractorId;
+        worker = await prisma.workforceMember.create({
+          data: createData,
+          include: { defaultSite: true },
+        });
+      } else if (err?.code === "P2002") {
+        // Concurrency race: safely generate next code and retry
+        createData.employeeCode = await generateNextWorkerCode(user.organizationId);
+        worker = await prisma.workforceMember.create({
+          data: createData,
+          include: { defaultSite: true },
+        });
+      } else {
+        throw err;
+      }
+    }
 
     return jsonSuccess(worker, 201);
   } catch (error) {
@@ -209,6 +284,7 @@ const updateWorkerSchema = z.object({
     .optional(),
   phone: z.string().trim().nullable().optional(),
   defaultSiteId: z.string().min(1).nullable().optional(),
+  contractorId: z.string().min(1).nullable().optional(),
   dailyWageRate: z.number().min(0).nullable().optional(),
   maleHelperWageRate: z.number().min(0).nullable().optional(),
   femaleHelperWageRate: z.number().min(0).nullable().optional(),
@@ -259,6 +335,7 @@ export async function PATCH(req: NextRequest) {
     if (data.workerType !== undefined) updateData.workerType = data.workerType;
     if (data.phone !== undefined) updateData.phone = data.phone || null;
     if (data.defaultSiteId !== undefined) updateData.defaultSiteId = data.defaultSiteId;
+    if (data.contractorId !== undefined) updateData.contractorId = data.contractorId || null;
     if (data.dailyWageRate !== undefined) updateData.dailyWageRate = data.dailyWageRate;
     if (data.maleHelperWageRate !== undefined) updateData.maleHelperWageRate = data.maleHelperWageRate;
     if (data.femaleHelperWageRate !== undefined) updateData.femaleHelperWageRate = data.femaleHelperWageRate;

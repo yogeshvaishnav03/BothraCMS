@@ -565,6 +565,7 @@ model WorkforceMember {
   workerType     String   // MASON, CARPENTER, ELECTRICIAN, PLUMBER, HELPER, FOREMAN, SITE_ENGINEER
   phone          String?
   defaultSiteId        String?
+  contractorId         String?   // References Party.id when worker is linked to a contractor
   dailyWageRate        Float?   // paise per day (Skilled Workers / Primary Rate)
   maleHelperWageRate   Float?   // paise per day (Laborers & Helpers Male)
   femaleHelperWageRate Float?   // paise per day (Laborers & Helpers Female)
@@ -588,6 +589,7 @@ model WorkforceMember {
 
   @@unique([organizationId, employeeCode])
   @@index([organizationId])
+  @@index([organizationId, contractorId])
 }
 
 model AttendanceSession {

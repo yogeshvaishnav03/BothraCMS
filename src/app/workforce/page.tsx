@@ -34,11 +34,14 @@ import {
   Info,
   BarChart3,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
+import SearchableSelect, { SearchableOption } from "@/components/ui/SearchableSelect";
+import { matchContractorTradeCategory, validateWorkerPhone } from "@/lib/contractor-trade-mapping";
 
 interface HeadcountRecord {
   id: string;
@@ -104,6 +107,7 @@ interface WorkerRosterItem {
   employeeCode: string;
   workerType: string;
   phone?: string;
+  contractorId?: string | null;
   dailyWageRate?: number;
   maleHelperWageRate?: number;
   femaleHelperWageRate?: number;
@@ -449,6 +453,96 @@ export default function WorkforcePage() {
   const [workerDailyWage, setWorkerDailyWage] = useState("");
   const [workerMaleHelperWage, setWorkerMaleHelperWage] = useState("");
   const [workerFemaleHelperWage, setWorkerFemaleHelperWage] = useState("");
+
+  // Dynamic Contractor Selection states
+  const [selectedContractorPartyId, setSelectedContractorPartyId] = useState("");
+  const [loadingContractors, setLoadingContractors] = useState(false);
+  const [contractorFetchError, setContractorFetchError] = useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+
+  // Eligible contractors from Vendors & Contractors database (CONTRACTOR or BOTH)
+  const contractorParties = useMemo(() => {
+    return parties.filter((p) => {
+      const pType = (p.partyType || p.type || "").toUpperCase();
+      return pType === "CONTRACTOR" || pType === "BOTH" || pType === "SUBCONTRACTOR";
+    });
+  }, [parties]);
+
+  // Searchable contractor dropdown options
+  const contractorSelectOptions: SearchableOption[] = useMemo(() => {
+    return contractorParties.map((p) => {
+      const registeredWorker = workers.find(
+        (w) => (w.contractorId && w.contractorId === p.id) || w.name?.toLowerCase().trim() === p.name?.toLowerCase().trim()
+      );
+      const isRegistered = Boolean(registeredWorker);
+      const details: string[] = [];
+      if (p.phone) details.push(p.phone);
+      if (p.category) details.push(p.category);
+      if (p.city) details.push(p.city);
+
+      return {
+        value: p.id,
+        label: p.name,
+        subLabel: details.join(" • ") || "Vendor & Contractor Record",
+        badge: isRegistered
+          ? `Registered (${registeredWorker?.employeeCode})`
+          : (p.category || "Contractor"),
+        meta: {
+          ...p,
+          isRegistered,
+          registeredWorkerCode: registeredWorker?.employeeCode,
+        },
+      };
+    });
+  }, [contractorParties, workers]);
+
+  // Handle contractor selection from dropdown: auto-populates all required fields
+  const handleSelectContractor = (partyId: string) => {
+    setSelectedContractorPartyId(partyId);
+    setDuplicateWarning(null);
+
+    if (!partyId) {
+      setWorkerName("");
+      setWorkerPhone("");
+      return;
+    }
+
+    const contractor = contractorParties.find((p) => p.id === partyId);
+    if (!contractor) return;
+
+    // 1. Populate Full Name
+    setWorkerName(contractor.name || "");
+
+    // 2. Populate Phone Number
+    const phone = contractor.phone || contractor.whatsappNumber || "";
+    setWorkerPhone(phone);
+
+    // 3. Automatically select matching Trade Category
+    const mappedTrade = matchContractorTradeCategory(contractor.category || contractor.name || "");
+    setWorkerType(mappedTrade);
+
+    // 4. Populate wage rates if present in contractor rate card
+    if (contractor.dailyWageRate != null && contractor.dailyWageRate > 0) {
+      setWorkerDailyWage(String(contractor.dailyWageRate / 100));
+    }
+    if (contractor.maleHelperWageRate != null && contractor.maleHelperWageRate > 0) {
+      setWorkerMaleHelperWage(String(contractor.maleHelperWageRate / 100));
+    }
+    if (contractor.femaleHelperWageRate != null && contractor.femaleHelperWageRate > 0) {
+      setWorkerFemaleHelperWage(String(contractor.femaleHelperWageRate / 100));
+    }
+
+    // 5. Check duplicate registration
+    const existingWorker = workers.find(
+      (w) => (w.contractorId && w.contractorId === contractor.id) || w.name?.toLowerCase().trim() === contractor.name?.toLowerCase().trim()
+    );
+    if (existingWorker) {
+      setDuplicateWarning(
+        `Notice: Contractor "${contractor.name}" is already registered as worker ${existingWorker.employeeCode}. Registering again may create a duplicate.`
+      );
+    }
+  };
 
   // Feedback states
   const [submitting, setSubmitting] = useState(false);
@@ -910,8 +1004,10 @@ export default function WorkforcePage() {
   };
 
   // Register worker submit handler
-  const openCreateWorkerModal = () => {
+  const openCreateWorkerModal = async () => {
     setEditingWorker(null);
+    setSelectedContractorPartyId("");
+    setDuplicateWarning(null);
     setWorkerName("");
     setEmployeeCode("");
     setWorkerType("MASON");
@@ -919,11 +1015,43 @@ export default function WorkforcePage() {
     setWorkerDailyWage("");
     setWorkerMaleHelperWage("");
     setWorkerFemaleHelperWage("");
+    setIsGeneratingCode(true);
     setShowRegisterWorkerModal(true);
+
+    try {
+      const codeRes = await fetch("/api/workforce/next-code", { cache: "no-store" });
+      const codeData = await codeRes.json();
+      if (codeData?.success && codeData.data?.nextCode) {
+        setEmployeeCode(codeData.data.nextCode);
+      } else {
+        setEmployeeCode(`WRK-${Date.now().toString().slice(-4)}`);
+      }
+    } catch {
+      setEmployeeCode(`WRK-${Date.now().toString().slice(-4)}`);
+    } finally {
+      setIsGeneratingCode(false);
+    }
+
+    // Refresh contractor list so any newly added contractors appear immediately
+    try {
+      setLoadingContractors(true);
+      setContractorFetchError(null);
+      const res = await fetch(`/api/parties?type=CONTRACTOR&_t=${Date.now()}`);
+      const pData = await res.json();
+      if (pData?.success && Array.isArray(pData.data)) {
+        setParties(pData.data);
+      }
+    } catch {
+      setContractorFetchError("Could not refresh contractors list");
+    } finally {
+      setLoadingContractors(false);
+    }
   };
 
   const openEditWorkerModal = (w: WorkerRosterItem) => {
     setEditingWorker(w);
+    setSelectedContractorPartyId(w.contractorId || "");
+    setDuplicateWarning(null);
     setWorkerName(w.name || "");
     setEmployeeCode(w.employeeCode || "");
     setWorkerType(w.workerType || "MASON");
@@ -936,8 +1064,16 @@ export default function WorkforcePage() {
 
   const handleRegisterWorker = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!workerName.trim() || !employeeCode.trim()) {
-      setErrorMessage("Worker name and employee code are required");
+    if (!workerName.trim()) {
+      setErrorMessage("Please select a contractor or enter worker name");
+      return;
+    }
+    if (!employeeCode.trim()) {
+      setErrorMessage("Worker ID code is required");
+      return;
+    }
+    if (workerPhone.trim() && !validateWorkerPhone(workerPhone.trim())) {
+      setErrorMessage("Phone number must contain between 10 and 15 digits");
       return;
     }
 
@@ -951,6 +1087,7 @@ export default function WorkforcePage() {
         employeeCode: employeeCode.trim(),
         workerType,
         phone: workerPhone.trim() || (editingWorker ? null : undefined),
+        contractorId: selectedContractorPartyId || (editingWorker ? editingWorker.contractorId ?? null : undefined),
         defaultSiteId: selectedSiteId || (editingWorker ? editingWorker.defaultSiteId ?? null : undefined),
         dailyWageRate: workerDailyWage
           ? Math.round(parseFloat(workerDailyWage) * 100)
@@ -989,6 +1126,8 @@ export default function WorkforcePage() {
         );
         setShowRegisterWorkerModal(false);
         setEditingWorker(null);
+        setSelectedContractorPartyId("");
+        setDuplicateWarning(null);
         setWorkerName("");
         setEmployeeCode("");
         setWorkerPhone("");
@@ -2586,6 +2725,8 @@ export default function WorkforcePage() {
                   onClick={() => {
                     setShowRegisterWorkerModal(false);
                     setEditingWorker(null);
+                    setSelectedContractorPartyId("");
+                    setDuplicateWarning(null);
                   }}
                   className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
                 >
@@ -2595,38 +2736,92 @@ export default function WorkforcePage() {
 
               <form onSubmit={handleRegisterWorker} className="space-y-3">
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                    Worker Full Name: *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ramesh Kumar"
-                    value={workerName}
-                    onChange={(e) => setWorkerName(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block">
+                      Contractor / Full Name: *
+                    </label>
+                    {loadingContractors && (
+                      <span className="text-[10px] text-amber-600 flex items-center gap-1 font-medium">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Loading contractors...
+                      </span>
+                    )}
+                  </div>
+                  {!editingWorker ? (
+                    <div>
+                      <SearchableSelect
+                        options={contractorSelectOptions}
+                        value={selectedContractorPartyId}
+                        onChange={handleSelectContractor}
+                        placeholder={loadingContractors ? "Loading contractors..." : "Search & select contractor from Vendors module..."}
+                        searchPlaceholder="Type contractor name, trade, or phone..."
+                        required
+                      />
+                      {contractorSelectOptions.length === 0 && !loadingContractors && (
+                        <div className="mt-1.5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-start gap-1.5">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <span>No contractor records found in Vendors &amp; Contractors. Please add a contractor in the Vendors module first.</span>
+                        </div>
+                      )}
+                      {contractorFetchError && (
+                        <p className="mt-1 text-[11px] text-red-600 font-medium">{contractorFetchError}</p>
+                      )}
+                      {duplicateWarning && (
+                        <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-start gap-1.5">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <span>{duplicateWarning}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Kumar"
+                      value={workerName}
+                      onChange={(e) => setWorkerName(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                      Worker ID Code: * <span className="font-normal lowercase text-slate-400">(e.g. WRK-104)</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder={`WRK-${Date.now().toString().slice(-4)}`}
-                      value={employeeCode}
-                      onChange={(e) => setEmployeeCode(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block">
+                        Worker ID Code: *
+                      </label>
+                      <span className="text-[9px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                        ⚡ Auto-generated
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. WRK-8015"
+                        value={employeeCode}
+                        onChange={(e) => setEmployeeCode(e.target.value.toUpperCase())}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      />
+                      {isGeneratingCode && (
+                        <div className="absolute right-2.5 top-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                      Trade Category: *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500 block">
+                        Trade Category: *
+                      </label>
+                      {selectedContractorPartyId && (
+                        <span className="text-[9px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                          ⚡ Auto-matched
+                        </span>
+                      )}
+                    </div>
                     <select
                       value={workerType}
                       onChange={(e) => setWorkerType(e.target.value)}
@@ -2644,11 +2839,18 @@ export default function WorkforcePage() {
                 </div>
 
                 <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                    Phone Number:
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block">
+                      Phone Number:
+                    </label>
+                    {selectedContractorPartyId && workerPhone && (
+                      <span className="text-[9px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                        ⚡ From contractor record
+                      </span>
+                    )}
+                  </div>
                   <input
-                    type="text"
+                    type="tel"
                     placeholder="+91 98765 43210"
                     value={workerPhone}
                     onChange={(e) => setWorkerPhone(e.target.value)}
@@ -2657,8 +2859,15 @@ export default function WorkforcePage() {
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 space-y-2.5">
-                  <div className="text-[10px] uppercase font-bold text-slate-600 tracking-wider">
-                    Daily Wage Rates (₹ / day)
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] uppercase font-bold text-slate-600 tracking-wider">
+                      Daily Wage Rates (₹ / day)
+                    </div>
+                    {selectedContractorPartyId && (workerDailyWage || workerMaleHelperWage || workerFemaleHelperWage) && (
+                      <span className="text-[9px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                        ⚡ Pre-filled from rate card
+                      </span>
+                    )}
                   </div>
 
                   <div>
@@ -2715,6 +2924,8 @@ export default function WorkforcePage() {
                     onClick={() => {
                       setShowRegisterWorkerModal(false);
                       setEditingWorker(null);
+                      setSelectedContractorPartyId("");
+                      setDuplicateWarning(null);
                     }}
                     className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition"
                   >

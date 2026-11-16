@@ -105,6 +105,9 @@ const POSTGRES_COLUMNS = [
   `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "fee" INTEGER;`,
   `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "feeTax" INTEGER;`,
   `ALTER TABLE "OnlinePayment" ADD COLUMN IF NOT EXISTS "feeBookedIn" TEXT;`,
+  // Phase 14: Dynamic contractor selection in workforce registration
+  `ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "contractorId" TEXT;`,
+  `CREATE INDEX IF NOT EXISTS "WorkforceMember_contractorId_idx" ON "WorkforceMember"("organizationId", "contractorId");`,
   `ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "whatsappGroupLink" TEXT;`,
 
   // Measurement Book Entry Columns & Audit Fields
