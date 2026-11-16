@@ -10,6 +10,7 @@ import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber, formatShortBillNumber, formatShortName } from "@/lib/formatters";
 import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
+import { compressVideoFile } from "@/lib/video-compression";
 import {
   CalendarDays,
   DollarSign,
@@ -1044,7 +1045,8 @@ export default function DayBookPage() {
           setFileValidationError(`Video "${rawFile.name}" exceeds the 250 MB limit.`);
           continue;
         }
-        validFiles.push(rawFile);
+        const compressedVideo = await compressVideoFile(rawFile);
+        validFiles.push(compressedVideo);
       } else {
         if (rawFile.size > 40 * 1024 * 1024) {
           setFileValidationError(`Image "${rawFile.name}" is too large to process.`);
@@ -1097,7 +1099,8 @@ export default function DayBookPage() {
           setFileValidationError(`Video "${rawFile.name}" exceeds the 250 MB limit.`);
           continue;
         }
-        validFiles.push(rawFile);
+        const compressedVideo = await compressVideoFile(rawFile);
+        validFiles.push(compressedVideo);
       } else if (rawFile.type === "application/pdf") {
         if (rawFile.size > 15 * 1024 * 1024) {
           setFileValidationError(`File "${rawFile.name}" exceeds the 15 MB limit.`);
@@ -1152,7 +1155,8 @@ export default function DayBookPage() {
           setFileValidationError(`Video "${rawFile.name}" exceeds the 250 MB limit.`);
           continue;
         }
-        validFiles.push(rawFile);
+        const compressedVideo = await compressVideoFile(rawFile);
+        validFiles.push(compressedVideo);
       } else if (rawFile.type === "application/pdf") {
         if (rawFile.size > 15 * 1024 * 1024) {
           setFileValidationError(`File "${rawFile.name}" exceeds the 15 MB limit.`);

@@ -8,6 +8,7 @@ import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatCompactINR, formatDate } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
+import { compressVideoFile } from "@/lib/video-compression";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   Receipt,
@@ -241,9 +242,10 @@ export default function ExpensesPage() {
         setReceiptError("Video receipt exceeds the 250 MB limit. Please choose a smaller video.");
         return;
       }
-      setReceiptFile(rawFile);
+      const compressedVideo = await compressVideoFile(rawFile);
+      setReceiptFile(compressedVideo);
       setReceiptError(null);
-      setReceiptPreview(URL.createObjectURL(rawFile));
+      setReceiptPreview(URL.createObjectURL(compressedVideo));
       return;
     }
 
@@ -463,7 +465,7 @@ export default function ExpensesPage() {
     setEditReceiptError(null);
   };
 
-  const handleEditPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -479,25 +481,29 @@ export default function ExpensesPage() {
         return;
       }
       setEditReceiptError(null);
-      setEditReceiptFile(file);
-      setEditReceiptPreview(URL.createObjectURL(file));
+      const compressedVideo = await compressVideoFile(file);
+      setEditReceiptFile(compressedVideo);
+      setEditReceiptPreview(URL.createObjectURL(compressedVideo));
       return;
     }
 
-    if (file.size > 15 * 1024 * 1024) {
-      setEditReceiptError("Receipt file is too large (max 15 MB). Please compress or take another photo.");
+    if (file.size > 40 * 1024 * 1024) {
+      setEditReceiptError("Receipt file is too large to process.");
       return;
     }
 
     setEditReceiptError(null);
-    setEditReceiptFile(file);
+    const processed = file.type.startsWith("image/")
+      ? await compressImageFile(file, { preset: "receipt" })
+      : file;
+    setEditReceiptFile(processed);
 
-    if (file.type.startsWith("image/")) {
+    if (processed.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (event) => {
         setEditReceiptPreview(event.target?.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processed);
     } else {
       setEditReceiptPreview(null);
     }

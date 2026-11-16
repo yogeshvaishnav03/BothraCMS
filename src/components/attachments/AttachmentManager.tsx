@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { formatFileSize } from "@/lib/formatters";
 import { compressImageFile, presetForAttachmentCategory } from "@/lib/image-compression";
+import { compressVideoFile } from "@/lib/video-compression";
 
 interface AttachmentItem {
   id: string;
@@ -100,9 +101,12 @@ export default function AttachmentManager({
   }, [entityId, entityType, folderId]);
 
   const uploadSingleFile = async (rawFile: File, fileCategory: string) => {
-    const file = await compressImageFile(rawFile, {
-      preset: presetForAttachmentCategory(fileCategory, entityType),
-    });
+    const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+    const file = isVideo
+      ? await compressVideoFile(rawFile)
+      : await compressImageFile(rawFile, {
+          preset: presetForAttachmentCategory(fileCategory, entityType),
+        });
 
     try {
       // 1. Attempt authorized presigned direct upload (bypasses serverless bandwidth)

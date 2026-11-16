@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import { Camera, CloudOff, Loader2, X } from "lucide-react";
 import { isNetworkError, isOffline, type QueuedPhoto } from "@/lib/offline-queue";
 import { compressImageFile } from "@/lib/image-compression";
+import { compressVideoFile } from "@/lib/video-compression";
 
 export interface PickedPhoto {
   url: string;
@@ -56,7 +57,10 @@ export function PhotoPicker({
     setUploading(picked.length);
     const added: PickedPhoto[] = [];
     for (const rawFile of picked) {
-      const file = await compressImageFile(rawFile, { preset: "photo" });
+      const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+      const file = isVideo
+        ? await compressVideoFile(rawFile)
+        : await compressImageFile(rawFile, { preset: "photo" });
       if (isOffline()) {
         added.push({ url: URL.createObjectURL(file), name: file.name, file });
         setUploading((n) => n - 1);

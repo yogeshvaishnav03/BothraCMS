@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import { FileUp, Loader2, Paperclip, X } from "lucide-react";
 import { compressImageFile, presetForAttachmentCategory } from "@/lib/image-compression";
+import { compressVideoFile } from "@/lib/video-compression";
 
 /** Uploads one PDF, image, or video to /api/attachments and hands back its url. */
 export function FileUpload({
@@ -28,9 +29,12 @@ export function FileUpload({
     if (!rawFile) return;
     setBusy(true);
     setError(null);
-    const file = await compressImageFile(rawFile, {
-      preset: presetForAttachmentCategory(category, entityType),
-    });
+    const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+    const file = isVideo
+      ? await compressVideoFile(rawFile)
+      : await compressImageFile(rawFile, {
+          preset: presetForAttachmentCategory(category, entityType),
+        });
     const form = new FormData();
     form.append("file", file, file.name);
     form.append("entityType", entityType);

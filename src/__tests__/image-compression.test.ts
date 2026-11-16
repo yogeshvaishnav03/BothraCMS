@@ -221,11 +221,26 @@ describe("Client-Side Automatic Image Compression", () => {
         "app/day-book/page.tsx",
         "app/expenses/page.tsx",
         "app/measurement-book/page.tsx",
-        "app/work-reports/page.tsx",
+        "app/material-requests/page.tsx",
         "app/chat/page.tsx",
       ]) {
         const content = readSrc(rel);
         expect(content).toContain("compressImageFile");
+      }
+    });
+
+    it("wires automatic video compression into media upload forms", () => {
+      for (const rel of [
+        "app/chat/page.tsx",
+        "app/day-book/page.tsx",
+        "app/expenses/page.tsx",
+        "app/material-requests/page.tsx",
+        "components/ui/FileUpload.tsx",
+        "components/ui/PhotoPicker.tsx",
+        "components/attachments/AttachmentManager.tsx",
+      ]) {
+        const content = readSrc(rel);
+        expect(content).toContain("compressVideoFile");
       }
     });
 

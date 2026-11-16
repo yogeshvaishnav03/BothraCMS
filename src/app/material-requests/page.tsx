@@ -11,6 +11,8 @@ import { useTablePagination, ShowEntriesControl, TablePagination } from "@/compo
 import { cn } from "@/lib/cn";
 import { formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { submitOrQueue } from "@/lib/offline-queue";
+import { compressImageFile } from "@/lib/image-compression";
+import { compressVideoFile } from "@/lib/video-compression";
 import {
   Building2,
   CalendarClock,
@@ -140,12 +142,26 @@ function ReceiveOrderModal({
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setBillFile(file);
-    if (file.type.startsWith("image/") || file.type.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)$/i.test(file.name)) {
-      const url = URL.createObjectURL(file);
+
+    const isVideo = file.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(file.name);
+    let finalFile = file;
+
+    if (isVideo) {
+      if (file.size > 250 * 1024 * 1024) {
+        setError("Video exceeds the 250 MB limit.");
+        return;
+      }
+      finalFile = await compressVideoFile(file);
+    } else if (file.type.startsWith("image/")) {
+      finalFile = await compressImageFile(file, { preset: "receipt" });
+    }
+
+    setBillFile(finalFile);
+    if (finalFile.type.startsWith("image/") || finalFile.type.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)$/i.test(finalFile.name)) {
+      const url = URL.createObjectURL(finalFile);
       setBillPreview(url);
     } else {
       setBillPreview(null);

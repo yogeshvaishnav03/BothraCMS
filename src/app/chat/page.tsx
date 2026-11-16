@@ -8,6 +8,7 @@ import { ContactActions, WhatsAppIcon } from "@/components/ui/ContactActions";
 import { whatsappLink } from "@/lib/contact-links";
 import { formatDateTime } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
+import { compressVideoFile } from "@/lib/video-compression";
 import { useLanguage } from "@/lib/i18n";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import {
@@ -385,8 +386,10 @@ export default function ChatPage() {
       if (imagePreviewUrl) {
         URL.revokeObjectURL(imagePreviewUrl);
       }
-      setSelectedImage(rawFile);
-      const previewUrl = URL.createObjectURL(rawFile);
+      // Auto-compress video client-side when supported
+      const compressedVideo = await compressVideoFile(rawFile);
+      setSelectedImage(compressedVideo);
+      const previewUrl = URL.createObjectURL(compressedVideo);
       setImagePreviewUrl(previewUrl);
       return;
     }
@@ -624,13 +627,16 @@ export default function ChatPage() {
     try {
       let uploadedImageUrl: string | null = null;
 
-      // 1. Upload compressed photo if selected
+      // 1. Upload compressed photo/video if selected
       if (selectedImage) {
-        const compressedImage = await compressImageFile(selectedImage, { preset: "photo" });
+        const isVid = selectedImage.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(selectedImage.name);
+        const fileToUpload = isVid
+          ? await compressVideoFile(selectedImage)
+          : await compressImageFile(selectedImage, { preset: "photo" });
 
         try {
           const formData = new FormData();
-          formData.append("file", compressedImage, compressedImage.name);
+          formData.append("file", fileToUpload, fileToUpload.name);
           formData.append("category", "PHOTO");
           formData.append("entityType", "CHAT");
           formData.append("entityId", activeConversationId);

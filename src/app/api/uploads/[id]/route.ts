@@ -365,6 +365,7 @@ export async function GET(
       "Cache-Control": isConfidential ? "private, no-cache, no-store, must-revalidate" : "private, max-age=3600",
       "Pragma": isConfidential ? "no-cache" : "private",
       "X-Content-Type-Options": "nosniff",
+      "Accept-Ranges": "bytes",
     };
 
     if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
@@ -373,6 +374,39 @@ export async function GET(
       headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
       headers["X-Frame-Options"] = "DENY";
     }
+
+    // Support HTTP Range requests for instant video streaming without downloading full file
+    const rangeHeader = req.headers.get("range");
+    const totalSize = fileBuffer.length;
+
+    if (rangeHeader && (mimeType.startsWith("video/") || mimeType.startsWith("audio/"))) {
+      const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+      if (match) {
+        const rawStart = match[1];
+        const rawEnd = match[2];
+        let start = rawStart ? parseInt(rawStart, 10) : 0;
+        let end = rawEnd ? parseInt(rawEnd, 10) : totalSize - 1;
+
+        if (isNaN(start) || start < 0) start = 0;
+        if (isNaN(end) || end >= totalSize) end = totalSize - 1;
+
+        if (start <= end && start < totalSize) {
+          const chunk = fileBuffer.subarray(start, end + 1);
+          headers["Content-Range"] = `bytes ${start}-${end}/${totalSize}`;
+          headers["Content-Length"] = String(chunk.length);
+
+          return new NextResponse(new Uint8Array(chunk), {
+            status: 206,
+            headers,
+          });
+        } else {
+          headers["Content-Range"] = `bytes */${totalSize}`;
+          return new NextResponse(null, { status: 416, headers });
+        }
+      }
+    }
+
+    headers["Content-Length"] = String(totalSize);
 
     return new NextResponse(new Uint8Array(fileBuffer), {
       status: 200,
