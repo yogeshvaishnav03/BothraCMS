@@ -89,12 +89,15 @@ const dbUrl = sanitizeDbUrl(
   ""
 );
 
-const directUrl = sanitizeDbUrl(
+let directUrl = sanitizeDbUrl(
   process.env.DIRECT_URL ||
   process.env.POSTGRES_URL_NON_POOLING ||
   process.env.POSTGRES_URL ||
   dbUrl
 );
+if (directUrl && directUrl.includes("-pooler.")) {
+  directUrl = directUrl.replace("-pooler.", ".").replace(/[?&]pgbouncer=true/g, "");
+}
 
 if (dbUrl) {
   process.env.DATABASE_URL = dbUrl;
@@ -163,7 +166,7 @@ if (
       stdio: "inherit",
       env: {
         ...process.env,
-        DATABASE_URL: dbUrl,
+        DATABASE_URL: directUrl || dbUrl,
       },
     });
   } catch (ddlErr) {

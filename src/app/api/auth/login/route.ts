@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma, ensurePostgresColumns } from "@/lib/db";
+import { prisma, ensurePostgresColumns, getDirectPrisma } from "@/lib/db";
 import { verifyPassword, createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { Role } from "@/lib/permissions";
@@ -73,11 +73,12 @@ export async function POST(req: NextRequest) {
 
     let user: any = null;
     let lastDbErr: any = null;
-    const maxRetries = 3;
+    const maxRetries = 4;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        user = await prisma.user.findFirst({
+        const client = attempt >= 3 ? getDirectPrisma() : prisma;
+        user = await client.user.findFirst({
           where: { email: normalizedEmail },
           select: userSelect,
         });
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
           try {
             await prisma.$disconnect();
           } catch {}
-          await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+          await new Promise((resolve) => setTimeout(resolve, attempt * 800));
           try {
             await prisma.$connect();
             await ensurePostgresColumns();
