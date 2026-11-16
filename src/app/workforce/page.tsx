@@ -498,7 +498,7 @@ export default function WorkforcePage() {
   }, [contractorParties, workers]);
 
   // Handle contractor selection from dropdown: auto-populates all required fields
-  const handleSelectContractor = (partyId: string) => {
+  const handleSelectContractorForWorker = (partyId: string) => {
     setSelectedContractorPartyId(partyId);
     setDuplicateWarning(null);
 
@@ -2751,7 +2751,7 @@ export default function WorkforcePage() {
                       <SearchableSelect
                         options={contractorSelectOptions}
                         value={selectedContractorPartyId}
-                        onChange={handleSelectContractor}
+                        onChange={handleSelectContractorForWorker}
                         placeholder={loadingContractors ? "Loading contractors..." : "Search & select contractor from Vendors module..."}
                         searchPlaceholder="Type contractor name, trade, or phone..."
                         required
