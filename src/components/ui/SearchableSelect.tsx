@@ -156,10 +156,10 @@ export default function SearchableSelect({
         id={id}
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-white border rounded-xl text-left text-sm transition shadow-2xs ${
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-white border rounded-xl text-left text-xs sm:text-sm transition shadow-2xs outline-none ${
           isOpen
             ? "border-amber-500 ring-2 ring-amber-500/20"
-            : "border-slate-200 hover:border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+            : "border-slate-200 hover:border-slate-300 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/20"
         } ${disabled ? "opacity-60 bg-slate-50 cursor-not-allowed" : "cursor-pointer"}`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}

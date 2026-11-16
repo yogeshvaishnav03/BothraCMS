@@ -56,8 +56,8 @@ const ORDER_STATUS: Record<string, { label: string; pill: string }> = {
 const FILTERS = [
   { id: "", label: "All" },
   { id: "PENDING", label: "Waiting" },
-  { id: "APPROVED,PARTLY_ORDERED", label: "To order" },
-  { id: "ORDERED", label: "Ordered / In Transit" },
+  { id: "APPROVED,PARTLY_ORDERED", label: "To Order" },
+  { id: "ORDERED", label: "Ordered" },
   { id: "REJECTED,CANCELLED", label: "Closed" },
 ];
 
@@ -1244,44 +1244,46 @@ export default function MaterialOrderHistoryPage() {
         {notice && <Alert tone="success" onDismiss={() => setNotice(null)}>{notice}</Alert>}
 
         {/* Top Metric Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 stagger">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 stagger">
           {[
             { label: "Waiting for approval", value: counts.waiting, tone: "text-amber-600" },
             { label: "Approved, to order", value: counts.toOrder, tone: "text-blue-600" },
             { label: "Ordered / In Transit", value: counts.ordered, tone: "text-indigo-600" },
             { label: "Received & Billed", value: counts.delivered, tone: "text-emerald-600" },
           ].map((x) => (
-            <div key={x.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-              <div className={cn("font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate", x.tone)}>
+            <div key={x.label} className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 shadow-2xs">
+              <div className={cn("font-display text-xl sm:text-2xl font-black tabular-nums tracking-tight leading-none", x.tone)}>
                 {requests ? formatCompactNumber(x.value) : "–"}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5">{x.label}</div>
+              <div className="text-[11px] sm:text-xs font-medium text-slate-500 mt-1 truncate">{x.label}</div>
             </div>
           ))}
         </div>
 
         {/* View Switcher: Site Requests vs Purchase Orders */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
-          <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-200 pb-3">
+          <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
             <button
               onClick={() => setActiveView("requests")}
               className={cn(
-                "inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition",
+                "flex items-center justify-center gap-1.5 rounded-lg py-2 px-2.5 text-xs font-bold transition whitespace-nowrap",
                 activeView === "requests" ? "bg-white text-slate-950 shadow-xs" : "text-slate-600 hover:text-slate-900"
               )}
             >
-              <PackagePlus className="h-3.5 w-3.5" /> Site Requests & Orders
-              {requests && <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.2 text-[10px]">{requests.length}</span>}
+              <PackagePlus className="h-3.5 w-3.5 shrink-0" />
+              <span>Site Requests</span>
+              {requests && <span className="ml-0.5 rounded-full bg-slate-200 px-1.5 py-0.2 text-[10px] font-bold">{requests.length}</span>}
             </button>
             <button
               onClick={() => setActiveView("orders")}
               className={cn(
-                "inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition",
+                "flex items-center justify-center gap-1.5 rounded-lg py-2 px-2.5 text-xs font-bold transition whitespace-nowrap",
                 activeView === "orders" ? "bg-white text-slate-950 shadow-xs" : "text-slate-600 hover:text-slate-900"
               )}
             >
-              <ShoppingCart className="h-3.5 w-3.5" /> All Purchase Orders
-              {orders && <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.2 text-[10px]">{orders.length}</span>}
+              <ShoppingCart className="h-3.5 w-3.5 shrink-0" />
+              <span>Purchase Orders</span>
+              {orders && <span className="ml-0.5 rounded-full bg-slate-200 px-1.5 py-0.2 text-[10px] font-bold">{orders.length}</span>}
             </button>
           </div>
 
@@ -1305,14 +1307,14 @@ export default function MaterialOrderHistoryPage() {
         </div>
 
         {/* Status Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-1 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {FILTERS.map((f) => (
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
               className={cn(
                 "whitespace-nowrap shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
-                filter === f.id ? "bg-slate-900 text-white ring-slate-900" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
+                filter === f.id ? "bg-slate-900 text-white ring-slate-900 shadow-xs" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
               )}
             >
               {f.label}
@@ -1336,14 +1338,16 @@ export default function MaterialOrderHistoryPage() {
               </div>
             ) : (
               <div className="space-y-3 stagger">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs">
-                  <ShowEntriesControl
-                    pageSize={requestsPagination.pageSize}
-                    onPageSizeChange={requestsPagination.setPageSize}
-                  />
-                  <span className="text-xs text-slate-500">
-                    Showing {requestsPagination.startItem} to {requestsPagination.endItem} of {requestsPagination.filteredCount} requests
+                <div className="flex items-center justify-between gap-2 px-1 text-xs text-slate-500">
+                  <span className="font-semibold text-slate-700">
+                    Showing {requestsPagination.startItem}–{requestsPagination.endItem} of {requestsPagination.filteredCount} requests
                   </span>
+                  <div className="hidden sm:block">
+                    <ShowEntriesControl
+                      pageSize={requestsPagination.pageSize}
+                      onPageSizeChange={requestsPagination.setPageSize}
+                    />
+                  </div>
                 </div>
                 {requestsPagination.paginatedData.map((r) => (
                   <RequestCard
@@ -1390,14 +1394,16 @@ export default function MaterialOrderHistoryPage() {
               </div>
             ) : (
               <div className="space-y-3 stagger">
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs">
-                  <ShowEntriesControl
-                    pageSize={ordersPagination.pageSize}
-                    onPageSizeChange={ordersPagination.setPageSize}
-                  />
-                  <span className="text-xs text-slate-500">
-                    Showing {ordersPagination.startItem} to {ordersPagination.endItem} of {ordersPagination.filteredCount} orders
+                <div className="flex items-center justify-between gap-2 px-1 text-xs text-slate-500">
+                  <span className="font-semibold text-slate-700">
+                    Showing {ordersPagination.startItem}–{ordersPagination.endItem} of {ordersPagination.filteredCount} orders
                   </span>
+                  <div className="hidden sm:block">
+                    <ShowEntriesControl
+                      pageSize={ordersPagination.pageSize}
+                      onPageSizeChange={ordersPagination.setPageSize}
+                    />
+                  </div>
                 </div>
                 {ordersPagination.paginatedData.map((po) => (
                   <PurchaseOrderRow
