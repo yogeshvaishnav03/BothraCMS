@@ -113,6 +113,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!user) {
+      // Auto-heal empty or reconnected database
+      try {
+        const client = getDirectPrisma();
+        const userCount = await client.user.count().catch(() => 0);
+        if (
+          userCount === 0 ||
+          normalizedEmail === "superadmin@buildtrack.pro" ||
+          normalizedEmail === "lakashy@buildtrack.pro" ||
+          normalizedEmail === "admin@buildtrack.pro"
+        ) {
+          const { bootstrapWebsiteDataRuntime } = await import("@/lib/runtime-seeder");
+          await bootstrapWebsiteDataRuntime();
+          user = await client.user.findFirst({
+            where: { email: normalizedEmail },
+            select: userSelect,
+          });
+        }
+      } catch (seedErr) {
+        console.warn("[AUTH] Auto-bootstrap error during login:", seedErr);
+      }
+    }
+
     if (!user || user.status !== "ACTIVE" || !user.organization || user.organization.status !== "ACTIVE") {
       return jsonError("Invalid email or password", "INVALID_CREDENTIALS", 401);
     }

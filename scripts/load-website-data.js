@@ -33,26 +33,44 @@ if (fs.existsSync(envFile)) {
   }
 }
 
-const rawDbUrl =
-  process.env.DATABASE_URL ||
-  process.env.POSTGRES_PRISMA_URL ||
-  process.env.POSTGRES_URL ||
-  process.env.POSTGRES_URL_NON_POOLING ||
-  "file:./dev.db";
+function getOptimalDbUrl() {
+  const directCandidate =
+    process.env.DIRECT_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL ||
+    "file:./dev.db";
 
-function sanitizeUrl(url) {
-  if (!url || url.startsWith("file:")) return url;
+  if (!directCandidate || directCandidate.startsWith("file:")) {
+    return directCandidate;
+  }
+
   try {
-    const u = new URL(url);
+    const u = new URL(directCandidate);
     u.searchParams.delete("channel_binding");
+    if (u.hostname.includes("-pooler.")) {
+      u.hostname = u.hostname.replace("-pooler.", ".");
+      u.searchParams.delete("pgbouncer");
+    }
+    if (!u.searchParams.has("connect_timeout")) {
+      u.searchParams.set("connect_timeout", "60");
+    }
+    if (!u.searchParams.has("sslmode") && !u.hostname.includes("localhost")) {
+      u.searchParams.set("sslmode", "require");
+    }
     return u.toString();
   } catch {
-    return url.replace(/[?&]channel_binding=[^&]+/g, "");
+    let cleaned = directCandidate.replace(/[?&]channel_binding=[^&]+/g, "");
+    if (cleaned.includes("-pooler.")) {
+      cleaned = cleaned.replace("-pooler.", ".").replace(/[?&]pgbouncer=true/g, "");
+    }
+    if (!cleaned.includes("connect_timeout=")) {
+      cleaned += (cleaned.includes("?") ? "&" : "?") + "connect_timeout=60";
+    }
+    return cleaned;
   }
 }
-
-const activeDbUrl = sanitizeUrl(rawDbUrl);
-const isPostgres = activeDbUrl.startsWith("postgres://") || activeDbUrl.startsWith("postgresql://");
 
 let bcrypt = null;
 try {
@@ -93,8 +111,11 @@ async function loadWebsiteData(options = {}) {
     return { success: false, error: err.message };
   }
 
+  const targetUrl = options.dbUrl || getOptimalDbUrl();
+  const isPostgres = targetUrl.startsWith("postgres://") || targetUrl.startsWith("postgresql://");
+
   const prisma = new PrismaClient({
-    datasources: isPostgres ? { db: { url: activeDbUrl } } : undefined,
+    datasources: isPostgres ? { db: { url: targetUrl } } : undefined,
   });
 
   const startTime = Date.now();

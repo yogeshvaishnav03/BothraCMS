@@ -172,6 +172,20 @@ if (
   } catch (ddlErr) {
     console.warn("Notice: Direct DDL sync notice:", ddlErr.message);
   }
+
+  // Always ensure authoritative website data is loaded into remote PostgreSQL
+  try {
+    console.log("⚡ Ensuring authoritative website data is loaded into PostgreSQL...");
+    execSync("node scripts/load-website-data.js", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: directUrl || dbUrl,
+      },
+    });
+  } catch (dataErr) {
+    console.warn("Notice: PostgreSQL website data load notice:", dataErr.message);
+  }
 } else {
   console.log("ℹ️ Database notice: SQLite configuration active. (If connecting to remote PostgreSQL like Neon or Supabase, provide POSTGRES_URL or DATABASE_URL in Vercel Environment Variables).");
   if (process.env.VERCEL && (targetProvider === "sqlite" || dbUrl.startsWith("file:"))) {
@@ -185,6 +199,20 @@ if (
     } catch (err) {
       console.warn("Notice: /tmp copy notice:", err.message);
     }
+  }
+
+  // Ensure authoritative website data is loaded into local database
+  try {
+    console.log("⚡ Ensuring authoritative website data is loaded into local database...");
+    execSync("node scripts/load-website-data.js", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: dbUrl || "file:./dev.db",
+      },
+    });
+  } catch (dataErr) {
+    console.warn("Notice: Local website data load notice:", dataErr.message);
   }
 }
 
