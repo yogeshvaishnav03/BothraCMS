@@ -211,6 +211,20 @@ if (!allowDemoSeed) {
     console.warn("Notice: Super Admin bootstrap check completed or skipped:", bootstrapErr.message);
   }
 } else {
+  // Ensure authoritative website data from data/website-data.json is loaded
+  try {
+    console.log("⚡ Ensuring authoritative website data is loaded...");
+    execSync("node scripts/load-website-data.js", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: directUrl || dbUrl || "file:./dev.db",
+      },
+    });
+  } catch (dataErr) {
+    console.warn("Notice: Website data load notice:", dataErr.message);
+  }
+
   // Ensure Day Book demo data is always seeded in database
   try {
     console.log("⚡ Ensuring Day Book demo data is populated...");
