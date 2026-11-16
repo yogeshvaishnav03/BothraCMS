@@ -43,6 +43,7 @@ import {
   Trash2,
   Image as ImageIcon,
   BarChart2,
+  Play,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -1033,20 +1034,29 @@ export default function DayBookPage() {
 
     const validFiles: File[] = [];
     for (const rawFile of picked) {
-      if (!rawFile.type.startsWith("image/")) {
-        setFileValidationError(`File "${rawFile.name}" is not an image.`);
+      const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+      if (!rawFile.type.startsWith("image/") && !isVideo) {
+        setFileValidationError(`File "${rawFile.name}" is not a photo or video.`);
         continue;
       }
-      if (rawFile.size > 40 * 1024 * 1024) {
-        setFileValidationError(`Image "${rawFile.name}" is too large to process.`);
-        continue;
+      if (isVideo) {
+        if (rawFile.size > 60 * 1024 * 1024) {
+          setFileValidationError(`Video "${rawFile.name}" exceeds the 60 MB limit.`);
+          continue;
+        }
+        validFiles.push(rawFile);
+      } else {
+        if (rawFile.size > 40 * 1024 * 1024) {
+          setFileValidationError(`Image "${rawFile.name}" is too large to process.`);
+          continue;
+        }
+        const compressed = await compressImageFile(rawFile, { preset: "photo" });
+        if (compressed.size > 15 * 1024 * 1024) {
+          setFileValidationError(`Image "${compressed.name}" exceeds the 15 MB limit.`);
+          continue;
+        }
+        validFiles.push(compressed);
       }
-      const compressed = await compressImageFile(rawFile, { preset: "photo" });
-      if (compressed.size > 10 * 1024 * 1024) {
-        setFileValidationError(`Image "${compressed.name}" exceeds the 10 MB limit.`);
-        continue;
-      }
-      validFiles.push(compressed);
     }
 
     if (validFiles.length === 0) return;
@@ -1077,22 +1087,31 @@ export default function DayBookPage() {
 
     const validFiles: File[] = [];
     for (const rawFile of picked) {
-      if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf") {
-        setFileValidationError(`File "${rawFile.name}" is not a supported image or PDF document.`);
+      const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+      if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf" && !isVideo) {
+        setFileValidationError(`File "${rawFile.name}" is not a supported image, video, or PDF document.`);
         continue;
       }
-      if (rawFile.type === "application/pdf" && rawFile.size > 10 * 1024 * 1024) {
-        setFileValidationError(`File "${rawFile.name}" exceeds the 10 MB limit.`);
-        continue;
+      if (isVideo) {
+        if (rawFile.size > 60 * 1024 * 1024) {
+          setFileValidationError(`Video "${rawFile.name}" exceeds the 60 MB limit.`);
+          continue;
+        }
+        validFiles.push(rawFile);
+      } else if (rawFile.type === "application/pdf") {
+        if (rawFile.size > 15 * 1024 * 1024) {
+          setFileValidationError(`File "${rawFile.name}" exceeds the 15 MB limit.`);
+          continue;
+        }
+        validFiles.push(rawFile);
+      } else {
+        const processed = await compressImageFile(rawFile, { preset: "receipt" });
+        if (processed.size > 15 * 1024 * 1024) {
+          setFileValidationError(`File "${processed.name}" exceeds the 15 MB limit.`);
+          continue;
+        }
+        validFiles.push(processed);
       }
-      const processed = rawFile.type.startsWith("image/")
-        ? await compressImageFile(rawFile, { preset: "receipt" })
-        : rawFile;
-      if (processed.size > 10 * 1024 * 1024) {
-        setFileValidationError(`File "${processed.name}" exceeds the 10 MB limit.`);
-        continue;
-      }
-      validFiles.push(processed);
     }
 
     if (validFiles.length === 0) return;
@@ -1123,22 +1142,31 @@ export default function DayBookPage() {
 
     const validFiles: File[] = [];
     for (const rawFile of picked) {
-      if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf") {
-        setFileValidationError(`File "${rawFile.name}" is not a supported image or PDF document.`);
+      const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+      if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf" && !isVideo) {
+        setFileValidationError(`File "${rawFile.name}" is not a supported image, video, or PDF document.`);
         continue;
       }
-      if (rawFile.type === "application/pdf" && rawFile.size > 10 * 1024 * 1024) {
-        setFileValidationError(`File "${rawFile.name}" exceeds the 10 MB limit.`);
-        continue;
+      if (isVideo) {
+        if (rawFile.size > 60 * 1024 * 1024) {
+          setFileValidationError(`Video "${rawFile.name}" exceeds the 60 MB limit.`);
+          continue;
+        }
+        validFiles.push(rawFile);
+      } else if (rawFile.type === "application/pdf") {
+        if (rawFile.size > 15 * 1024 * 1024) {
+          setFileValidationError(`File "${rawFile.name}" exceeds the 15 MB limit.`);
+          continue;
+        }
+        validFiles.push(rawFile);
+      } else {
+        const processed = await compressImageFile(rawFile, { preset: "receipt" });
+        if (processed.size > 15 * 1024 * 1024) {
+          setFileValidationError(`File "${processed.name}" exceeds the 15 MB limit.`);
+          continue;
+        }
+        validFiles.push(processed);
       }
-      const processed = rawFile.type.startsWith("image/")
-        ? await compressImageFile(rawFile, { preset: "receipt" })
-        : rawFile;
-      if (processed.size > 10 * 1024 * 1024) {
-        setFileValidationError(`File "${processed.name}" exceeds the 10 MB limit.`);
-        continue;
-      }
-      validFiles.push(processed);
     }
 
     if (validFiles.length === 0) return;
@@ -2893,11 +2921,22 @@ export default function DayBookPage() {
                                   title={att.fileName || "View site photo"}
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={att.url}
-                                    alt={att.fileName || "Site photo"}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition"
-                                  />
+                                  {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(att.url) || att.mimeType?.startsWith("video/") ? (
+                                    <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
+                                      <video src={att.url} className="w-full h-full object-cover" muted preload="metadata" />
+                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="w-5 h-5 rounded-full bg-slate-950/70 border border-white/30 flex items-center justify-center text-white shadow-lg">
+                                          <Play className="w-2.5 h-2.5 ml-0.5 fill-current" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <img
+                                      src={att.url}
+                                      alt={att.fileName || "Site photo"}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                                    />
+                                  )}
                                 </button>
                               ))}
                             </div>
@@ -3205,10 +3244,10 @@ export default function DayBookPage() {
                       <div className="grid grid-cols-2 gap-2">
                         <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
                           <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
-                          <span className="text-xs font-bold text-amber-900">Click Photo</span>
+                          <span className="text-xs font-bold text-amber-900">Click Photo / Video</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             capture="environment"
                             onChange={handlePaymentPhotoSelect}
                             className="sr-only"
@@ -3217,10 +3256,10 @@ export default function DayBookPage() {
 
                         <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
                           <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
-                          <span className="text-xs font-bold text-slate-700">Choose Receipt / PDF</span>
+                          <span className="text-xs font-bold text-slate-700">Choose Receipt / Video / PDF</span>
                           <input
                             type="file"
-                            accept="image/*,application/pdf"
+                            accept="image/*,video/*,application/pdf"
                             multiple
                             onChange={handlePaymentPhotoSelect}
                             className="sr-only"
@@ -3230,24 +3269,40 @@ export default function DayBookPage() {
 
                       {paymentPhotoPreviews.length > 0 && (
                         <div className="grid grid-cols-3 gap-2 pt-1">
-                          {paymentPhotoPreviews.map((preview, index) => (
-                            <div
-                              key={preview.id}
-                              className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
-                            >
-                              {preview.url.startsWith("blob:") && !preview.name.toLowerCase().endsWith(".pdf") ? (
-                                /* eslint-disable-next-line @next/next/no-img-element */
-                                <img
-                                  src={preview.url}
-                                  alt={preview.name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center text-white p-2 bg-slate-800">
-                                  <FileText className="w-6 h-6 text-amber-400" />
-                                  <span className="text-[10px] truncate max-w-full text-slate-300 mt-1">{preview.name}</span>
-                                </div>
-                              )}
+                          {paymentPhotoPreviews.map((preview, index) => {
+                            const isVid = /\.(mp4|webm|mov|3gp|avi)$/i.test(preview.name);
+                            return (
+                              <div
+                                key={preview.id}
+                                className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
+                              >
+                                {isVid ? (
+                                  <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
+                                    <video
+                                      src={preview.url}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      preload="metadata"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <div className="w-8 h-8 rounded-full bg-slate-950/70 border border-white/30 flex items-center justify-center text-white shadow-lg">
+                                        <Play className="w-4 h-4 ml-0.5 fill-current" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : preview.url.startsWith("blob:") && !preview.name.toLowerCase().endsWith(".pdf") ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={preview.url}
+                                    alt={preview.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex flex-col items-center justify-center text-white p-2 bg-slate-800">
+                                    <FileText className="w-6 h-6 text-amber-400" />
+                                    <span className="text-[10px] truncate max-w-full text-slate-300 mt-1">{preview.name}</span>
+                                  </div>
+                                )}
                               <div className="absolute inset-0 bg-slate-950/40 lg:bg-slate-950/50 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition flex items-center justify-center gap-2">
                                 <button
                                   type="button"
@@ -3395,10 +3450,10 @@ export default function DayBookPage() {
                         {/* Option 1: Live Camera Capture */}
                         <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
                           <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
-                          <span className="text-xs font-bold text-amber-900">Click Photo</span>
+                          <span className="text-xs font-bold text-amber-900">Click Photo / Video</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             capture="environment"
                             onChange={handleBillPhotoSelect}
                             className="sr-only"
@@ -3408,10 +3463,10 @@ export default function DayBookPage() {
                         {/* Option 2: Choose / Upload Files or PDF */}
                         <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
                           <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
-                          <span className="text-xs font-bold text-slate-700">Choose Files / PDF</span>
+                          <span className="text-xs font-bold text-slate-700">Choose Files / Video / PDF</span>
                           <input
                             type="file"
-                            accept="image/*,application/pdf"
+                            accept="image/*,video/*,application/pdf"
                             multiple
                             onChange={handleBillPhotoSelect}
                             className="sr-only"
@@ -3422,24 +3477,40 @@ export default function DayBookPage() {
                       {/* Photo / Document Previews */}
                       {billPhotoPreviews.length > 0 && (
                         <div className="grid grid-cols-3 gap-2 pt-1">
-                          {billPhotoPreviews.map((preview, index) => (
-                            <div
-                              key={preview.id}
-                              className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
-                            >
-                              {preview.url.startsWith("blob:") && !preview.name.toLowerCase().endsWith(".pdf") ? (
-                                /* eslint-disable-next-line @next/next/no-img-element */
-                                <img
-                                  src={preview.url}
-                                  alt={preview.name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center text-white p-2 bg-slate-800">
-                                  <FileText className="w-6 h-6 text-amber-400" />
-                                  <span className="text-[10px] truncate max-w-full text-slate-300 mt-1">{preview.name}</span>
-                                </div>
-                              )}
+                          {billPhotoPreviews.map((preview, index) => {
+                            const isVid = /\.(mp4|webm|mov|3gp|avi)$/i.test(preview.name);
+                            return (
+                              <div
+                                key={preview.id}
+                                className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
+                              >
+                                {isVid ? (
+                                  <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
+                                    <video
+                                      src={preview.url}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      preload="metadata"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <div className="w-8 h-8 rounded-full bg-slate-950/70 border border-white/30 flex items-center justify-center text-white shadow-lg">
+                                        <Play className="w-4 h-4 ml-0.5 fill-current" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : preview.url.startsWith("blob:") && !preview.name.toLowerCase().endsWith(".pdf") ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={preview.url}
+                                    alt={preview.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex flex-col items-center justify-center text-white p-2 bg-slate-800">
+                                    <FileText className="w-6 h-6 text-amber-400" />
+                                    <span className="text-[10px] truncate max-w-full text-slate-300 mt-1">{preview.name}</span>
+                                  </div>
+                                )}
                               <div className="absolute inset-0 bg-slate-950/40 lg:bg-slate-950/50 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition flex items-center justify-center gap-2">
                                 <button
                                   type="button"
@@ -3721,10 +3792,10 @@ export default function DayBookPage() {
                         {/* Option 1: Live Camera Shutter / Mobile Capture */}
                         <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
                           <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
-                          <span className="text-xs font-bold text-amber-900">Click Photo</span>
+                          <span className="text-xs font-bold text-amber-900">Click Photo / Video</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             capture="environment"
                             onChange={handlePhotoSelect}
                             className="sr-only"
@@ -3734,10 +3805,10 @@ export default function DayBookPage() {
                         {/* Option 2: Choose / Upload from Files */}
                         <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
                           <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition" />
-                          <span className="text-xs font-bold text-slate-700">Choose Files</span>
+                          <span className="text-xs font-bold text-slate-700">Choose Photos / Videos</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             multiple
                             onChange={handlePhotoSelect}
                             className="sr-only"
@@ -3748,16 +3819,35 @@ export default function DayBookPage() {
                       {/* Photo Previews Grid */}
                       {dsrPhotoPreviews.length > 0 && (
                         <div className="grid grid-cols-3 gap-2 pt-1">
-                          {dsrPhotoPreviews.map((preview, index) => (
-                            <div
-                              key={preview.id}
-                              className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={preview.url}
-                                alt={preview.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition"
+                          {dsrPhotoPreviews.map((preview, index) => {
+                            const isVid = /\.(mp4|webm|mov|3gp|avi)$/i.test(preview.name);
+                            return (
+                              <div
+                                key={preview.id}
+                                className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
+                              >
+                                {isVid ? (
+                                  <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
+                                    <video
+                                      src={preview.url}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      preload="metadata"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <div className="w-8 h-8 rounded-full bg-slate-950/70 border border-white/30 flex items-center justify-center text-white shadow-lg">
+                                        <Play className="w-4 h-4 ml-0.5 fill-current" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={preview.url}
+                                    alt={preview.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition"
+                                  />
+                                )}
                               />
                               <div className="absolute inset-0 bg-slate-950/40 lg:bg-slate-950/50 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition flex items-center justify-center gap-2">
                                 <button
@@ -4474,11 +4564,22 @@ export default function DayBookPage() {
                                   title={att.fileName || "View site photo"}
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={att.url}
-                                    alt={att.fileName || "Site photo"}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition"
-                                  />
+                                  {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(att.url) || att.mimeType?.startsWith("video/") ? (
+                                    <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
+                                      <video src={att.url} className="w-full h-full object-cover" muted preload="metadata" />
+                                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="w-5 h-5 rounded-full bg-slate-950/70 border border-white/30 flex items-center justify-center text-white shadow-lg">
+                                          <Play className="w-2.5 h-2.5 ml-0.5 fill-current" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <img
+                                      src={att.url}
+                                      alt={att.fileName || "Site photo"}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                                    />
+                                  )}
                                   <div className="absolute inset-0 bg-slate-950/20 group-hover:bg-slate-950/40 transition flex items-center justify-center">
                                     <Eye className="w-4 h-4 text-white opacity-90 lg:opacity-0 lg:group-hover:opacity-100 transition drop-shadow-md" />
                                   </div>
@@ -5557,6 +5658,14 @@ export default function DayBookPage() {
                   title="Document Preview"
                 />
               </>
+            ) : /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(activePhotoLightbox) || activePhotoLightbox.startsWith("data:video/") ? (
+              <video
+                src={activePhotoLightbox}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-[85dvh] max-w-full w-auto object-contain mx-auto rounded-lg shadow-2xl"
+              />
             ) : (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img

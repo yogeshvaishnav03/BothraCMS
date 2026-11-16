@@ -42,6 +42,7 @@ import {
   ChevronUp,
   Search,
   LayoutGrid,
+  Play,
 } from "lucide-react";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
@@ -3203,7 +3204,7 @@ export default function DashboardPage() {
                       <input
                         ref={cameraInputRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/*,video/*"
                         capture="environment"
                         onChange={handleDashboardPhotoUpload}
                         disabled={uploadingPhoto}
@@ -3271,10 +3272,10 @@ export default function DashboardPage() {
                       </button>
                       <label className="relative inline-flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl cursor-pointer transition shadow-xs">
                         <Camera className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Open Mobile Camera App</span>
+                        <span>Open Mobile Camera / Video</span>
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/*,video/*"
                           capture="environment"
                           onChange={handleDashboardPhotoUpload}
                           disabled={uploadingPhoto}
@@ -3286,61 +3287,79 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {displayedPhotos.map((photo: any) => (
-                    <div
-                      key={photo.id}
-                      onClick={() => setSelectedPhoto(photo)}
-                      className="group relative aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:border-amber-400 transition cursor-pointer"
-                    >
-                      <img
-                        src={photo.url}
-                        alt={photo.fileName}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                      />
+                  {displayedPhotos.map((photo: any) => {
+                    const isVid = /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(photo.url) || photo.mimeType?.startsWith("video/");
+                    return (
+                      <div
+                        key={photo.id}
+                        onClick={() => setSelectedPhoto(photo)}
+                        className="group relative aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-200 shadow-xs hover:border-amber-400 transition cursor-pointer"
+                      >
+                        {isVid ? (
+                          <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
+                            <video
+                              src={photo.url}
+                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                              muted
+                              preload="metadata"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="w-9 h-9 rounded-full bg-slate-950/70 border border-white/30 flex items-center justify-center text-white shadow-lg">
+                                <Play className="w-4 h-4 ml-0.5 fill-current" />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <img
+                            src={photo.url}
+                            alt={photo.fileName}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          />
+                        )}
 
-                      {/* Card Action Controls */}
-                      <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity bg-black/65 backdrop-blur-sm p-1.5 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPhoto(photo);
-                          }}
-                          className="p-1 text-slate-300 hover:text-amber-400 transition cursor-pointer"
-                          title="View enlarged photo"
-                          aria-label={`View enlarged photo ${photo.fileName}`}
-                        >
-                          <Search className="w-3.5 h-3.5" />
-                        </button>
-                        <a
-                          href={photo.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1 text-slate-300 hover:text-amber-400 transition"
-                          title="Open photo in new tab"
-                          aria-label={`Open photo ${photo.fileName} in new tab`}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                        {(isSupervisor || isAdminUser) && (
-                          <>
-                            <label
-                              onClick={(e) => e.stopPropagation()}
-                              className="relative p-1.5 text-slate-300 hover:text-amber-400 cursor-pointer transition"
-                              title="Re-click photo with camera"
-                              aria-label={`Re-click photo with camera ${photo.fileName}`}
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
-                                disabled={uploadingPhoto}
-                                className="sr-only"
-                              />
-                            </label>
+                        {/* Card Action Controls */}
+                        <div className="absolute top-2 right-2 flex items-center gap-1 z-10 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity bg-black/65 backdrop-blur-sm p-1.5 rounded-xl">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPhoto(photo);
+                            }}
+                            className="p-1 text-slate-300 hover:text-amber-400 transition cursor-pointer"
+                            title="View enlarged photo"
+                            aria-label={`View enlarged photo ${photo.fileName}`}
+                          >
+                            <Search className="w-3.5 h-3.5" />
+                          </button>
+                          <a
+                            href={photo.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1 text-slate-300 hover:text-amber-400 transition"
+                            title="Open photo in new tab"
+                            aria-label={`Open photo ${photo.fileName} in new tab`}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                          {(isSupervisor || isAdminUser) && (
+                            <>
+                              <label
+                                onClick={(e) => e.stopPropagation()}
+                                className="relative p-1.5 text-slate-300 hover:text-amber-400 cursor-pointer transition"
+                                title="Re-click photo or video with camera"
+                                aria-label={`Re-click photo with camera ${photo.fileName}`}
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <input
+                                  type="file"
+                                  accept="image/*,video/*"
+                                  capture="environment"
+                                  onChange={(e) => handleDashboardPhotoReplace(photo.id, e)}
+                                  disabled={uploadingPhoto}
+                                  className="sr-only"
+                                />
+                              </label>
                             <button
                               type="button"
                               onClick={(e) => handleDashboardPhotoDelete(photo.id, photo.fileName, e)}
@@ -3641,13 +3660,23 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Photo Display */}
+              {/* Media Display (Photo or Video) */}
               <div className="flex-1 overflow-auto p-2 sm:p-4 bg-black/90 flex items-center justify-center min-h-[220px] sm:min-h-[300px]">
-                <img
-                  src={selectedPhoto.url}
-                  alt={selectedPhoto.fileName}
-                  className="max-h-[72dvh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
-                />
+                {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(selectedPhoto.url) || selectedPhoto.mimeType?.startsWith("video/") ? (
+                  <video
+                    src={selectedPhoto.url}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-[72dvh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+                  />
+                ) : (
+                  <img
+                    src={selectedPhoto.url}
+                    alt={selectedPhoto.fileName}
+                    className="max-h-[72dvh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+                  />
+                )}
               </div>
 
               {/* Optional Notes */}

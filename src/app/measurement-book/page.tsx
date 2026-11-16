@@ -51,6 +51,7 @@ import {
   RefreshCw,
   GitPullRequest,
   Check,
+  Play,
 } from "lucide-react";
 
 interface AttachmentItem {
@@ -4026,6 +4027,15 @@ export default function MeasurementBookPage() {
                                 <FileText className="w-8 h-8 text-amber-400 mb-1" />
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200">PDF Document</span>
                               </div>
+                            ) : att.mimeType?.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(att.fileUrl) || /\.(mp4|webm|mov|3gp|avi)$/i.test(att.fileName) ? (
+                              <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
+                                <video src={att.fileUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <div className="w-8 h-8 rounded-full bg-slate-950/70 border border-white/30 flex items-center justify-center text-white shadow-lg">
+                                    <Play className="w-4 h-4 ml-0.5 fill-current" />
+                                  </div>
+                                </div>
+                              </div>
                             ) : (
                               /* eslint-disable-next-line @next/next/no-img-element */
                               <img
@@ -4087,7 +4097,7 @@ export default function MeasurementBookPage() {
                   <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70">
                     <div className="text-xs font-bold text-slate-900 mb-2 flex items-center gap-2">
                       <Upload className="w-4 h-4 text-amber-600" />
-                      {replaceTargetAtt ? `Replace Image (v${replaceTargetAtt.version}: ${replaceTargetAtt.fileName})` : "Upload New Evidence Photo"}
+                      {replaceTargetAtt ? `Replace Evidence (v${replaceTargetAtt.version}: ${replaceTargetAtt.fileName})` : "Upload New Evidence Photo or Video"}
                     </div>
 
                     <form onSubmit={handleUploadOrReplaceImage} className="space-y-3">
@@ -4095,10 +4105,10 @@ export default function MeasurementBookPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 text-xs font-bold cursor-pointer transition">
                             <ImageIcon className="w-4 h-4 text-amber-600" />
-                            <span>Take Photo (Camera)</span>
+                            <span>Take Photo / Video (Camera)</span>
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/*,video/*"
                               capture="environment"
                               onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
                               className="sr-only"
@@ -4106,10 +4116,10 @@ export default function MeasurementBookPage() {
                           </label>
                           <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold cursor-pointer transition">
                             <Upload className="w-4 h-4 text-slate-600" />
-                            <span>Choose Photo / PDF</span>
+                            <span>Choose Photo / Video / PDF</span>
                             <input
                               type="file"
-                              accept="image/*,application/pdf"
+                              accept="image/*,video/*,application/pdf"
                               onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
                               className="sr-only"
                             />

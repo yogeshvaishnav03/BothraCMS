@@ -11,6 +11,8 @@ import {
   X,
   AlertCircle,
   Camera,
+  Video,
+  Play,
   CheckCircle2,
 } from "lucide-react";
 import { formatFileSize } from "@/lib/formatters";
@@ -303,6 +305,9 @@ export default function AttachmentManager({
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
           {attachments.map((att) => {
             const isImage = att.mimeType.startsWith("image/");
+            const isVideo =
+              att.mimeType.startsWith("video/") ||
+              /\.(mp4|webm|mov|3gp|avi)(\?.*)?$/i.test(att.fileName);
             return (
               <div
                 key={att.id}
@@ -330,6 +335,18 @@ export default function AttachmentManager({
                       />
                       <div className="absolute inset-0 bg-slate-900/20 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <ExternalLink className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  ) : isVideo ? (
+                    <div
+                      onClick={() => setPreviewImage(att.url)}
+                      className="w-full h-24 bg-slate-950 rounded-lg overflow-hidden cursor-pointer relative mb-1.5 group-hover:opacity-90 flex items-center justify-center"
+                    >
+                      <video src={att.url} className="w-full h-full object-cover" muted preload="metadata" />
+                      <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center">
+                        <div className="w-7 h-7 rounded-full bg-slate-900/80 text-white flex items-center justify-center shadow">
+                          <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -363,7 +380,7 @@ export default function AttachmentManager({
                       <Upload className="w-3.5 h-3.5" />
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*,application/pdf"
                         onChange={(e) => handleReplaceUpload(att.id, att.category, e)}
                         disabled={uploading}
                         className="sr-only"
@@ -402,7 +419,7 @@ export default function AttachmentManager({
               onChange={(e) => setCategory(e.target.value)}
               className="col-span-2 sm:col-span-1 w-full sm:w-auto text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-2 sm:py-1.5 focus:border-amber-400 outline-none"
             >
-              <option value="PHOTO">📸 Site Photograph</option>
+              <option value="PHOTO">📸 Site Photo / Video</option>
               <option value="INVOICE">🧾 Bill / Invoice</option>
               <option value="CHALLAN">🚚 Delivery Challan</option>
               <option value="DRAWING">📐 Architectural / Drawing</option>
@@ -414,11 +431,11 @@ export default function AttachmentManager({
             <label className="relative inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs whitespace-nowrap rounded-lg cursor-pointer transition shadow-xs">
               <Upload className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span className="sm:hidden">{uploading ? "Uploading..." : "Upload File"}</span>
-              <span className="hidden sm:inline">{uploading ? "Uploading..." : "Upload File (JPG, PNG, PDF)"}</span>
+              <span className="hidden sm:inline">{uploading ? "Uploading..." : "Upload File (Photos, Videos, PDF)"}</span>
               <input
                 type="file"
                 multiple
-                accept="image/jpeg,image/png,image/webp,application/pdf"
+                accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*,application/pdf"
                 onChange={handleFileUpload}
                 disabled={uploading}
                 className="sr-only"
@@ -428,10 +445,10 @@ export default function AttachmentManager({
             {/* Mobile Camera Direct Button */}
             <label className="relative inline-flex sm:hidden items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs whitespace-nowrap rounded-lg cursor-pointer transition shadow-xs">
               <Camera className="w-3.5 h-3.5 shrink-0" />
-              <span>Camera</span>
+              <span>Camera / Video</span>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
                 capture="environment"
                 onChange={handleFileUpload}
                 disabled={uploading}
@@ -457,12 +474,21 @@ export default function AttachmentManager({
             >
               <X className="w-5 h-5" />
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewImage}
-              alt="Attachment preview"
-              className="max-h-[82dvh] w-auto max-w-full rounded-xl object-contain mx-auto"
-            />
+            {/\.(mp4|webm|mov|3gp|avi)(\?.*)?$/i.test(previewImage) ? (
+              <video
+                src={previewImage}
+                controls
+                autoPlay
+                className="max-h-[82dvh] w-auto max-w-full rounded-xl object-contain mx-auto"
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={previewImage}
+                alt="Attachment preview"
+                className="max-h-[82dvh] w-auto max-w-full rounded-xl object-contain mx-auto"
+              />
+            )}
           </div>
         </div>
       )}

@@ -51,7 +51,7 @@ export function PhotoPicker({
     setError(null);
     const room = Math.max(0, max - value.length);
     const picked = Array.from(files).slice(0, room);
-    if (picked.length < files.length) setError(`Up to ${max} photos per update.`);
+    if (picked.length < files.length) setError(`Up to ${max} media files per update.`);
 
     setUploading(picked.length);
     const added: PickedPhoto[] = [];
@@ -74,11 +74,11 @@ export function PhotoPicker({
         if (res.ok && json?.data?.url) {
           added.push({ url: json.data.url, name: json.data.fileName || file.name });
         } else {
-          setError(json?.error?.message || json?.message || `Could not upload ${file.name}. Use JPG, PNG, or WebP under 10 MB.`);
+          setError(json?.error?.message || json?.message || `Could not upload ${file.name}. Use JPG, PNG, WebP, or MP4/WebM video under 50 MB.`);
         }
       } catch (e) {
         if (isNetworkError(e)) added.push({ url: URL.createObjectURL(file), name: file.name, file });
-        else setError(`Could not upload ${file.name}. Check the image format and size, then try again.`);
+        else setError(`Could not upload ${file.name}. Check the file format and size, then try again.`);
       }
       setUploading((n) => n - 1);
     }
@@ -89,25 +89,34 @@ export function PhotoPicker({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        {value.map((p) => (
-          <div key={p.url} className="relative h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-xs">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.url} alt={p.name} className="h-full w-full object-cover" />
-            {p.file && (
-              <span className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-0.5 bg-amber-500/90 py-0.5 text-[9px] font-bold text-slate-950" title="Saved on this device. Uploads automatically when you are back online.">
-                <CloudOff className="h-2.5 w-2.5" /> On phone
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => onChange(value.filter((x) => x.url !== p.url))}
-              className="absolute right-0.5 top-0.5 rounded-full bg-slate-900/70 p-0.5 text-white hover:bg-slate-900"
-              aria-label={`Remove ${p.name}`}
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ))}
+        {value.map((p) => {
+          const isVideo =
+            /\.(mp4|webm|mov|3gp|avi)(\?.*)?$/i.test(p.name || p.url) ||
+            p.file?.type?.startsWith("video/");
+          return (
+            <div key={p.url} className="relative h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-900 shadow-xs">
+              {isVideo ? (
+                <video src={p.url} className="h-full w-full object-cover" muted preload="metadata" />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={p.url} alt={p.name} className="h-full w-full object-cover" />
+              )}
+              {p.file && (
+                <span className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-0.5 bg-amber-500/90 py-0.5 text-[9px] font-bold text-slate-950" title="Saved on this device. Uploads automatically when you are back online.">
+                  <CloudOff className="h-2.5 w-2.5" /> On phone
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onChange(value.filter((x) => x.url !== p.url))}
+                className="absolute right-0.5 top-0.5 rounded-full bg-slate-900/70 p-0.5 text-white hover:bg-slate-900 z-10"
+                aria-label={`Remove ${p.name}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          );
+        })}
         {Array.from({ length: uploading }).map((_, i) => (
           <div key={`up-${i}`} className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-amber-300 bg-amber-50">
             <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
@@ -127,7 +136,7 @@ export function PhotoPicker({
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*"
         multiple
         className="sr-only"
         onChange={(e) => upload(e.target.files)}

@@ -64,15 +64,19 @@ export async function PUT(
 
     if (!STANDARD_ALLOWED_MIME_TYPES.has(file.type)) {
       return jsonError(
-        `Invalid file format '${file.type}'. Supported formats: JPEG, PNG, WEBP, PDF`,
+        `Invalid file format '${file.type}'. Supported formats: Images (JPEG, PNG, WEBP), Videos (MP4, WebM, QuickTime), PDF`,
         "INVALID_FILE_TYPE",
         400
       );
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    const isVideo = file.type.startsWith("video/");
+    const maxLimitBytes = isVideo ? 60 * 1024 * 1024 : 15 * 1024 * 1024;
+    const maxLimitMb = isVideo ? 60 : 15;
+
+    if (file.size > maxLimitBytes) {
       return jsonError(
-        `File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds limit of 10 MB`,
+        `File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds limit of ${maxLimitMb} MB`,
         "FILE_TOO_LARGE",
         400
       );

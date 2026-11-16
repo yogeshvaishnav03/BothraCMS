@@ -13,7 +13,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+const MAX_VIDEO_SIZE_BYTES = 60 * 1024 * 1024; // 60 MB for videos
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,15 +34,19 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_MIME_TYPES.has(file.type)) {
       return jsonError(
-        `Invalid file type '${file.type}'. Allowed types: JPEG, PNG, WEBP, PDF`,
+        `Invalid file type '${file.type}'. Allowed types: Images (JPEG, PNG, WebP), Videos (MP4, WebM, MOV), PDF`,
         "INVALID_FILE_TYPE",
         400
       );
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    const isVideo = file.type.startsWith("video/");
+    const maxLimit = isVideo ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
+    const maxLimitMb = isVideo ? 60 : 15;
+
+    if (file.size > maxLimit) {
       return jsonError(
-        `File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds maximum limit of 5 MB`,
+        `File size (${(file.size / 1024 / 1024).toFixed(2)} MB) exceeds maximum limit of ${maxLimitMb} MB`,
         "FILE_TOO_LARGE",
         400
       );

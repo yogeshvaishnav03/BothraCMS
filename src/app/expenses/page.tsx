@@ -31,6 +31,7 @@ import {
   Filter,
   Edit2,
   Trash2,
+  Play,
 } from "lucide-react";
 
 interface ExpenseItem {
@@ -229,13 +230,25 @@ export default function ExpensesPage() {
     e.target.value = "";
     if (!rawFile) return;
 
-    if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf") {
-      setReceiptError("Unsupported file type. Upload a JPG, PNG, WebP photo or a PDF receipt.");
+    const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+    if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf" && !isVideo) {
+      setReceiptError("Unsupported file type. Upload a photo, video (MP4/WebM/MOV), or PDF receipt.");
       return;
     }
 
-    if (rawFile.type === "application/pdf" && rawFile.size > 5 * 1024 * 1024) {
-      setReceiptError("This PDF is larger than 5 MB. Compress it or take a clear photo of the receipt instead.");
+    if (isVideo) {
+      if (rawFile.size > 60 * 1024 * 1024) {
+        setReceiptError("Video receipt exceeds the 60 MB limit. Please choose a smaller video.");
+        return;
+      }
+      setReceiptFile(rawFile);
+      setReceiptError(null);
+      setReceiptPreview(URL.createObjectURL(rawFile));
+      return;
+    }
+
+    if (rawFile.type === "application/pdf" && rawFile.size > 15 * 1024 * 1024) {
+      setReceiptError("This PDF is larger than 15 MB. Compress it or take a clear photo of the receipt instead.");
       return;
     }
 
@@ -243,8 +256,8 @@ export default function ExpensesPage() {
       ? await compressImageFile(rawFile, { preset: "receipt" })
       : rawFile;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setReceiptError("This photo is still over 5 MB. Take a closer cropped photo or choose a smaller file.");
+    if (file.size > 15 * 1024 * 1024) {
+      setReceiptError("This file is still over 15 MB. Take a closer cropped photo or choose a smaller file.");
       return;
     }
 
@@ -454,8 +467,25 @@ export default function ExpensesPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setEditReceiptError("Receipt file is too large (max 5 MB). Please compress or take another photo.");
+    const isVideo = file.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(file.name);
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf" && !isVideo) {
+      setEditReceiptError("Unsupported file type. Please upload a photo, video, or PDF receipt.");
+      return;
+    }
+
+    if (isVideo) {
+      if (file.size > 60 * 1024 * 1024) {
+        setEditReceiptError("Video receipt exceeds the 60 MB limit.");
+        return;
+      }
+      setEditReceiptError(null);
+      setEditReceiptFile(file);
+      setEditReceiptPreview(URL.createObjectURL(file));
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setEditReceiptError("Receipt file is too large (max 15 MB). Please compress or take another photo.");
       return;
     }
 
@@ -1249,7 +1279,7 @@ export default function ExpensesPage() {
                     <input
                       type="file"
                       ref={cameraInputRef}
-                      accept="image/*"
+                      accept="image/*,video/*"
                       capture="environment"
                       onChange={handlePhotoSelect}
                       className="sr-only"
@@ -1258,7 +1288,7 @@ export default function ExpensesPage() {
                     <input
                       type="file"
                       ref={fileInputRef}
-                      accept="image/*,application/pdf"
+                      accept="image/*,video/*,application/pdf"
                       onChange={handlePhotoSelect}
                       className="sr-only"
                       id="receipt-photo-input"
@@ -1267,7 +1297,14 @@ export default function ExpensesPage() {
                     {receiptFile ? (
                       <div className="bg-white p-3 rounded-lg border border-amber-200 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          {receiptPreview ? (
+                          {receiptPreview && (receiptFile.type.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)$/i.test(receiptFile.name)) ? (
+                            <div className="w-12 h-12 rounded-md bg-slate-900 relative overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
+                              <video src={receiptPreview} className="w-full h-full object-cover" muted preload="metadata" />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <Play className="w-4 h-4 text-white fill-current" />
+                              </div>
+                            </div>
+                          ) : receiptPreview ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={receiptPreview}
@@ -1305,7 +1342,7 @@ export default function ExpensesPage() {
                           className="py-3.5 px-3 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <Camera className="w-4 h-4 text-amber-700" />
-                          <span className="font-bold text-xs text-slate-900">Take Photo</span>
+                          <span className="font-bold text-xs text-slate-900">Take Photo / Video</span>
                         </button>
                         <button
                           type="button"
@@ -1313,7 +1350,7 @@ export default function ExpensesPage() {
                           className="py-3.5 px-3 border-2 border-dashed border-slate-300 hover:border-slate-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <Upload className="w-4 h-4 text-slate-700" />
-                          <span className="font-bold text-xs text-slate-900">Choose Receipt / PDF</span>
+                          <span className="font-bold text-xs text-slate-900">Choose Receipt / Video / PDF</span>
                         </button>
                       </div>
                     )}
@@ -1421,6 +1458,14 @@ export default function ExpensesPage() {
                       className="hidden sm:block w-full h-[70dvh] rounded-lg bg-white"
                     />
                   </>
+                ) : /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(viewingReceipt.url) || /\.(mp4|webm|mov|3gp|avi)$/i.test(viewingReceipt.fileName) || viewingReceipt.url.startsWith("data:video/") ? (
+                  <video
+                    src={viewingReceipt.url}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="max-h-[75dvh] max-w-full object-contain rounded shadow-lg"
+                  />
                 ) : (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
@@ -1665,7 +1710,7 @@ export default function ExpensesPage() {
                     <input
                       type="file"
                       ref={editCameraInputRef}
-                      accept="image/*"
+                      accept="image/*,video/*"
                       capture="environment"
                       onChange={handleEditPhotoSelect}
                       className="sr-only"
@@ -1674,7 +1719,7 @@ export default function ExpensesPage() {
                     <input
                       type="file"
                       ref={editFileInputRef}
-                      accept="image/*,application/pdf"
+                      accept="image/*,video/*,application/pdf"
                       onChange={handleEditPhotoSelect}
                       className="sr-only"
                       id="edit-receipt-photo-input"
@@ -1683,7 +1728,14 @@ export default function ExpensesPage() {
                     {editReceiptPreview || editReceiptFile ? (
                       <div className="bg-white p-3 rounded-lg border border-amber-200 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          {editReceiptPreview ? (
+                          {editReceiptPreview && ((editReceiptFile && editReceiptFile.type.startsWith("video/")) || /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(editReceiptPreview) || /\.(mp4|webm|mov|3gp|avi)$/i.test(editReceiptFile?.name || editingExpense.receipt?.fileName || "")) ? (
+                            <div className="w-12 h-12 rounded-md bg-slate-900 relative overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
+                              <video src={editReceiptPreview} className="w-full h-full object-cover" muted preload="metadata" />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <Play className="w-4 h-4 text-white fill-current" />
+                              </div>
+                            </div>
+                          ) : editReceiptPreview ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={editReceiptPreview}
@@ -1697,7 +1749,7 @@ export default function ExpensesPage() {
                           )}
                           <div className="min-w-0">
                             <div className="font-bold text-xs text-slate-900 truncate">
-                              {editReceiptFile?.name || editingExpense.receipt?.fileName || "receipt-photo.jpg"}
+                              {editReceiptFile?.name || editingExpense.receipt?.fileName || "receipt-file"}
                             </div>
                             <div className="text-[10px] text-slate-400 font-mono">
                               {editReceiptFile ? `${(editReceiptFile.size / 1024).toFixed(1)} KB • New file selected` : "Current receipt attached ✓"}
@@ -1730,7 +1782,7 @@ export default function ExpensesPage() {
                           className="py-3 px-3 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <Camera className="w-4 h-4 text-amber-700" />
-                          <span className="font-bold text-xs text-slate-900">Take Photo</span>
+                          <span className="font-bold text-xs text-slate-900">Take Photo / Video</span>
                         </button>
                         <button
                           type="button"
@@ -1738,7 +1790,7 @@ export default function ExpensesPage() {
                           className="py-3 px-3 border-2 border-dashed border-slate-300 hover:border-slate-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <Upload className="w-4 h-4 text-slate-700" />
-                          <span className="font-bold text-xs text-slate-900">Choose Receipt / PDF</span>
+                          <span className="font-bold text-xs text-slate-900">Choose Receipt / Video / PDF</span>
                         </button>
                       </div>
                     )}

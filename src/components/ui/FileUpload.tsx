@@ -4,14 +4,14 @@ import React, { useRef, useState } from "react";
 import { FileUp, Loader2, Paperclip, X } from "lucide-react";
 import { compressImageFile, presetForAttachmentCategory } from "@/lib/image-compression";
 
-/** Uploads one PDF or image to /api/attachments and hands back its url. */
+/** Uploads one PDF, image, or video to /api/attachments and hands back its url. */
 export function FileUpload({
   value,
   onChange,
   entityType,
   projectId,
   category = "GENERAL",
-  label = "Attach file (PDF or image)",
+  label = "Attach file (Photo, Video, or PDF)",
 }: {
   value: { url: string; name: string } | null;
   onChange: (file: { url: string; name: string } | null) => void;
@@ -40,7 +40,7 @@ export function FileUpload({
       const res = await fetch("/api/attachments", { method: "POST", body: form });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.data?.url) onChange({ url: json.data.url, name: json.data.fileName || file.name });
-      else setError(json?.error?.message || "Could not upload file. Use JPG, PNG, WebP, or PDF under 10 MB.");
+      else setError(json?.error?.message || "Could not upload file. Use JPG, PNG, WebP, Video (MP4/WebM), or PDF under 50 MB.");
     } catch {
       setError("Could not upload file. Check your connection and try again.");
     } finally {
@@ -69,7 +69,13 @@ export function FileUpload({
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />} {busy ? "Uploading…" : label}
         </button>
       )}
-      <input ref={ref} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => upload(e.target.files?.[0])} />
+      <input
+        ref={ref}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*"
+        className="sr-only"
+        onChange={(e) => upload(e.target.files?.[0])}
+      />
       {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
     </div>
   );

@@ -36,6 +36,8 @@ import {
   ArrowLeft,
   Pencil,
   Trash2,
+  Play,
+  Video,
 } from "lucide-react";
 
 interface Employee {
@@ -362,14 +364,30 @@ export default function ChatPage() {
     setShowScrollBottomBtn(scrolledUp);
   }, []);
 
-  // Handle image selection from file picker (auto-compresses large camera photos)
+  // Handle media selection from file picker (photos or videos)
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFile = e.target.files?.[0];
     e.target.value = "";
     if (!rawFile) return;
 
-    if (!rawFile.type.startsWith("image/")) {
-      setActionError("Please select a valid image file (JPEG, PNG, WebP).");
+    const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+    if (!rawFile.type.startsWith("image/") && !isVideo) {
+      setActionError("Please select a valid image or video file (JPEG, PNG, WebP, MP4, WebM, MOV).");
+      return;
+    }
+
+    if (isVideo) {
+      if (rawFile.size > 60 * 1024 * 1024) {
+        setActionError("Video file exceeds the 60 MB limit. Please select a shorter or smaller clip.");
+        return;
+      }
+      setActionError(null);
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+      setSelectedImage(rawFile);
+      const previewUrl = URL.createObjectURL(rawFile);
+      setImagePreviewUrl(previewUrl);
       return;
     }
 
@@ -380,8 +398,8 @@ export default function ChatPage() {
 
     const file = await compressImageFile(rawFile, { preset: "photo" });
 
-    if (file.size > 5 * 1024 * 1024) {
-      setActionError("Image size exceeds 5MB limit even after compression. Please select a smaller photo.");
+    if (file.size > 15 * 1024 * 1024) {
+      setActionError("Image size exceeds 15MB limit even after compression. Please select a smaller photo.");
       return;
     }
     setActionError(null);
@@ -1311,30 +1329,42 @@ export default function ChatPage() {
                                       : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
                                   }`}
                                 >
-                                  {/* Shared Photo Preview */}
+                                  {/* Shared Photo / Video Preview */}
                                   {m.imageUrl && (
-                                    <div className="relative group overflow-hidden rounded-xl bg-slate-950/10 cursor-pointer">
-                                      <img
-                                        src={m.imageUrl}
-                                        alt="Shared in chat"
-                                        onClick={() => setFullscreenImage(m.imageUrl || null)}
-                                        className="max-h-72 w-auto max-w-full rounded-xl object-contain transition duration-200 group-hover:scale-101"
-                                        loading="lazy"
-                                        referrerPolicy="no-referrer"
-                                        onError={(e) => {
-                                          const target = e.currentTarget;
-                                          target.onerror = null;
-                                          target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='120' viewBox='0 0 260 120'%3E%3Crect width='260' height='120' fill='%23f1f5f9' rx='10'/%3E%3Ctext x='130' y='65' text-anchor='middle' font-family='sans-serif' font-size='12' fill='%2364748b'%3E📷 Photo unavailable%3C/text%3E%3C/svg%3E";
-                                        }}
-                                      />
-                                      <div
-                                        onClick={() => setFullscreenImage(m.imageUrl || null)}
-                                        className="hover-hint-only hidden md:flex absolute inset-0 bg-slate-950/40 opacity-0 md:group-hover:opacity-100 transition items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                        <span>Click to preview</span>
+                                    /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(m.imageUrl) || m.imageUrl.startsWith("data:video/") ? (
+                                      <div className="relative group overflow-hidden rounded-xl bg-slate-950">
+                                        <video
+                                          src={m.imageUrl}
+                                          controls
+                                          playsInline
+                                          preload="metadata"
+                                          className="max-h-72 w-auto max-w-full rounded-xl object-contain"
+                                        />
                                       </div>
-                                    </div>
+                                    ) : (
+                                      <div className="relative group overflow-hidden rounded-xl bg-slate-950/10 cursor-pointer">
+                                        <img
+                                          src={m.imageUrl}
+                                          alt="Shared in chat"
+                                          onClick={() => setFullscreenImage(m.imageUrl || null)}
+                                          className="max-h-72 w-auto max-w-full rounded-xl object-contain transition duration-200 group-hover:scale-101"
+                                          loading="lazy"
+                                          referrerPolicy="no-referrer"
+                                          onError={(e) => {
+                                            const target = e.currentTarget;
+                                            target.onerror = null;
+                                            target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='120' viewBox='0 0 260 120'%3E%3Crect width='260' height='120' fill='%23f1f5f9' rx='10'/%3E%3Ctext x='130' y='65' text-anchor='middle' font-family='sans-serif' font-size='12' fill='%2364748b'%3E📷 Photo unavailable%3C/text%3E%3C/svg%3E";
+                                          }}
+                                        />
+                                        <div
+                                          onClick={() => setFullscreenImage(m.imageUrl || null)}
+                                          className="hover-hint-only hidden md:flex absolute inset-0 bg-slate-950/40 opacity-0 md:group-hover:opacity-100 transition items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                          <span>Click to preview</span>
+                                        </div>
+                                      </div>
+                                    )
                                   )}
 
                                   {/* Inline Edit Form when isEditing is true */}
@@ -1420,11 +1450,18 @@ export default function ChatPage() {
                       </button>
                     )}
 
-                    {/* Selected Image Preview Attachment Banner */}
+                    {/* Selected Image / Video Preview Attachment Banner */}
                     {selectedImage && (
                       <div className="p-2.5 px-3 bg-amber-50/90 border-t border-amber-200/80 flex items-center justify-between gap-3 shrink-0 animate-in fade-in slide-in-from-bottom-1">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          {imagePreviewUrl ? (
+                          {imagePreviewUrl && (selectedImage.type.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)$/i.test(selectedImage.name)) ? (
+                            <div className="relative w-12 h-12 rounded-lg bg-slate-950 overflow-hidden flex items-center justify-center border border-amber-300 shadow-2xs shrink-0">
+                              <video src={imagePreviewUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <Play className="w-4 h-4 text-white fill-current" />
+                              </div>
+                            </div>
+                          ) : imagePreviewUrl ? (
                             <img
                               src={imagePreviewUrl}
                               alt="Upload preview"
@@ -1440,7 +1477,7 @@ export default function ChatPage() {
                               {selectedImage.name}
                             </div>
                             <div className="text-[10px] text-slate-500">
-                              {(selectedImage.size / 1024).toFixed(1)} KB &bull; Photo ready to send
+                              {(selectedImage.size / 1024).toFixed(1)} KB &bull; {selectedImage.type.startsWith("video/") ? "Video" : "Photo"} ready to send
                             </div>
                           </div>
                         </div>
@@ -1448,7 +1485,7 @@ export default function ChatPage() {
                           type="button"
                           onClick={handleClearImage}
                           className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          title="Remove image"
+                          title="Remove media"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -1480,7 +1517,7 @@ export default function ChatPage() {
                       <input
                         type="file"
                         ref={fileInputRef}
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*"
                         onChange={handleImageSelect}
                         className="sr-only"
                       />
@@ -1494,9 +1531,13 @@ export default function ChatPage() {
                             ? "bg-amber-100 text-amber-800 border-amber-300"
                             : "text-slate-500 hover:text-amber-600 hover:bg-amber-50 border-slate-200 hover:border-amber-300"
                         } disabled:opacity-50`}
-                        title="Attach image / site photo (Max 5MB)"
+                        title="Attach photo or video (up to 60MB)"
                       >
-                        <ImageIcon className="w-4 h-4" />
+                        {selectedImage?.type.startsWith("video/") ? (
+                          <Video className="w-4 h-4 text-amber-800" />
+                        ) : (
+                          <ImageIcon className="w-4 h-4" />
+                        )}
                       </button>
 
                       <input
@@ -1731,13 +1772,21 @@ export default function ChatPage() {
           >
             <div className="w-full flex items-center justify-between pb-3 text-white">
               <span className="text-xs font-semibold flex items-center gap-1.5 text-slate-300">
-                <ImageIcon className="w-4 h-4 text-amber-400" />
-                <span>Shared Photo Preview</span>
+                {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(fullscreenImage) || fullscreenImage.startsWith("data:video/") ? (
+                  <Video className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <ImageIcon className="w-4 h-4 text-amber-400" />
+                )}
+                <span>
+                  {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(fullscreenImage) || fullscreenImage.startsWith("data:video/")
+                    ? "Shared Video Preview"
+                    : "Shared Photo Preview"}
+                </span>
               </span>
               <div className="flex items-center gap-2">
                 <a
                   href={fullscreenImage}
-                  download="chat-photo.jpg"
+                  download="chat-media"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition"
@@ -1755,11 +1804,21 @@ export default function ChatPage() {
                 </button>
               </div>
             </div>
-            <img
-              src={fullscreenImage}
-              alt="Shared full photo"
-              className="max-h-[78dvh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
-            />
+            {/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(fullscreenImage) || fullscreenImage.startsWith("data:video/") ? (
+              <video
+                src={fullscreenImage}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-[78dvh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
+              />
+            ) : (
+              <img
+                src={fullscreenImage}
+                alt="Shared full photo"
+                className="max-h-[78dvh] w-auto max-w-full rounded-2xl object-contain shadow-2xl border border-slate-700"
+              />
+            )}
           </div>
         </div>
       )}

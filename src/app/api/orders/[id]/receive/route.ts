@@ -187,15 +187,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (billFile) {
       if (!ALLOWED_MIME_TYPES.has(billFile.type)) {
         return jsonError(
-          `Invalid file format '${billFile.type}'. Supported formats: JPEG, PNG, WEBP, PDF`,
+          `Invalid file format '${billFile.type}'. Supported formats: Images (JPEG, PNG, WEBP), Videos (MP4, WebM, QuickTime), PDF`,
           "INVALID_FILE_TYPE",
           400
         );
       }
 
-      if (billFile.size > MAX_FILE_SIZE_BYTES) {
+      const isVideo = billFile.type.startsWith("video/");
+      const maxLimitBytes = isVideo ? 60 * 1024 * 1024 : 20 * 1024 * 1024;
+      const maxLimitMb = isVideo ? 60 : 20;
+
+      if (billFile.size > maxLimitBytes) {
         return jsonError(
-          `File size (${(billFile.size / 1024 / 1024).toFixed(2)} MB) exceeds limit of 15 MB`,
+          `File size (${(billFile.size / 1024 / 1024).toFixed(2)} MB) exceeds limit of ${maxLimitMb} MB`,
           "FILE_TOO_LARGE",
           400
         );

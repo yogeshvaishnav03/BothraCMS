@@ -32,6 +32,7 @@ import {
   X,
   XCircle,
   Zap,
+  Play,
 } from "lucide-react";
 
 const STATUS: Record<string, { label: string; pill: string }> = {
@@ -143,7 +144,7 @@ function ReceiveOrderModal({
     const file = e.target.files?.[0];
     if (!file) return;
     setBillFile(file);
-    if (file.type.startsWith("image/")) {
+    if (file.type.startsWith("image/") || file.type.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)$/i.test(file.name)) {
       const url = URL.createObjectURL(file);
       setBillPreview(url);
     } else {
@@ -285,15 +286,15 @@ function ReceiveOrderModal({
             </div>
           </div>
 
-          {/* Bill Photo Upload Card */}
+          {/* Bill Photo / Video Upload Card */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Bill / Invoice Photo <span className="text-rose-500">*</span>
+              Bill / Invoice Photo or Video <span className="text-rose-500">*</span>
             </label>
             <input
               type="file"
               ref={fileInputRef}
-              accept="image/*,application/pdf"
+              accept="image/*,video/*,application/pdf"
               capture="environment"
               onChange={handleFileSelect}
               className="hidden"
@@ -301,7 +302,14 @@ function ReceiveOrderModal({
             {billFile ? (
               <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  {billPreview ? (
+                  {billPreview && (billFile.type.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)$/i.test(billFile.name)) ? (
+                    <div className="relative h-12 w-12 rounded-lg bg-slate-950 overflow-hidden flex items-center justify-center border border-emerald-200 shrink-0">
+                      <video src={billPreview} className="h-full w-full object-cover" muted preload="metadata" />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <Play className="h-4 w-4 text-white fill-current" />
+                      </div>
+                    </div>
+                  ) : billPreview ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={billPreview} alt="Bill Preview" className="h-12 w-12 rounded-lg object-cover border border-emerald-200 shrink-0" />
                   ) : (
@@ -343,15 +351,15 @@ function ReceiveOrderModal({
                 <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-2">
                   <Camera className="h-5 w-5" />
                 </div>
-                <div className="text-sm font-bold text-slate-800">Take Photo or Upload Bill</div>
-                <p className="mt-0.5 text-xs text-slate-400">Attach vendor bill or delivery challan (JPG, PNG, PDF up to 15MB)</p>
+                <div className="text-sm font-bold text-slate-800">Take Photo / Video or Upload Bill</div>
+                <p className="mt-0.5 text-xs text-slate-400">Attach vendor bill, delivery challan, photo or video (up to 60MB)</p>
                 <span className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs ring-1 ring-slate-200">
                   <Upload className="h-3.5 w-3.5 text-slate-500" /> Browse File / Camera
                 </span>
               </div>
             )}
             <span className="text-[11px] text-slate-400 mt-1 block">
-              This photo will be attached to the new Bill in <strong className="text-slate-600">Payments & Bills</strong>.
+              This photo/video will be attached to the new Bill in <strong className="text-slate-600">Payments & Bills</strong>.
             </span>
           </div>
 

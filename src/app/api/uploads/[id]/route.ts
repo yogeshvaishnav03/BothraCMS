@@ -268,6 +268,11 @@ export async function GET(
       else if (ext === ".webp") mimeType = "image/webp";
       else if (ext === ".gif") mimeType = "image/gif";
       else if (ext === ".pdf") mimeType = "application/pdf";
+      else if (ext === ".mp4") mimeType = "video/mp4";
+      else if (ext === ".webm") mimeType = "video/webm";
+      else if (ext === ".mov") mimeType = "video/quicktime";
+      else if (ext === ".3gp") mimeType = "video/3gpp";
+      else if (ext === ".avi") mimeType = "video/x-msvideo";
       else if (fileBuffer && fileBuffer.length >= 4) {
         if (fileBuffer[0] === 0x89 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x4e && fileBuffer[3] === 0x47) {
           mimeType = "image/png";
@@ -275,6 +280,10 @@ export async function GET(
           mimeType = "image/jpeg";
         } else if (fileBuffer[0] === 0x25 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x44 && fileBuffer[3] === 0x46) {
           mimeType = "application/pdf";
+        } else if (fileBuffer.length >= 8 && fileBuffer.toString("ascii", 4, 8) === "ftyp") {
+          mimeType = "video/mp4";
+        } else if (fileBuffer[0] === 0x1a && fileBuffer[1] === 0x45 && fileBuffer[2] === 0xdf && fileBuffer[3] === 0xa3) {
+          mimeType = "video/webm";
         }
       }
     }
@@ -358,8 +367,8 @@ export async function GET(
       "X-Content-Type-Options": "nosniff",
     };
 
-    if (mimeType.startsWith("image/")) {
-      headers["Content-Security-Policy"] = "default-src 'self' data: blob:; img-src 'self' data: blob:;";
+    if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
+      headers["Content-Security-Policy"] = "default-src 'self' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:;";
     } else {
       headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
       headers["X-Frame-Options"] = "DENY";
