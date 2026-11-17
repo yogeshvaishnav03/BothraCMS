@@ -222,43 +222,6 @@ export default function ProjectDetailsPage() {
     }
   };
 
-  const handleCreateReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reportProgress.trim() || !project || submitting) return;
-    setSubmitting(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const res = await fetch("/api/daily-reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: project.id,
-          reportDate: new Date().toISOString().split("T")[0],
-          progress: reportProgress.trim(),
-          blockers: reportBlockers.trim() || undefined,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Could not save daily report. Please try again.");
-        return;
-      }
-
-      setStatusMessage("Daily site report recorded successfully!");
-      setShowReportModal(false);
-      setReportProgress("");
-      setReportBlockers("");
-      loadProject();
-    } catch (err: any) {
-      setErrorMessage(`Network error while saving daily report. Check your connection and try again.${err.message ? ` (${err.message})` : ""}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim() || !project) return;
