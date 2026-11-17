@@ -23,7 +23,9 @@ import {
   Tag,
   Hash,
   Filter,
+  Calendar,
 } from "lucide-react";
+import { istDateKey } from "@/lib/ist-date";
 
 function parseJsonSafe(jsonStr: string | null | undefined): Record<string, any> | null {
   if (!jsonStr) return null;
@@ -93,9 +95,30 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [fromDate, setFromDate] = useState(() => istDateKey());
+  const [toDate, setToDate] = useState(() => istDateKey());
+  const [datePreset, setDatePreset] = useState<"ALL" | "TODAY" | "THIS_MONTH" | "CUSTOM">("TODAY");
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<"attributes" | "diff" | "json">("attributes");
   const [copied, setCopied] = useState(false);
+
+  const handleDatePreset = (preset: "ALL" | "TODAY" | "THIS_MONTH" | "CUSTOM") => {
+    setDatePreset(preset);
+    const now = new Date();
+    const today = istDateKey(now);
+
+    if (preset === "ALL") {
+      setFromDate("");
+      setToDate("");
+    } else if (preset === "TODAY") {
+      setFromDate(today);
+      setToDate(today);
+    } else if (preset === "THIS_MONTH") {
+      const first = `${today.slice(0, 7)}-01`;
+      setFromDate(first);
+      setToDate(today);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/audit")
@@ -139,18 +162,29 @@ export default function AuditPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const filteredEvents = auditEvents.filter((e) => {
-    const query = search.toLowerCase();
-    return (
-      e.action.toLowerCase().includes(query) ||
-      (e.actor?.name && e.actor.name.toLowerCase().includes(query)) ||
-      (e.reason && e.reason.toLowerCase().includes(query)) ||
-      (e.entityType && e.entityType.toLowerCase().includes(query)) ||
-      (e.entityId && e.entityId.toLowerCase().includes(query)) ||
-      (e.afterJson && e.afterJson.toLowerCase().includes(query)) ||
-      (e.beforeJson && e.beforeJson.toLowerCase().includes(query))
-    );
-  });
+  const filteredEvents = useMemo(() => {
+    return auditEvents.filter((e) => {
+      const query = search.toLowerCase();
+      const matchesSearch =
+        !query ||
+        e.action.toLowerCase().includes(query) ||
+        (e.actor?.name && e.actor.name.toLowerCase().includes(query)) ||
+        (e.reason && e.reason.toLowerCase().includes(query)) ||
+        (e.entityType && e.entityType.toLowerCase().includes(query)) ||
+        (e.entityId && e.entityId.toLowerCase().includes(query)) ||
+        (e.afterJson && e.afterJson.toLowerCase().includes(query)) ||
+        (e.beforeJson && e.beforeJson.toLowerCase().includes(query));
+
+      if (!matchesSearch) return false;
+
+      // Date filtering in IST
+      const eventDateKey = e.createdAt ? istDateKey(new Date(e.createdAt)) : "";
+      if (fromDate && (!eventDateKey || eventDateKey < fromDate)) return false;
+      if (toDate && (!eventDateKey || eventDateKey > toDate)) return false;
+
+      return true;
+    });
+  }, [auditEvents, search, fromDate, toDate]);
 
   const auditColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -377,6 +411,86 @@ export default function AuditPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
+          </div>
+        </div>
+
+        {/* Quick Date Presets Bar for Activity Log */}
+        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 mr-1">
+              <Calendar className="w-3.5 h-3.5 text-amber-500" />
+              <span>Log Period:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => handleDatePreset("TODAY")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                datePreset === "TODAY"
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDatePreset("THIS_MONTH")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                datePreset === "THIS_MONTH"
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDatePreset("ALL")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                datePreset === "ALL"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              All Time
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold text-[11px]">From:</span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => {
+                  setFromDate(e.target.value);
+                  setDatePreset("CUSTOM");
+                }}
+                className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold text-[11px]">To:</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => {
+                  setToDate(e.target.value);
+                  setDatePreset("CUSTOM");
+                }}
+                className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+            {(fromDate || toDate) && (
+              <button
+                type="button"
+                onClick={() => handleDatePreset("ALL")}
+                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                title="Clear date filter"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 

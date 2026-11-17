@@ -6,6 +6,7 @@ import { formatCurrency, formatQuantity, formatCompactINR, formatCompactNumber, 
 import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
 import { canUser } from "@/lib/permissions";
+import { istDateKey } from "@/lib/ist-date";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useActiveSite } from "@/hooks/useActiveSite";
@@ -623,7 +624,7 @@ export default function MeasurementBookPage() {
   const [formDepth, setFormDepth] = useState<number | string>("");
   const [formDeduction, setFormDeduction] = useState<number | string>(0);
   const [formRateRupees, setFormRateRupees] = useState<number | string>("");
-  const [formDate, setFormDate] = useState(new Date().toISOString().split("T")[0]);
+  const [formDate, setFormDate] = useState(() => istDateKey());
   const [formNotes, setFormNotes] = useState("");
   const [formRemarks, setFormRemarks] = useState("");
 
@@ -1028,7 +1029,7 @@ export default function MeasurementBookPage() {
     setFormDepth("");
     setFormDeduction(0);
     setFormRateRupees("");
-    setFormDate(new Date().toISOString().split("T")[0]);
+    setFormDate(istDateKey());
     setFormNotes("");
     setFormRemarks("");
     setShowAddEntryModal(true);
@@ -1066,7 +1067,7 @@ export default function MeasurementBookPage() {
     setFormDepth(entry.depth !== null && entry.depth !== undefined ? entry.depth : "");
     setFormDeduction(entry.deduction);
     setFormRateRupees(entry.unitRate / 100);
-    setFormDate(new Date().toISOString().split("T")[0]);
+    setFormDate(istDateKey());
     setFormNotes(entry.notes || "");
     setFormRemarks(entry.remarks || "");
     setShowAddEntryModal(true);
@@ -1178,7 +1179,7 @@ export default function MeasurementBookPage() {
     setFormDepth(entry.depth !== null && entry.depth !== undefined ? entry.depth : "");
     setFormDeduction(entry.deduction);
     setFormRateRupees(entry.unitRate / 100);
-    setFormDate(entry.measurementDate ? entry.measurementDate.split("T")[0] : new Date().toISOString().split("T")[0]);
+    setFormDate(entry.measurementDate ? entry.measurementDate.split("T")[0] : istDateKey());
     setFormNotes(entry.notes || "");
     setFormRemarks(entry.remarks || "");
     setShowEditEntryModal(true);
@@ -1697,7 +1698,7 @@ export default function MeasurementBookPage() {
     });
 
     const csvString = rows.map((r) => r.join(",")).join("\n");
-    downloadCsv(`Measurement_Book_Hierarchical_${new Date().toISOString().split("T")[0]}.csv`, csvString);
+    downloadCsv(`Measurement_Book_Hierarchical_${istDateKey()}.csv`, csvString);
   };
 
   const getStatusBadge = (status: string) => {

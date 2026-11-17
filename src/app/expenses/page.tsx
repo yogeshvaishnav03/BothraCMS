@@ -34,7 +34,9 @@ import {
   Edit2,
   Trash2,
   Play,
+  Calendar,
 } from "lucide-react";
+import { istDateKey } from "@/lib/ist-date";
 
 interface ExpenseItem {
   id: string;
@@ -92,13 +94,16 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [search, setSearch] = useState("");
+  const [expenseFromDate, setExpenseFromDate] = useState(() => istDateKey());
+  const [expenseToDate, setExpenseToDate] = useState(() => istDateKey());
+  const [datePreset, setDatePreset] = useState<"ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM">("TODAY");
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   // Modal: Log New Expense
   const [showLogModal, setShowLogModal] = useState(false);
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
-  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [expenseDate, setExpenseDate] = useState(() => istDateKey());
   const [category, setCategory] = useState("MATERIALS");
   const [paidTo, setPaidTo] = useState("");
   const [paymentMode, setPaymentMode] = useState("PERSONAL_UPI");
@@ -659,6 +664,49 @@ export default function ExpensesPage() {
     };
   }, [expenses]);
 
+  const handleDatePreset = (preset: "ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM") => {
+    setDatePreset(preset);
+    const now = new Date();
+    const today = istDateKey(now);
+
+    if (preset === "ALL") {
+      setExpenseFromDate("");
+      setExpenseToDate("");
+    } else if (preset === "TODAY") {
+      setExpenseFromDate(today);
+      setExpenseToDate(today);
+    } else if (preset === "THIS_MONTH") {
+      const first = `${today.slice(0, 7)}-01`;
+      setExpenseFromDate(first);
+      setExpenseToDate(today);
+    } else if (preset === "LAST_30") {
+      const past = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+      setExpenseFromDate(istDateKey(past));
+      setExpenseToDate(today);
+    }
+  };
+
+  const expenseDateRangeConfig = useMemo(
+    () => ({
+      startDate: expenseFromDate,
+      endDate: expenseToDate,
+      onStartDateChange: (val: string) => {
+        setExpenseFromDate(val);
+        setDatePreset("CUSTOM");
+      },
+      onEndDateChange: (val: string) => {
+        setExpenseToDate(val);
+        setDatePreset("CUSTOM");
+      },
+      onReset: () => {
+        setExpenseFromDate("");
+        setExpenseToDate("");
+        setDatePreset("ALL");
+      },
+    }),
+    [expenseFromDate, expenseToDate]
+  );
+
   const filteredExpenses = useMemo(() => {
     let list = expenses;
     if (search.trim()) {
@@ -672,8 +720,23 @@ export default function ExpensesPage() {
           e.site?.name?.toLowerCase().includes(q)
       );
     }
+    if (statusFilter !== "ALL") {
+      list = list.filter((e) => e.status === statusFilter);
+    }
+    if (expenseFromDate) {
+      list = list.filter((e) => {
+        const d = (e.expenseDate || "").slice(0, 10);
+        return !d || d >= expenseFromDate;
+      });
+    }
+    if (expenseToDate) {
+      list = list.filter((e) => {
+        const d = (e.expenseDate || "").slice(0, 10);
+        return !d || d <= expenseToDate;
+      });
+    }
     return list;
-  }, [expenses, search]);
+  }, [expenses, search, statusFilter, expenseFromDate, expenseToDate]);
 
   const expenseColumns: ExcelColumn<ExpenseItem>[] = useMemo(
     () => [
@@ -842,6 +905,97 @@ export default function ExpensesPage() {
           </div>
         </div>
 
+        {/* Quick Date Presets Bar for Expenses */}
+        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 mr-1">
+              <Calendar className="w-3.5 h-3.5 text-amber-500" />
+              <span>Expense Date:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => handleDatePreset("TODAY")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                datePreset === "TODAY"
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDatePreset("THIS_MONTH")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                datePreset === "THIS_MONTH"
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDatePreset("LAST_30")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                datePreset === "LAST_30"
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              Last 30 Days
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDatePreset("ALL")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                datePreset === "ALL"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              All Time
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold text-[11px]">From:</span>
+              <input
+                type="date"
+                value={expenseFromDate}
+                onChange={(e) => {
+                  setExpenseFromDate(e.target.value);
+                  setDatePreset("CUSTOM");
+                }}
+                className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold text-[11px]">To:</span>
+              <input
+                type="date"
+                value={expenseToDate}
+                onChange={(e) => {
+                  setExpenseToDate(e.target.value);
+                  setDatePreset("CUSTOM");
+                }}
+                className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+            {(expenseFromDate || expenseToDate) && (
+              <button
+                type="button"
+                onClick={() => handleDatePreset("ALL")}
+                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                title="Clear date filter"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Expenses Table */}
         {loading ? (
           <div className="space-y-3">
@@ -852,16 +1006,18 @@ export default function ExpensesPage() {
         ) : filteredExpenses.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
             <Receipt className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <div className="text-base font-bold text-slate-800">No cash expenses yet</div>
+            <div className="text-base font-bold text-slate-800">No cash expenses found</div>
             <div className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              When you pay for site supplies, fuel, or travel with cash, add the expense here with a receipt photo so finance can record or reimburse you.
+              {datePreset === "TODAY"
+                ? "No expenses recorded for today. You can click 'This Month' or 'All Time' above to view earlier expenses, or add a new expense below."
+                : "When you pay for site supplies, fuel, or travel with cash, add the expense here with a receipt photo so finance can record or reimburse you."}
             </div>
             <button
               onClick={() => setShowLogModal(true)}
               className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-sm cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Your First Expense</span>
+              <span>Add Expense</span>
             </button>
           </div>
         ) : (
@@ -872,6 +1028,7 @@ export default function ExpensesPage() {
               tableName="expenses"
               showSearch={true}
               showExport={true}
+              dateRangeFilter={expenseDateRangeConfig}
             />
             {/* Desktop Table View (≥ lg screens) */}
             <div className="hidden lg:block overflow-x-auto min-h-[400px]">

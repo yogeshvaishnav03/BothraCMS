@@ -8,6 +8,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber, formatShortBillNumber, formatShortName } from "@/lib/formatters";
+import { istDateKey } from "@/lib/ist-date";
 import { downloadCsv } from "@/lib/csv-download";
 import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
@@ -586,7 +587,7 @@ export default function DayBookPage() {
     []
   );
 
-    const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const todayStr = useMemo(() => istDateKey(), []);
   const [selectedDate, setSelectedDate] = useState(() => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search).get("date") || new URLSearchParams(window.location.search).get("from");
@@ -1319,17 +1320,17 @@ export default function DayBookPage() {
 
   const handleApplyPreset = (preset: "today" | "yesterday" | "last7" | "thisMonth") => {
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
+    const today = istDateKey(now);
     if (preset === "today") {
       setDateFilterMode("SINGLE");
       handleDateChange(today, today);
     } else if (preset === "yesterday") {
       setDateFilterMode("SINGLE");
-      const y = new Date(now.getTime() - 24 * 3600 * 1000).toISOString().split("T")[0];
+      const y = istDateKey(new Date(now.getTime() - 24 * 3600 * 1000));
       handleDateChange(y, y);
     } else if (preset === "last7") {
       setDateFilterMode("RANGE");
-      const d7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000).toISOString().split("T")[0];
+      const d7 = istDateKey(new Date(now.getTime() - 7 * 24 * 3600 * 1000));
       handleDateChange(d7, today);
     } else if (preset === "thisMonth") {
       setDateFilterMode("RANGE");

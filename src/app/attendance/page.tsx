@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatDateTime, formatDate, formatCompactNumber } from "@/lib/formatters";
+import { istDateKey } from "@/lib/ist-date";
 import { downloadCsv } from "@/lib/csv-download";
 import {
   Clock,
@@ -163,7 +164,8 @@ export default function AttendancePage() {
   });
 
   // Filter controls
-  const [selectedMonthTab, setSelectedMonthTab] = useState<string>("ALL");
+  const [selectedMonthTab, setSelectedMonthTab] = useState<string>("TODAY");
+  const [selectedCustomDate, setSelectedCustomDate] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [siteFilter, setSiteFilter] = useState<string>("ALL");
@@ -190,7 +192,7 @@ export default function AttendancePage() {
   const [staffUsers, setStaffUsers] = useState<any[]>([]);
   const [alterUserId, setAlterUserId] = useState<string>("");
   const [alterSiteId, setAlterSiteId] = useState<string>("");
-  const [alterDate, setAlterDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [alterDate, setAlterDate] = useState<string>(() => istDateKey());
   const [alterShift, setAlterShift] = useState<"GENERAL" | "DAY" | "NIGHT">("GENERAL");
   const [alterStatus, setAlterStatus] = useState<string>("PRESENT");
   const [alterCheckIn, setAlterCheckIn] = useState<string>("");
@@ -669,15 +671,29 @@ export default function AttendancePage() {
     return Array.from(roleSet);
   }, [sessions, LABOR_TRADES]);
 
+  const todaySessionsCount = useMemo(() => {
+    const todayStr = istDateKey();
+    return sessions.filter((s) => {
+      const roleUpper = (s.employeeRole || "").toUpperCase();
+      if (LABOR_TRADES.has(roleUpper)) return false;
+      return s.workDate === todayStr;
+    }).length;
+  }, [sessions, LABOR_TRADES]);
+
   // Filtered sessions (strictly Staff Attendance)
   const filteredSessions = useMemo(() => {
+    const todayStr = istDateKey();
     return sessions.filter((s) => {
       // Exclude site labor trades from staff attendance
       const roleUpper = (s.employeeRole || "").toUpperCase();
       if (LABOR_TRADES.has(roleUpper)) return false;
 
-      // Month tab filter
-      if (selectedMonthTab !== "ALL") {
+      // Month / Date tab filter
+      if (selectedMonthTab === "TODAY") {
+        if (s.workDate !== todayStr) return false;
+      } else if (selectedMonthTab === "CUSTOM_DATE") {
+        if (selectedCustomDate && s.workDate !== selectedCustomDate) return false;
+      } else if (selectedMonthTab !== "ALL") {
         if (!s.workDate.startsWith(selectedMonthTab)) return false;
       }
 
@@ -712,7 +728,7 @@ export default function AttendancePage() {
 
       return true;
     });
-  }, [sessions, selectedMonthTab, siteFilter, roleFilter, statusFilter, searchQuery]);
+  }, [sessions, selectedMonthTab, selectedCustomDate, siteFilter, roleFilter, statusFilter, searchQuery, LABOR_TRADES]);
 
   const attendanceColumns: ExcelColumn<any>[] = useMemo(() => {
     const cols: ExcelColumn<any>[] = [];
@@ -1525,23 +1541,26 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          {/* Month Tabs */}
+          {/* Month / Date Tabs */}
           <div className="px-4 py-2.5 border-b border-slate-200 bg-white flex items-center gap-1.5 overflow-x-auto text-xs font-bold text-slate-600">
+            {/* Today Tab (Active by Default) */}
             <button
-              onClick={() => setSelectedMonthTab("ALL")}
-              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
-                selectedMonthTab === "ALL"
-                  ? "bg-slate-900 text-amber-400 shadow-xs"
-                  : "hover:bg-slate-100 text-slate-600"
+              onClick={() => setSelectedMonthTab("TODAY")}
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                selectedMonthTab === "TODAY"
+                  ? "bg-amber-500 text-slate-950 font-black shadow-xs"
+                  : "bg-amber-50/80 text-amber-800 border border-amber-200 hover:bg-amber-100"
               }`}
             >
-              All 3 Months ({sessions.length})
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Today ({todaySessionsCount})</span>
             </button>
+
             {monthsBreakdown.map((m) => (
               <button
                 key={m.monthKey}
                 onClick={() => setSelectedMonthTab(m.monthKey)}
-                className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                   selectedMonthTab === m.monthKey
                     ? "bg-slate-900 text-amber-400 shadow-xs"
                     : "hover:bg-slate-100 text-slate-600"
@@ -1553,6 +1572,33 @@ export default function AttendancePage() {
                 </span>
               </button>
             ))}
+
+            <button
+              onClick={() => setSelectedMonthTab("ALL")}
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer ${
+                selectedMonthTab === "ALL"
+                  ? "bg-slate-900 text-amber-400 shadow-xs"
+                  : "hover:bg-slate-100 text-slate-600"
+              }`}
+            >
+              All 3 Months ({sessions.length})
+            </button>
+
+            {/* Custom Date Picker */}
+            <div className="ml-auto flex items-center gap-1.5 pl-2 border-l border-slate-200">
+              <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">Pick Date:</span>
+              <input
+                type="date"
+                value={selectedMonthTab === "CUSTOM_DATE" ? selectedCustomDate : ""}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedCustomDate(e.target.value);
+                    setSelectedMonthTab("CUSTOM_DATE");
+                  }
+                }}
+                className="px-2 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Records Table */}
@@ -1570,6 +1616,8 @@ export default function AttendancePage() {
               <div className="text-xs text-slate-500 leading-relaxed">
                 {activeTab === "all" && isPrivileged
                   ? "No staff attendance records matched the selected filters for this time window."
+                  : selectedMonthTab === "TODAY"
+                  ? "No staff attendance records logged for today yet. Use 'Check In' or select a month / all months to view previous history."
                   : selectedMonthTab !== "ALL"
                   ? "No attendance shifts recorded for this month yet."
                   : "No attendance shifts recorded in the last 3 months yet."}

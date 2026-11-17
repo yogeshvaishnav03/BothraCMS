@@ -8,6 +8,7 @@ import Shell from "@/components/layout/Shell";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
+import { istDateKey } from "@/lib/ist-date";
 import {
   FolderKanban,
   CheckSquare,
@@ -270,7 +271,7 @@ export default function DashboardPage() {
 
   const handleCopyHeadcountToToday = async (recordsToCopy: any[]) => {
     if (!recordsToCopy || recordsToCopy.length === 0) return;
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = istDateKey();
     setLoading(true);
     try {
       for (const rec of recordsToCopy) {
@@ -545,7 +546,7 @@ export default function DashboardPage() {
     const cb = `_t=${Date.now()}`;
     const kpiUrl = siteId ? `/api/dashboard/kpi?siteId=${siteId}&${cb}` : `/api/dashboard/kpi?${cb}`;
     const projUrl = siteId ? `/api/projects?siteId=${siteId}&${cb}` : `/api/projects?${cb}`;
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = istDateKey();
 
     Promise.all([
       fetch(kpiUrl, { cache: "no-store" }).then((r) => r.json()),
@@ -773,7 +774,7 @@ export default function DashboardPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             siteId: activeSiteId || (sites.length > 0 ? sites[0].id : undefined),
-            workDate: new Date().toISOString().split("T")[0],
+            workDate: istDateKey(),
             latitude: gps.lat,
             longitude: gps.lng,
             accuracyM: gps.acc,

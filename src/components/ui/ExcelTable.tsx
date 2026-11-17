@@ -1730,24 +1730,22 @@ export function ExcelTableMegaDrawer<T = any>({
       }
       return;
     }
-    const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
+    const now = new Date();
+    const istDate = (d: Date = new Date()) => new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    const todayStr = istDate(now);
     let from = "";
     let to = todayStr;
 
     if (preset === "TODAY") {
       from = todayStr;
     } else if (preset === "7DAYS") {
-      const past = new Date(today);
-      past.setDate(today.getDate() - 7);
-      from = past.toISOString().split("T")[0];
+      const past = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+      from = istDate(past);
     } else if (preset === "THIS_MONTH") {
-      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-      from = firstDay.toISOString().split("T")[0];
+      from = `${todayStr.slice(0, 7)}-01`;
     } else if (preset === "30DAYS") {
-      const past = new Date(today);
-      past.setDate(today.getDate() - 30);
-      from = past.toISOString().split("T")[0];
+      const past = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+      from = istDate(past);
     }
 
     if (isCustomDate && dateRangeFilter) {

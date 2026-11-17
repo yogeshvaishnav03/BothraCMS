@@ -16,7 +16,9 @@ import {
   Boxes,
   DollarSign,
   HardHat,
+  X,
 } from "lucide-react";
+import { istDateKey } from "@/lib/ist-date";
 
 export default function ReportsPage() {
   const { activeSiteId } = useActiveSite();
@@ -33,8 +35,8 @@ export default function ReportsPage() {
     }
   }, [currentUser, canReadFinance, reportType]);
   const [attendance, setAttendance] = useState<any[]>([]);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(() => istDateKey());
+  const [endDate, setEndDate] = useState(() => istDateKey());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -339,6 +341,94 @@ export default function ReportsPage() {
             <span className="sm:hidden">Attendance ({filteredAttendance.length})</span>
             <span className="hidden sm:inline">Daily Workers Attendance ({filteredAttendance.length})</span>
           </button>
+        </div>
+
+        {/* Quick Date Presets Bar */}
+        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 mr-1">
+              <Calendar className="w-3.5 h-3.5 text-amber-500" />
+              <span>Report Period:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const today = istDateKey();
+                setStartDate(today);
+                setEndDate(today);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                startDate === istDateKey() && endDate === istDateKey()
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const today = istDateKey();
+                setStartDate(`${today.slice(0, 7)}-01`);
+                setEndDate(today);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                startDate === `${istDateKey().slice(0, 7)}-01` && endDate === istDateKey()
+                  ? "bg-amber-500 text-slate-950 shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate("");
+                setEndDate("");
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                !startDate && !endDate
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              All Time
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold text-[11px]">From:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-semibold text-[11px]">To:</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                title="Clear date filter"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Report Content */}

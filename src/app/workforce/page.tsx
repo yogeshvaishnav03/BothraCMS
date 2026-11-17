@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import Shell from "@/components/layout/Shell";
 import { ContactActions } from "@/components/ui/ContactActions";
 import { formatDate, formatDateTime, formatCompactNumber } from "@/lib/formatters";
+import { istDateKey } from "@/lib/ist-date";
 import {
   Users,
   HardHat,
@@ -122,7 +123,7 @@ export default function WorkforcePage() {
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => istDateKey());
 
   const [activeTab, setActiveTab] = useState<"headcount" | "roster">("headcount");
   const [records, setRecords] = useState<HeadcountRecord[]>([]);
@@ -134,7 +135,7 @@ export default function WorkforcePage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [modalSiteId, setModalSiteId] = useState("");
   const [modalProjectId, setModalProjectId] = useState<string>("");
-  const [modalDate, setModalDate] = useState(new Date().toISOString().split("T")[0]);
+  const [modalDate, setModalDate] = useState(() => istDateKey());
   const [modalShift, setModalShift] = useState<"GENERAL" | "DAY" | "NIGHT">("GENERAL");
 
   const siteProjects = useMemo(() => {

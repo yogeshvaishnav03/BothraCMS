@@ -25,6 +25,7 @@ function presets() {
   const qYear = m < 3 && qStartMonth >= 3 ? y - 1 : y;
   const fyStart = m < 3 ? y - 1 : y;
   return [
+    { id: "today", label: "Today", from: key(now), to: key(now) },
     { id: "this-month", label: "This month", from: monthStart(y, m), to: key(now) },
     { id: "last-month", label: "Last month", from: monthStart(m === 0 ? y - 1 : y, (m + 11) % 12), to: monthEnd(m === 0 ? y - 1 : y, (m + 11) % 12) },
     { id: "quarter", label: `Q${q + 1} this year`, from: monthStart(qYear, qStartMonth), to: key(now) },

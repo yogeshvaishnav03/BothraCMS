@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { formatCurrency, formatCompactINR, formatDate, formatShortBillNumber, formatShortName } from "@/lib/formatters";
+import { istDateKey } from "@/lib/ist-date";
 import {
   DollarSign,
   Plus,
@@ -123,9 +124,10 @@ export default function FinancePage() {
   const [reverseReason, setReverseReason] = useState("");
 
   // Search & Filter state for Payments Register
+  const todayDateStr = useMemo(() => istDateKey(), []);
   const [paymentSearch, setPaymentSearch] = useState("");
-  const [paymentFromDate, setPaymentFromDate] = useState("");
-  const [paymentToDate, setPaymentToDate] = useState("");
+  const [paymentFromDate, setPaymentFromDate] = useState(() => istDateKey());
+  const [paymentToDate, setPaymentToDate] = useState(() => istDateKey());
   const [paymentPayeeType, setPaymentPayeeType] = useState("ALL");
   const [paymentPayingAccount, setPaymentPayingAccount] = useState("ALL");
   const [paymentMethod, setPaymentMethod] = useState("ALL");
@@ -135,12 +137,15 @@ export default function FinancePage() {
   const [paymentMinAmount, setPaymentMinAmount] = useState("");
   const [paymentMaxAmount, setPaymentMaxAmount] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [datePreset, setDatePreset] = useState<"ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM">("ALL");
+  const [datePreset, setDatePreset] = useState<"ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM">("TODAY");
   const [amountPreset, setAmountPreset] = useState<"ALL" | "UNDER_50K" | "50K_2L" | "OVER_2L" | "CUSTOM">("ALL");
 
   // Search & Filter state for Vendor Bills
   const [billSearch, setBillSearch] = useState("");
   const [billStatus, setBillStatus] = useState("ALL");
+  const [billFromDate, setBillFromDate] = useState(() => istDateKey());
+  const [billToDate, setBillToDate] = useState(() => istDateKey());
+  const [billDatePreset, setBillDatePreset] = useState<"ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM">("TODAY");
 
   // Feedback states
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -693,27 +698,46 @@ export default function FinancePage() {
   const handleDatePreset = (preset: "ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM") => {
     setDatePreset(preset);
     const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const today = istDateKey(now);
 
     if (preset === "ALL") {
       setPaymentFromDate("");
       setPaymentToDate("");
     } else if (preset === "TODAY") {
-      const todayStr = fmt(now);
-      setPaymentFromDate(todayStr);
-      setPaymentToDate(todayStr);
+      setPaymentFromDate(today);
+      setPaymentToDate(today);
     } else if (preset === "THIS_MONTH") {
-      const first = new Date(now.getFullYear(), now.getMonth(), 1);
-      setPaymentFromDate(fmt(first));
-      setPaymentToDate(fmt(now));
+      const first = `${today.slice(0, 7)}-01`;
+      setPaymentFromDate(first);
+      setPaymentToDate(today);
     } else if (preset === "LAST_30") {
-      const past = new Date();
-      past.setDate(now.getDate() - 30);
-      setPaymentFromDate(fmt(past));
-      setPaymentToDate(fmt(now));
+      const past = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+      setPaymentFromDate(istDateKey(past));
+      setPaymentToDate(today);
     } else if (preset === "CUSTOM") {
       setShowAdvancedFilters(true);
+    }
+  };
+
+  const handleBillDatePreset = (preset: "ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM") => {
+    setBillDatePreset(preset);
+    const now = new Date();
+    const today = istDateKey(now);
+
+    if (preset === "ALL") {
+      setBillFromDate("");
+      setBillToDate("");
+    } else if (preset === "TODAY") {
+      setBillFromDate(today);
+      setBillToDate(today);
+    } else if (preset === "THIS_MONTH") {
+      const first = `${today.slice(0, 7)}-01`;
+      setBillFromDate(first);
+      setBillToDate(today);
+    } else if (preset === "LAST_30") {
+      const past = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+      setBillFromDate(istDateKey(past));
+      setBillToDate(today);
     }
   };
 
@@ -813,16 +837,13 @@ export default function FinancePage() {
       const amtRupees = (Number(p.amount) || 0) / 100;
       const formattedDateStr = formatDate(p.paymentDate).toLowerCase();
 
-      // Normalize date to YYYY-MM-DD
+      // Normalize date to YYYY-MM-DD in IST
       let pDateYMD = "";
       if (p.paymentDate) {
         try {
           const d = typeof p.paymentDate === "string" ? new Date(p.paymentDate) : p.paymentDate;
           if (!isNaN(d.getTime())) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            pDateYMD = `${y}-${m}-${day}`;
+            pDateYMD = istDateKey(d);
           }
         } catch {
           pDateYMD = "";
@@ -952,9 +973,25 @@ export default function FinancePage() {
       }
       if (billStatus === "PAID" && b.outstandingAmount > 0) return false;
       if (billStatus === "PENDING" && b.outstandingAmount === 0) return false;
+
+      // Date range filtering for bills
+      let bDateYMD = "";
+      if (b.billDate) {
+        try {
+          const d = typeof b.billDate === "string" ? new Date(b.billDate) : b.billDate;
+          if (!isNaN(d.getTime())) {
+            bDateYMD = istDateKey(d);
+          }
+        } catch {
+          bDateYMD = "";
+        }
+      }
+      if (billFromDate && (!bDateYMD || bDateYMD < billFromDate)) return false;
+      if (billToDate && (!bDateYMD || bDateYMD > billToDate)) return false;
+
       return true;
     });
-  }, [siteScopedBills, billSearch, billStatus]);
+  }, [siteScopedBills, billSearch, billStatus, billFromDate, billToDate]);
 
   const paymentColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -1292,6 +1329,98 @@ export default function FinancePage() {
         {/* Payments Table */}
         {activeTab === "PAYMENTS" && (
           <div className="space-y-4">
+            {/* Quick Date Presets & Custom Picker */}
+            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 mr-1">
+                  <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Payments Date:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleDatePreset("TODAY")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    datePreset === "TODAY"
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDatePreset("THIS_MONTH")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    datePreset === "THIS_MONTH"
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  This Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDatePreset("LAST_30")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    datePreset === "LAST_30"
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  Last 30 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDatePreset("ALL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    datePreset === "ALL"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  All Time
+                </button>
+              </div>
+
+              {/* Date Inputs */}
+              <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 font-semibold text-[11px]">From:</span>
+                  <input
+                    type="date"
+                    value={paymentFromDate}
+                    onChange={(e) => {
+                      setPaymentFromDate(e.target.value);
+                      setDatePreset("CUSTOM");
+                    }}
+                    className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 font-semibold text-[11px]">To:</span>
+                  <input
+                    type="date"
+                    value={paymentToDate}
+                    onChange={(e) => {
+                      setPaymentToDate(e.target.value);
+                      setDatePreset("CUSTOM");
+                    }}
+                    className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+                {(paymentFromDate || paymentToDate) && (
+                  <button
+                    type="button"
+                    onClick={() => handleDatePreset("ALL")}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                    title="Clear date filter"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Payments Table */}
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
               <ExcelTableToolbar
@@ -1689,6 +1818,98 @@ export default function FinancePage() {
         {/* Bills Table */}
         {activeTab === "BILLS" && (
           <div className="space-y-4">
+            {/* Quick Date Presets & Custom Picker for Bills */}
+            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 mr-1">
+                  <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Bills Date:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleBillDatePreset("TODAY")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    billDatePreset === "TODAY"
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBillDatePreset("THIS_MONTH")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    billDatePreset === "THIS_MONTH"
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  This Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBillDatePreset("LAST_30")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    billDatePreset === "LAST_30"
+                      ? "bg-amber-500 text-slate-950 shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  Last 30 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBillDatePreset("ALL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    billDatePreset === "ALL"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  All Time
+                </button>
+              </div>
+
+              {/* Date Inputs */}
+              <div className="flex items-center gap-2 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 font-semibold text-[11px]">From:</span>
+                  <input
+                    type="date"
+                    value={billFromDate}
+                    onChange={(e) => {
+                      setBillFromDate(e.target.value);
+                      setBillDatePreset("CUSTOM");
+                    }}
+                    className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 font-semibold text-[11px]">To:</span>
+                  <input
+                    type="date"
+                    value={billToDate}
+                    onChange={(e) => {
+                      setBillToDate(e.target.value);
+                      setBillDatePreset("CUSTOM");
+                    }}
+                    className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+                {(billFromDate || billToDate) && (
+                  <button
+                    type="button"
+                    onClick={() => handleBillDatePreset("ALL")}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                    title="Clear date filter"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Bills Search & Filter Toolbar */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="relative flex-1">

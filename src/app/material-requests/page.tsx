@@ -13,6 +13,7 @@ import { formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { submitOrQueue } from "@/lib/offline-queue";
 import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
+import { istDateKey } from "@/lib/ist-date";
 import { uploadClientMedia } from "@/lib/upload-client";
 import {
   Building2,
@@ -106,7 +107,7 @@ function ReceiveOrderModal({
   const [receivedQty, setReceivedQty] = useState(String(initialQty));
   const [storeId, setStoreId] = useState(order?.storeId || (stores[0]?.id || ""));
   const [billNumber, setBillNumber] = useState(`INV-${order?.orderNumber?.replace(/^PO-/, "") || Date.now().toString().slice(-6)}`);
-  const [billDate, setBillDate] = useState(new Date().toISOString().slice(0, 10));
+  const [billDate, setBillDate] = useState(() => istDateKey());
   const [unitRate, setUnitRate] = useState(initialRate > 0 ? String(initialRate) : "");
   const [totalAmount, setTotalAmount] = useState(initialRate > 0 ? (initialRate * initialQty).toFixed(2) : "");
   const [notes, setNotes] = useState("");
