@@ -58,6 +58,88 @@ export async function notifyTaskUpdate(params: {
   return result.count;
 }
 
+/**
+ * Sends a task/query assignment notification to the assigned user with rich context:
+ * - Title including task/query title
+ * - Project & Site name
+ * - Assigned-by user name
+ * - Priority & creation time
+ * - Priority-based delivery severity (CRITICAL, HIGH/URGENT -> WARNING, MEDIUM/LOW -> INFO)
+ * - Direct link to task
+ * - Duplicate prevention (suppresses duplicates within 60s window)
+ * - Non-blocking asynchronous delivery
+ */
+export async function notifyTaskAssigned(params: {
+  organizationId: string;
+  actorUser: { id: string; name: string };
+  assigneeUserId: string;
+  task: {
+    id: string;
+    title: string;
+    priority: string;
+    taskType?: string;
+    project?: { name: string; code?: string; site?: { name: string; code?: string } | null } | null;
+  };
+}): Promise<number> {
+  if (!params.assigneeUserId || params.assigneeUserId === params.actorUser.id) return 0;
+
+  // Duplicate prevention: check if a notification for this task and user was sent in the last 60 seconds
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+  const existing = await prisma.notification.findFirst({
+    where: {
+      organizationId: params.organizationId,
+      userId: params.assigneeUserId,
+      entityType: "TASK",
+      entityId: params.task.id,
+      createdAt: { gte: oneMinuteAgo },
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return 0; // Prevent duplicate notification
+  }
+
+  const isQuery = params.task.taskType?.startsWith("REQUEST_");
+  const kindLabel = isQuery ? "Site Query / Request" : "Task";
+  const projName = params.task.project?.name || "General Project";
+  const siteName = params.task.project?.site?.name;
+  const locationInfo = siteName ? `${projName} (${siteName})` : projName;
+  const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  let severity: "CRITICAL" | "WARNING" | "INFO" = "INFO";
+  if (params.task.priority === "CRITICAL") severity = "CRITICAL";
+  else if (params.task.priority === "HIGH" || params.task.priority === "URGENT") severity = "WARNING";
+
+  const notifTitle = `[${params.task.priority}] New ${kindLabel} Assigned: "${params.task.title}"`;
+  const notifMessage = `${params.actorUser.name} assigned you a ${kindLabel.toLowerCase()}: "${params.task.title}". Project: ${locationInfo}. Priority: ${params.task.priority} at ${timeStr}.`;
+
+  await prisma.notification.create({
+    data: {
+      organizationId: params.organizationId,
+      userId: params.assigneeUserId,
+      type: isQuery ? "QUERY_ASSIGNED" : "TASK_ASSIGNED",
+      title: notifTitle,
+      message: notifMessage.length > 280 ? `${notifMessage.slice(0, 277)}...` : notifMessage,
+      severity,
+      entityType: "TASK",
+      entityId: params.task.id,
+      href: `/tasks?task=${params.task.id}`,
+    },
+  });
+
+  // Non-blocking push delivery
+  pushToPeople(params.organizationId, [params.assigneeUserId], {
+    title: notifTitle,
+    body: notifMessage,
+    href: `/tasks?task=${params.task.id}`,
+    tag: `TASK:${params.task.id}`,
+  }).catch((err) => {
+    console.warn("[notifyTaskAssigned] Push delivery warning:", err);
+  });
+
+  return 1;
+}
+
 export const STATUS_LABELS: Record<string, string> = {
   TODO: "To do",
   IN_PROGRESS: "In progress",

@@ -892,11 +892,23 @@ export default function MaterialsPage() {
                   ) : (
                     excelMaterials.paginatedData.map((m) => {
                       const isExpanded = expandedMaterialIds.has(m.id);
+                      const isZero = m.isZeroStock || (Number(m.totalStock) || 0) <= 0;
+                      const isLow = !isZero && (m.isLowStock || (Number(m.totalStock) || 0) <= (Number(m.minStockQty) || 0));
+                      const isHealthy = !isZero && !isLow && (Number(m.totalStock) || 0) > (Number(m.reorderQty || m.minStockQty || 0) * 1.5);
+
+                      const rowBg = isZero
+                        ? "bg-rose-50/75 dark:bg-rose-950/25 hover:bg-rose-100/70"
+                        : isLow
+                        ? "bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/60"
+                        : isHealthy
+                        ? "bg-emerald-50/30 dark:bg-emerald-950/15 hover:bg-emerald-100/40"
+                        : "hover:bg-slate-50/80";
+
                       return (
                         <React.Fragment key={m.id}>
                           <tr
-                            className={`hover:bg-amber-50/40 transition-colors group cursor-pointer ${
-                              isExpanded ? "bg-amber-50/25" : ""
+                            className={`${rowBg} transition-colors group cursor-pointer ${
+                              isExpanded ? "ring-1 ring-amber-400/30" : ""
                             }`}
                             onClick={() => toggleExpand(m.id)}
                           >
@@ -1188,13 +1200,23 @@ export default function MaterialsPage() {
               ) : (
                 excelMaterials.paginatedData.map((m) => {
                   const isExpanded = expandedMaterialIds.has(m.id);
+                  const isZero = m.isZeroStock || (Number(m.totalStock) || 0) <= 0;
+                  const isLow = !isZero && (m.isLowStock || (Number(m.totalStock) || 0) <= (Number(m.minStockQty) || 0));
+                  const isHealthy = !isZero && !isLow && (Number(m.totalStock) || 0) > (Number(m.reorderQty || m.minStockQty || 0) * 1.5);
+
+                  const cardBg = isZero
+                    ? "bg-rose-50/70 dark:bg-rose-950/25 border-rose-300 dark:border-rose-900"
+                    : isLow
+                    ? "bg-amber-50/60 dark:bg-amber-950/25 border-amber-300 dark:border-amber-900"
+                    : isHealthy
+                    ? "bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-900"
+                    : "bg-white dark:bg-slate-900 border-slate-200/90 hover:border-slate-300";
+
                   return (
                     <div
                       key={`card-${m.id}`}
-                      className={`p-4 rounded-xl border transition-all shadow-xs ${
-                        isExpanded
-                          ? "bg-white border-amber-300 ring-2 ring-amber-400/20 shadow-sm"
-                          : "bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-sm"
+                      className={`p-4 rounded-xl border transition-all shadow-xs ${cardBg} ${
+                        isExpanded ? "ring-2 ring-amber-400/30 shadow-sm" : ""
                       }`}
                     >
                       {/* Top Row: Material Name, SKU & Status Badge */}

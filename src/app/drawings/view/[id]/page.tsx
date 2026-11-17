@@ -9,16 +9,46 @@ import { api } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
 import { renderSheet } from "@/lib/pdf-render";
 import MarkupLayer, { type Shape, type Tool } from "@/components/drawings/MarkupLayer";
-import { ArrowLeft, ArrowUpRight, ChevronLeft, ChevronRight, Cloud, Columns2, ExternalLink, Hand, Loader2, Minus, PenLine, Plus, Save, Square, Trash2, Type, Undo2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  Cloud,
+  Columns2,
+  Eraser,
+  ExternalLink,
+  Hand,
+  Highlighter,
+  Loader2,
+  Maximize2,
+  Minus,
+  PenLine,
+  Plus,
+  Redo2,
+  RotateCcw,
+  Save,
+  Slash,
+  Square,
+  Trash2,
+  Type,
+  Undo2,
+  X,
+} from "lucide-react";
 
 const COLORS = ["#dc2626", "#2563eb", "#16a34a", "#f59e0b", "#111827"];
 const TOOLS: { key: Tool; label: string; icon: any }[] = [
-  { key: "none", label: "Move", icon: Hand },
-  { key: "cloud", label: "Cloud", icon: Cloud },
+  { key: "none", label: "Pan / Move", icon: Hand },
+  { key: "pen", label: "Pen", icon: PenLine },
+  { key: "highlight", label: "Highlight", icon: Highlighter },
+  { key: "line", label: "Line", icon: Slash },
   { key: "arrow", label: "Arrow", icon: ArrowUpRight },
   { key: "rect", label: "Box", icon: Square },
-  { key: "pen", label: "Pen", icon: PenLine },
-  { key: "text", label: "Note", icon: Type },
+  { key: "circle", label: "Circle", icon: Circle },
+  { key: "cloud", label: "Cloud", icon: Cloud },
+  { key: "text", label: "Text Note", icon: Type },
+  { key: "eraser", label: "Eraser", icon: Eraser },
 ];
 
 export default function DrawingViewerPage() {
@@ -34,6 +64,7 @@ export default function DrawingViewerPage() {
   const [tool, setTool] = useState<Tool>("cloud");
   const [color, setColor] = useState(COLORS[0]);
   const [mine, setMine] = useState<Record<number, Shape[]>>({});
+  const [redoStack, setRedoStack] = useState<Record<number, Shape[]>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -99,7 +130,37 @@ export default function DrawingViewerPage() {
 
   const change = (shapes: Shape[]) => {
     setMine({ ...mine, [page]: shapes });
+    setRedoStack((prev) => ({ ...prev, [page]: [] }));
     setDirty(true);
+  };
+
+  const undo = () => {
+    if (!myShapes.length) return;
+    const last = myShapes[myShapes.length - 1];
+    setMine({ ...mine, [page]: myShapes.slice(0, -1) });
+    setRedoStack((prev) => ({
+      ...prev,
+      [page]: [...(prev[page] || []), last],
+    }));
+    setDirty(true);
+  };
+
+  const redo = () => {
+    const pageRedos = redoStack[page] || [];
+    if (!pageRedos.length) return;
+    const shapeToRestore = pageRedos[pageRedos.length - 1];
+    setMine({ ...mine, [page]: [...myShapes, shapeToRestore] });
+    setRedoStack((prev) => ({
+      ...prev,
+      [page]: pageRedos.slice(0, -1),
+    }));
+    setDirty(true);
+  };
+
+  const cancelChanges = () => {
+    if (confirm("Discard all unsaved markups on this sheet and restore original drawing?")) {
+      load().catch(() => {});
+    }
   };
 
   const save = async () => {
@@ -163,6 +224,11 @@ export default function DrawingViewerPage() {
                     <ExternalLink className="h-4 w-4" /> File
                   </a>
                 )}
+                {dirty && (
+                  <button onClick={cancelChanges} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                    <X className="h-4 w-4 text-slate-500" /> Cancel
+                  </button>
+                )}
                 <button onClick={save} disabled={!dirty || saving} className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save marks
                 </button>
@@ -183,19 +249,30 @@ export default function DrawingViewerPage() {
                   <button key={c} onClick={() => setColor(c)} className={cn("h-6 w-6 rounded-full ring-2 ring-offset-1", color === c ? "ring-slate-900" : "ring-transparent")} style={{ background: c }} aria-label={`Colour ${c}`} />
                 ))}
               </div>
-              <button onClick={() => change(myShapes.slice(0, -1))} disabled={!myShapes.length} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40">
+              <button onClick={undo} disabled={!myShapes.length} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40" title="Undo mark">
                 <Undo2 className="h-4 w-4" /> Undo
               </button>
-              <button onClick={() => myShapes.length && setClearConfirmOpen(true)} disabled={!myShapes.length} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40">
+              <button onClick={redo} disabled={!(redoStack[page] && redoStack[page].length)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40" title="Redo mark">
+                <Redo2 className="h-4 w-4" /> Redo
+              </button>
+              <button onClick={() => myShapes.length && setClearConfirmOpen(true)} disabled={!myShapes.length} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40" title="Clear all my annotations">
                 <Trash2 className="h-4 w-4" /> Clear mine
               </button>
               <div className="ml-auto flex items-center gap-1">
-                <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Zoom out">
+                <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))} className="rounded-lg p-2 hover:bg-slate-100 text-slate-700" aria-label="Zoom out" title="Zoom out">
                   <Minus className="h-4 w-4" />
                 </button>
-                <span className="w-12 text-center text-xs font-bold tabular-nums">{Math.round(zoom * 100)}%</span>
-                <button onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Zoom in">
+                <button onClick={() => setZoom(1)} className="px-2 py-1 rounded-md hover:bg-slate-100 text-center text-xs font-bold tabular-nums text-slate-800" title="Click to reset zoom to 100%">
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} className="rounded-lg p-2 hover:bg-slate-100 text-slate-700" aria-label="Zoom in" title="Zoom in">
                   <Plus className="h-4 w-4" />
+                </button>
+                <button onClick={() => setZoom(1)} className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg" title="Reset Zoom to 100%">
+                  <RotateCcw className="h-3.5 w-3.5" /> <span className="hidden md:inline">Reset</span>
+                </button>
+                <button onClick={() => setZoom(1)} className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg" title="Fit to Screen">
+                  <Maximize2 className="h-3.5 w-3.5" /> <span className="hidden md:inline">Fit</span>
                 </button>
                 {pages > 1 && (
                   <span className="ml-2 flex items-center gap-1 text-xs font-semibold">

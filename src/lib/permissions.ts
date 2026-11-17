@@ -353,8 +353,17 @@ export function normalizeExtraPermissions(raw: unknown): Permission[] {
   return Array.from(seen);
 }
 
+export function resolveCanonicalRole(role: string | undefined): Role | undefined {
+  if (!role) return undefined;
+  if (role === "SITE_ENGINEER" || role === "SUPERVISOR") return "SITE_SUPERVISOR";
+  if (role === "ADMIN") return "ORG_ADMIN";
+  if (role === "VIEWER") return "HR_VIEWER";
+  return role as Role;
+}
+
 export function computeEffectivePermissions(role: Role | string | undefined, extraPermissions?: unknown): Permission[] {
-  const base = (role && ROLE_PERMISSIONS[role as Role]) || [];
+  const canonicalRole = resolveCanonicalRole(role);
+  const base = (canonicalRole && ROLE_PERMISSIONS[canonicalRole]) || [];
   const extras = normalizeExtraPermissions(extraPermissions);
   if (extras.length === 0) return [...base];
   return Array.from(new Set<Permission>([...base, ...extras]));
@@ -369,7 +378,8 @@ export type PermissionSubject =
 export function hasPermission(roleOrUser: PermissionSubject, permission: Permission): boolean {
   if (!roleOrUser) return false;
   if (typeof roleOrUser === "string") {
-    const permissions = ROLE_PERMISSIONS[roleOrUser as Role];
+    const canonical = resolveCanonicalRole(roleOrUser);
+    const permissions = canonical ? ROLE_PERMISSIONS[canonical] : undefined;
     return Boolean(permissions && permissions.includes(permission));
   }
   if (Array.isArray(roleOrUser.permissions)) {

@@ -82,12 +82,6 @@ export async function seedDemoData(
       role: "SITE_SUPERVISOR",
     },
     {
-      id: `usr-store-${orgId.slice(0, 4)}`,
-      name: "Mohan Lal",
-      email: "store@buildtrack.pro",
-      role: "STOREKEEPER",
-    },
-    {
       id: `usr-fin-${orgId.slice(0, 4)}`,
       name: "Pooja Sharma",
       email: "finance@buildtrack.pro",
@@ -125,6 +119,40 @@ export async function seedDemoData(
     });
     createdUsers.push(u.email);
     userMap[u.role] = userRec.id;
+  }
+
+  // Ensure removed accounts (Lakashy Bothra & Mohan Lal) are purged if present
+  for (const remEmail of ["lakashy@buildtrack.pro", "store@buildtrack.pro"]) {
+    const u = await prisma.user.findFirst({ where: { organizationId: orgId, email: remEmail } });
+    if (u) {
+      const fallbackUserId = userMap["SUPER_ADMIN"] || actorUserId || "usr-super-1";
+      await prisma.stockMovement.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.bill.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.payment.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.project.updateMany({ where: { organizationId: orgId, managerUserId: u.id }, data: { managerUserId: null } }).catch(() => {});
+      await prisma.task.updateMany({ where: { organizationId: orgId, assigneeUserId: u.id }, data: { assigneeUserId: null } }).catch(() => {});
+      await prisma.task.updateMany({ where: { organizationId: orgId, completedById: u.id }, data: { completedById: null } }).catch(() => {});
+      await prisma.task.updateMany({ where: { organizationId: orgId, verifiedById: u.id }, data: { verifiedById: null } }).catch(() => {});
+      await prisma.task.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.dailySiteReport.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.auditEvent.updateMany({ where: { organizationId: orgId, actorUserId: u.id }, data: { actorUserId: fallbackUserId } }).catch(() => {});
+      await prisma.purchaseOrder.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.conversation.updateMany({ where: { organizationId: orgId, createdById: u.id }, data: { createdById: fallbackUserId } }).catch(() => {});
+      await prisma.siteDiaryEntry.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.materialQuotation.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.materialRequest.updateMany({ where: { organizationId: orgId, requestedById: u.id }, data: { requestedById: fallbackUserId } }).catch(() => {});
+      await prisma.materialRequest.updateMany({ where: { organizationId: orgId, reviewedById: u.id }, data: { reviewedById: null } }).catch(() => {});
+      await prisma.attendanceSession.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.attendanceSession.updateMany({ where: { organizationId: orgId, correctedBy: u.id }, data: { correctedBy: null } }).catch(() => {});
+      await prisma.attachment.updateMany({ where: { organizationId: orgId, uploadedBy: u.id }, data: { uploadedBy: fallbackUserId } }).catch(() => {});
+      await prisma.salesReceipt.updateMany({ where: { organizationId: orgId, createdBy: u.id }, data: { createdBy: fallbackUserId } }).catch(() => {});
+      await prisma.projectAssignment.updateMany({ where: { assignedById: u.id }, data: { assignedById: fallbackUserId } }).catch(() => {});
+      await prisma.conversationParticipant.deleteMany({ where: { userId: u.id } }).catch(() => {});
+      await prisma.projectAssignment.deleteMany({ where: { userId: u.id } }).catch(() => {});
+      await prisma.folderPermission.deleteMany({ where: { userId: u.id } }).catch(() => {});
+      await prisma.notification.deleteMany({ where: { userId: u.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: u.id } }).catch(() => {});
+    }
   }
 
   const supervisorId = userMap["SITE_SUPERVISOR"] || userMap["ORG_ADMIN"] || actorUserId || userMap["SUPER_ADMIN"];

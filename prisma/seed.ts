@@ -54,12 +54,6 @@ async function main() {
       role: "SITE_SUPERVISOR",
     },
     {
-      id: "usr-store-1",
-      name: "Mohan Lal",
-      email: "store@buildtrack.pro",
-      role: "STOREKEEPER",
-    },
-    {
       id: "usr-fin-1",
       name: "Pooja Sharma",
       email: "finance@buildtrack.pro",
@@ -381,7 +375,7 @@ async function main() {
           referenceDoc: r.referenceDoc,
           vendorPartyId: r.vendorPartyId,
           notes: r.notes,
-          createdBy: "usr-store-1",
+          createdBy: "usr-sup-1",
         },
       });
 
@@ -553,7 +547,6 @@ async function main() {
   console.log("  Admin:       admin@buildtrack.pro       / Password123!");
   console.log("  Supervisor:  supervisor@buildtrack.pro  / Password123!");
   console.log("  Finance:     finance@buildtrack.pro     / Password123!");
-  console.log("  Storekeeper: store@buildtrack.pro       / Password123!");
   console.log("-----------------------------------------");
 }
 

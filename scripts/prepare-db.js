@@ -139,52 +139,45 @@ if (fs.existsSync(schemaPath)) {
   }
 }
 
-// If a valid production database URL is configured, run versioned Prisma migration
+// In production builds, database migration is decoupled to prevent accidental DDL mutations during preview/automated builds
+const shouldRunMigrationOnBuild = process.env.RUN_DB_MIGRATION_ON_BUILD === "true";
+
 if (
   dbUrl &&
   (dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://")) &&
   !dbUrl.includes("localhost:5432")
 ) {
-  try {
-    console.log("⚡ Applying versioned migrations to remote PostgreSQL...");
-    execSync("npx prisma migrate deploy", {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        DATABASE_URL: directUrl.includes('pgbouncer=true') ? directUrl.replace(/[?&]pgbouncer=true/g, '').replace(':6543', ':5432') : directUrl,
-      },
-    });
-    console.log("✅ Versioned database migrations applied successfully.");
-  } catch (err) {
-    console.warn("⚠️ prisma migrate deploy notice (falling back to baseline validation):", err.message);
-  }
+  if (shouldRunMigrationOnBuild) {
+    try {
+      console.log("⚡ [CONTROLLED BUILD MIGRATION] Applying versioned migrations to remote PostgreSQL...");
+      execSync("npx prisma migrate deploy", {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          DATABASE_URL: directUrl.includes('pgbouncer=true') ? directUrl.replace(/[?&]pgbouncer=true/g, '').replace(':6543', ':5432') : directUrl,
+        },
+      });
+      console.log("✅ Versioned database migrations applied successfully.");
+    } catch (err) {
+      console.warn("⚠️ prisma migrate deploy notice (falling back to baseline validation):", err.message);
+    }
 
-  // Ensure all Phase 5-11 tables and columns are guaranteed to exist
-  try {
-    console.log("⚡ Verifying table and column definitions via direct PostgreSQL migration...");
-    execSync("node scripts/apply-postgres-migration.js", {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        DATABASE_URL: directUrl || dbUrl,
-      },
-    });
-  } catch (ddlErr) {
-    console.warn("Notice: Direct DDL sync notice:", ddlErr.message);
-  }
-
-  // Always ensure authoritative website data is loaded into remote PostgreSQL
-  try {
-    console.log("⚡ Ensuring authoritative website data is loaded into PostgreSQL...");
-    execSync("node scripts/load-website-data.js", {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        DATABASE_URL: directUrl || dbUrl,
-      },
-    });
-  } catch (dataErr) {
-    console.warn("Notice: PostgreSQL website data load notice:", dataErr.message);
+    try {
+      console.log("⚡ [CONTROLLED BUILD MIGRATION] Applying PostgreSQL direct schema synchronization...");
+      execSync("node scripts/apply-postgres-migration.js", {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          DATABASE_URL: directUrl || dbUrl,
+        },
+      });
+    } catch (ddlErr) {
+      console.error("❌ Direct DDL sync failure:", ddlErr.message);
+      throw ddlErr;
+    }
+  } else {
+    console.log("ℹ️ [BUILD] Remote PostgreSQL migration during Vercel build is decoupled (RUN_DB_MIGRATION_ON_BUILD !== 'true').");
+    console.log("ℹ️ [BUILD] To apply controlled schema DDL, run 'npm run db:migrate' against DIRECT_URL.");
   }
 } else {
   console.log("ℹ️ Database notice: SQLite configuration active. (If connecting to remote PostgreSQL like Neon or Supabase, provide POSTGRES_URL or DATABASE_URL in Vercel Environment Variables).");

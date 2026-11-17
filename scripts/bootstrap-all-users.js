@@ -103,14 +103,35 @@ async function bootstrapAllUsers() {
     }
 
     // Purge unwanted users (Lakashy Bothra and Mohan Lal)
+    const fallbackMaster = (await prisma.user.findFirst({ where: { role: "SUPER_ADMIN" } }))?.id || "usr-super-1";
     for (const remEmail of ["lakashy@buildtrack.pro", "store@buildtrack.pro"]) {
       const u = await prisma.user.findFirst({ where: { email: remEmail } });
       if (u) {
-        await prisma.stockMovement.updateMany({ where: { createdBy: u.id }, data: { createdBy: "usr-super-1" } }).catch(() => {});
+        await prisma.stockMovement.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.bill.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.payment.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
         await prisma.project.updateMany({ where: { managerUserId: u.id }, data: { managerUserId: null } }).catch(() => {});
         await prisma.task.updateMany({ where: { assigneeUserId: u.id }, data: { assigneeUserId: null } }).catch(() => {});
+        await prisma.task.updateMany({ where: { completedById: u.id }, data: { completedById: null } }).catch(() => {});
+        await prisma.task.updateMany({ where: { verifiedById: u.id }, data: { verifiedById: null } }).catch(() => {});
+        await prisma.task.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.dailySiteReport.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.auditEvent.updateMany({ where: { actorUserId: u.id }, data: { actorUserId: fallbackMaster } }).catch(() => {});
+        await prisma.purchaseOrder.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.conversation.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackMaster } }).catch(() => {});
+        await prisma.siteDiaryEntry.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.materialQuotation.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.materialRequest.updateMany({ where: { requestedById: u.id }, data: { requestedById: fallbackMaster } }).catch(() => {});
+        await prisma.materialRequest.updateMany({ where: { reviewedById: u.id }, data: { reviewedById: null } }).catch(() => {});
+        await prisma.attendanceSession.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.attendanceSession.updateMany({ where: { correctedBy: u.id }, data: { correctedBy: null } }).catch(() => {});
+        await prisma.attachment.updateMany({ where: { uploadedById: u.id }, data: { uploadedById: fallbackMaster } }).catch(() => {});
+        await prisma.salesReceipt.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await prisma.projectAssignment.updateMany({ where: { assignedById: u.id }, data: { assignedById: fallbackMaster } }).catch(() => {});
         await prisma.conversationParticipant.deleteMany({ where: { userId: u.id } }).catch(() => {});
         await prisma.projectAssignment.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await prisma.folderPermission.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await prisma.notification.deleteMany({ where: { userId: u.id } }).catch(() => {});
         await prisma.user.delete({ where: { id: u.id } }).catch(() => {});
         console.log(`  🗑️ Purged removed user: ${remEmail}`);
       }

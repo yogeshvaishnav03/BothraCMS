@@ -70,14 +70,35 @@ export async function bootstrapWebsiteDataRuntime(): Promise<boolean> {
 
     // Purge removed users (Lakashy Bothra and Mohan Lal)
     const purgeEmails = ["lakashy@buildtrack.pro", "store@buildtrack.pro"];
+    const fallbackMaster = (await client.user.findFirst({ where: { role: "SUPER_ADMIN" }, select: { id: true } }))?.id || "usr-super-1";
     for (const remEmail of purgeEmails) {
       const u = await client.user.findFirst({ where: { email: remEmail }, select: { id: true, name: true } });
       if (u) {
-        await client.stockMovement.updateMany({ where: { createdBy: u.id }, data: { createdBy: "usr-super-1" } }).catch(() => {});
+        await client.stockMovement.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.bill.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.payment.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
         await client.project.updateMany({ where: { managerUserId: u.id }, data: { managerUserId: null } }).catch(() => {});
         await client.task.updateMany({ where: { assigneeUserId: u.id }, data: { assigneeUserId: null } }).catch(() => {});
+        await client.task.updateMany({ where: { completedById: u.id }, data: { completedById: null } }).catch(() => {});
+        await client.task.updateMany({ where: { verifiedById: u.id }, data: { verifiedById: null } }).catch(() => {});
+        await client.task.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.dailySiteReport.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.auditEvent.updateMany({ where: { actorUserId: u.id }, data: { actorUserId: fallbackMaster } }).catch(() => {});
+        await client.purchaseOrder.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.conversation.updateMany({ where: { createdById: u.id }, data: { createdById: fallbackMaster } }).catch(() => {});
+        await client.siteDiaryEntry.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.materialQuotation.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.materialRequest.updateMany({ where: { requestedById: u.id }, data: { requestedById: fallbackMaster } }).catch(() => {});
+        await client.materialRequest.updateMany({ where: { reviewedById: u.id }, data: { reviewedById: null } }).catch(() => {});
+        await client.attendanceSession.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.attendanceSession.updateMany({ where: { correctedBy: u.id }, data: { correctedBy: null } }).catch(() => {});
+        await client.attachment.updateMany({ where: { uploadedById: u.id }, data: { uploadedById: fallbackMaster } }).catch(() => {});
+        await client.salesReceipt.updateMany({ where: { createdBy: u.id }, data: { createdBy: fallbackMaster } }).catch(() => {});
+        await client.projectAssignment.updateMany({ where: { assignedById: u.id }, data: { assignedById: fallbackMaster } }).catch(() => {});
         await client.conversationParticipant.deleteMany({ where: { userId: u.id } }).catch(() => {});
         await client.projectAssignment.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await client.folderPermission.deleteMany({ where: { userId: u.id } }).catch(() => {});
+        await client.notification.deleteMany({ where: { userId: u.id } }).catch(() => {});
         await client.user.delete({ where: { id: u.id } }).catch(() => {});
         console.log(`[RUNTIME_SEEDER] Purged removed user: ${remEmail}`);
       }

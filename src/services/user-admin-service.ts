@@ -554,6 +554,93 @@ export class UserAdminService {
         data: { createdBy: actor.userId },
       });
 
+      await (tx as any).materialQuotation?.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).attachment?.updateMany({
+        where: { organizationId: orgId, uploadedBy: target.id },
+        data: { uploadedBy: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).materialRequest?.updateMany({
+        where: { organizationId: orgId, requestedById: target.id },
+        data: { requestedById: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).materialRequest?.updateMany({
+        where: { organizationId: orgId, reviewedById: target.id },
+        data: { reviewedById: null },
+      }).catch(() => {});
+
+      await (tx as any).attendanceSession?.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).attendanceSession?.updateMany({
+        where: { organizationId: orgId, correctedBy: target.id },
+        data: { correctedBy: null },
+      }).catch(() => {});
+
+      await (tx as any).measurementBookEntry?.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).measurementBookEntry?.updateMany({
+        where: { organizationId: orgId, approvedBy: target.id },
+        data: { approvedBy: null },
+      }).catch(() => {});
+
+      await (tx as any).auditEvent?.updateMany({
+        where: { organizationId: orgId, actorUserId: target.id },
+        data: { actorUserId: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).purchaseOrder?.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).conversation?.updateMany({
+        where: { organizationId: orgId, createdById: target.id },
+        data: { createdById: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).siteDiaryEntry?.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).salesReceipt?.updateMany({
+        where: { organizationId: orgId, createdBy: target.id },
+        data: { createdBy: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).workReport?.updateMany({
+        where: { organizationId: orgId, reviewedById: target.id },
+        data: { reviewedById: null },
+      }).catch(() => {});
+
+      await (tx as any).projectAssignment?.updateMany({
+        where: { assignedById: target.id },
+        data: { assignedById: actor.userId },
+      }).catch(() => {});
+
+      await (tx as any).staffCompensation?.deleteMany({
+        where: { organizationId: orgId, userId: target.id },
+      }).catch(() => {});
+
+      await (tx as any).pushSubscription?.deleteMany({
+        where: { organizationId: orgId, userId: target.id },
+      }).catch(() => {});
+
+      await (tx as any).taskStatusHistory?.deleteMany({
+        where: { changedBy: target.id },
+      }).catch(() => {});
+
       // 3. Delete assignments & permissions
       await tx.projectAssignment.deleteMany({
         where: { userId: target.id },

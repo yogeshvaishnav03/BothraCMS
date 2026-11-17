@@ -49,6 +49,7 @@ import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import CommandCenter from "@/components/dashboard/CommandCenter";
+import ApprovalsWidget from "@/components/dashboard/ApprovalsWidget";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
@@ -360,6 +361,7 @@ export default function DashboardPage() {
   // Quick Task Modal & Filter
   const [showQuickTaskModal, setShowQuickTaskModal] = useState(false);
   const [taskFilterOverdueOnly, setTaskFilterOverdueOnly] = useState(false);
+  const [taskViewFilter, setTaskViewFilter] = useState<"ALL" | "MINE">("ALL");
   const [quickTitle, setQuickTitle] = useState("");
   const [quickProjectId, setQuickProjectId] = useState("");
   const [quickPriority, setQuickPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
@@ -476,9 +478,26 @@ export default function DashboardPage() {
     return pendingIncompleteTasks.filter(isTaskOverdue).length;
   }, [pendingIncompleteTasks]);
 
+  // Feature 9: Count of tasks assigned specifically to current user
+  const myAssignedTasksCount = useMemo(() => {
+    const uid = currentUser?.id || currentUser?.userId;
+    if (!uid) return 0;
+    return pendingIncompleteTasks.filter(
+      (t: any) => t.assignedToId === uid || t.assignee?.id === uid || t.assigneeUserId === uid
+    ).length;
+  }, [pendingIncompleteTasks, currentUser]);
+
   // Filtered collections responding to the live interactive search bar and active section tab
   const displayedPendingTasks = useMemo(() => {
     let list = pendingIncompleteTasks;
+    if (taskViewFilter === "MINE") {
+      const uid = currentUser?.id || currentUser?.userId;
+      if (uid) {
+        list = list.filter(
+          (t: any) => t.assignedToId === uid || t.assignee?.id === uid || t.assigneeUserId === uid
+        );
+      }
+    }
     if (taskFilterOverdueOnly) {
       list = list.filter(isTaskOverdue);
     }
@@ -493,7 +512,7 @@ export default function DashboardPage() {
       );
     }
     return activeSectionTab === "TASKS" ? list : list.slice(0, 8);
-  }, [pendingIncompleteTasks, taskFilterOverdueOnly, dashboardFilterQuery, activeSectionTab]);
+  }, [pendingIncompleteTasks, taskViewFilter, taskFilterOverdueOnly, dashboardFilterQuery, activeSectionTab, currentUser]);
 
   const displayedProjects = useMemo(() => {
     let list = projects;
@@ -2358,7 +2377,11 @@ export default function DashboardPage() {
 
         {/* ALL-IN-ONE VIEW: Balanced 2-Column Command Center */}
         {activeSectionTab === "ALL" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          <div className="space-y-5">
+            {/* Feature 14: Unified Approval Queue */}
+            <ApprovalsWidget />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
             {/* Left Column: Active Site & Projects */}
             <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-4 min-w-0 overflow-hidden">
               <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
@@ -2605,7 +2628,38 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Feature 9: My Tasks vs All Tasks Toggle */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setTaskViewFilter("ALL")}
+                      className={`px-2 py-1 rounded-md font-semibold transition ${
+                        taskViewFilter === "ALL"
+                          ? "bg-white text-slate-900 shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      All Tasks
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaskViewFilter("MINE")}
+                      className={`px-2 py-1 rounded-md font-semibold transition flex items-center gap-1 ${
+                        taskViewFilter === "MINE"
+                          ? "bg-white text-amber-600 shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <span>My Tasks</span>
+                      {myAssignedTasksCount > 0 && (
+                        <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                          {myAssignedTasksCount}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
                   {overdueTasksCount > 0 && (
                     <button
                       type="button"
@@ -2633,6 +2687,8 @@ export default function DashboardPage() {
                     ? "No overdue tasks found. All outstanding tasks are on schedule!"
                     : dashboardFilterQuery
                     ? `No tasks match "${dashboardFilterQuery}"`
+                    : taskViewFilter === "MINE"
+                    ? "No open tasks currently assigned to you."
                     : "No pending tasks found. All caught up!"}
                 </div>
               ) : (
@@ -2650,9 +2706,12 @@ export default function DashboardPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs sm:text-sm font-bold text-slate-900">
+                            <Link
+                              href={`/tasks?task=${t.id}`}
+                              className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 hover:underline"
+                            >
                               {t.title}
-                            </span>
+                            </Link>
                             <span
                               className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                                 t.priority === "CRITICAL"
@@ -2723,6 +2782,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         )}
 
@@ -3035,7 +3095,38 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Feature 9: My Tasks vs All Tasks Toggle */}
+                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setTaskViewFilter("ALL")}
+                    className={`px-2 py-1 rounded-md font-semibold transition ${
+                      taskViewFilter === "ALL"
+                        ? "bg-white text-slate-900 shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    All Tasks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaskViewFilter("MINE")}
+                    className={`px-2 py-1 rounded-md font-semibold transition flex items-center gap-1 ${
+                      taskViewFilter === "MINE"
+                        ? "bg-white text-amber-600 shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>My Tasks</span>
+                    {myAssignedTasksCount > 0 && (
+                      <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                        {myAssignedTasksCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
                 {overdueTasksCount > 0 && (
                   <button
                     type="button"
@@ -3073,6 +3164,8 @@ export default function DashboardPage() {
                     ? "No overdue tasks found. All outstanding tasks are on schedule!"
                     : dashboardFilterQuery
                     ? `No tasks match "${dashboardFilterQuery}"`
+                    : taskViewFilter === "MINE"
+                    ? "No open tasks currently assigned to you."
                     : "No pending tasks found. All caught up!"}
                 </div>
               ) : (
@@ -3090,9 +3183,12 @@ export default function DashboardPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs sm:text-sm font-bold text-slate-900">
+                            <Link
+                              href={`/tasks?task=${t.id}`}
+                              className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 hover:underline"
+                            >
                               {t.title}
-                            </span>
+                            </Link>
                             <span
                               className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                                 t.priority === "CRITICAL"

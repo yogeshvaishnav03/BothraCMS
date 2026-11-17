@@ -343,91 +343,124 @@ export default function ReportsPage() {
           </button>
         </div>
 
-        {/* Quick Date Presets Bar */}
-        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 mr-1">
-              <Calendar className="w-3.5 h-3.5 text-amber-500" />
-              <span>Report Period:</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                const today = istDateKey();
-                setStartDate(today);
-                setEndDate(today);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                startDate === istDateKey() && endDate === istDateKey()
-                  ? "bg-amber-500 text-slate-950 shadow-xs"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-              }`}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const today = istDateKey();
-                setStartDate(`${today.slice(0, 7)}-01`);
-                setEndDate(today);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                startDate === `${istDateKey().slice(0, 7)}-01` && endDate === istDateKey()
-                  ? "bg-amber-500 text-slate-950 shadow-xs"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-              }`}
-            >
-              This Month
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setStartDate("");
-                setEndDate("");
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                !startDate && !endDate
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-              }`}
-            >
-              All Time
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 font-semibold text-[11px]">From:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 font-semibold text-[11px]">To:</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-              />
-            </div>
-            {(startDate || endDate) && (
+        {/* Quick Date Presets Bar / Mega Filter */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-xs space-y-3">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 mr-1">
+                <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                <span>Period:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = istDateKey();
+                  setStartDate(today);
+                  setEndDate(today);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  startDate === istDateKey() && endDate === istDateKey()
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const y = istDateKey(new Date(Date.now() - 24 * 3600 * 1000));
+                  setStartDate(y);
+                  setEndDate(y);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  startDate === istDateKey(new Date(Date.now() - 24 * 3600 * 1000)) && endDate === istDateKey(new Date(Date.now() - 24 * 3600 * 1000))
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d7 = istDateKey(new Date(Date.now() - 7 * 24 * 3600 * 1000));
+                  setStartDate(d7);
+                  setEndDate(istDateKey());
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  startDate === istDateKey(new Date(Date.now() - 7 * 24 * 3600 * 1000)) && endDate === istDateKey()
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
+              >
+                Last 7 Days
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = istDateKey();
+                  setStartDate(`${today.slice(0, 7)}-01`);
+                  setEndDate(today);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  startDate === `${istDateKey().slice(0, 7)}-01` && endDate === istDateKey()
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
+              >
+                This Month
+              </button>
               <button
                 type="button"
                 onClick={() => {
                   setStartDate("");
                   setEndDate("");
                 }}
-                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition cursor-pointer"
-                title="Clear date filter"
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  !startDate && !endDate
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
               >
-                <X className="w-3.5 h-3.5" />
+                All Time
               </button>
-            )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs w-full lg:w-auto">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-semibold text-[11px]">From:</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-semibold text-[11px]">To:</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition cursor-pointer"
+                  title="Clear date filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -470,7 +503,8 @@ export default function ReportsPage() {
                 showExport={true}
                 dateRangeFilter={dateRangeConfig}
               />
-              <div className="overflow-x-auto md:min-h-[400px]">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto md:min-h-[400px]">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
@@ -522,6 +556,46 @@ export default function ReportsPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile Responsive Cards */}
+              <div className="block md:hidden divide-y divide-slate-100 p-3 space-y-3">
+                {excelStock.filteredData.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500">
+                    No stock inventory records match the current filters.
+                  </div>
+                ) : (
+                  excelStock.paginatedData.map((m) => (
+                    <div key={m.id} className="bg-slate-50/60 rounded-xl p-3 border border-slate-200/80 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-mono text-xs font-bold text-slate-500">{m.sku}</div>
+                          <div className="font-bold text-slate-900 text-sm">{m.name}</div>
+                          <div className="text-xs text-slate-500">{m.category?.name || "General"}</div>
+                        </div>
+                        {m.isLowStock ? (
+                          <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                            LOW STOCK
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            OK
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-xs">
+                        <div>
+                          <span className="text-slate-500 block text-[11px]">Stock on Hand</span>
+                          <span className="font-black text-slate-900">{formatQuantity(m.totalStock, m.unitCode)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[11px]">Low Alert Level</span>
+                          <span className="font-semibold text-slate-600">{formatQuantity(m.minStockQty, m.unitCode)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
               <TablePagination
                 currentPage={excelStock.currentPage}
                 totalPages={excelStock.totalPages}
@@ -561,7 +635,8 @@ export default function ReportsPage() {
                 showExport={true}
                 dateRangeFilter={dateRangeConfig}
               />
-              <div className="overflow-x-auto md:min-h-[400px]">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto md:min-h-[400px]">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
@@ -621,6 +696,43 @@ export default function ReportsPage() {
                   )}
                 </table>
               </div>
+
+              {/* Mobile Responsive Cards */}
+              <div className="block md:hidden divide-y divide-slate-100 p-3 space-y-3">
+                {excelPayables.filteredData.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500">
+                    No vendor or contractor records match your filters.
+                  </div>
+                ) : (
+                  excelPayables.paginatedData.map((p) => (
+                    <div key={p.id} className="bg-slate-50/60 rounded-xl p-3 border border-slate-200/80 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-slate-900 text-sm">{p.name}</div>
+                          <div className="text-xs text-slate-500 font-mono">GSTIN: {p.taxIdentifier || "—"}</div>
+                        </div>
+                        <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
+                          {p.partyType}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 text-xs">
+                        <div>
+                          <span className="text-slate-500 block text-[10px]">Billed</span>
+                          <span className="font-medium text-slate-800">{formatCurrency(p.totalBilled)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[10px]">Paid</span>
+                          <span className="font-medium text-emerald-600">{formatCurrency(p.totalPaid)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[10px]">Outstanding</span>
+                          <span className={`font-black ${p.outstandingBalance > 0 ? "text-amber-600" : "text-slate-900"}`}>{formatCurrency(p.outstandingBalance)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
               <TablePagination
                 currentPage={excelPayables.currentPage}
                 totalPages={excelPayables.totalPages}
@@ -662,7 +774,8 @@ export default function ReportsPage() {
               showExport={true}
               dateRangeFilter={dateRangeConfig}
             />
-            <div className="overflow-x-auto md:min-h-[400px]">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto md:min-h-[400px]">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                   <tr>
@@ -712,6 +825,45 @@ export default function ReportsPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Responsive Cards */}
+            <div className="block md:hidden divide-y divide-slate-100 p-3 space-y-3">
+              {excelAttendanceReport.filteredData.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-500">
+                  No attendance records match the selected filters.
+                </div>
+              ) : (
+                excelAttendanceReport.paginatedData.map((a) => (
+                  <div key={a.id} className="bg-slate-50/60 rounded-xl p-3 border border-slate-200/80 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-bold text-slate-900 text-sm">{a.workforceMember?.name}</div>
+                        <div className="text-xs text-slate-500 font-mono">
+                          {a.workforceMember?.workerType} ({a.workforceMember?.employeeCode})
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        {a.status}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 text-xs">
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">Date</span>
+                        <span className="font-mono text-slate-800">{formatDate(a.workDate)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">Site</span>
+                        <span className="text-slate-700 truncate block">{a.site?.name || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">Check-In</span>
+                        <span className="font-mono text-slate-700">{a.checkInAt ? formatDate(a.checkInAt) : "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
             <TablePagination
               currentPage={excelAttendanceReport.currentPage}

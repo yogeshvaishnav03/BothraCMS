@@ -993,6 +993,36 @@ export default function FinancePage() {
     });
   }, [siteScopedBills, billSearch, billStatus, billFromDate, billToDate]);
 
+  // Feature 18: Filter-based dynamic payment totals
+  const filteredPaymentsStats = useMemo(() => {
+    let totalPaise = 0;
+    let totalTdsPaise = 0;
+    filteredPayments.forEach((p) => {
+      totalPaise += p.amount || 0;
+      totalTdsPaise += p.tdsAmount || 0;
+    });
+    return {
+      count: filteredPayments.length,
+      totalPaise,
+      netPaidPaise: totalPaise - totalTdsPaise,
+    };
+  }, [filteredPayments]);
+
+  // Feature 18: Filter-based dynamic bill totals
+  const filteredBillsStats = useMemo(() => {
+    let totalPaise = 0;
+    let outstandingPaise = 0;
+    filteredBills.forEach((b) => {
+      totalPaise += b.totalAmount || 0;
+      outstandingPaise += b.outstandingAmount || 0;
+    });
+    return {
+      count: filteredBills.length,
+      totalPaise,
+      outstandingPaise,
+    };
+  }, [filteredBills]);
+
   const paymentColumns: ExcelColumn<any>[] = useMemo(
     () => [
       {
@@ -1418,6 +1448,49 @@ export default function FinancePage() {
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
+              </div>
+
+              {/* Payee Type & Cash Expenses Integration (Feature 10) */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-500 font-semibold text-[11px]">Payee:</span>
+                <select
+                  value={paymentPayeeType}
+                  onChange={(e) => setPaymentPayeeType(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                >
+                  <option value="ALL">All Payees (Vendors, Labor & Expenses)</option>
+                  <option value="VENDOR">Vendors / Suppliers</option>
+                  <option value="CONTRACTOR">Contractors & Labor</option>
+                  <option value="EMPLOYEE">Employees / Staff</option>
+                  <option value="OUT_OF_POCKET">Cash Expenses (Petty Cash)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Dynamic Filtered Total Banner (Feature 18) */}
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white dark:from-emerald-950/20 dark:to-slate-900 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-xs">
+                  ₹
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
+                    Filtered Total Payments
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-400">
+                    {formatCurrency(filteredPaymentsStats.totalPaise)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400">
+                <div>
+                  <span className="text-slate-500 block">Matched Payments</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{filteredPaymentsStats.count} records</span>
+                </div>
+                <div className="border-l border-slate-200 dark:border-slate-700 pl-4">
+                  <span className="text-slate-500 block">Net Released (excl. TDS)</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(filteredPaymentsStats.netPaidPaise)}</span>
+                </div>
               </div>
             </div>
 
@@ -1907,6 +1980,33 @@ export default function FinancePage() {
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Dynamic Filtered Total Bills Banner (Feature 18) */}
+            <div className="bg-gradient-to-r from-blue-50 via-indigo-50/50 to-white dark:from-blue-950/20 dark:to-slate-900 border border-blue-200 dark:border-blue-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-xs">
+                  ₹
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wider">
+                    Filtered Total Bills
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-blue-700 dark:text-blue-400">
+                    {formatCurrency(filteredBillsStats.totalPaise)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400">
+                <div>
+                  <span className="text-slate-500 block">Matched Invoices</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{filteredBillsStats.count} bills</span>
+                </div>
+                <div className="border-l border-slate-200 dark:border-slate-700 pl-4">
+                  <span className="text-slate-500 block">Unpaid Balance</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">{formatCurrency(filteredBillsStats.outstandingPaise)}</span>
+                </div>
               </div>
             </div>
 

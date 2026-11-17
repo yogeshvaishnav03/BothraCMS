@@ -603,6 +603,7 @@ export default function DayBookPage() {
     return todayStr;
   });
   const [dateFilterMode, setDateFilterMode] = useState<"SINGLE" | "RANGE">("SINGLE");
+  const [activePreset, setActivePreset] = useState<"today" | "yesterday" | "last7" | "thisMonth" | "custom">("today");
   const { activeSiteId, setActiveSiteId } = useActiveSite();
   const { refreshUser, refreshSites } = useAppSession();
   const [sites, setSites] = useState<any[]>([]);
@@ -1315,27 +1316,37 @@ export default function DayBookPage() {
     const to = newTo || newFrom;
     setSelectedDate(newFrom);
     setToDate(to);
+    if (newFrom === todayStr && to === todayStr) {
+      setActivePreset("today");
+    } else {
+      setActivePreset("custom");
+    }
     loadDayBook(newFrom, to, selectedSiteId);
   };
 
   const handleApplyPreset = (preset: "today" | "yesterday" | "last7" | "thisMonth") => {
     const now = new Date();
     const today = istDateKey(now);
+    setActivePreset(preset);
     if (preset === "today") {
       setDateFilterMode("SINGLE");
       handleDateChange(today, today);
+      setActivePreset("today");
     } else if (preset === "yesterday") {
       setDateFilterMode("SINGLE");
       const y = istDateKey(new Date(now.getTime() - 24 * 3600 * 1000));
       handleDateChange(y, y);
+      setActivePreset("yesterday");
     } else if (preset === "last7") {
       setDateFilterMode("RANGE");
       const d7 = istDateKey(new Date(now.getTime() - 7 * 24 * 3600 * 1000));
       handleDateChange(d7, today);
+      setActivePreset("last7");
     } else if (preset === "thisMonth") {
       setDateFilterMode("RANGE");
       const mStart = `${today.slice(0, 7)}-01`;
       handleDateChange(mStart, today);
+      setActivePreset("thisMonth");
     }
   };
 
@@ -1841,7 +1852,7 @@ export default function DayBookPage() {
                 type="button"
                 onClick={() => handleApplyPreset("today")}
                 className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border transition ${
-                  dateFilterMode === "SINGLE" && selectedDate === todayStr
+                  activePreset === "today"
                     ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
                     : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                 }`}
@@ -1851,14 +1862,22 @@ export default function DayBookPage() {
               <button
                 type="button"
                 onClick={() => handleApplyPreset("yesterday")}
-                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+                className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border transition ${
+                  activePreset === "yesterday"
+                    ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
               >
                 Yesterday
               </button>
               <button
                 type="button"
                 onClick={() => handleApplyPreset("last7")}
-                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+                className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border transition ${
+                  activePreset === "last7"
+                    ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
               >
                 <span className="sm:hidden">7D</span>
                 <span className="hidden sm:inline">Last 7 Days</span>
@@ -1866,7 +1885,11 @@ export default function DayBookPage() {
               <button
                 type="button"
                 onClick={() => handleApplyPreset("thisMonth")}
-                className="shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 transition"
+                className={`shrink-0 whitespace-nowrap px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-bold border transition ${
+                  activePreset === "thisMonth"
+                    ? "bg-amber-500 text-slate-950 border-amber-500 shadow-2xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
               >
                 <span className="sm:hidden">Month</span>
                 <span className="hidden sm:inline">This Month</span>

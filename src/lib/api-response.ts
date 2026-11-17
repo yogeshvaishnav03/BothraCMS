@@ -105,6 +105,9 @@ export function handleApiError(error: unknown) {
     if (error.message.startsWith("NotFound:")) {
       return jsonError(error.message, "NOT_FOUND", 404);
     }
+    if (error.message.startsWith("Conflict:") || error.message.includes("Conflict:")) {
+      return jsonError(error.message, "CONFLICT", 409);
+    }
     const isProduction = process.env.NODE_ENV === "production";
     const isInternalLeak =
       error.message.includes("prisma") ||

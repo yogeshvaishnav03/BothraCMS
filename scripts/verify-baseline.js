@@ -71,7 +71,6 @@ async function run() {
     "admin@buildtrack.pro",
     "pm@buildtrack.pro",
     "supervisor@buildtrack.pro",
-    "store@buildtrack.pro",
     "accountant@buildtrack.pro",
     "viewer@buildtrack.pro",
     "auditor@buildtrack.pro",

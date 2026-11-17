@@ -2,9 +2,9 @@
 
 import React, { useRef, useState } from "react";
 
-export type Tool = "cloud" | "arrow" | "rect" | "pen" | "text" | "none";
+export type Tool = "cloud" | "arrow" | "rect" | "circle" | "line" | "pen" | "highlight" | "eraser" | "text" | "none";
 export interface Shape {
-  type: "pen" | "arrow" | "rect" | "cloud" | "text";
+  type: "pen" | "arrow" | "rect" | "circle" | "line" | "cloud" | "text" | "highlight";
   color: string;
   points: [number, number][];
   text?: string;
@@ -38,7 +38,16 @@ export function ShapeView({ s, w, h, faded }: { s: Shape; w: number; h: number; 
   const P = s.points.map(([x, y]) => [x * w, y * h] as const);
   const common = { stroke: s.color, strokeWidth: 2.5, fill: "none", opacity: faded ? 0.55 : 1, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   if (s.type === "pen") return <polyline points={P.map((p) => p.join(",")).join(" ")} {...common} />;
+  if (s.type === "highlight") return <polyline points={P.map((p) => p.join(",")).join(" ")} {...common} strokeWidth={16} stroke={s.color} opacity={faded ? 0.2 : 0.35} />;
+  if (s.type === "line") return <line x1={P[0][0]} y1={P[0][1]} x2={P[1][0]} y2={P[1][1]} {...common} />;
   if (s.type === "rect") return <rect x={Math.min(P[0][0], P[1][0])} y={Math.min(P[0][1], P[1][1])} width={Math.abs(P[1][0] - P[0][0])} height={Math.abs(P[1][1] - P[0][1])} {...common} />;
+  if (s.type === "circle") {
+    const rx = Math.abs(P[1][0] - P[0][0]) / 2;
+    const ry = Math.abs(P[1][1] - P[0][1]) / 2;
+    const cx = Math.min(P[0][0], P[1][0]) + rx;
+    const cy = Math.min(P[0][1], P[1][1]) + ry;
+    return <ellipse cx={cx} cy={cy} rx={rx} ry={ry} {...common} />;
+  }
   if (s.type === "cloud") return <path d={cloudPath(P[0][0], P[0][1], P[1][0], P[1][1])} {...common} />;
   if (s.type === "arrow") {
     const [a, b] = P;
@@ -93,16 +102,37 @@ export default function MarkupLayer({
 }) {
   const [draft, setDraft] = useState<Shape | null>(null);
   const svg = useRef<SVGSVGElement>(null);
+  const isErasing = useRef(false);
 
   const at = (e: React.PointerEvent): [number, number] => {
     const r = svg.current!.getBoundingClientRect();
     return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
   };
 
+  const eraseAt = (p: [number, number]) => {
+    const px = p[0] * width;
+    const py = p[1] * height;
+    const remaining = mine.filter((shape) => {
+      return !shape.points.some(([sx, sy]) => {
+        const dx = sx * width - px;
+        const dy = sy * height - py;
+        return Math.hypot(dx, dy) < 24;
+      });
+    });
+    if (remaining.length !== mine.length) {
+      onChange(remaining);
+    }
+  };
+
   const down = (e: React.PointerEvent) => {
     if (tool === "none") return;
     e.preventDefault();
     const p = at(e);
+    if (tool === "eraser") {
+      isErasing.current = true;
+      eraseAt(p);
+      return;
+    }
     if (tool === "text") {
       const result = onAskText();
       if (result && typeof (result as any).then === "function") {
@@ -115,18 +145,37 @@ export default function MarkupLayer({
       return;
     }
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDraft({ type: tool, color, points: tool === "pen" ? [p] : [p, p] });
+    setDraft({ type: tool, color, points: tool === "pen" || tool === "highlight" ? [p] : [p, p] });
   };
+
   const move = (e: React.PointerEvent) => {
-    if (!draft) return;
     const p = at(e);
-    setDraft(draft.type === "pen" ? { ...draft, points: draft.points.length < 2000 ? [...draft.points, p] : draft.points } : { ...draft, points: [draft.points[0], p] });
+    if (tool === "eraser") {
+      if (isErasing.current) eraseAt(p);
+      return;
+    }
+    if (!draft) return;
+    setDraft(
+      draft.type === "pen" || draft.type === "highlight"
+        ? { ...draft, points: draft.points.length < 2500 ? [...draft.points, p] : draft.points }
+        : { ...draft, points: [draft.points[0], p] }
+    );
   };
+
   const up = () => {
+    if (tool === "eraser") {
+      isErasing.current = false;
+      return;
+    }
     if (!draft) return;
     const [a, b] = [draft.points[0], draft.points[draft.points.length - 1]];
     // Ignore a tap that drew nothing.
-    if (Math.hypot((b[0] - a[0]) * width, (b[1] - a[1]) * height) > 6) onChange([...mine, { ...draft, points: draft.points.map(([x, y]) => [Math.round(x * 10000) / 10000, Math.round(y * 10000) / 10000]) }]);
+    if (Math.hypot((b[0] - a[0]) * width, (b[1] - a[1]) * height) > 5) {
+      onChange([
+        ...mine,
+        { ...draft, points: draft.points.map(([x, y]) => [Math.round(x * 10000) / 10000, Math.round(y * 10000) / 10000]) },
+      ]);
+    }
     setDraft(null);
   };
 
@@ -135,12 +184,18 @@ export default function MarkupLayer({
       ref={svg}
       width={width}
       height={height}
-      className="absolute left-0 top-0"
-      style={{ touchAction: tool === "none" ? "auto" : "none", cursor: tool === "none" ? "default" : tool === "text" ? "text" : "crosshair" }}
+      className="absolute left-0 top-0 select-none"
+      style={{
+        touchAction: tool === "none" ? "auto" : "none",
+        cursor: tool === "none" ? "default" : tool === "text" ? "text" : tool === "eraser" ? "crosshair" : "crosshair",
+      }}
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}
-      onPointerCancel={() => setDraft(null)}
+      onPointerCancel={() => {
+        isErasing.current = false;
+        setDraft(null);
+      }}
     >
       {others.map((o, i) => o.shapes.map((s, j) => <ShapeView key={`o${i}-${j}`} s={s} w={width} h={height} faded />))}
       {mine.map((s, i) => (

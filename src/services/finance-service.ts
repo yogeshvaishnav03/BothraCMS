@@ -660,7 +660,17 @@ export class FinanceService {
     });
 
     if (existingPayment) {
-      // Idempotent return of already processed payment
+      // Validate that the replayed request matches the original payload parameters
+      const requestedPaise = Math.round(input.amount * 100);
+      const isConflictingPayload =
+        existingPayment.amount !== requestedPaise ||
+        (input.partyId && existingPayment.partyId && existingPayment.partyId !== input.partyId);
+
+      if (isConflictingPayload) {
+        throw new Error("Conflict: Idempotency key reuse with conflicting transaction parameters (amount or recipient differs)");
+      }
+
+      // Safe idempotent return of already processed payment
       return {
         payment: existingPayment,
         idempotentReplay: true,
@@ -727,7 +737,8 @@ export class FinanceService {
       tds: input.tds,
     });
 
-    return await prisma.$transaction(async (tx: any) => {
+    try {
+      return await prisma.$transaction(async (tx: any) => {
       // Check each bill's current outstanding balance
       if (input.allocations && input.allocations.length > 0) {
         for (const alloc of input.allocations) {
@@ -823,7 +834,14 @@ export class FinanceService {
             referenceNumber: payment.referenceNumber,
             status,
             allocationsCount: payment.allocations.length,
-            ...(payment.tdsAmount ? { tdsSection: payment.tdsSection, tdsAmount: payment.tdsAmount, bankPaid: payment.amount - payment.tdsAmount } : {}),
+            ...(payment.tdsAmount
+              ? {
+                  tdsSection: payment.tdsSection,
+                  tdsAmount: payment.tdsAmount,
+                  bankPaid: payment.amount - payment.tdsAmount,
+                  tdsAudit: tds ? tds.auditMetadata : null,
+                }
+              : {}),
           }),
           reason: status === "POSTED"
             ? `Payment of ₹${(payment.amount / 100).toFixed(2)} posted directly to ${recipientName} from account ${payingAccount}`
@@ -840,6 +858,35 @@ export class FinanceService {
         idempotentReplay: false,
       };
     });
+    } catch (txErr: any) {
+      if (
+        txErr?.code === "P2002" ||
+        txErr?.message?.includes("idempotencyKey") ||
+        txErr?.message?.includes("unique constraint") ||
+        txErr?.message?.includes("23505")
+      ) {
+        const replayed = await prisma.payment.findUnique({
+          where: {
+            organizationId_idempotencyKey: {
+              organizationId: input.organizationId,
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+          include: { allocations: true, party: true },
+        });
+        if (replayed) {
+          const requestedPaise = Math.round(input.amount * 100);
+          if (replayed.amount !== requestedPaise || (input.partyId && replayed.partyId && replayed.partyId !== input.partyId)) {
+            throw new Error("Conflict: Idempotency key collision under concurrent execution with conflicting transaction parameters.");
+          }
+          return {
+            payment: replayed,
+            idempotentReplay: true,
+          };
+        }
+      }
+      throw txErr;
+    }
   }
 
   /**

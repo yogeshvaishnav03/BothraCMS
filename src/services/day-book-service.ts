@@ -81,38 +81,38 @@ export async function fetchDayBookData(
   const broadStart = new Date(startOfDay.getTime() - 14 * 3600 * 1000);
   const broadEnd = new Date(endOfDay.getTime() + 14 * 3600 * 1000);
 
-  // 1. Payments filter
+  // 1. Payments filter - strictly prioritize actual transaction date (paymentDate)
   const paymentWhere: any = {
     organizationId: orgId,
     status: { not: "REVERSED" },
     OR: [
       { paymentDate: { gte: broadStart, lte: broadEnd } },
-      { createdAt: { gte: startOfDay, lte: endOfDay } },
+      { paymentDate: null, createdAt: { gte: startOfDay, lte: endOfDay } },
     ],
   };
   if (siteId) {
     paymentWhere.project = { siteId };
   }
 
-  // 2. Bills filter
+  // 2. Bills filter - strictly prioritize actual transaction date (billDate)
   const billWhere: any = {
     organizationId: orgId,
     isArchived: false,
     OR: [
       { billDate: { gte: broadStart, lte: broadEnd } },
-      { createdAt: { gte: startOfDay, lte: endOfDay } },
+      { billDate: null, createdAt: { gte: startOfDay, lte: endOfDay } },
     ],
   };
   if (siteId) {
     billWhere.project = { siteId };
   }
 
-  // 3. Stock movements filter
+  // 3. Stock movements filter - strictly prioritize actual movement date (movementAt)
   const stockWhere: any = {
     organizationId: orgId,
     OR: [
-      { createdAt: { gte: broadStart, lte: broadEnd } },
       { movementAt: { gte: broadStart, lte: broadEnd } },
+      { movementAt: null, createdAt: { gte: broadStart, lte: broadEnd } },
     ],
   };
   if (siteId) {
@@ -260,7 +260,8 @@ export async function fetchDayBookData(
   ]);
 
   const filteredPayments = rawPayments.filter((p) => {
-    return matchesDateRange(p.paymentDate, fromDate, toDate) || matchesDateRange(p.createdAt, fromDate, toDate);
+    const txDate = p.paymentDate || p.createdAt;
+    return matchesDateRange(txDate, fromDate, toDate);
   });
 
   const payments = filteredPayments.map((p) => ({
@@ -269,11 +270,13 @@ export async function fetchDayBookData(
   }));
 
   const bills = rawBills.filter((b) => {
-    return matchesDateRange(b.billDate, fromDate, toDate) || matchesDateRange(b.createdAt, fromDate, toDate);
+    const txDate = b.billDate || b.createdAt;
+    return matchesDateRange(txDate, fromDate, toDate);
   });
 
   const movements = rawMovements.filter((m) => {
-    return matchesDateRange(m.movementAt, fromDate, toDate) || matchesDateRange(m.createdAt, fromDate, toDate);
+    const txDate = m.movementAt || m.createdAt;
+    return matchesDateRange(txDate, fromDate, toDate);
   });
 
   const receipts = movements.filter((m) => m.movementType === "RECEIPT");

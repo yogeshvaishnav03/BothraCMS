@@ -43,6 +43,8 @@ import {
   Wallet,
   Landmark,
   Smartphone,
+  Warehouse,
+  Tag,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser } from "@/lib/permissions";
@@ -227,10 +229,13 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.siteWork",
       label: "Site Work",
       items: [
+        { key: "nav.sites", defaultLabel: "Sites Directory", href: "/sites", icon: Building2 },
         { key: "nav.projects", defaultLabel: "Projects", href: "/projects", icon: FolderKanban },
         { key: "nav.tasks", defaultLabel: "Tasks & Work", href: "/tasks", icon: CheckSquare },
         { key: "nav.measurementBook", defaultLabel: "Measurement Book", href: "/measurement-book", icon: BookOpen },
         { key: "nav.materials", defaultLabel: "Materials & Stock", href: "/materials", icon: Boxes },
+        { key: "nav.materialStorage", defaultLabel: "Material Storage", href: "/material-storage", icon: Warehouse },
+        { key: "nav.materialPricing", defaultLabel: "Material Pricing", href: "/material-pricing", icon: Tag },
         { key: "nav.materialRequests", defaultLabel: "Material Order History", href: "/material-requests", icon: PackageCheck },
         { key: "nav.drawings", defaultLabel: "Drawings", href: "/drawings", icon: Layers },
       ],

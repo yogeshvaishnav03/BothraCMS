@@ -9,6 +9,7 @@ import {
 } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyPeople } from "@/lib/notify";
+import { notifyTaskAssigned } from "@/lib/task-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -212,7 +213,7 @@ export async function POST(req: NextRequest) {
         createdBy: user.userId,
       },
       include: {
-        project: true,
+        project: { include: { site: true } },
         assignee: true,
       },
     });
@@ -228,20 +229,20 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Notify assignee if assigned to someone else
+    // Notify assignee if assigned to someone else with full project, site, and priority context
     if (targetAssigneeId && targetAssigneeId !== user.userId) {
       try {
-        await notifyPeople({
+        await notifyTaskAssigned({
           organizationId: user.organizationId,
-          actorUserId: user.userId,
-          userIds: [targetAssigneeId],
-          type: "TASK_REMINDER",
-          title: `New Task Assigned: "${task.title}"`,
-          message: `${user.name} assigned you: "${task.title}". Priority: ${task.priority}.`,
-          href: `/tasks?task=${task.id}`,
-          entityType: "TASK",
-          entityId: task.id,
-          severity: task.priority === "URGENT" ? "WARNING" : "INFO",
+          actorUser: { id: user.userId, name: user.name },
+          assigneeUserId: targetAssigneeId,
+          task: {
+            id: task.id,
+            title: task.title,
+            priority: task.priority,
+            taskType: task.taskType,
+            project: task.project,
+          },
         });
       } catch (notifErr) {
         console.warn("Task assignment notification warning:", notifErr);

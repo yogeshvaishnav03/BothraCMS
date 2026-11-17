@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatCompactINR, formatCompactNumber, formatDate } from "@/lib/formatters";
+import { istDateKey } from "@/lib/ist-date";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   FolderKanban,
@@ -51,13 +52,13 @@ export default function ProjectDetailsPage() {
 
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"PROGRESS" | "BUDGET" | "TASKS" | "MATERIALS" | "DOCUMENTS">("PROGRESS");
+  const [activeTab, setActiveTab] = useState<"PROGRESS" | "BUDGET" | "TASKS" | "MATERIALS" | "REPORTS" | "DOCUMENTS">("PROGRESS");
   const { refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     const tab = new URLSearchParams(window.location.search).get("tab")?.toUpperCase();
-    if (tab && ["PROGRESS", "BUDGET", "TASKS", "MATERIALS", "DOCUMENTS"].includes(tab)) setActiveTab(tab as any);
+    if (tab && ["PROGRESS", "BUDGET", "TASKS", "MATERIALS", "REPORTS", "DOCUMENTS"].includes(tab)) setActiveTab(tab as any);
     refreshUser()
       .then((u) => setCurrentUser(u || null))
       .catch(() => {});
@@ -87,8 +88,10 @@ export default function ProjectDetailsPage() {
   const [employees, setEmployees] = useState<any[]>([]);
 
   const [showReportModal, setShowReportModal] = useState(false);
+  const [reportDate, setReportDate] = useState(() => istDateKey());
   const [reportProgress, setReportProgress] = useState("");
   const [reportBlockers, setReportBlockers] = useState("");
+  const [reportSafetyNotes, setReportSafetyNotes] = useState("");
 
   // Edit Project Modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -343,6 +346,57 @@ export default function ProjectDetailsPage() {
     columns: movementColumns,
   });
 
+  const dailyReports = project?.dailyReports || [];
+  const reportColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "reportDate", label: "Date", accessor: (r) => formatDate(r.reportDate), type: "date" },
+      { key: "creator", label: "Reported By", accessor: (r) => `${r.creator?.name || "Staff"} (${r.creator?.role || "Site"})`, type: "text" },
+      { key: "progress", label: "Progress Summary", accessor: (r) => r.progress || "—", type: "text" },
+      { key: "blockers", label: "Issues / Blockers", accessor: (r) => r.blockers || "None", type: "text" },
+      { key: "safetyNotes", label: "Safety Notes", accessor: (r) => r.safetyNotes || "None", type: "text" },
+    ],
+    []
+  );
+
+  const excelReports = useExcelTable({
+    data: dailyReports,
+    columns: reportColumns,
+  });
+
+  const handleCreateReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportProgress.trim()) return;
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch("/api/daily-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          reportDate,
+          progress: reportProgress.trim(),
+          blockers: reportBlockers.trim() || undefined,
+          safetyNotes: reportSafetyNotes.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to create daily site report");
+      }
+      setStatusMessage("Daily site report submitted successfully.");
+      setShowReportModal(false);
+      setReportProgress("");
+      setReportBlockers("");
+      setReportSafetyNotes("");
+      loadProject();
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to submit daily report");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Shell>
@@ -594,6 +648,17 @@ export default function ProjectDetailsPage() {
             Material Consumption ({project.stockMovements?.length || 0})
           </button>
           <button
+            onClick={() => setActiveTab("REPORTS")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
+              activeTab === "REPORTS"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" />
+            Daily Site Reports ({dailyReports.length})
+          </button>
+          <button
             onClick={() => setActiveTab("DOCUMENTS")}
             className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition whitespace-nowrap ${
               activeTab === "DOCUMENTS"
@@ -735,6 +800,148 @@ export default function ProjectDetailsPage() {
               />
               </>
             )}
+          </div>
+        )}
+
+        {/* Tab: Daily Site Reports */}
+        {activeTab === "REPORTS" && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4 text-amber-500" />
+                  <span>Daily Progress & Site Logs</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Chronological site journals, execution milestones, issues encountered, and safety notes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReportModal(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Log Daily Report</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+              <ExcelTableToolbar
+                table={excelReports}
+                columns={reportColumns}
+                tableName="daily site reports"
+                showSearch={true}
+                showExport={true}
+              />
+
+              {/* Desktop Table Layout */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                    <tr>
+                      {reportColumns.map((col) => (
+                        <ExcelColumnHeader
+                          key={col.key}
+                          column={col}
+                          table={excelReports}
+                          theme="darkHeader"
+                        />
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {excelReports.filteredData.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-xs text-slate-500">
+                          No daily reports logged for this project yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      excelReports.paginatedData.map((r: any) => (
+                        <tr key={r.id} className="hover:bg-slate-50/70 transition">
+                          <td className="py-3 px-4 font-mono text-xs font-bold text-slate-800">
+                            {formatDate(r.reportDate)}
+                          </td>
+                          <td className="py-3 px-4 text-xs font-semibold text-slate-700">
+                            <div>{r.creator?.name || "Staff"}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">{r.creator?.role || "Site User"}</div>
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-900 max-w-xs break-words">
+                            {r.progress || "—"}
+                          </td>
+                          <td className="py-3 px-4 text-xs">
+                            {r.blockers ? (
+                              <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded text-[11px] font-medium inline-block">
+                                {r.blockers}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-xs">None</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-600">
+                            {r.safetyNotes || "None"}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Responsive Cards Layout */}
+              <div className="block md:hidden divide-y divide-slate-100 p-3 space-y-3">
+                {excelReports.filteredData.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500">
+                    No daily reports logged for this project yet.
+                  </div>
+                ) : (
+                  excelReports.paginatedData.map((r: any) => (
+                    <div key={r.id} className="bg-slate-50/70 rounded-xl p-3.5 border border-slate-200/90 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                          <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                          <span>{formatDate(r.reportDate)}</span>
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-200/70 text-slate-700">
+                          {r.creator?.name || "Staff"} ({r.creator?.role || "Site"})
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-500 block mb-0.5 uppercase tracking-wide">Work Completed / Progress:</span>
+                        <p className="text-xs text-slate-800 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-100">
+                          {r.progress}
+                        </p>
+                      </div>
+                      {r.blockers && (
+                        <div className="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-xs text-rose-800">
+                          <span className="font-bold block text-[11px] uppercase tracking-wide">⚠️ Issues / Blockers:</span>
+                          <span className="mt-0.5 block">{r.blockers}</span>
+                        </div>
+                      )}
+                      {r.safetyNotes && (
+                        <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-2.5 text-xs text-emerald-800">
+                          <span className="font-bold block text-[11px] uppercase tracking-wide">🛡️ Safety Notes:</span>
+                          <span className="mt-0.5 block">{r.safetyNotes}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <TablePagination
+                currentPage={excelReports.currentPage}
+                totalPages={excelReports.totalPages}
+                totalItems={excelReports.filteredCount}
+                totalUnfiltered={excelReports.totalRecords}
+                pageSize={excelReports.pageSize}
+                startItem={excelReports.startItem}
+                endItem={excelReports.endItem}
+                onPageChange={excelReports.setCurrentPage}
+                itemLabel="daily reports"
+              />
+            </div>
           </div>
         )}
 
@@ -1173,6 +1380,101 @@ export default function ProjectDetailsPage() {
                     className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50"
                   >
                     {submitting ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Log Daily Report */}
+        {showReportModal && (
+          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                    <ClipboardList className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">Log Daily Site Report</h3>
+                    <p className="text-[11px] text-slate-400">{project.name} ({project.code})</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateReport} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Report Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={reportDate}
+                    onChange={(e) => setReportDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Work Progress / Milestones *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={reportProgress}
+                    onChange={(e) => setReportProgress(e.target.value)}
+                    placeholder="Describe construction progress, quantities executed, activities completed today..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Issues / Blockers (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={reportBlockers}
+                    onChange={(e) => setReportBlockers(e.target.value)}
+                    placeholder="Material shortages, rain delays, machine breakdown, design clarifications..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Safety & Site Notes (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={reportSafetyNotes}
+                    onChange={(e) => setReportSafetyNotes(e.target.value)}
+                    placeholder="Toolbox talk conducted, PPE compliance, scaffold inspection..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowReportModal(false)}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs transition disabled:opacity-50"
+                  >
+                    {submitting ? "Saving..." : "Submit Report"}
                   </button>
                 </div>
               </form>

@@ -149,6 +149,7 @@ export class DashboardService {
               paymentDate: { gte: startOfToday, lte: endOfToday },
               status: "POSTED",
               isArchived: false,
+              ...(siteId ? { project: { siteId } } : {}),
             },
             select: {
               id: true,
@@ -167,7 +168,12 @@ export class DashboardService {
         : Promise.resolve([]),
       hasFinanceAccess
         ? prisma.bill.findMany({
-            where: { organizationId, status: "POSTED", isArchived: false },
+            where: {
+              organizationId,
+              status: "POSTED",
+              isArchived: false,
+              ...(siteId ? { project: { siteId } } : {}),
+            },
             select: {
               id: true,
               billNumber: true,

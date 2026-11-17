@@ -97,13 +97,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
-    requirePermission(user, "finance:write");
+    const isStaffSubmission =
+      user.role === "SITE_SUPERVISOR" ||
+      user.role === "SITE_ENGINEER" ||
+      user.role === "PROJECT_MANAGER";
+
+    if (!isStaffSubmission) {
+      requirePermission(user, "finance:write");
+    }
 
     const body = await req.json();
     const data = createPaymentSchema.parse(body);
 
     if (data.projectId) {
-      await requireProjectAccess(user, data.projectId, "finance:write");
+      await requireProjectAccess(user, data.projectId, isStaffSubmission ? "projects:read" : "finance:write");
     }
 
     const result = await FinanceService.recordPayment({
@@ -124,7 +131,7 @@ export async function POST(req: NextRequest) {
       userId: user.userId,
       role: user.role,
       permissions: user.permissions,
-      autoApprove: data.autoApprove,
+      autoApprove: isStaffSubmission ? false : data.autoApprove,
       allocations: data.allocations,
       tds: data.tds,
     });

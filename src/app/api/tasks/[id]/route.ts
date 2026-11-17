@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requireProjectAccess, requirePermission } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
-import { notifyTaskUpdate } from "@/lib/task-notifications";
+import { notifyTaskUpdate, notifyTaskAssigned } from "@/lib/task-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +112,7 @@ export async function PATCH(
       where: { id: task.id },
       data: updateData,
       include: {
-        project: true,
+        project: { include: { site: true } },
         assignee: true,
       },
     });
@@ -155,6 +155,21 @@ export async function PATCH(
       changed.push(updated.assignee ? `assignee to ${updated.assignee.name}` : "assignee (now unassigned)");
     }
     if (changed.length > 0) {
+      if (updated.assigneeUserId && updated.assigneeUserId !== task.assigneeUserId && updated.assigneeUserId !== user.userId) {
+        await notifyTaskAssigned({
+          organizationId: user.organizationId,
+          actorUser: { id: user.userId, name: user.name },
+          assigneeUserId: updated.assigneeUserId,
+          task: {
+            id: updated.id,
+            title: updated.title,
+            priority: updated.priority,
+            taskType: updated.taskType,
+            project: updated.project,
+          },
+        }).catch((err) => console.warn("Task reassignment notification warning:", err));
+      }
+
       await notifyTaskUpdate({
         organizationId: user.organizationId,
         actorUserId: user.userId,
