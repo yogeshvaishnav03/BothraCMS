@@ -7,6 +7,7 @@
     "dev": "next dev",
     "build": "node scripts/prepare-db.js && next build",
     "start": "node scripts/prepare-db.js && next start",
+    "clean": "node -e \"const fs=require('fs');['.next','out','build'].forEach(d=>{if(fs.existsSync(d))fs.rmSync(d,{recursive:true,force:true})});console.log('Cleaned build cache.');\"",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

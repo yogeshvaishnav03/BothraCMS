@@ -31,6 +31,9 @@ const LEGACY_STORAGE_KEYS = [
   "bothra_cms_reports",
   "bothra_cms_sites",
   "bothra_org_name",
+  "bothra_cms_team",
+  "bothra_cms_users",
+  "bothra_user_cache",
 ];
 
 export function clearLegacyBusinessLocalStorage(): void {
