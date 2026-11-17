@@ -17,9 +17,10 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
 
+    const roleStr = user.role as string;
     const isSuperAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
     const isAccountant = user.role === "ACCOUNTANT";
-    const isSupervisorOrEngineer = user.role === "SITE_ENGINEER" || user.role === "SITE_SUPERVISOR";
+    const isSupervisorOrEngineer = roleStr === "SITE_ENGINEER" || user.role === "SITE_SUPERVISOR" || user.role === "PROJECT_MANAGER";
 
     // 1. Pending Payments / Expenses
     const paymentWhere: any = {
@@ -117,7 +118,7 @@ export async function GET(req: NextRequest) {
       projectName: "Measurement Book",
       siteName: "Site",
       requestedBy: mc.requester?.name || "Engineer",
-      requestedByRole: mc.requester?.role || "SITE_ENGINEER",
+      requestedByRole: mc.requester?.role || "SITE_SUPERVISOR",
       rejectionReason: mc.reviewComment || null,
       date: mc.createdAt.toISOString(),
     }));

@@ -97,9 +97,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUserContext(req);
+    const roleStr = user.role as string;
     const isStaffSubmission =
       user.role === "SITE_SUPERVISOR" ||
-      user.role === "SITE_ENGINEER" ||
+      roleStr === "SITE_ENGINEER" ||
       user.role === "PROJECT_MANAGER";
 
     if (!isStaffSubmission) {
