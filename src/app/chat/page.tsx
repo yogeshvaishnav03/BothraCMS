@@ -1100,7 +1100,6 @@ export default function ChatPage() {
       setSending(false);
     }
   };
-  };
 
   // Create a new group (Super Admin only)
   const handleCreateGroup = async (e: React.FormEvent) => {
