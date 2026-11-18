@@ -161,6 +161,44 @@ export default function FinancePage() {
     setSelectedProjectId("");
   }, [activeSiteId]);
 
+  // Synchronize finance tab, status filter, and date preset from URL parameters (e.g. ?tab=bills&status=pending)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncFromUrl = () => {
+      const search = window.location.search;
+      if (!search) return;
+      const params = new URLSearchParams(search);
+      const tabParam = params.get("tab")?.toLowerCase();
+      const statusParam = (params.get("status") || params.get("filter") || params.get("view"))?.toLowerCase();
+
+      if (
+        tabParam === "bills" ||
+        tabParam === "vendor-bills" ||
+        tabParam === "vendor_bills" ||
+        statusParam === "pending" ||
+        statusParam === "unpaid" ||
+        statusParam === "due"
+      ) {
+        setActiveTab("BILLS");
+        if (statusParam === "pending" || statusParam === "unpaid" || statusParam === "due") {
+          setBillStatus("PENDING");
+          setBillDatePreset("ALL");
+          setBillFromDate("");
+          setBillToDate("");
+        } else if (statusParam === "paid") {
+          setBillStatus("PAID");
+        }
+      } else if (tabParam === "payments" || tabParam === "register") {
+        setActiveTab("PAYMENTS");
+      }
+    };
+
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
+
   const loadData = useCallback(() => {
     setLoading(true);
     const noCacheInit: RequestInit = {

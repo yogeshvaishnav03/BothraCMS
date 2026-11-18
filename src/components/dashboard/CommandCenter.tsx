@@ -603,7 +603,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
           value={data ? formatCompactINR(data.finance.outstandingPayables) : "–"}
           Icon={IndianRupee}
           tone="bg-rose-50 text-rose-600 ring-rose-100"
-          href="/finance"
+          href="/finance?tab=bills&status=pending"
         />
       </div>
 

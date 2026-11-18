@@ -1412,8 +1412,8 @@ export default function DashboardPage() {
           badge: `${formatCompactINR(kpi?.totalOutstandingPayablesAmount ?? 0)} Outstanding`,
           badgeColor: "bg-amber-100 text-amber-800",
           subtitle: "Unpaid vendor & contractor invoices and verified bills",
-          actionUrl: "/parties",
-          actionLabel: "View Vendor & Contractor Bills",
+          actionUrl: "/finance?tab=bills&status=pending",
+          actionLabel: "View Unpaid Bills in Payments & Bills",
           emptyTitle: "Zero outstanding payables",
           emptyDesc: "All verified vendor and contractor invoices are completely settled.",
           content: list.length > 0 ? (
