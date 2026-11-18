@@ -278,6 +278,16 @@ export default function PartyStatementPage() {
               <History className="w-4 h-4 text-amber-600" />
               <span>Change History</span>
             </button>
+            {canReadFinance && (
+              <Link
+                href={`/exports?partyId=${party.id}`}
+                className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs shadow-sm transition whitespace-nowrap"
+                title="Download Tally XML and GST / Bank spreadsheets for this party"
+              >
+                <Landmark className="w-4 h-4 text-emerald-600" />
+                <span>Export Tally & GST</span>
+              </Link>
+            )}
             <button
               onClick={() => window.print()}
               className="flex-1 sm:flex-initial justify-center flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition whitespace-nowrap"

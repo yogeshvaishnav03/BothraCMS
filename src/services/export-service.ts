@@ -82,9 +82,15 @@ export function csv(rows: (string | number | null | undefined)[][]) {
     .join("\r\n");
 }
 
-async function loadBills(organizationId: string, from: string, to: string) {
+async function loadBills(organizationId: string, from: string, to: string, partyId?: string | null) {
   return prisma.bill.findMany({
-    where: { organizationId, status: "POSTED", isArchived: false, billDate: { gte: istDayBounds(from).start, lte: istDayBounds(to).end } },
+    where: {
+      organizationId,
+      status: "POSTED",
+      isArchived: false,
+      billDate: { gte: istDayBounds(from).start, lte: istDayBounds(to).end },
+      ...(partyId ? { partyId } : {}),
+    },
     include: {
       party: { select: { name: true, partyType: true, taxIdentifier: true, panNumber: true } },
       project: { select: { name: true } },
@@ -95,9 +101,15 @@ async function loadBills(organizationId: string, from: string, to: string) {
   });
 }
 
-async function loadPayments(organizationId: string, from: string, to: string) {
+async function loadPayments(organizationId: string, from: string, to: string, partyId?: string | null) {
   return prisma.payment.findMany({
-    where: { organizationId, status: "POSTED", isArchived: false, paymentDate: { gte: istDayBounds(from).start, lte: istDayBounds(to).end } },
+    where: {
+      organizationId,
+      status: "POSTED",
+      isArchived: false,
+      paymentDate: { gte: istDayBounds(from).start, lte: istDayBounds(to).end },
+      ...(partyId ? { partyId } : {}),
+    },
     include: {
       party: { select: { name: true, partyType: true } },
       project: { select: { name: true } },
@@ -107,7 +119,8 @@ async function loadPayments(organizationId: string, from: string, to: string) {
   });
 }
 
-async function loadReceipts(organizationId: string, from: string, to: string) {
+async function loadReceipts(organizationId: string, from: string, to: string, partyId?: string | null) {
+  if (partyId) return [];
   return prisma.salesReceipt.findMany({
     where: { organizationId, date: { gte: from, lte: to }, cancelledAt: null, booking: { status: "ACTIVE" } },
     include: {
@@ -172,9 +185,21 @@ function billRates(b: { gstRate: number | null; lines: { gstRate: number | null 
 
 export class ExportService {
   /** Counts and totals for the export page, so the accountant sees what is in the file. */
-  static async summary(organizationId: string, from: string, to: string) {
-    const [bills, payments, receipts] = await Promise.all([loadBills(organizationId, from, to), loadPayments(organizationId, from, to), loadReceipts(organizationId, from, to)]);
+  static async summary(organizationId: string, from: string, to: string, partyId?: string | null) {
+    const [bills, payments, receipts] = await Promise.all([
+      loadBills(organizationId, from, to, partyId),
+      loadPayments(organizationId, from, to, partyId),
+      loadReceipts(organizationId, from, to, partyId),
+    ]);
+    let party = null;
+    if (partyId) {
+      party = await prisma.party.findUnique({
+        where: { id: partyId, organizationId },
+        select: { id: true, name: true, partyType: true, taxIdentifier: true, panNumber: true },
+      });
+    }
     return {
+      party,
       bills: { count: bills.length, amount: bills.reduce((s, b) => s + b.totalAmount, 0) },
       payments: { count: payments.length, amount: payments.reduce((s, p) => s + p.amount, 0) },
       receipts: {
@@ -187,7 +212,7 @@ export class ExportService {
   }
 
   /** One XML file for Tally (Gateway of Tally → Import → Vouchers). */
-  static async tallyXml(organizationId: string, from: string, to: string, parts: ExportPart[]) {
+  static async tallyXml(organizationId: string, from: string, to: string, parts: ExportPart[], partyId?: string | null) {
     const company = await companyProfile(organizationId);
     const ledgers = new Map<string, string>();
     const vouchers: string[] = [];
@@ -196,7 +221,7 @@ export class ExportService {
     };
 
     if (parts.includes("bills")) {
-      for (const b of await loadBills(organizationId, from, to)) {
+      for (const b of await loadBills(organizationId, from, to, partyId)) {
         // TDS bills are credited to their ledger in the payment voucher, not bought.
         if (b.statutory && TDS_BILL.test(b.statutory)) continue;
         const head = HEAD_LEDGER[inferBillHead(b)];
@@ -217,7 +242,7 @@ export class ExportService {
     }
 
     if (parts.includes("payments")) {
-      for (const p of await loadPayments(organizationId, from, to)) {
+      for (const p of await loadPayments(organizationId, from, to, partyId)) {
         const head = HEAD_LEDGER[inferPaymentHead(p)];
         // Paid against a supplier's account, or straight to an expense (wages, petty cash).
         // Depositing TDS clears that act's TDS ledger instead.
@@ -249,8 +274,8 @@ export class ExportService {
       }
     }
 
-    if (parts.includes("receipts")) {
-      const receipts = await loadReceipts(organizationId, from, to);
+    if (parts.includes("receipts") && !partyId) {
+      const receipts = await loadReceipts(organizationId, from, to, partyId);
       if (receipts.length) need(SALES_LEDGER, "Sales Accounts");
       for (const r of receipts) {
         const cust = customerLedger(r.booking);
@@ -341,8 +366,8 @@ export class ExportService {
   }
 
   /** Supplier bills with GSTIN, for matching input tax credit against GSTR-2B. */
-  static async purchasesCsv(organizationId: string, from: string, to: string) {
-    const rows = await loadBills(organizationId, from, to);
+  static async purchasesCsv(organizationId: string, from: string, to: string, partyId?: string | null) {
+    const rows = await loadBills(organizationId, from, to, partyId);
     const isGstin = (v: string | null) => !!v && /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/i.test(v.trim());
     return csv([
       ["Bill date", "Bill no.", "Supplier", "GSTIN", "PAN", "Project", "Cost head", "Taxable value", "GST rate %", "CGST", "SGST", "IGST", "ITC", "Reverse charge", "Bill amount", "Paid", "Balance", "Due date"],
@@ -385,8 +410,8 @@ export class ExportService {
   }
 
   /** Every posted payment, for the bank reconciliation. */
-  static async paymentsCsv(organizationId: string, from: string, to: string) {
-    const rows = await loadPayments(organizationId, from, to);
+  static async paymentsCsv(organizationId: string, from: string, to: string, partyId?: string | null) {
+    const rows = await loadPayments(organizationId, from, to, partyId);
     return csv([
       ["Date", "Reference", "Paid to", "Type", "Project", "Cost head", "Method", "Paid from", "Amount", "TDS held", "From bank"],
       ...rows.map((p) => [

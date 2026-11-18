@@ -24,6 +24,20 @@ export async function GET(req: NextRequest, { params }: { params: { kind: string
     const r = range(req);
     if (!r) return jsonError("Pick a from and to date.", "BAD_REQUEST", 400);
     const org = user.organizationId;
+    const partyId = req.nextUrl.searchParams.get("partyId") || undefined;
+
+    let partySlug = "";
+    if (partyId) {
+      const party = await prisma.party.findUnique({
+        where: { id: partyId, organizationId: org },
+        select: { name: true },
+      });
+      if (party?.name) {
+        const cleanName = party.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+        partySlug = `_${cleanName}`;
+      }
+    }
+
     const stamp = `${r.from}_to_${r.to}`;
     let body: string;
     let type = "text/csv; charset=utf-8";
@@ -32,9 +46,9 @@ export async function GET(req: NextRequest, { params }: { params: { kind: string
       case "tally": {
         const asked = (req.nextUrl.searchParams.get("parts") || PARTS.join(",")).split(",").filter((p): p is ExportPart => (PARTS as string[]).includes(p));
         if (asked.length === 0) return jsonError("Pick at least one of bills, payments or receipts.", "BAD_REQUEST", 400);
-        body = (await ExportService.tallyXml(org, r.from, r.to, asked)).xml;
+        body = (await ExportService.tallyXml(org, r.from, r.to, asked, partyId)).xml;
         type = "application/xml; charset=utf-8";
-        name = `tally-vouchers_${stamp}.xml`;
+        name = `tally-vouchers${partySlug}_${stamp}.xml`;
         break;
       }
       case "gst-sales":
@@ -42,18 +56,18 @@ export async function GET(req: NextRequest, { params }: { params: { kind: string
         name = `gst-sales-register_${stamp}.csv`;
         break;
       case "purchases":
-        body = "\ufeff" + (await ExportService.purchasesCsv(org, r.from, r.to));
-        name = `purchase-register_${stamp}.csv`;
+        body = "\ufeff" + (await ExportService.purchasesCsv(org, r.from, r.to, partyId));
+        name = `purchase-register${partySlug}_${stamp}.csv`;
         break;
       case "payments":
-        body = "\ufeff" + (await ExportService.paymentsCsv(org, r.from, r.to));
-        name = `payments_${stamp}.csv`;
+        body = "\ufeff" + (await ExportService.paymentsCsv(org, r.from, r.to, partyId));
+        name = `payments${partySlug}_${stamp}.csv`;
         break;
       default:
         return jsonError("Unknown export", "NOT_FOUND", 404);
     }
     await prisma.auditEvent.create({
-      data: { organizationId: org, actorUserId: user.userId, action: "ACCOUNTS_EXPORTED", entityType: "ORGANIZATION", entityId: org, afterJson: JSON.stringify({ kind: params.kind, ...r }) },
+      data: { organizationId: org, actorUserId: user.userId, action: "ACCOUNTS_EXPORTED", entityType: "ORGANIZATION", entityId: org, afterJson: JSON.stringify({ kind: params.kind, partyId, ...r }) },
     });
     return new NextResponse(body, {
       headers: { "Content-Type": type, "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" },

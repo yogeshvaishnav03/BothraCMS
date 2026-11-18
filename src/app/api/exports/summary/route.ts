@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
     requirePermission(user, "finance:read");
     const r = range(req);
     if (!r) return jsonError("Pick a from and to date.", "BAD_REQUEST", 400);
-    return jsonSuccess(await ExportService.summary(user.organizationId, r.from, r.to));
+    const partyId = req.nextUrl.searchParams.get("partyId") || undefined;
+    return jsonSuccess(await ExportService.summary(user.organizationId, r.from, r.to, partyId));
   } catch (error) {
     return handleApiError(error);
   }
