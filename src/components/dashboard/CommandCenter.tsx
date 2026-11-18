@@ -20,7 +20,6 @@ import {
   PackagePlus,
   ReceiptText,
   RefreshCw,
-  ShieldCheck,
   Sparkles,
   Timer,
   Users,
@@ -1101,37 +1100,6 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                     </li>
                   );
                 })}
-              </ul>
-            )}
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-amber-500" aria-hidden />
-                {hi ? "लाइव गतिविधि" : "Live activity"}
-              </h2>
-              <Link href="/audit" className="text-xs font-semibold text-amber-600 hover:text-amber-700">
-                {hi ? "सब देखें" : "View all"}
-              </Link>
-            </div>
-            {!data ? (
-              <div className="skeleton h-24" />
-            ) : data.activity.length === 0 ? (
-              <p className="text-xs text-slate-500">{hi ? "कोई बदलाव दर्ज नहीं।" : "No changes recorded on this day."}</p>
-            ) : (
-              <ul className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                {data.activity.map((a) => (
-                  <li key={a.id} className="flex gap-2.5 text-xs">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden />
-                    <div className="min-w-0">
-                      <span className="font-semibold text-slate-900">{a.actor}</span>{" "}
-                      <span className="text-slate-600">{humanize(a.action)}</span>
-                      {a.reason && <div className="text-slate-500 truncate">{a.reason}</div>}
-                      <div className="text-[11px] text-slate-400">{timeOf(a.at)}</div>
-                    </div>
-                  </li>
-                ))}
               </ul>
             )}
           </div>
