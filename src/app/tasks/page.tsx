@@ -64,12 +64,13 @@ async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
 }
 
 export default function TasksPage() {
-  const { activeSiteId } = useActiveSite();
-  const { refreshUser } = useAppSession();
+  const { activeSiteId, setActiveSiteId } = useActiveSite();
+  const { refreshUser, refreshSites, sites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [localSites, setLocalSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const canWriteTasks = canUser(currentUser, "tasks:write");
@@ -151,9 +152,10 @@ export default function TasksPage() {
       safeFetchJson(url),
       safeFetchJson("/api/projects"),
       safeFetchJson("/api/chat/employees"),
+      refreshSites().then((s) => ({ success: true, data: s })).catch(() => safeFetchJson("/api/sites")),
       refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
     ])
-      .then(([tasksRes, projRes, empRes, authRes]) => {
+      .then(([tasksRes, projRes, empRes, sitesRes, authRes]) => {
         if (authRes && authRes.success && authRes.data?.user) {
           setCurrentUser(authRes.data.user);
         }
@@ -187,6 +189,14 @@ export default function TasksPage() {
             : [];
           setEmployees(rawEmp);
         }
+        if (sitesRes && sitesRes.success) {
+          const rawSites = Array.isArray(sitesRes.data)
+            ? sitesRes.data
+            : Array.isArray(sitesRes.data?.sites)
+            ? sitesRes.data.sites
+            : [];
+          setLocalSites(rawSites);
+        }
       })
       .catch((err) => {
         console.error("Authoritative tasks load failed:", err);
@@ -197,7 +207,7 @@ export default function TasksPage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterTab, selectedEmployeeId]);
+  }, [filterTab, selectedEmployeeId, activeSiteId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -232,7 +242,10 @@ export default function TasksPage() {
       setTimelineTask(found);
     } else {
       safeFetchJson(`/api/tasks/${id}`).then((res) => {
-        if (res?.success && res.data) setTimelineTask(res.data);
+        if (res?.success && res.data) {
+          setTimelineTask(res.data);
+          setTasks((prev) => (prev.some((x) => x.id === res.data.id) ? prev : [res.data, ...prev]));
+        }
       });
     }
   }, [loading, tasks]);
@@ -450,6 +463,23 @@ export default function TasksPage() {
     return new Date(task.dueAt).getTime() < Date.now();
   };
 
+  const effectiveSites = useMemo(() => {
+    if (Array.isArray(sites) && sites.length > 0) return sites;
+    if (Array.isArray(localSites) && localSites.length > 0) return localSites;
+    return [];
+  }, [sites, localSites]);
+
+  const activeSite = useMemo(() => {
+    return effectiveSites.find((s: any) => s.id === activeSiteId) || null;
+  }, [effectiveSites, activeSiteId]);
+
+  const urlTaskId = useMemo(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("task");
+    }
+    return null;
+  }, []);
+
   const availableProjects = useMemo(() => {
     if (!activeSiteId) return projects;
     const siteProjs = projects.filter((p) => p.siteId === activeSiteId);
@@ -458,6 +488,9 @@ export default function TasksPage() {
 
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   const filteredTasks = safeTasks.filter((t) => {
+    // If user opened a specific task link (?task=<id>), always keep it visible!
+    if (urlTaskId && t.id === urlTaskId) return true;
+
     if (activeSiteId) {
       const taskSiteId = t.project?.siteId || projects.find((p) => p.id === t.projectId)?.siteId;
       if (taskSiteId && taskSiteId !== activeSiteId) return false;
@@ -490,7 +523,7 @@ export default function TasksPage() {
                 });
                 setShowCreateModal(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create / Assign Task</span>
@@ -504,7 +537,7 @@ export default function TasksPage() {
 
         {/* Filter controls */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Top row: Search bar + Employee dropdown */}
+          {/* Top row: Search bar + Site dropdown + Employee dropdown */}
           <div className="p-3 sm:p-3.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-100">
             {/* Search bar */}
             <div className="relative flex-1 min-w-0">
@@ -518,13 +551,31 @@ export default function TasksPage() {
               />
             </div>
 
+            {/* Site selector dropdown */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Building className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
+              <select
+                value={activeSiteId}
+                onChange={(e) => setActiveSiteId(e.target.value)}
+                className="w-full sm:w-auto text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                aria-label="Filter tasks by site"
+              >
+                <option value="">All Sites</option>
+                {effectiveSites.map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} {s.code ? `(${s.code})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Employee dropdown selector */}
             <div className="flex items-center gap-2 shrink-0">
               <User className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
               <select
                 value={selectedEmployeeId}
                 onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                className="w-full sm:w-auto text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full sm:w-auto text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
               >
                 <option value="">All Employees</option>
                 {(Array.isArray(employees) ? employees : []).map((emp) => (
@@ -551,7 +602,7 @@ export default function TasksPage() {
               <button
                 key={tab.id}
                 onClick={() => setFilterTab(tab.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
                   filterTab === tab.id
                     ? "bg-slate-900 text-white shadow-xs"
                     : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80"
@@ -563,6 +614,25 @@ export default function TasksPage() {
           </div>
         </div>
 
+        {/* Active site filter banner indicator */}
+        {activeSiteId && (
+          <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 bg-amber-50/90 border border-amber-200 rounded-xl text-xs text-amber-950">
+            <div className="flex items-center gap-2 min-w-0">
+              <Building className="w-4 h-4 text-amber-600 shrink-0" />
+              <span className="truncate">
+                Active Site Filter: <strong>{activeSite?.name || "Selected Site"}</strong> ({filteredTasks.length} shown of {safeTasks.length} total tasks)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveSiteId("")}
+              className="text-xs font-bold text-amber-900 underline hover:text-amber-950 whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              Show All Sites ({safeTasks.length})
+            </button>
+          </div>
+        )}
+
         {/* Tasks List */}
         {loading ? (
           <div className="space-y-3">
@@ -571,13 +641,74 @@ export default function TasksPage() {
             ))}
           </div>
         ) : filteredTasks.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-            <CheckSquare className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <div className="text-sm font-bold text-slate-700">No matching tasks found</div>
-            <div className="text-xs text-slate-400 mt-1">
-              Create a new task or adjust the filter criteria above.
+          activeSiteId && safeTasks.length > 0 ? (
+            <div className="text-center py-12 bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+              <Building className="w-10 h-10 text-amber-500 mx-auto mb-2" />
+              <div className="text-base font-bold text-slate-800">
+                No tasks found for {activeSite?.name || "this site"}
+              </div>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                You have {safeTasks.length} task{safeTasks.length > 1 ? "s" : ""} recorded across other sites or general operations.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveSiteId("")}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-sm transition cursor-pointer"
+                >
+                  View All Tasks ({safeTasks.length} across all sites)
+                </button>
+                {canWriteTasks && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(true)}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm transition cursor-pointer"
+                  >
+                    + Create Task for {activeSite?.name || "This Site"}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          ) : safeTasks.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+              <CheckSquare className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <div className="text-base font-bold text-slate-800">No tasks created yet</div>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                All demo data was cleared. Click below to create your first site task and assign it to staff!
+              </p>
+              {canWriteTasks && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create / Assign Task
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-12 bg-white rounded-xl border border-slate-200 p-6 space-y-3">
+              <Search className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <div className="text-sm font-bold text-slate-700">No tasks match your filter</div>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                Try clearing search terms or selecting &quot;All Tasks&quot;.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setFilterTab("all");
+                  setSelectedEmployeeId("");
+                }}
+                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            </div>
+          )
         ) : (
           <div className="space-y-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 shadow-xs">
