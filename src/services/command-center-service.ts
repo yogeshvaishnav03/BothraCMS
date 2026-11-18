@@ -49,21 +49,21 @@ export class CommandCenterService {
   /** Phase 5 items that need someone's attention today. */
   static async attention(organizationId: string, date: string) {
     const [openSafety, drawingsWaiting, payrollDraft, dues, equipmentDown] = await Promise.all([
-      prisma.siteIssue.count({ where: { organizationId, status: "OPEN", kind: { in: ["SAFETY_INCIDENT", "NEAR_MISS", "UNSAFE_ACT"] } } }),
-      prisma.drawingRevision.count({ where: { status: "FOR_APPROVAL", drawing: { organizationId } } }),
-      prisma.payrollRun.count({ where: { organizationId, status: "DRAFT" } }),
+      prisma.siteIssue.count({ where: { organizationId, status: "OPEN", kind: { in: ["SAFETY_INCIDENT", "NEAR_MISS", "UNSAFE_ACT"] } } }).catch(() => 0),
+      prisma.drawingRevision.count({ where: { status: "FOR_APPROVAL", drawing: { organizationId } } }).catch(() => 0),
+      prisma.payrollRun.count({ where: { organizationId, status: "DRAFT" } }).catch(() => 0),
       prisma.salesInstallment.findMany({
         where: { booking: { organizationId, status: "ACTIVE" }, dueDate: { lt: date } },
         select: { amount: true, receivedAmount: true },
-      }),
-      prisma.equipment.count({ where: { organizationId, status: "UNDER_REPAIR" } }),
+      }).catch(() => []),
+      prisma.equipment.count({ where: { organizationId, status: "UNDER_REPAIR" } }).catch(() => 0),
     ]);
     return {
-      openSafety,
-      drawingsWaiting,
-      payrollDraft,
-      equipmentDown,
-      customerOverdue: dues.reduce((sum, d) => sum + Math.max(0, d.amount - d.receivedAmount), 0),
+      openSafety: openSafety || 0,
+      drawingsWaiting: drawingsWaiting || 0,
+      payrollDraft: payrollDraft || 0,
+      equipmentDown: equipmentDown || 0,
+      customerOverdue: (dues || []).reduce((sum, d) => sum + Math.max(0, (d.amount || 0) - (d.receivedAmount || 0)), 0),
     };
   }
 
@@ -75,7 +75,7 @@ export class CommandCenterService {
     const dayStart = new Date(`${date}T00:00:00.000+05:30`);
     const dayEnd = new Date(`${date}T23:59:59.999+05:30`);
 
-    // Dispatch all independent Command Center blocks concurrently instead of 7 sequential waits
+    // Dispatch all independent Command Center blocks concurrently with resilient error boundaries
     const [
       dayBook,
       pendingPayments,
@@ -92,12 +92,49 @@ export class CommandCenterService {
       materialRequestsPending,
       attentionData,
     ] = await Promise.all([
-      fetchDayBookData(organizationId, date, siteId),
+      fetchDayBookData(organizationId, date, siteId).catch((err) => {
+        console.warn("[COMMAND_CENTER] fetchDayBookData fallback:", err?.message || err);
+        return {
+          date,
+          fromDate: date,
+          toDate: date,
+          summary: {
+            totalPaymentsAmount: 0,
+            totalRejectedPaymentsAmount: 0,
+            totalBillsAmount: 0,
+            totalMoneyInAmount: 0,
+            moneyInCount: 0,
+            paymentsCount: 0,
+            rejectedPaymentsCount: 0,
+            billsCount: 0,
+            receiptsCount: 0,
+            issuesCount: 0,
+            workersPresentCount: 0,
+            headcountTotal: 0,
+            headcountArtisans: 0,
+            headcountCraftsmen: 0,
+            headcountLaborers: 0,
+            staffPresentCount: 0,
+            reportsCount: 0,
+          },
+          payments: [],
+          moneyIn: [],
+          bills: [],
+          receipts: [],
+          issues: [],
+          staffAttendance: [],
+          workerAttendance: [],
+          attendance: [],
+          headcount: [],
+          dailyReports: [],
+          recentActivityDates: [],
+        };
+      }),
       prisma.payment.findMany({
         where: { organizationId, status: "PENDING_APPROVAL", isArchived: false },
         select: { amount: true },
-      }),
-      prisma.purchaseOrder.count({ where: { organizationId, status: "PENDING_APPROVAL" } }),
+      }).catch(() => []),
+      prisma.purchaseOrder.count({ where: { organizationId, status: "PENDING_APPROVAL" } }).catch(() => 0),
       prisma.bill.findMany({
         where: { organizationId, status: "POSTED", isArchived: false },
         select: {
@@ -107,7 +144,7 @@ export class CommandCenterService {
             select: { amount: true },
           },
         },
-      }),
+      }).catch(() => []),
       prisma.payment.findMany({
         where: {
           organizationId,
@@ -116,21 +153,21 @@ export class CommandCenterService {
           paymentDate: { gte: rangeStart, lte: rangeEnd },
         },
         select: { amount: true, paymentDate: true },
-      }),
+      }).catch(() => []),
       prisma.bill.findMany({
         where: { organizationId, isArchived: false, billDate: { gte: rangeStart, lte: rangeEnd } },
         select: { totalAmount: true, billDate: true },
-      }),
+      }).catch(() => []),
       prisma.salesReceipt.findMany({
         where: { organizationId, date: { gte: trendStart, lte: date }, cancelledAt: null, booking: { status: "ACTIVE" } },
         select: { amount: true, date: true },
-      }),
+      }).catch(() => []),
       prisma.auditEvent.findMany({
         where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
         include: { actor: { select: { id: true, name: true, role: true } } },
         orderBy: { createdAt: "desc" },
         take: 200,
-      }),
+      }).catch(() => []),
       prisma.taskStatusHistory.findMany({
         where: { createdAt: { gte: dayStart, lte: dayEnd }, task: { organizationId } },
         include: {
@@ -139,7 +176,7 @@ export class CommandCenterService {
         },
         orderBy: { createdAt: "desc" },
         take: 200,
-      }),
+      }).catch(() => []),
       prisma.taskComment.findMany({
         where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
         include: {
@@ -148,17 +185,33 @@ export class CommandCenterService {
         },
         orderBy: { createdAt: "desc" },
         take: 100,
-      }),
-      WorkReportService.dayOverview(organizationId, date),
+      }).catch(() => []),
+      WorkReportService.dayOverview(organizationId, date).catch(() => ({
+        staff: [],
+        totals: {
+          expected: 0,
+          submitted: 0,
+          present: 0,
+          onLeave: 0,
+          hours: 0,
+          withBlockers: 0,
+        },
+      })),
       ProjectBudgetService.getPortfolio(organizationId).then(async (pf) => ({
-        portfolio: pf,
+        portfolio: pf || [],
         progress: await MilestoneService.progressByProject(
           organizationId,
-          pf.map((p) => p.projectId)
-        ),
+          (pf || []).map((p) => p.projectId)
+        ).catch(() => new Map()),
+      })).catch(() => ({ portfolio: [], progress: new Map() })),
+      prisma.materialRequest.count({ where: { organizationId, status: "PENDING" } }).catch(() => 0),
+      CommandCenterService.attention(organizationId, date).catch(() => ({
+        openSafety: 0,
+        drawingsWaiting: 0,
+        payrollDraft: 0,
+        equipmentDown: 0,
+        customerOverdue: 0,
       })),
-      prisma.materialRequest.count({ where: { organizationId, status: "PENDING" } }),
-      CommandCenterService.attention(organizationId, date),
     ]);
 
     // ── 1. Day Book as one timeline, newest first ──────────────────────────
@@ -187,7 +240,7 @@ export class CommandCenterService {
       return d.toISOString();
     };
 
-    for (const p of dayBook.payments as any[]) {
+    for (const p of (dayBook?.payments || []) as any[]) {
       timeline.push({
         id: `pay-${p.id}`,
         kind: "PAYMENT",
@@ -196,35 +249,35 @@ export class CommandCenterService {
         detail: [p.method, p.referenceNumber, p.project?.name, p.status === "PENDING_APPROVAL" ? "awaiting approval" : null]
           .filter(Boolean)
           .join(" · "),
-        amount: p.amount,
+        amount: p.amount || 0,
         actor: p.creator?.name,
         href: "/finance",
       });
     }
-    for (const r of dayBook.moneyIn) {
+    for (const r of (dayBook?.moneyIn || [])) {
       timeline.push({
         id: `in-${r.id}`,
         kind: "MONEY_IN",
         at: resolveTimelineTime(r.createdAt || r.date, 14, 0),
-        title: `Received from ${r.booking.customerName}`,
-        detail: [r.receiptNumber, r.booking.unit.unitNumber, r.installment.label, r.booking.unit.project.name].join(" · "),
-        amount: r.amount,
+        title: `Received from ${r.booking?.customerName || "Customer"}`,
+        detail: [r.receiptNumber, r.booking?.unit?.unitNumber, r.installment?.label, r.booking?.unit?.project?.name].filter(Boolean).join(" · "),
+        amount: r.amount || 0,
         actor: r.creator?.name,
         href: `/day-book?from=${r.date}&to=${r.date}`,
       });
     }
-    for (const b of dayBook.bills as any[]) {
+    for (const b of (dayBook?.bills || []) as any[]) {
       timeline.push({
         id: `bill-${b.id}`,
         kind: "BILL",
         at: resolveTimelineTime(b.createdAt || b.billDate, 12, 15),
-        title: `Bill ${b.billNumber} from ${b.party?.name || "party"}`,
+        title: `Bill ${b.billNumber || ""} from ${b.party?.name || "party"}`,
         detail: b.project?.name || "General",
-        amount: b.totalAmount,
+        amount: b.totalAmount || 0,
         href: "/finance",
       });
     }
-    for (const m of dayBook.receipts as any[]) {
+    for (const m of (dayBook?.receipts || []) as any[]) {
       timeline.push({
         id: `rcpt-${m.id}`,
         kind: "RECEIPT",
@@ -235,7 +288,7 @@ export class CommandCenterService {
         href: m.material?.id ? `/materials/${m.material.id}` : "/materials",
       });
     }
-    for (const m of dayBook.issues as any[]) {
+    for (const m of (dayBook?.issues || []) as any[]) {
       timeline.push({
         id: `iss-${m.id}`,
         kind: "ISSUE",
@@ -246,7 +299,7 @@ export class CommandCenterService {
         href: m.material?.id ? `/materials/${m.material.id}` : "/materials",
       });
     }
-    for (const a of dayBook.attendance as any[]) {
+    for (const a of (dayBook?.attendance || []) as any[]) {
       const displayName = a.name || a.workforceMember?.name || "Staff Member";
       const displaySite = a.site?.name || a.siteName || null;
       timeline.push({
@@ -258,7 +311,7 @@ export class CommandCenterService {
         href: "/attendance",
       });
     }
-    for (const h of dayBook.headcount as any[]) {
+    for (const h of (dayBook?.headcount || []) as any[]) {
       // Determine operational shift time so shifts and records distribute naturally throughout the day
       let hHour = 10;
       let hMin = 0;
@@ -288,7 +341,7 @@ export class CommandCenterService {
         href: "/workforce",
       });
     }
-    for (const r of dayBook.dailyReports as any[]) {
+    for (const r of (dayBook?.dailyReports || []) as any[]) {
       timeline.push({
         id: `rep-${r.id}`,
         kind: "SITE_REPORT",
@@ -303,31 +356,31 @@ export class CommandCenterService {
 
     // ── 3. Outstanding payables (bills − posted allocations) ──────────────
     let outstandingPayables = 0;
-    for (const b of postedBills) {
-      const paid = b.allocations.reduce((s, a) => s + (a.amount ?? 0), 0);
-      const remaining = roundPaise(b.totalAmount - paid);
+    for (const b of (postedBills || [])) {
+      const paid = (b.allocations || []).reduce((s: number, a: any) => s + (a.amount ?? 0), 0);
+      const remaining = roundPaise((b.totalAmount || 0) - paid);
       if (remaining > 0) outstandingPayables = roundPaise(outstandingPayables + remaining);
     }
 
     // ── 4. Seven-day cash trend ending on `date` ───────────────────────────
     const trend = Array.from({ length: 7 }, (_, i) => ({ date: shiftDate(trendStart, i), paid: 0, billed: 0, received: 0 }));
     const byDate = new Map(trend.map((t) => [t.date, t]));
-    for (const p of trendPayments) {
+    for (const p of (trendPayments || [])) {
       const slot = byDate.get(istDateKey(p.paymentDate));
-      if (slot) slot.paid = roundPaise(slot.paid + p.amount);
+      if (slot) slot.paid = roundPaise(slot.paid + (p.amount || 0));
     }
-    for (const r of trendIn) {
+    for (const r of (trendIn || [])) {
       const slot = byDate.get(r.date);
-      if (slot) slot.received += r.amount;
+      if (slot) slot.received += (r.amount || 0);
     }
-    for (const b of trendBills) {
+    for (const b of (trendBills || [])) {
       const slot = byDate.get(istDateKey(b.billDate));
-      if (slot) slot.billed = roundPaise(slot.billed + b.totalAmount);
+      if (slot) slot.billed = roundPaise(slot.billed + (b.totalAmount || 0));
     }
 
     // ── 5. Who did what on this date ───────────────────────────────────────
-    const { portfolio, progress } = portfolioWithProgress;
-    const projects = portfolio
+    const { portfolio = [], progress = new Map() } = portfolioWithProgress || {};
+    const projects = (portfolio || [])
       .filter((p) => !siteId || p.siteId === siteId)
       .map((p) => ({
         projectId: p.projectId,
@@ -338,8 +391,8 @@ export class CommandCenterService {
         committed: p.committed,
         usedPercent: p.usedPercent,
         health: p.health,
-        progress: progress.get(p.projectId)?.progress ?? null,
-        delayedStages: progress.get(p.projectId)?.delayed ?? 0,
+        progress: progress?.get ? progress.get(p.projectId)?.progress ?? null : null,
+        delayedStages: progress?.get ? progress.get(p.projectId)?.delayed ?? 0 : 0,
       }))
       // Projects that need attention first.
       .sort((a, b) => {
@@ -447,12 +500,12 @@ export class CommandCenterService {
     // ── 6. Task updates from the field, with their photos ─────────────────
     const taskFeed = [
       // Rows with no previous status are the task being created, not an update.
-      ...taskUpdates.filter((h) => h.oldStatus && h.oldStatus !== "NONE").map((h) => ({
+      ...(taskUpdates || []).filter((h) => h.oldStatus && h.oldStatus !== "NONE").map((h) => ({
         id: `status-${h.id}`,
         at: h.createdAt.toISOString(),
         actor: h.user?.name || "Someone",
-        taskId: h.task.id,
-        taskTitle: h.task.title,
+        taskId: h.task?.id || h.taskId || "task",
+        taskTitle: h.task?.title || "Task",
         kind: "STATUS" as const,
         text: `moved to ${statusLabel(h.newStatus)}`,
         status: h.newStatus,
@@ -460,12 +513,12 @@ export class CommandCenterService {
         photos: [] as string[],
         userId: h.changedBy,
       })),
-      ...taskComments.map((c) => ({
+      ...(taskComments || []).map((c) => ({
         id: `comment-${c.id}`,
         at: c.createdAt.toISOString(),
         actor: c.user?.name || "Someone",
-        taskId: c.task.id,
-        taskTitle: c.task.title,
+        taskId: c.task?.id || c.taskId || "task",
+        taskTitle: c.task?.title || "Task",
         kind: c.type === "PROGRESS_UPDATE" ? ("UPDATE" as const) : ("COMMENT" as const),
         text:
           c.type === "PROGRESS_UPDATE" ? "posted an update" : c.type === "ASSISTANCE_REQUEST" ? "asked for help" : c.type === "QUESTION" ? "asked a question" : "commented",
@@ -498,7 +551,7 @@ export class CommandCenterService {
     mergedFeed.sort((a, b) => (a.at < b.at ? 1 : -1));
 
     const activity = [
-      ...auditEvents.slice(0, 25).map((e) => ({
+      ...(auditEvents || []).slice(0, 25).map((e) => ({
         id: `audit-${e.id}`,
         at: e.createdAt.toISOString(),
         actor: e.actor?.name || "System",
@@ -506,7 +559,7 @@ export class CommandCenterService {
         entityType: e.entityType,
         reason: e.reason,
       })),
-      ...taskUpdates.slice(0, 25).map((h) => ({
+      ...(taskUpdates || []).slice(0, 25).map((h) => ({
         id: `task-${h.id}`,
         at: h.createdAt.toISOString(),
         actor: h.user?.name || "Someone",
@@ -520,15 +573,33 @@ export class CommandCenterService {
 
     return {
       date,
-      summary: dayBook.summary,
+      summary: dayBook?.summary || {
+        totalPaymentsAmount: 0,
+        totalRejectedPaymentsAmount: 0,
+        totalBillsAmount: 0,
+        totalMoneyInAmount: 0,
+        moneyInCount: 0,
+        paymentsCount: 0,
+        rejectedPaymentsCount: 0,
+        billsCount: 0,
+        receiptsCount: 0,
+        issuesCount: 0,
+        workersPresentCount: 0,
+        headcountTotal: 0,
+        headcountArtisans: 0,
+        headcountCraftsmen: 0,
+        headcountLaborers: 0,
+        staffPresentCount: 0,
+        reportsCount: 0,
+      },
       timeline: timeline.slice(0, 80),
       timelineTotal: timeline.length,
       attention: attentionData,
       approvals: {
-        paymentsPendingCount: pendingPayments.length,
-        paymentsPendingAmount: roundPaise(pendingPayments.reduce((s, p) => s + p.amount, 0)),
-        ordersPendingCount: pendingOrders,
-        materialRequestsPending,
+        paymentsPendingCount: (pendingPayments || []).length,
+        paymentsPendingAmount: roundPaise((pendingPayments || []).reduce((s, p) => s + (p.amount || 0), 0)),
+        ordersPendingCount: pendingOrders || 0,
+        materialRequestsPending: materialRequestsPending || 0,
       },
       projects: projects.slice(0, 8),
       finance: {
@@ -544,13 +615,20 @@ export class CommandCenterService {
       activity,
       taskFeed: mergedFeed.slice(0, 20).map(({ userId: _userId, ...rest }) => rest),
       people: {
-        ...staffDay.totals,
-        missing: staffDay.staff
-          .filter((s) => !s.report && isReportingRole(s.user.role))
+        ...(staffDay?.totals || {
+          expected: 0,
+          submitted: 0,
+          present: 0,
+          onLeave: 0,
+          hours: 0,
+          withBlockers: 0,
+        }),
+        missing: (staffDay?.staff || [])
+          .filter((s: any) => !s.report && s.user && isReportingRole(s.user.role))
           .slice(0, 8)
-          .map((s) => ({ userId: s.user.id, name: s.user.name, phone: s.user.phone })),
+          .map((s: any) => ({ userId: s.user?.id, name: s.user?.name, phone: s.user?.phone })),
       },
-      recentActivityDates: dayBook.recentActivityDates,
+      recentActivityDates: dayBook?.recentActivityDates || [],
     };
   }
 }

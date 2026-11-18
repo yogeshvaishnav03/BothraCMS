@@ -168,7 +168,7 @@ export async function fetchDayBookData(
         creator: { select: { id: true, name: true } },
       },
       orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
-    }),
+    }).catch(() => []),
     prisma.bill.findMany({
       where: billWhere,
       include: {
@@ -176,7 +176,7 @@ export async function fetchDayBookData(
         project: { select: { id: true, code: true, name: true, siteId: true } },
       },
       orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
-    }),
+    }).catch(() => []),
     prisma.stockMovement.findMany({
       where: stockWhere,
       include: {
@@ -185,7 +185,7 @@ export async function fetchDayBookData(
         creator: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
-    }),
+    }).catch(() => []),
     prisma.staffAttendance
       .findMany({
         where: staffAttendanceWhere,
@@ -242,7 +242,7 @@ export async function fetchDayBookData(
         creator: { select: { id: true, name: true, role: true } },
       },
       orderBy: { createdAt: "desc" },
-    }),
+    }).catch(() => []),
     prisma.salesReceipt.findMany({
       where: {
         organizationId: orgId,
@@ -256,10 +256,10 @@ export async function fetchDayBookData(
         creator: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
-    }),
+    }).catch(() => []),
   ]);
 
-  const filteredPayments = rawPayments.filter((p) => {
+  const filteredPayments = (rawPayments || []).filter((p) => {
     const txDate = p.paymentDate || p.createdAt;
     return matchesDateRange(txDate, fromDate, toDate);
   });
@@ -269,12 +269,12 @@ export async function fetchDayBookData(
     paymentMethod: p.method,
   }));
 
-  const bills = rawBills.filter((b) => {
+  const bills = (rawBills || []).filter((b) => {
     const txDate = b.billDate || b.createdAt;
     return matchesDateRange(txDate, fromDate, toDate);
   });
 
-  const movements = rawMovements.filter((m) => {
+  const movements = (rawMovements || []).filter((m) => {
     const txDate = m.movementAt || m.createdAt;
     return matchesDateRange(txDate, fromDate, toDate);
   });
@@ -283,7 +283,7 @@ export async function fetchDayBookData(
   const issues = movements.filter((m) => m.movementType === "ISSUE");
 
   // Fetch attachments for reports, bills, and payments in ONE parallel round-trip
-  const reportIds = dailyReportsRaw.map((r: any) => r.id);
+  const reportIds = (dailyReportsRaw || []).map((r: any) => r.id);
   const billIds = bills.map((b: any) => b.id);
   const paymentIds = payments.map((p: any) => p.id);
 
@@ -297,7 +297,7 @@ export async function fetchDayBookData(
             isArchived: false,
           },
           select: attachmentSelect,
-        })
+        }).catch(() => [])
       : Promise.resolve([]),
     billIds.length > 0
       ? prisma.attachment.findMany({
@@ -308,7 +308,7 @@ export async function fetchDayBookData(
             isArchived: false,
           },
           select: attachmentSelect,
-        })
+        }).catch(() => [])
       : Promise.resolve([]),
     paymentIds.length > 0
       ? prisma.attachment.findMany({
@@ -319,7 +319,7 @@ export async function fetchDayBookData(
             isArchived: false,
           },
           select: attachmentSelect,
-        })
+        }).catch(() => [])
       : Promise.resolve([]),
   ]);
 

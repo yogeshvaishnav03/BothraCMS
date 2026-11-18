@@ -154,6 +154,9 @@ export async function ensurePostgresColumns() {
       await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "extraPermissionsJson" TEXT;`).catch(() => {});
       await prisma.$executeRawUnsafe(`ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "contractorId" TEXT;`).catch(() => {});
       await prisma.$executeRawUnsafe(`ALTER TABLE "Attachment" ADD COLUMN IF NOT EXISTS "attendanceSessionId" TEXT;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Attachment" ADD COLUMN IF NOT EXISTS "materialQuotationId" TEXT;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "issuedToName" TEXT;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "issueStatus" TEXT DEFAULT 'ISSUED';`).catch(() => {});
       await prisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "AttendanceSession" (
           "id" TEXT NOT NULL PRIMARY KEY,
@@ -186,6 +189,27 @@ export async function ensurePostgresColumns() {
       await prisma.$executeRawUnsafe(`
         CREATE INDEX IF NOT EXISTS "AttendanceSession_organizationId_siteId_workDate_idx" 
         ON "AttendanceSession"("organizationId", "siteId", "workDate");
+      `).catch(() => {});
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "MaterialQuotation" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "organizationId" TEXT NOT NULL,
+          "materialId" TEXT NOT NULL,
+          "vendorPartyId" TEXT NOT NULL,
+          "unitCode" TEXT NOT NULL,
+          "ratePaise" INTEGER NOT NULL,
+          "taxRatePercent" DOUBLE PRECISION NOT NULL DEFAULT 18.0,
+          "taxAmountPaise" INTEGER NOT NULL DEFAULT 0,
+          "additionalPaise" INTEGER NOT NULL DEFAULT 0,
+          "totalRatePaise" INTEGER NOT NULL,
+          "quotationDate" TEXT NOT NULL,
+          "validUntil" TEXT,
+          "notes" TEXT,
+          "isArchived" BOOLEAN NOT NULL DEFAULT false,
+          "createdBy" TEXT NOT NULL DEFAULT 'SYSTEM',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
       `).catch(() => {});
       ddlSynced = true;
     }
