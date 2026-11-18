@@ -248,7 +248,7 @@ export default function MaterialStoragePage() {
 
     const qty = parseFloat(issueForm.quantity);
     if (!issueForm.materialId) {
-      setError("Please select a material to issue");
+      setError("Please select a material to provide");
       return;
     }
     if (!issueForm.storeId) {
@@ -264,7 +264,7 @@ export default function MaterialStoragePage() {
       return;
     }
     if (!issueForm.issuedToName.trim()) {
-      setError("Please specify the responsible person receiving the material");
+      setError("Please specify the contractor or person receiving the material");
       return;
     }
 
@@ -286,10 +286,10 @@ export default function MaterialStoragePage() {
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error || "Failed to issue material");
+        throw new Error(json.error || "Failed to provide material to contractor");
       }
 
-      setSuccessMsg("Material successfully issued and storage inventory updated!");
+      setSuccessMsg("Material successfully provided to contractor and storage inventory updated!");
       setShowIssueModal(false);
       setIssueForm({
         materialId: "",
@@ -303,7 +303,7 @@ export default function MaterialStoragePage() {
       setUploadedFile(null);
       fetchMovements();
     } catch (err: any) {
-      setError(err?.message || "Failed to issue material");
+      setError(err?.message || "Failed to provide material to contractor");
     } finally {
       setSubmitting(false);
     }
@@ -431,8 +431,8 @@ export default function MaterialStoragePage() {
       <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <PageHeader
-          title="Material Storage & Issue Management"
-          description="Track warehouse storage levels, record material issues to sites/projects, and manage responsible personnel."
+          title="Material Storage & Contractor Dispatches"
+          description="Track warehouse storage levels, record materials provided to contractors, and manage site returns."
           breadcrumbs={[
             { label: "Dashboard", href: "/" },
             { label: "Materials", href: "/materials" },
@@ -473,7 +473,7 @@ export default function MaterialStoragePage() {
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-colors"
               >
                 <PackageMinus className="w-4 h-4" />
-                Issue Material
+                Provide to Contractor
               </button>
             </div>
           }
@@ -501,18 +501,18 @@ export default function MaterialStoragePage() {
             <div className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
               {metrics.count}
             </div>
-            <div className="mt-1 text-xs text-slate-500">Recorded issues in period</div>
+            <div className="mt-1 text-xs text-slate-500">Recorded transactions in period</div>
           </div>
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wider">
-              <span>Total Issued Qty</span>
+              <span>Total Provided to Contractor</span>
               <PackageMinus className="w-4 h-4 text-amber-500" />
             </div>
             <div className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">
               {formatQuantity(metrics.totalIssuedQty)}
             </div>
-            <div className="mt-1 text-xs text-slate-500">Dispatched to worksites</div>
+            <div className="mt-1 text-xs text-slate-500">Provided to contractors at worksites</div>
           </div>
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-xs">
@@ -534,7 +534,7 @@ export default function MaterialStoragePage() {
             <div className="mt-2 text-2xl font-bold text-slate-800 dark:text-slate-200">
               {formatQuantity(metrics.totalInitialQty)}
             </div>
-            <div className="mt-1 text-xs text-slate-500">Issued + Remaining balance</div>
+            <div className="mt-1 text-xs text-slate-500">Provided + Remaining balance</div>
           </div>
         </div>
 
@@ -616,9 +616,9 @@ export default function MaterialStoragePage() {
                 className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
               >
                 <option value="ALL">All Statuses</option>
-                <option value="ISSUED">Issued</option>
+                <option value="ISSUED">Provided to Contractor</option>
+                <option value="RETURNED">Returned by Contractor</option>
                 <option value="COMPLETED">Completed</option>
-                <option value="RETURNED">Returned</option>
               </select>
             </div>
 
@@ -648,15 +648,15 @@ export default function MaterialStoragePage() {
               No storage records found
             </h3>
             <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1">
-              No materials were issued matching the selected period or filters.
+              No materials were provided to contractors matching the selected period or filters.
             </p>
-            <div className="mt-4">
+            <div className="mt-4 flex items-center justify-center gap-2">
               <button
                 onClick={() => setShowIssueModal(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
               >
                 <PackageMinus className="w-4 h-4" />
-                Issue Material Now
+                Provide to Contractor Now
               </button>
             </div>
           </div>
@@ -669,11 +669,11 @@ export default function MaterialStoragePage() {
                   <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 font-semibold text-xs uppercase tracking-wider">
                     <th className="py-3 px-4">Material & Category</th>
                     <th className="py-3 px-4 text-right">Total Material</th>
-                    <th className="py-3 px-4 text-right">Issued Material</th>
+                    <th className="py-3 px-4 text-right">Provided to Contractor</th>
                     <th className="py-3 px-4 text-right">Remaining Material</th>
                     <th className="py-3 px-4">Site & Project</th>
                     <th className="py-3 px-4">Responsible Person</th>
-                    <th className="py-3 px-4">Issued By</th>
+                    <th className="py-3 px-4">Dispatched By</th>
                     <th className="py-3 px-4">Creation Date</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-center">Attachments</th>
@@ -834,7 +834,7 @@ export default function MaterialStoragePage() {
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Issued</span>
+                      <span className="text-slate-500 block">Provided to Contractor</span>
                       <span className="font-bold text-amber-600 dark:text-amber-400">
                         {formatQuantity(item.issuedMaterial)} {item.unit}
                       </span>
@@ -861,7 +861,7 @@ export default function MaterialStoragePage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Issued By:</span>
+                      <span className="text-slate-500">Dispatched By:</span>
                       <span>{item.issuedBy} ({item.issuedByRole})</span>
                     </div>
                     <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
@@ -909,7 +909,7 @@ export default function MaterialStoragePage() {
                 <div className="flex items-center gap-2">
                   <PackageMinus className="w-5 h-5 text-amber-600" />
                   <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                    Issue Material to Worksite
+                    Provide Material to Contractor
                   </h3>
                 </div>
                 <button
@@ -924,7 +924,7 @@ export default function MaterialStoragePage() {
                 {/* Material Select */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Select Material *
+                    Select Material to Provide *
                   </label>
                   <select
                     value={issueForm.materialId}
@@ -932,7 +932,7 @@ export default function MaterialStoragePage() {
                     required
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
                   >
-                    <option value="">-- Choose Material --</option>
+                    <option value="">-- Choose Material to Provide --</option>
                     {materials.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name} ({m.categoryName}) - Stock: {m.quantityOnHand || 0} {m.unitCode}
@@ -986,7 +986,7 @@ export default function MaterialStoragePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Issue Quantity *
+                      Quantity to Provide to Contractor *
                     </label>
                     <input
                       type="number"
@@ -1002,7 +1002,7 @@ export default function MaterialStoragePage() {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Issue Date *
+                      Date Provided *
                     </label>
                     <input
                       type="date"
@@ -1017,12 +1017,12 @@ export default function MaterialStoragePage() {
                 {/* Responsible Person */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Responsible Person (Receiver) *
+                    Contractor / Responsible Person (Receiver) *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Ramesh Kumar (Site Supervisor)"
+                    placeholder="e.g. Ramesh Kumar (Contractor / Site Supervisor)"
                     value={issueForm.issuedToName}
                     onChange={(e) => setIssueForm({ ...issueForm, issuedToName: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
@@ -1036,7 +1036,7 @@ export default function MaterialStoragePage() {
                   </label>
                   <textarea
                     rows={2}
-                    placeholder="e.g. Dispatched for 2nd floor slab casting..."
+                    placeholder="e.g. Provided to contractor for 2nd floor slab casting..."
                     value={issueForm.notes}
                     onChange={(e) => setIssueForm({ ...issueForm, notes: e.target.value })}
                     className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
@@ -1075,12 +1075,12 @@ export default function MaterialStoragePage() {
                     {submitting ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        Recording Issue...
+                        Recording...
                       </>
                     ) : (
                       <>
                         <PackageMinus className="w-4 h-4" />
-                        Confirm & Issue Stock
+                        Confirm & Provide to Contractor
                       </>
                     )}
                   </button>

@@ -200,7 +200,7 @@ export default function MaterialDetailPage() {
       { key: "store", label: "Store", accessor: (m) => m.store?.name || "Site Store", type: "text" },
       { key: "vendorRef", label: "Vendor / Ref", accessor: (m) => m.referenceNumber || m.party?.name || "—", type: "text" },
       { key: "received", label: "Received", accessor: (m) => m.quantityDelta > 0 ? Number(m.quantityDelta) : 0, type: "number", align: "right" },
-      { key: "issued", label: "Issued", accessor: (m) => m.quantityDelta < 0 ? Math.abs(Number(m.quantityDelta)) : 0, type: "number", align: "right" },
+      { key: "issued", label: "Provided to Contractor", accessor: (m) => m.quantityDelta < 0 ? Math.abs(Number(m.quantityDelta)) : 0, type: "number", align: "right" },
       { key: "unitRate", label: "Rate (₹)", accessor: (m) => (Number(m.unitCost) || 0) / 100, type: "currency", align: "right" },
       { key: "runningBalance", label: "Running Balance", accessor: (m) => Number(m.runningBalance) || 0, type: "number", align: "right" },
       { key: "project", label: "Project / Task", accessor: (m) => m.project?.name || "—", type: "text" },
@@ -358,12 +358,12 @@ export default function MaterialDetailPage() {
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Issued / Consumed
+              Total Provided to Contractors
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
               <span title={formatQuantity(totalIssued, material.unitCode)}>{formatCompactQuantity(totalIssued, material.unitCode)}</span>
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Issued to site projects & tasks</div>
+            <div className="text-[11px] text-slate-500 mt-1">Provided to site contractors & tasks</div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -592,7 +592,7 @@ export default function MaterialDetailPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Every movement records store, date, type, vendor/source, received, issued, rate, and running balance.
+                Every movement records store, date, type, vendor/source, received, provided to contractor, rate, and running balance.
               </p>
             </div>
             <span className="hidden sm:inline-block text-xs font-mono font-bold bg-slate-200 text-slate-800 px-2.5 py-1 rounded whitespace-nowrap shrink-0">
@@ -652,7 +652,7 @@ export default function MaterialDetailPage() {
                             ) : (
                               <ArrowUpRight className="w-3 h-3 text-amber-600" />
                             )}
-                            {m.type}
+                            {m.type === "ISSUE" ? "PROVIDED" : m.type}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-xs font-medium text-slate-700 whitespace-nowrap">

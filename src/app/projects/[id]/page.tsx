@@ -297,7 +297,7 @@ export default function ProjectDetailsPage() {
     () => [
       { key: "movementAt", label: "Date", accessor: (m) => formatDate(m.movementAt), type: "date" },
       { key: "material", label: "Material", accessor: (m) => m.material?.name || "Material", type: "text" },
-      { key: "quantity", label: "Quantity Issued", accessor: (m) => `${Math.abs(m.quantityDelta)} ${m.unitCode || ""}`, type: "text", align: "right" },
+      { key: "quantity", label: "Quantity Provided to Contractor", accessor: (m) => `${Math.abs(m.quantityDelta)} ${m.unitCode || ""}`, type: "text", align: "right" },
       { key: "store", label: "Store", accessor: (m) => m.store?.name || "Store", type: "text" },
       { key: "notes", label: "Notes", accessor: (m) => m.notes || "—", type: "text" },
     ],
@@ -711,13 +711,13 @@ export default function ProjectDetailsPage() {
             <ExcelTableToolbar
               table={excelMovements}
               columns={movementColumns}
-              tableName="material issues"
+              tableName="materials provided"
               showSearch={true}
               showExport={true}
             />
             {stockMovements.length === 0 ? (
               <div className="text-center py-12 text-slate-400 text-xs">
-                No stock issues recorded for this project yet.
+                No materials provided to contractor recorded for this project yet.
               </div>
             ) : (
               <>
@@ -759,7 +759,7 @@ export default function ProjectDetailsPage() {
                 startItem={excelMovements.startItem}
                 endItem={excelMovements.endItem}
                 onPageChange={excelMovements.setCurrentPage}
-                itemLabel="material issues"
+                itemLabel="materials provided"
               />
               </>
             )}

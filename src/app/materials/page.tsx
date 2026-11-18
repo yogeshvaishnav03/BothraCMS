@@ -586,7 +586,7 @@ export default function MaterialsPage() {
 
     const storeToUse = selectedStoreId || (stores.length > 0 ? stores[0].id : "");
     if (!storeToUse) {
-      setErrorMessage("Please select a store to issue goods from.");
+      setErrorMessage("Please select a store to provide goods from.");
       setActionLoading(false);
       return;
     }
@@ -607,16 +607,16 @@ export default function MaterialsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Could not issue material. Please check available store stock.");
+        setErrorMessage(data.error?.message || "Could not provide material to contractor. Please check available store stock.");
       } else {
-        setStatusMessage("Material issued and project consumption logged successfully!");
+        setStatusMessage("Material provided to contractor and project consumption logged successfully!");
         setShowIssueModal(false);
         setQuantity("");
         setNotes("");
         loadMaterials();
       }
     } catch {
-      setErrorMessage("Network error while issuing material. Check your connection and try again.");
+      setErrorMessage("Network error while providing material. Check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -794,7 +794,7 @@ export default function MaterialsPage() {
                 className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer"
               >
                 <PackageMinus className="w-4 h-4 shrink-0" />
-                <span>Issue Stock</span>
+                <span>Provide to Contractor</span>
               </button>
             )}
             {canTransferStock && (
@@ -1598,7 +1598,7 @@ export default function MaterialsPage() {
               <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <PackageMinus className="w-5 h-5 text-amber-500" />
-                  <span>Issue Material to Project / Task</span>
+                  <span>Provide Material to Contractor / Project</span>
                 </div>
                 <button
                   onClick={() => setShowIssueModal(false)}
@@ -1611,7 +1611,7 @@ export default function MaterialsPage() {
               <form id="issue-material-modal-form" onSubmit={handleIssueSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Select Material to Issue
+                    Select Material to Provide
                   </label>
                   <SearchableSelect
                     options={materials.map((m) => ({
@@ -1622,7 +1622,7 @@ export default function MaterialsPage() {
                     }))}
                     value={selectedMaterialId}
                     onChange={(val) => setSelectedMaterialId(val)}
-                    placeholder="Search material to issue..."
+                    placeholder="Search material to provide..."
                     searchPlaceholder="Type to search material name or code..."
                     required
                   />
@@ -1631,7 +1631,7 @@ export default function MaterialsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-semibold text-slate-700 uppercase">
-                      Issuing Store / Yard
+                      Dispatch Store / Yard
                     </label>
                     {stores.length === 0 && (
                       <span className="text-[11px] text-amber-600 font-semibold animate-pulse">Loading stores...</span>
@@ -1654,7 +1654,7 @@ export default function MaterialsPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Issue Quantity
+                    Quantity to Provide to Contractor
                   </label>
                   <input
                     type="number"
@@ -1715,7 +1715,7 @@ export default function MaterialsPage() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Issued to sub-contractor for 5th floor casting"
+                    placeholder="e.g. Provided to contractor for 5th floor casting"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
@@ -1738,7 +1738,7 @@ export default function MaterialsPage() {
                   disabled={actionLoading}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
                 >
-                  {actionLoading ? "Issuing..." : "Confirm Material Issue"}
+                  {actionLoading ? "Providing..." : "Confirm & Provide to Contractor"}
                 </button>
               </div>
             </div>

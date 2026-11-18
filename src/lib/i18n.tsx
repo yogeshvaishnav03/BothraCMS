@@ -188,7 +188,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "kpi.quickTask": "Quick Task",
     "kpi.quickCheckIn": "Worker Check-in",
     "kpi.quickMaterialIn": "Receive Materials",
-    "kpi.quickIssue": "Issue Materials",
+    "kpi.quickIssue": "Provide to Contractor",
     "kpi.dailyProgress": "Today's Site Progress",
     "kpi.urgentAlerts": "Important Alerts",
 
@@ -231,7 +231,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "materials.subtitle": "Track materials in stock, items received, items used, and transfers between sites.",
     "materials.stockOnHand": "Available Stock",
     "materials.receipts": "Materials Received",
-    "materials.issues": "Materials Issued",
+    "materials.issues": "Provided to Contractor",
     "materials.transfers": "Stock Transfers",
     "materials.lowStockAlert": "Low Stock Warning",
 
@@ -433,7 +433,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "kpi.quickTask": "नया कार्य",
     "kpi.quickCheckIn": "श्रमिक हाजिरी",
     "kpi.quickMaterialIn": "माल आवक",
-    "kpi.quickIssue": "सामग्री निकासी",
+    "kpi.quickIssue": "ठेकेदार को सामग्री देना",
     "kpi.dailyProgress": "दैनिक साइट प्रगति",
     "kpi.urgentAlerts": "तत्काल सूचनाएं",
 
@@ -476,7 +476,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "materials.subtitle": "मौजूदा स्टॉक, प्राप्त सामग्री, उपयोग और साइट ट्रांसफर ट्रैक करें।",
     "materials.stockOnHand": "मौजूदा उपलब्ध स्टॉक",
     "materials.receipts": "सामग्री आवक",
-    "materials.issues": "सामग्री जावक",
+    "materials.issues": "ठेकेदार को दी गई सामग्री",
     "materials.transfers": "स्टॉक ट्रांसफर",
     "materials.lowStockAlert": "कम स्टॉक चेतावनी",
 

@@ -1463,11 +1463,11 @@ export default function DashboardPage() {
               <span>Receive Goods</span>
             </Link>
             <Link
-              href="/materials"
+              href="/material-storage"
               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
             >
               <PackageMinus className="w-3.5 h-3.5 text-amber-400" />
-              <span>Issue Material</span>
+              <span>Provide to Contractor</span>
             </Link>
             {!isSuperAdmin && activeUser && (
               !isUserCheckedIn ? (
