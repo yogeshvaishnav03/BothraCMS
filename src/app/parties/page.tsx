@@ -492,7 +492,7 @@ export default function PartiesPage() {
 
   const partyColumns: ExcelColumn<any>[] = useMemo(
     () => [
-      { key: "name", label: "Vendor / Contractor & GSTIN", accessor: (p) => `${p.name} ${p.taxIdentifier || ""}`, type: "text" },
+      { key: "name", label: "Vendor / Contractor", accessor: (p) => p.name, type: "text" },
       { key: "partyType", label: "Type", accessor: (p) => p.partyType, type: "text" },
       { key: "category", label: "Category", accessor: (p) => p.category || "—", type: "text" },
       { key: "city", label: "City", accessor: (p) => p.city || "—", type: "text" },
@@ -913,7 +913,6 @@ export default function PartiesPage() {
                           <td className="py-3 px-4">
                             <Link href={`/parties/${p.id}`} className="block">
                               <div className="font-semibold text-slate-900 group-hover:text-amber-700 transition-colors">{p.name}</div>
-                              {p.taxIdentifier && <div className="text-xs text-slate-500 font-mono">GSTIN: {p.taxIdentifier}</div>}
                             </Link>
                           </td>
                           <td className="py-3 px-4">
@@ -978,17 +977,12 @@ export default function PartiesPage() {
 
                   return (
                     <div key={`p-card-${p.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
-                      {/* Top: Partner Name, Type Chip & GSTIN */}
+                      {/* Top: Partner Name & Type Chip */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <Link href={`/parties/${p.id}`} className="font-bold text-slate-900 hover:text-amber-700 text-sm block">
                             {p.name}
                           </Link>
-                          {p.taxIdentifier && (
-                            <div className="text-xs text-slate-400 font-mono mt-0.5">
-                              GSTIN: {p.taxIdentifier}
-                            </div>
-                          )}
                         </div>
 
                         <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-md ring-1 shrink-0", style.chip)}>

@@ -130,7 +130,6 @@ export default function ReportsPage() {
     () => [
       { key: "name", label: "Vendor / Contractor", accessor: (p) => p.name, type: "text" },
       { key: "partyType", label: "Type", accessor: (p) => p.partyType, type: "text" },
-      { key: "taxIdentifier", label: "GSTIN", accessor: (p) => p.taxIdentifier || "—", type: "text" },
       { key: "totalBilled", label: "Total Billed", accessor: (p) => (Number(p.totalBilled) || 0) / 100, type: "currency", align: "right" },
       { key: "totalPaid", label: "Total Paid", accessor: (p) => (Number(p.totalPaid) || 0) / 100, type: "currency", align: "right" },
       { key: "outstandingBalance", label: "Outstanding Liability", accessor: (p) => (Number(p.outstandingBalance) || 0) / 100, type: "currency", align: "right" },
@@ -191,11 +190,10 @@ export default function ReportsPage() {
   };
 
   const exportPayablesCSV = () => {
-    const headers = ["Party Name", "Type", "GSTIN", "Total Billed (INR)", "Total Paid (INR)", "Outstanding Balance (INR)"];
+    const headers = ["Party Name", "Type", "Total Billed (INR)", "Total Paid (INR)", "Outstanding Balance (INR)"];
     const rows = excelPayables.filteredData.map((p) => [
       `"${p.name}"`,
       p.partyType,
-      p.taxIdentifier || "—",
       (p.totalBilled / 100).toFixed(2),
       (p.totalPaid / 100).toFixed(2),
       (p.outstandingBalance / 100).toFixed(2),
@@ -653,7 +651,7 @@ export default function ReportsPage() {
                   <tbody className="divide-y divide-slate-100">
                     {excelPayables.filteredData.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-xs text-slate-500">
+                        <td colSpan={5} className="py-8 text-center text-xs text-slate-500">
                           No vendor or contractor records match your filters.
                         </td>
                       </tr>
@@ -665,9 +663,6 @@ export default function ReportsPage() {
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                               {p.partyType}
                             </span>
-                          </td>
-                          <td className="py-3.5 px-4 font-mono text-xs text-slate-500">
-                            {p.taxIdentifier || "—"}
                           </td>
                           <td className="py-3.5 px-4 text-right font-medium text-slate-700 tabular-nums">
                             {formatCurrency(p.totalBilled)}
@@ -687,7 +682,7 @@ export default function ReportsPage() {
                   {excelPayables.filteredData.length > 0 && (
                     <tfoot>
                       <tr className="bg-slate-100 font-bold text-xs text-slate-900">
-                        <td colSpan={3} className="py-3 px-4 text-right">Grand Total:</td>
+                        <td colSpan={2} className="py-3 px-4 text-right">Grand Total:</td>
                         <td className="py-3 px-4 text-right">{formatCurrency(totalPayablesBilled)}</td>
                         <td className="py-3 px-4 text-right text-emerald-700">{formatCurrency(totalPayablesPaid)}</td>
                         <td className="py-3 px-4 text-right text-rose-700">{formatCurrency(totalOutstandingLiability)}</td>
@@ -709,7 +704,6 @@ export default function ReportsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="font-bold text-slate-900 text-sm">{p.name}</div>
-                          <div className="text-xs text-slate-500 font-mono">GSTIN: {p.taxIdentifier || "—"}</div>
                         </div>
                         <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
                           {p.partyType}
