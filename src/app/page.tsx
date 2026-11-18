@@ -366,8 +366,10 @@ export default function DashboardPage() {
   const [taskViewFilter, setTaskViewFilter] = useState<"ALL" | "MINE">("ALL");
   const [quickTitle, setQuickTitle] = useState("");
   const [quickProjectId, setQuickProjectId] = useState("");
+  const [quickAssigneeId, setQuickAssigneeId] = useState("");
   const [quickPriority, setQuickPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
   const [quickDueAt, setQuickDueAt] = useState("");
+  const [employees, setEmployees] = useState<any[]>([]);
 
   // Attendance state for logged in user
   const [todaySessions, setTodaySessions] = useState<any[]>([]);
@@ -580,8 +582,17 @@ export default function DashboardPage() {
       refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
 
       fetch(`/api/attachments?category=PHOTO&entityType=SITE_PHOTO&limit=12${siteId ? `&projectId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/users?${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
     ])
-      .then(([kpiRes, projRes, taskRes, attRes, wfRes, sitesRes, meRes, photoRes]) => {
+      .then(([kpiRes, projRes, taskRes, attRes, wfRes, sitesRes, meRes, photoRes, usersRes]) => {
+        if (usersRes?.success && usersRes?.data) {
+          const rawUsers = Array.isArray(usersRes.data?.employees)
+            ? usersRes.data.employees
+            : Array.isArray(usersRes.data)
+            ? usersRes.data
+            : [];
+          setEmployees(rawUsers);
+        }
         if (meRes.success && meRes.data) {
           setCurrentUser(meRes.data.user);
         }
@@ -667,6 +678,7 @@ export default function DashboardPage() {
           title: quickTitle.trim(),
           priority: quickPriority,
           dueAt: quickDueAt ? new Date(quickDueAt).toISOString() : new Date().toISOString(),
+          assigneeUserId: quickAssigneeId || undefined,
         }),
       });
 
@@ -676,10 +688,11 @@ export default function DashboardPage() {
         return;
       }
 
-      setStatusMessage(`Task "${data.data.title}" confirmed and saved to database!`);
+      setStatusMessage(`Task "${data.data.title}" created & assigned successfully!`);
       setShowQuickTaskModal(false);
       setQuickTitle("");
       setQuickDueAt("");
+      setQuickAssigneeId("");
       loadDashboard(activeSiteId);
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to create task"}`);
@@ -1490,10 +1503,11 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setShowQuickTaskModal(true)}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
+              title="Create a new site task and assign to project team"
             >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>Quick Task</span>
+              <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>Create / Assign Site Task</span>
             </button>
           </div>
         </div>
@@ -3532,7 +3546,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-amber-500" />
-                  <span>Create Quick Site Task</span>
+                  <span>Create / Assign Site Task</span>
                 </div>
                 <button
                   onClick={() => setShowQuickTaskModal(false)}
@@ -3582,6 +3596,27 @@ export default function DashboardPage() {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Assign To Team Member (Optional)
+                  </label>
+                  <SearchableSelect
+                    options={[
+                      { value: "", label: "Unassigned / General Pool" },
+                      ...employees.map((e) => ({
+                        value: e.id,
+                        label: e.name,
+                        badge: e.role || undefined,
+                        subLabel: e.email || undefined,
+                      })),
+                    ]}
+                    value={quickAssigneeId}
+                    onChange={setQuickAssigneeId}
+                    placeholder="Select team member to assign..."
+                    searchPlaceholder="Search by name, role, email..."
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -3616,15 +3651,16 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => setShowQuickTaskModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm"
+                    disabled={submittingTask}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm cursor-pointer disabled:opacity-50"
                   >
-                    Create & Assign Task
+                    {submittingTask ? "Assigning Task..." : "Create / Assign Site Task"}
                   </button>
                 </div>
               </form>
