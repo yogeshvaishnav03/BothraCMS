@@ -1,19 +1,23 @@
 import { prisma } from "@/lib/db";
 import { alertStaffNow } from "@/services/staff-alerts";
 import { pushToPeople } from "@/lib/push";
+import { calculateInitialReminder } from "@/lib/task-reminder";
 
 export class ReminderService {
   /**
-   * Scans for tasks with reminderAt <= now and reminderDeliveredAt == null,
-   * creates in-app Notification records, and marks reminderDeliveredAt.
-   * Completely idempotent: tasks are never notified twice.
+   * Scans for tasks with reminderAt <= now and reminderDeliveredAt == null (or past cadence),
+   * creates in-app Notification records, and schedules next recurring reminder until completed.
+   * Completely idempotent: tasks are never notified twice in the same cycle.
    */
   static async deliverDueReminders(organizationId?: string): Promise<number> {
     const now = new Date();
 
     const where: any = {
       reminderAt: { lte: now },
-      reminderDeliveredAt: null,
+      OR: [
+        { reminderDeliveredAt: null },
+        { reminderDeliveredAt: { lt: new Date(now.getTime() - 60_000) } },
+      ],
       status: { notIn: ["COMPLETED", "VERIFIED", "CANCELLED", "ARCHIVED"] },
       isArchived: false,
     };
@@ -51,10 +55,14 @@ export class ReminderService {
 
         if (
           !freshTask ||
-          freshTask.reminderDeliveredAt ||
           freshTask.isArchived ||
           ["COMPLETED", "VERIFIED", "CANCELLED", "ARCHIVED"].includes(freshTask.status)
         ) {
+          return;
+        }
+
+        // Avoid duplicate delivery within the same minute
+        if (freshTask.reminderDeliveredAt && freshTask.reminderDeliveredAt.getTime() > now.getTime() - 60_000) {
           return;
         }
 
@@ -94,9 +102,14 @@ export class ReminderService {
           });
         }
 
+        // Reschedule next recurring reminder until completed
+        const nextReminder = calculateInitialReminder(task.priority, now);
         await tx.task.update({
           where: { id: task.id },
-          data: { reminderDeliveredAt: now },
+          data: {
+            reminderDeliveredAt: now,
+            reminderAt: nextReminder,
+          },
         });
 
         deliveredCount++;

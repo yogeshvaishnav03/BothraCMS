@@ -10,6 +10,7 @@ import {
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyPeople } from "@/lib/notify";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
+import { calculateInitialReminder, normalizePriority } from "@/lib/task-reminder";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ const createTaskSchema = z.object({
   projectId: z.string().optional().default(""),
   title: z.string().min(2),
   description: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).default("MEDIUM"),
+  priority: z.enum(["DAILY", "GENERAL", "CRITICAL", "LOW", "MEDIUM", "HIGH"]).default("DAILY"),
   assigneeUserId: z.string().min(1).optional(),
   dueAt: z.string().optional(),
   taskType: z.enum(["STANDARD", "PERSONAL", "REQUEST_OWNER", "REQUEST_MANAGER", "REQUEST_ARCHITECT"]).optional(),
@@ -199,17 +200,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const normalizedPriority = normalizePriority(data.priority);
+    const effectiveReminderAt = data.reminderAt
+      ? new Date(data.reminderAt)
+      : calculateInitialReminder(normalizedPriority);
+
     const task = await prisma.task.create({
       data: {
         organizationId: user.organizationId,
         projectId: effectiveProjectId,
         title: data.title,
         description: data.description,
-        priority: data.priority,
+        priority: normalizedPriority,
         assigneeUserId: targetAssigneeId,
         taskType: resolvedType,
         dueAt: data.dueAt ? new Date(data.dueAt) : null,
-        reminderAt: data.reminderAt ? new Date(data.reminderAt) : null,
+        reminderAt: effectiveReminderAt,
         createdBy: user.userId,
       },
       include: {

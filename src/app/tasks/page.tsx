@@ -37,6 +37,13 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import { canUser } from "@/lib/permissions";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
+import { istDateKey } from "@/lib/ist-date";
+import {
+  TASK_PRIORITY_OPTIONS,
+  formatPriorityLabel,
+  getAutoReminderMessage,
+  normalizePriority,
+} from "@/lib/task-reminder";
 
 // Safely fetch and parse JSON with cache-busting to ensure fresh tables
 async function safeFetchJson(url: string, init?: RequestInit): Promise<any> {
@@ -85,23 +92,18 @@ export default function TasksPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [priority, setPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
-  const [taskType, setTaskType] = useState<
-    "STANDARD" | "PERSONAL" | "REQUEST_OWNER" | "REQUEST_MANAGER" | "REQUEST_ARCHITECT"
-  >("STANDARD");
+  const [priority, setPriority] = useState<string>("DAILY");
   const [assigneeUserId, setAssigneeUserId] = useState("");
-  const [dueAt, setDueAt] = useState("");
-  const [reminderAt, setReminderAt] = useState("");
+  const [dueAt, setDueAt] = useState(() => istDateKey());
 
   // Edit Task Modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  const [editPriority, setEditPriority] = useState("MEDIUM");
+  const [editPriority, setEditPriority] = useState<string>("DAILY");
   const [editAssigneeUserId, setEditAssigneeUserId] = useState("");
-  const [editDueAt, setEditDueAt] = useState("");
-  const [editReminderAt, setEditReminderAt] = useState("");
+  const [editDueAt, setEditDueAt] = useState(() => istDateKey());
   const [editReason, setEditReason] = useState("");
 
   // Status Update Modal state
@@ -312,10 +314,8 @@ export default function TasksPage() {
           title,
           description: description || undefined,
           priority,
-          taskType,
           assigneeUserId: assigneeUserId || undefined,
-          dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
-          reminderAt: reminderAt ? new Date(reminderAt).toISOString() : undefined,
+          dueAt: dueAt ? new Date(dueAt).toISOString() : new Date().toISOString(),
         }),
       });
 
@@ -327,10 +327,9 @@ export default function TasksPage() {
         setShowCreateModal(false);
         setTitle("");
         setDescription("");
-        setDueAt("");
-        setReminderAt("");
+        setDueAt(istDateKey());
         setAssigneeUserId("");
-        setTaskType("STANDARD");
+        setPriority("DAILY");
         setProjectId(projects.length > 0 ? projects[0].id : "OTHER");
         if (data.data) {
           setTasks((prev) => [data.data, ...prev.filter((t) => t.id !== data.data.id)]);
@@ -349,10 +348,9 @@ export default function TasksPage() {
     setEditingTask(task);
     setEditTitle(task.title);
     setEditDescription(task.description || "");
-    setEditPriority(task.priority);
+    setEditPriority(normalizePriority(task.priority));
     setEditAssigneeUserId(task.assigneeUserId || "");
-    setEditDueAt(task.dueAt ? task.dueAt.slice(0, 10) : "");
-    setEditReminderAt(task.reminderAt ? task.reminderAt.slice(0, 16) : "");
+    setEditDueAt(task.dueAt ? task.dueAt.slice(0, 10) : istDateKey());
     setEditReason("");
     setShowEditModal(true);
   };
@@ -373,7 +371,6 @@ export default function TasksPage() {
           priority: editPriority,
           assigneeUserId: editAssigneeUserId || null,
           dueAt: editDueAt ? new Date(editDueAt).toISOString() : null,
-          reminderAt: editReminderAt ? new Date(editReminderAt).toISOString() : null,
           reason: editReason || undefined,
         }),
       });
@@ -736,27 +733,23 @@ export default function TasksPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                          t.priority === "CRITICAL"
+                          normalizePriority(t.priority) === "CRITICAL"
                             ? "bg-rose-100 text-rose-800 border-rose-300"
-                            : t.priority === "HIGH"
-                            ? "bg-amber-100 text-amber-800 border-amber-300"
-                            : t.priority === "MEDIUM"
-                            ? "bg-blue-100 text-blue-800 border-blue-200"
-                            : "bg-slate-100 text-slate-700 border-slate-200"
+                            : normalizePriority(t.priority) === "GENERAL"
+                            ? "bg-sky-100 text-sky-800 border-sky-300"
+                            : "bg-amber-100 text-amber-800 border-amber-300"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            t.priority === "CRITICAL"
+                            normalizePriority(t.priority) === "CRITICAL"
                               ? "bg-rose-600"
-                              : t.priority === "HIGH"
-                              ? "bg-amber-600"
-                              : t.priority === "MEDIUM"
-                              ? "bg-blue-600"
-                              : "bg-slate-500"
+                              : normalizePriority(t.priority) === "GENERAL"
+                              ? "bg-sky-600"
+                              : "bg-amber-600"
                           }`}
                         />
-                        <span>{t.priority}</span>
+                        <span>{formatPriorityLabel(t.priority)}</span>
                       </span>
 
                       <span
@@ -849,10 +842,12 @@ export default function TasksPage() {
                         </span>
                       )}
 
-                      {t.reminderAt && (
-                        <span className="flex items-center gap-1 text-amber-700 text-[11px]">
-                          <Calendar className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Reminder: {formatDate(t.reminderAt)}</span>
+                      {t.reminderAt && !["COMPLETED", "VERIFIED", "CANCELLED", "ARCHIVED"].includes(t.status) && (
+                        <span className="flex items-center gap-1 text-amber-700 text-[11px] font-medium">
+                          <Clock className="w-3.5 h-3.5 text-amber-500" />
+                          <span>
+                            Auto Reminder: {normalizePriority(t.priority) === "CRITICAL" ? "Every 3h" : normalizePriority(t.priority) === "GENERAL" ? "2x/day" : "3x/day"} (Next: {formatDate(t.reminderAt)})
+                          </span>
                         </span>
                       )}
                     </div>
@@ -1026,25 +1021,6 @@ export default function TasksPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Task Type
-                    </label>
-                    <SearchableSelect
-                      options={[
-                        { value: "STANDARD", label: "Standard Task" },
-                        { value: "PERSONAL", label: "Personal Task (My Todo)" },
-                        { value: "REQUEST_OWNER", label: "Raise Request for Owner" },
-                        { value: "REQUEST_MANAGER", label: "Raise Request for Manager" },
-                        { value: "REQUEST_ARCHITECT", label: "Raise Request for Architect" },
-                      ]}
-                      value={taskType}
-                      onChange={(v) => setTaskType(v as any)}
-                      placeholder="Select Task Type..."
-                      searchPlaceholder="Search task type..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Assign To Employee
                     </label>
                     <SearchableSelect
@@ -1062,49 +1038,46 @@ export default function TasksPage() {
                       searchPlaceholder="Search employee name or role..."
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Priority
                     </label>
                     <SearchableSelect
-                      options={[
-                        { value: "LOW", label: "Low" },
-                        { value: "MEDIUM", label: "Medium" },
-                        { value: "HIGH", label: "High" },
-                        { value: "CRITICAL", label: "Critical" },
-                      ]}
+                      options={TASK_PRIORITY_OPTIONS.map((opt) => ({
+                        value: opt.value,
+                        label: opt.label,
+                        badge: opt.badge,
+                        subLabel: opt.description,
+                      }))}
                       value={priority}
                       onChange={(v) => setPriority(v as any)}
                       placeholder="Select Priority..."
                       searchPlaceholder="Search priority..."
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Due Date
-                    </label>
-                    <input
-                      type="date"
-                      value={dueAt}
-                      onChange={(e) => setDueAt(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={dueAt}
+                    onChange={(e) => setDueAt(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
 
+                {/* Auto-reminder schedule info */}
+                <div className="p-3 bg-amber-50/90 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Reminder
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={reminderAt}
-                      onChange={(e) => setReminderAt(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
-                    />
+                    <span className="font-semibold">{getAutoReminderMessage(priority)}</span>
+                    <p className="text-[11px] text-amber-800/80 mt-0.5">
+                      Recurring notifications are automatically dispatched until the task is marked completed or verified.
+                    </p>
                   </div>
                 </div>
 
@@ -1184,10 +1157,11 @@ export default function TasksPage() {
                       onChange={(e) => setEditPriority(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                     >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical</option>
+                      {TASK_PRIORITY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label} ({opt.badge})
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -1210,29 +1184,26 @@ export default function TasksPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Due Date
-                    </label>
-                    <input
-                      type="date"
-                      value={editDueAt}
-                      onChange={(e) => setEditDueAt(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editDueAt}
+                    onChange={(e) => setEditDueAt(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
 
+                {/* Auto-reminder schedule info */}
+                <div className="p-3 bg-amber-50/90 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Reminder
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={editReminderAt}
-                      onChange={(e) => setEditReminderAt(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
-                    />
+                    <span className="font-semibold">{getAutoReminderMessage(editPriority)}</span>
+                    <p className="text-[11px] text-amber-800/80 mt-0.5">
+                      Recurring notifications are automatically dispatched until the task is marked completed or verified.
+                    </p>
                   </div>
                 </div>
 

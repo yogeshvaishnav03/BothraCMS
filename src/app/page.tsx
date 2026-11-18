@@ -10,6 +10,12 @@ import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber } fro
 import { compressImageFile } from "@/lib/image-compression";
 import { istDateKey } from "@/lib/ist-date";
 import {
+  TASK_PRIORITY_OPTIONS,
+  formatPriorityLabel,
+  getAutoReminderMessage,
+  normalizePriority,
+} from "@/lib/task-reminder";
+import {
   FolderKanban,
   CheckSquare,
   HardHat,
@@ -368,10 +374,8 @@ export default function DashboardPage() {
   const [quickDescription, setQuickDescription] = useState("");
   const [quickProjectId, setQuickProjectId] = useState("");
   const [quickAssigneeId, setQuickAssigneeId] = useState("");
-  const [quickTaskType, setQuickTaskType] = useState<string>("STANDARD");
-  const [quickPriority, setQuickPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
-  const [quickDueAt, setQuickDueAt] = useState("");
-  const [quickReminderAt, setQuickReminderAt] = useState("");
+  const [quickPriority, setQuickPriority] = useState<string>("DAILY");
+  const [quickDueAt, setQuickDueAt] = useState(() => istDateKey());
   const [employees, setEmployees] = useState<any[]>([]);
 
   // Attendance state for logged in user
@@ -665,11 +669,9 @@ export default function DashboardPage() {
   const resetQuickTaskForm = () => {
     setQuickTitle("");
     setQuickDescription("");
-    setQuickDueAt("");
-    setQuickReminderAt("");
+    setQuickDueAt(istDateKey());
     setQuickAssigneeId("");
-    setQuickTaskType("STANDARD");
-    setQuickPriority("MEDIUM");
+    setQuickPriority("DAILY");
     setQuickProjectId(projects.length > 0 ? projects[0].id : "OTHER");
   };
 
@@ -692,10 +694,8 @@ export default function DashboardPage() {
           title: quickTitle.trim(),
           description: quickDescription ? quickDescription.trim() : undefined,
           priority: quickPriority,
-          taskType: quickTaskType,
           assigneeUserId: quickAssigneeId || undefined,
-          dueAt: quickDueAt ? new Date(quickDueAt).toISOString() : undefined,
-          reminderAt: quickReminderAt ? new Date(quickReminderAt).toISOString() : undefined,
+          dueAt: quickDueAt ? new Date(quickDueAt).toISOString() : new Date().toISOString(),
         }),
       });
 
@@ -1231,27 +1231,23 @@ export default function DashboardPage() {
                       <span className="font-bold text-slate-900 text-sm">{t.title}</span>
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                          t.priority === "CRITICAL"
+                          normalizePriority(t.priority) === "CRITICAL"
                             ? "bg-rose-100 text-rose-800 border-rose-300"
-                            : t.priority === "HIGH"
-                            ? "bg-amber-100 text-amber-800 border-amber-300"
-                            : t.priority === "MEDIUM"
-                            ? "bg-blue-100 text-blue-800 border-blue-200"
-                            : "bg-slate-100 text-slate-700 border-slate-200"
+                            : normalizePriority(t.priority) === "GENERAL"
+                            ? "bg-sky-100 text-sky-800 border-sky-300"
+                            : "bg-amber-100 text-amber-800 border-amber-300"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            t.priority === "CRITICAL"
+                            normalizePriority(t.priority) === "CRITICAL"
                               ? "bg-rose-600"
-                              : t.priority === "HIGH"
-                              ? "bg-amber-600"
-                              : t.priority === "MEDIUM"
-                              ? "bg-blue-600"
-                              : "bg-slate-500"
+                              : normalizePriority(t.priority) === "GENERAL"
+                              ? "bg-sky-600"
+                              : "bg-amber-600"
                           }`}
                         />
-                        <span>{t.priority}</span>
+                        <span>{formatPriorityLabel(t.priority)}</span>
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
@@ -1303,27 +1299,23 @@ export default function DashboardPage() {
                       <span className="font-bold text-slate-900 text-sm">{t.title}</span>
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                          t.priority === "CRITICAL"
+                          normalizePriority(t.priority) === "CRITICAL"
                             ? "bg-rose-100 text-rose-800 border-rose-300"
-                            : t.priority === "HIGH"
-                            ? "bg-amber-100 text-amber-800 border-amber-300"
-                            : t.priority === "MEDIUM"
-                            ? "bg-blue-100 text-blue-800 border-blue-200"
-                            : "bg-slate-100 text-slate-700 border-slate-200"
+                            : normalizePriority(t.priority) === "GENERAL"
+                            ? "bg-sky-100 text-sky-800 border-sky-300"
+                            : "bg-amber-100 text-amber-800 border-amber-300"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            t.priority === "CRITICAL"
+                            normalizePriority(t.priority) === "CRITICAL"
                               ? "bg-rose-600"
-                              : t.priority === "HIGH"
-                              ? "bg-amber-600"
-                              : t.priority === "MEDIUM"
-                              ? "bg-blue-600"
-                              : "bg-slate-500"
+                              : normalizePriority(t.priority) === "GENERAL"
+                              ? "bg-sky-600"
+                              : "bg-amber-600"
                           }`}
                         />
-                        <span>{t.priority}</span>
+                        <span>{formatPriorityLabel(t.priority)}</span>
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
@@ -1967,27 +1959,23 @@ export default function DashboardPage() {
                               <span className="font-bold text-slate-900 text-sm">{t.title}</span>
                               <span
                                 className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                                  t.priority === "CRITICAL"
+                                  normalizePriority(t.priority) === "CRITICAL"
                                     ? "bg-rose-100 text-rose-800 border-rose-300"
-                                    : t.priority === "HIGH"
-                                    ? "bg-amber-100 text-amber-800 border-amber-300"
-                                    : t.priority === "MEDIUM"
-                                    ? "bg-blue-100 text-blue-800 border-blue-200"
-                                    : "bg-slate-100 text-slate-700 border-slate-200"
+                                    : normalizePriority(t.priority) === "GENERAL"
+                                    ? "bg-sky-100 text-sky-800 border-sky-300"
+                                    : "bg-amber-100 text-amber-800 border-amber-300"
                                 }`}
                               >
                                 <span
                                   className={`w-1.5 h-1.5 rounded-full ${
-                                    t.priority === "CRITICAL"
+                                    normalizePriority(t.priority) === "CRITICAL"
                                       ? "bg-rose-600"
-                                      : t.priority === "HIGH"
-                                      ? "bg-amber-600"
-                                      : t.priority === "MEDIUM"
-                                      ? "bg-blue-600"
-                                      : "bg-slate-500"
+                                      : normalizePriority(t.priority) === "GENERAL"
+                                      ? "bg-sky-600"
+                                      : "bg-amber-600"
                                   }`}
                                 />
-                                <span>{t.priority}</span>
+                                <span>{formatPriorityLabel(t.priority)}</span>
                               </span>
                               {isOverdue && (
                                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
@@ -2745,27 +2733,23 @@ export default function DashboardPage() {
                             </Link>
                             <span
                               className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                                t.priority === "CRITICAL"
+                                normalizePriority(t.priority) === "CRITICAL"
                                   ? "bg-rose-100 text-rose-800 border-rose-300"
-                                  : t.priority === "HIGH"
-                                  ? "bg-amber-100 text-amber-800 border-amber-300"
-                                  : t.priority === "MEDIUM"
-                                  ? "bg-blue-100 text-blue-800 border-blue-200"
-                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                                  : normalizePriority(t.priority) === "GENERAL"
+                                  ? "bg-sky-100 text-sky-800 border-sky-300"
+                                  : "bg-amber-100 text-amber-800 border-amber-300"
                               }`}
                             >
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${
-                                  t.priority === "CRITICAL"
+                                  normalizePriority(t.priority) === "CRITICAL"
                                     ? "bg-rose-600"
-                                    : t.priority === "HIGH"
-                                    ? "bg-amber-600"
-                                    : t.priority === "MEDIUM"
-                                    ? "bg-blue-600"
-                                    : "bg-slate-500"
+                                    : normalizePriority(t.priority) === "GENERAL"
+                                    ? "bg-sky-600"
+                                    : "bg-amber-600"
                                 }`}
                               />
-                              <span>{t.priority}</span>
+                              <span>{formatPriorityLabel(t.priority)}</span>
                             </span>
 
                             {isOverdue && (
@@ -3222,27 +3206,23 @@ export default function DashboardPage() {
                             </Link>
                             <span
                               className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                                t.priority === "CRITICAL"
+                                normalizePriority(t.priority) === "CRITICAL"
                                   ? "bg-rose-100 text-rose-800 border-rose-300"
-                                  : t.priority === "HIGH"
-                                  ? "bg-amber-100 text-amber-800 border-amber-300"
-                                  : t.priority === "MEDIUM"
-                                  ? "bg-blue-100 text-blue-800 border-blue-200"
-                                  : "bg-slate-100 text-slate-700 border-slate-200"
+                                  : normalizePriority(t.priority) === "GENERAL"
+                                  ? "bg-sky-100 text-sky-800 border-sky-300"
+                                  : "bg-amber-100 text-amber-800 border-amber-300"
                               }`}
                             >
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${
-                                  t.priority === "CRITICAL"
+                                  normalizePriority(t.priority) === "CRITICAL"
                                     ? "bg-rose-600"
-                                    : t.priority === "HIGH"
-                                    ? "bg-amber-600"
-                                    : t.priority === "MEDIUM"
-                                    ? "bg-blue-600"
-                                    : "bg-slate-500"
+                                    : normalizePriority(t.priority) === "GENERAL"
+                                    ? "bg-sky-600"
+                                    : "bg-amber-600"
                                 }`}
                               />
-                              <span>{t.priority}</span>
+                              <span>{formatPriorityLabel(t.priority)}</span>
                             </span>
 
                             {isOverdue && (
@@ -3638,25 +3618,6 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Task Type
-                    </label>
-                    <SearchableSelect
-                      options={[
-                        { value: "STANDARD", label: "Standard Task" },
-                        { value: "PERSONAL", label: "Personal Task (My Todo)" },
-                        { value: "REQUEST_OWNER", label: "Raise Request for Owner" },
-                        { value: "REQUEST_MANAGER", label: "Raise Request for Manager" },
-                        { value: "REQUEST_ARCHITECT", label: "Raise Request for Architect" },
-                      ]}
-                      value={quickTaskType}
-                      onChange={(v) => setQuickTaskType(v as any)}
-                      placeholder="Select Task Type..."
-                      searchPlaceholder="Search task type..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Assign To Employee
                     </label>
                     <SearchableSelect
@@ -3674,49 +3635,46 @@ export default function DashboardPage() {
                       searchPlaceholder="Search employee name or role..."
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Priority
                     </label>
                     <SearchableSelect
-                      options={[
-                        { value: "LOW", label: "Low" },
-                        { value: "MEDIUM", label: "Medium" },
-                        { value: "HIGH", label: "High" },
-                        { value: "CRITICAL", label: "Critical" },
-                      ]}
+                      options={TASK_PRIORITY_OPTIONS.map((opt) => ({
+                        value: opt.value,
+                        label: opt.label,
+                        badge: opt.badge,
+                        subLabel: opt.description,
+                      }))}
                       value={quickPriority}
                       onChange={(v) => setQuickPriority(v as any)}
                       placeholder="Select Priority..."
                       searchPlaceholder="Search priority..."
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Due Date
-                    </label>
-                    <input
-                      type="date"
-                      value={quickDueAt}
-                      onChange={(e) => setQuickDueAt(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={quickDueAt}
+                    onChange={(e) => setQuickDueAt(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
 
+                {/* Auto Reminder notification banner */}
+                <div className="p-3 bg-amber-50/90 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Reminder
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={quickReminderAt}
-                      onChange={(e) => setQuickReminderAt(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
-                    />
+                    <span className="font-semibold">{getAutoReminderMessage(quickPriority)}</span>
+                    <p className="text-[11px] text-amber-800/80 mt-0.5">
+                      Recurring notifications are automatically dispatched until the task is marked completed or verified.
+                    </p>
                   </div>
                 </div>
 

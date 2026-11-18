@@ -7,6 +7,12 @@ import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatCompactINR, formatCompactNumber, formatDate } from "@/lib/formatters";
 import { istDateKey } from "@/lib/ist-date";
+import {
+  TASK_PRIORITY_OPTIONS,
+  formatPriorityLabel,
+  getAutoReminderMessage,
+  normalizePriority,
+} from "@/lib/task-reminder";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   FolderKanban,
@@ -79,12 +85,10 @@ export default function ProjectDetailsPage() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
-  const [taskPriority, setTaskPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
-  const [taskType, setTaskType] = useState<"STANDARD" | "PERSONAL" | "REQUEST_OWNER" | "REQUEST_MANAGER" | "REQUEST_ARCHITECT">("STANDARD");
+  const [taskPriority, setTaskPriority] = useState<string>("DAILY");
   const [taskAssigneeId, setTaskAssigneeId] = useState("");
   const [taskTrade, setTaskTrade] = useState("");
-  const [taskDueDate, setTaskDueDate] = useState("");
-  const [taskReminderDate, setTaskReminderDate] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState(() => istDateKey());
   const [employees, setEmployees] = useState<any[]>([]);
 
   const [showReportModal, setShowReportModal] = useState(false);
@@ -191,10 +195,8 @@ export default function ProjectDetailsPage() {
           title: taskTitle.trim(),
           description: finalDescription || undefined,
           priority: taskPriority,
-          taskType: taskType,
           assigneeUserId: taskAssigneeId || undefined,
           dueAt: taskDueDate ? new Date(taskDueDate).toISOString() : new Date().toISOString(),
-          reminderAt: taskReminderDate ? new Date(taskReminderDate).toISOString() : undefined,
         }),
       });
 
@@ -208,12 +210,10 @@ export default function ProjectDetailsPage() {
       setShowTaskModal(false);
       setTaskTitle("");
       setTaskDescription("");
-      setTaskPriority("MEDIUM");
-      setTaskType("STANDARD");
+      setTaskPriority("DAILY");
       setTaskAssigneeId("");
       setTaskTrade("");
-      setTaskDueDate("");
-      setTaskReminderDate("");
+      setTaskDueDate(istDateKey());
       loadProject();
     } catch (err: any) {
       setErrorMessage(`Network error while creating task. Check your connection and try again.${err.message ? ` (${err.message})` : ""}`);
@@ -672,27 +672,23 @@ export default function ProjectDetailsPage() {
                     <div className="flex items-center gap-2">
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
-                          task.priority === "CRITICAL"
+                          normalizePriority(task.priority) === "CRITICAL"
                             ? "bg-rose-100 text-rose-800 border-rose-300"
-                            : task.priority === "HIGH"
-                            ? "bg-amber-100 text-amber-800 border-amber-300"
-                            : task.priority === "MEDIUM"
-                            ? "bg-blue-100 text-blue-800 border-blue-200"
-                            : "bg-slate-100 text-slate-700 border-slate-200"
+                            : normalizePriority(task.priority) === "GENERAL"
+                            ? "bg-sky-100 text-sky-800 border-sky-300"
+                            : "bg-amber-100 text-amber-800 border-amber-300"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            task.priority === "CRITICAL"
+                            normalizePriority(task.priority) === "CRITICAL"
                               ? "bg-rose-600"
-                              : task.priority === "HIGH"
-                              ? "bg-amber-600"
-                              : task.priority === "MEDIUM"
-                              ? "bg-blue-600"
-                              : "bg-slate-500"
+                              : normalizePriority(task.priority) === "GENERAL"
+                              ? "bg-sky-600"
+                              : "bg-amber-600"
                           }`}
                         />
-                        <span>{task.priority}</span>
+                        <span>{formatPriorityLabel(task.priority)}</span>
                       </span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                         {task.status}
@@ -1028,47 +1024,6 @@ export default function ProjectDetailsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
-                      <Tag className="w-3.5 h-3.5 text-slate-400" />
-                      Task Type
-                    </label>
-                    <SearchableSelect
-                      options={[
-                        { value: "STANDARD", label: "Standard Site Task" },
-                        { value: "PERSONAL", label: "Personal Task (My Todo)" },
-                        { value: "REQUEST_OWNER", label: "Raise Request for Owner" },
-                        { value: "REQUEST_MANAGER", label: "Raise Request for Manager" },
-                        { value: "REQUEST_ARCHITECT", label: "Raise Request for Architect" },
-                      ]}
-                      value={taskType}
-                      onChange={(v) => setTaskType(v as any)}
-                      placeholder="Select Task Type..."
-                      searchPlaceholder="Search task type..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
-                      <Flag className="w-3.5 h-3.5 text-slate-400" />
-                      Priority
-                    </label>
-                    <SearchableSelect
-                      options={[
-                        { value: "LOW", label: "Low" },
-                        { value: "MEDIUM", label: "Medium" },
-                        { value: "HIGH", label: "High" },
-                        { value: "CRITICAL", label: "Critical (Urgent / Blocker)" },
-                      ]}
-                      value={taskPriority}
-                      onChange={(v) => setTaskPriority(v as any)}
-                      placeholder="Select Priority..."
-                      searchPlaceholder="Search priority..."
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
                       <UserCheck className="w-3.5 h-3.5 text-slate-400" />
                       Assign To Employee
                     </label>
@@ -1118,6 +1073,25 @@ export default function ProjectDetailsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                      <Flag className="w-3.5 h-3.5 text-slate-400" />
+                      Priority
+                    </label>
+                    <SearchableSelect
+                      options={TASK_PRIORITY_OPTIONS.map((opt) => ({
+                        value: opt.value,
+                        label: opt.label,
+                        badge: opt.badge,
+                        subLabel: opt.description,
+                      }))}
+                      value={taskPriority}
+                      onChange={(v) => setTaskPriority(v as any)}
+                      placeholder="Select Priority..."
+                      searchPlaceholder="Search priority..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
                       Target Due Date
                     </label>
@@ -1128,18 +1102,16 @@ export default function ProjectDetailsPage() {
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
                     />
                   </div>
+                </div>
 
+                {/* Auto-reminder schedule info */}
+                <div className="p-3 bg-amber-50/90 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
-                      <Bell className="w-3.5 h-3.5 text-slate-400" />
-                      Reminder Date (Optional)
-                    </label>
-                    <input
-                      type="date"
-                      value={taskReminderDate}
-                      onChange={(e) => setTaskReminderDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                    />
+                    <span className="font-semibold">{getAutoReminderMessage(taskPriority)}</span>
+                    <p className="text-[11px] text-amber-800/80 mt-0.5">
+                      Recurring notifications are automatically dispatched until the task is marked completed or verified.
+                    </p>
                   </div>
                 </div>
 

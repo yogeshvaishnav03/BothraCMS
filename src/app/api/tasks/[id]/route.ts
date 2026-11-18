@@ -4,13 +4,14 @@ import { prisma } from "@/lib/db";
 import { requireUserContext, requireProjectAccess, requirePermission } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyTaskUpdate, notifyTaskAssigned } from "@/lib/task-notifications";
+import { calculateInitialReminder, normalizePriority } from "@/lib/task-reminder";
 
 export const dynamic = "force-dynamic";
 
 const editTaskSchema = z.object({
   title: z.string().min(2).optional(),
   description: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
+  priority: z.enum(["DAILY", "GENERAL", "CRITICAL", "LOW", "MEDIUM", "HIGH"]).optional(),
   assigneeUserId: z.string().optional(),
   dueAt: z.string().optional(),
   taskType: z.enum(["STANDARD", "PERSONAL", "REQUEST_OWNER", "REQUEST_MANAGER", "REQUEST_ARCHITECT"]).optional(),
@@ -86,7 +87,14 @@ export async function PATCH(
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title.trim();
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.priority !== undefined) updateData.priority = data.priority;
+    if (data.priority !== undefined) {
+      const normPriority = normalizePriority(data.priority);
+      updateData.priority = normPriority;
+      if (data.reminderAt === undefined && normPriority !== task.priority) {
+        updateData.reminderAt = calculateInitialReminder(normPriority);
+        updateData.reminderDeliveredAt = null;
+      }
+    }
     if (data.assigneeUserId !== undefined) {
       if (data.assigneeUserId) {
         const targetAssignee = await prisma.user.findFirst({
