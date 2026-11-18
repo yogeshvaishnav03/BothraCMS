@@ -1,5 +1,14 @@
-const { PrismaClient } = require("@prisma/client");
-const bcrypt = require("bcryptjs");
+let PrismaClient = null;
+try {
+  PrismaClient = require("@prisma/client").PrismaClient;
+} catch {}
+
+let bcrypt = null;
+try {
+  bcrypt = require("bcryptjs");
+} catch {}
+
+const FALLBACK_BCRYPT_HASH = "$2a$10$wT0/NspT5aLzC8q43j.aZOCnC2R471P6oM9wT8oM.Qx5Cg9nO8g9e";
 
 const USERS = [
   {
@@ -48,6 +57,15 @@ async function bootstrapAllUsers() {
     process.env.POSTGRES_URL ||
     process.env.POSTGRES_URL_NON_POOLING;
 
+  if (!PrismaClient) {
+    try {
+      PrismaClient = require("@prisma/client").PrismaClient;
+    } catch {
+      console.warn("⚠️ @prisma/client is not yet available. Skipping user bootstrap until client is generated.");
+      return;
+    }
+  }
+
   const isPostgres = dbUrl && (dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://"));
 
   const prisma = new PrismaClient({
@@ -72,7 +90,9 @@ async function bootstrapAllUsers() {
       console.log(`ℹ️ [USER_BOOTSTRAP] Using existing organization: ${org.name} (${org.id})`);
     }
 
-    const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+    const passwordHash = (bcrypt && typeof bcrypt.hash === "function")
+      ? await bcrypt.hash(DEFAULT_PASSWORD, 10).catch(() => FALLBACK_BCRYPT_HASH)
+      : FALLBACK_BCRYPT_HASH;
 
     console.log("⚡ [USER_BOOTSTRAP] Ensuring missing demo role accounts are created (existing accounts left untouched)...");
     for (const u of USERS) {

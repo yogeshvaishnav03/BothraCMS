@@ -153,6 +153,40 @@ export async function ensurePostgresColumns() {
       await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "assignedSiteIdsJson" TEXT;`).catch(() => {});
       await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "extraPermissionsJson" TEXT;`).catch(() => {});
       await prisma.$executeRawUnsafe(`ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "contractorId" TEXT;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Attachment" ADD COLUMN IF NOT EXISTS "attendanceSessionId" TEXT;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "AttendanceSession" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "organizationId" TEXT NOT NULL,
+          "workforceMemberId" TEXT NOT NULL,
+          "siteId" TEXT NOT NULL,
+          "projectId" TEXT,
+          "workDate" TEXT NOT NULL,
+          "checkInAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "checkInLat" DOUBLE PRECISION,
+          "checkInLng" DOUBLE PRECISION,
+          "checkInAccuracyM" DOUBLE PRECISION,
+          "checkOutAt" TIMESTAMP(3),
+          "checkOutLat" DOUBLE PRECISION,
+          "checkOutLng" DOUBLE PRECISION,
+          "checkOutAccuracyM" DOUBLE PRECISION,
+          "status" TEXT NOT NULL DEFAULT 'PRESENT',
+          "notes" TEXT,
+          "correctedBy" TEXT,
+          "correctionReason" TEXT,
+          "isArchived" BOOLEAN NOT NULL DEFAULT false,
+          "archivedAt" TIMESTAMP(3),
+          "archivedById" TEXT,
+          "archiveReason" TEXT,
+          "createdBy" TEXT NOT NULL DEFAULT 'SYSTEM',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `).catch(() => {});
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "AttendanceSession_organizationId_siteId_workDate_idx" 
+        ON "AttendanceSession"("organizationId", "siteId", "workDate");
+      `).catch(() => {});
       ddlSynced = true;
     }
   } catch {}

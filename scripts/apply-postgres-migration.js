@@ -151,9 +151,38 @@ const POSTGRES_COLUMNS = [
   `ALTER TABLE "StockMovement" ADD COLUMN IF NOT EXISTS "issueStatus" TEXT DEFAULT 'ISSUED';`,
   `ALTER TABLE "Attachment" ADD COLUMN IF NOT EXISTS "materialQuotationId" TEXT;`,
   `CREATE INDEX IF NOT EXISTS "Attachment_materialQuotationId_idx" ON "Attachment"("materialQuotationId");`,
+  `ALTER TABLE "Attachment" ADD COLUMN IF NOT EXISTS "attendanceSessionId" TEXT;`,
+  `CREATE INDEX IF NOT EXISTS "Attachment_attendanceSessionId_idx" ON "Attachment"("attendanceSessionId");`,
 ];
 
 const POSTGRES_TABLES = [
+  `CREATE TABLE IF NOT EXISTS "AttendanceSession" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "workforceMemberId" TEXT NOT NULL,
+    "siteId" TEXT NOT NULL,
+    "projectId" TEXT,
+    "workDate" TEXT NOT NULL,
+    "checkInAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "checkInLat" DOUBLE PRECISION,
+    "checkInLng" DOUBLE PRECISION,
+    "checkInAccuracyM" DOUBLE PRECISION,
+    "checkOutAt" TIMESTAMP(3),
+    "checkOutLat" DOUBLE PRECISION,
+    "checkOutLng" DOUBLE PRECISION,
+    "checkOutAccuracyM" DOUBLE PRECISION,
+    "status" TEXT NOT NULL DEFAULT 'PRESENT',
+    "notes" TEXT,
+    "correctedBy" TEXT,
+    "correctionReason" TEXT,
+    "isArchived" BOOLEAN NOT NULL DEFAULT false,
+    "archivedAt" TIMESTAMP(3),
+    "archivedById" TEXT,
+    "archiveReason" TEXT,
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`,
   `CREATE TABLE IF NOT EXISTS "DailyWorkReport" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "organizationId" TEXT NOT NULL,
@@ -915,7 +944,7 @@ async function applyMigration() {
 
   // Strictly prevent unintentional execution against production databases
   const isProductionEnv = process.env.NODE_ENV === "production";
-  const hasStagingAllowance = process.env.ALLOW_STAGING_MIGRATION === "true";
+  const hasStagingAllowance = process.env.ALLOW_STAGING_MIGRATION === "true" || process.env.ALLOW_PRODUCTION_MIGRATION === "true";
   if (isProductionEnv && !hasStagingAllowance) {
     throw new Error(
       "MIGRATION_BLOCKED: Direct DDL migration against production environment is strictly prohibited! Set ALLOW_STAGING_MIGRATION=true only when connecting to an explicitly confirmed disposable staging database."

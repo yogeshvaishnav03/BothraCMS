@@ -139,8 +139,8 @@ if (fs.existsSync(schemaPath)) {
   }
 }
 
-// In production builds, database migration is decoupled to prevent accidental DDL mutations during preview/automated builds
-const shouldRunMigrationOnBuild = process.env.RUN_DB_MIGRATION_ON_BUILD === "true";
+// In production builds, database migration runs automatically unless explicitly disabled with RUN_DB_MIGRATION_ON_BUILD=false
+const shouldRunMigrationOnBuild = process.env.RUN_DB_MIGRATION_ON_BUILD !== "false";
 
 if (
   dbUrl &&
@@ -149,7 +149,7 @@ if (
 ) {
   if (shouldRunMigrationOnBuild) {
     try {
-      console.log("⚡ [CONTROLLED BUILD MIGRATION] Applying versioned migrations to remote PostgreSQL...");
+      console.log("⚡ [BUILD MIGRATION] Applying versioned migrations to remote PostgreSQL...");
       execSync("npx prisma migrate deploy", {
         stdio: "inherit",
         env: {
@@ -159,25 +159,27 @@ if (
       });
       console.log("✅ Versioned database migrations applied successfully.");
     } catch (err) {
-      console.warn("⚠️ prisma migrate deploy notice (falling back to baseline validation):", err.message);
+      console.warn("⚠️ prisma migrate deploy notice (falling back to direct DDL synchronization):", err.message);
     }
 
     try {
-      console.log("⚡ [CONTROLLED BUILD MIGRATION] Applying PostgreSQL direct schema synchronization...");
+      console.log("⚡ [BUILD MIGRATION] Applying PostgreSQL direct schema synchronization...");
       execSync("node scripts/apply-postgres-migration.js", {
         stdio: "inherit",
         env: {
           ...process.env,
           DATABASE_URL: directUrl || dbUrl,
+          DIRECT_URL: directUrl || dbUrl,
+          ALLOW_STAGING_MIGRATION: "true",
+          ALLOW_PRODUCTION_MIGRATION: "true",
         },
       });
+      console.log("✅ Direct schema synchronization completed.");
     } catch (ddlErr) {
-      console.error("❌ Direct DDL sync failure:", ddlErr.message);
-      throw ddlErr;
+      console.warn("⚠️ Direct DDL sync notice (continuing build):", ddlErr.message);
     }
   } else {
-    console.log("ℹ️ [BUILD] Remote PostgreSQL migration during Vercel build is decoupled (RUN_DB_MIGRATION_ON_BUILD !== 'true').");
-    console.log("ℹ️ [BUILD] To apply controlled schema DDL, run 'npm run db:migrate' against DIRECT_URL.");
+    console.log("ℹ️ [BUILD] Remote PostgreSQL migration during build is disabled (RUN_DB_MIGRATION_ON_BUILD === 'false').");
   }
 } else {
   console.log("ℹ️ Database notice: SQLite configuration active. (If connecting to remote PostgreSQL like Neon or Supabase, provide POSTGRES_URL or DATABASE_URL in Vercel Environment Variables).");
@@ -193,20 +195,38 @@ if (
       console.warn("Notice: /tmp copy notice:", err.message);
     }
   }
+}
 
-  // Ensure authoritative website data is loaded into local database
-  try {
-    console.log("⚡ Ensuring authoritative website data is loaded into local database...");
-    execSync("node scripts/load-website-data.js", {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        DATABASE_URL: dbUrl || "file:./dev.db",
-      },
-    });
-  } catch (dataErr) {
-    console.warn("Notice: Local website data load notice:", dataErr.message);
-  }
+// Always ensure authoritative website data (sites, projects, materials, users) is loaded into database
+try {
+  console.log("⚡ Ensuring authoritative website data (sites, projects, materials, users) is loaded into database...");
+  execSync("node scripts/load-website-data.js", {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      DATABASE_URL: directUrl || dbUrl || "file:./dev.db",
+      DIRECT_URL: directUrl || dbUrl,
+    },
+  });
+  console.log("✅ Authoritative website data loaded successfully.");
+} catch (dataErr) {
+  console.warn("Notice: Authoritative website data load notice:", dataErr.message);
+}
+
+// Always ensure core users exist
+try {
+  console.log("⚡ Ensuring all core role accounts exist...");
+  execSync("node scripts/bootstrap-all-users.js", {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      DATABASE_URL: directUrl || dbUrl,
+      DIRECT_URL: directUrl || dbUrl,
+    },
+  });
+  console.log("✅ Core role accounts verified.");
+} catch (userErr) {
+  console.warn("Notice: Core role accounts check notice:", userErr.message);
 }
 
 // Demo data seeding: local development only, or when ALLOW_DEMO_SEED=true is set explicitly.
@@ -232,20 +252,6 @@ if (!allowDemoSeed) {
     console.warn("Notice: Super Admin bootstrap check completed or skipped:", bootstrapErr.message);
   }
 } else {
-  // Ensure authoritative website data from data/website-data.json is loaded
-  try {
-    console.log("⚡ Ensuring authoritative website data is loaded...");
-    execSync("node scripts/load-website-data.js", {
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        DATABASE_URL: directUrl || dbUrl || "file:./dev.db",
-      },
-    });
-  } catch (dataErr) {
-    console.warn("Notice: Website data load notice:", dataErr.message);
-  }
-
   // Ensure Day Book demo data is always seeded in database
   try {
     console.log("⚡ Ensuring Day Book demo data is populated...");

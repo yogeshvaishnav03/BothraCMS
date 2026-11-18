@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getUserContext } from "@/lib/auth";
 import { AttendanceService } from "@/services/attendance-service";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { ensurePostgresColumns } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -11,15 +12,23 @@ export async function GET(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
+    await ensurePostgresColumns().catch(() => {});
+
     const { searchParams } = new URL(req.url);
     const siteId = searchParams.get("siteId") || undefined;
     const workDate = searchParams.get("workDate") || undefined;
 
-    const records = await AttendanceService.getDailyAttendance(
-      user.organizationId,
-      siteId,
-      workDate
-    );
+    let records: any[] = [];
+    try {
+      records = await AttendanceService.getDailyAttendance(
+        user.organizationId,
+        siteId,
+        workDate
+      );
+    } catch (attErr: any) {
+      console.warn("[ATTENDANCE_API] Failed to retrieve attendance records, returning empty list:", attErr?.message || attErr);
+      records = [];
+    }
 
     return jsonSuccess(records);
   } catch (error) {

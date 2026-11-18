@@ -718,6 +718,95 @@ async function loadWebsiteData(options = {}) {
       counts.measurementBookEntries++;
     }
 
+    // 13. Initial Tasks & Attendance Sessions if empty
+    const currentTasks = await prisma.task.count({ where: { organizationId: orgId } }).catch(() => 0);
+    if (currentTasks === 0) {
+      console.log("📋 Seeding initial operational tasks for projects...");
+      const allProjects = await prisma.project.findMany({ where: { organizationId: orgId } }).catch(() => []);
+      const masterUser = (await prisma.user.findFirst({ where: { organizationId: orgId, role: "SUPER_ADMIN" } })) ||
+                         (await prisma.user.findFirst({ where: { organizationId: orgId } }));
+      if (allProjects.length > 0 && masterUser) {
+        const taskDefs = [
+          {
+            proj: allProjects[0],
+            title: "Foundation raft reinforcement and concrete pour inspection",
+            desc: "Verify rebar lap lengths, chair spacing, and clear covers before concrete batching begins.",
+            priority: "HIGH",
+            status: "IN_PROGRESS",
+            daysDue: 2,
+          },
+          {
+            proj: allProjects[1] || allProjects[0],
+            title: "Column shuttering line and plumb verification",
+            desc: "Inspect line, level, and plumb of 4th floor structural columns.",
+            priority: "MEDIUM",
+            status: "TODO",
+            daysDue: 4,
+          },
+          {
+            proj: allProjects[2] || allProjects[0],
+            title: "Basement retaining wall waterproofing test",
+            desc: "48-hour ponding test for waterproofing membrane integrity.",
+            priority: "CRITICAL",
+            status: "TODO",
+            daysDue: 1,
+          },
+          {
+            proj: allProjects[3] || allProjects[0],
+            title: "Aggregate base compaction density report check",
+            desc: "Examine lab test report for subgrade compaction degree >= 98%.",
+            priority: "MEDIUM",
+            status: "COMPLETED",
+            daysDue: -1,
+            completed: true,
+          },
+        ];
+
+        for (const t of taskDefs) {
+          await prisma.task.create({
+            data: {
+              organizationId: orgId,
+              projectId: t.proj.id,
+              title: t.title,
+              description: t.desc,
+              priority: t.priority,
+              status: t.status,
+              dueAt: new Date(Date.now() + t.daysDue * 86400000),
+              completedAt: t.completed ? new Date() : null,
+              completedById: t.completed ? masterUser.id : null,
+              createdBy: masterUser.id,
+              assigneeUserId: masterUser.id,
+            },
+          }).catch(() => {});
+          counts.tasks = (counts.tasks || 0) + 1;
+        }
+      }
+    }
+
+    const currentAtt = await prisma.attendanceSession.count({ where: { organizationId: orgId } }).catch(() => 0);
+    if (currentAtt === 0) {
+      console.log("⏱️ Seeding initial attendance check-in session...");
+      const firstSite = await prisma.site.findFirst({ where: { organizationId: orgId } }).catch(() => null);
+      const firstWorker = await prisma.workforceMember.findFirst({ where: { organizationId: orgId } }).catch(() => null);
+      const masterUser = await prisma.user.findFirst({ where: { organizationId: orgId } }).catch(() => null);
+      if (firstSite && firstWorker && masterUser) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        await prisma.attendanceSession.create({
+          data: {
+            organizationId: orgId,
+            siteId: firstSite.id,
+            workforceMemberId: firstWorker.id,
+            workDate: todayStr,
+            checkInAt: new Date(),
+            status: "PRESENT",
+            notes: "Initial on-site shift attendance record",
+            createdBy: masterUser.id,
+          },
+        }).catch(() => {});
+        counts.attendanceSessions = (counts.attendanceSessions || 0) + 1;
+      }
+    }
+
     const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log("\n============================================================");
     console.log(`✅ WEBSITE DATA LOAD COMPLETED IN ${durationSec}s!`);
