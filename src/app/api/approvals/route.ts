@@ -70,7 +70,6 @@ export async function GET(req: NextRequest) {
             },
             include: {
               entry: true,
-              requester: { select: { id: true, name: true, role: true } },
             },
             orderBy: { createdAt: "desc" },
             take: 15,
@@ -117,9 +116,9 @@ export async function GET(req: NextRequest) {
       status: mc.status,
       projectName: "Measurement Book",
       siteName: "Site",
-      requestedBy: mc.requester?.name || "Engineer",
-      requestedByRole: mc.requester?.role || "SITE_SUPERVISOR",
-      rejectionReason: mc.reviewComment || null,
+      requestedBy: mc.requestedByName || "Engineer",
+      requestedByRole: mc.requestedRole || "SITE_SUPERVISOR",
+      rejectionReason: mc.reviewerComments || null,
       date: mc.createdAt.toISOString(),
     }));
 
@@ -215,9 +214,10 @@ export async function POST(req: NextRequest) {
         where: { id: data.entityId },
         data: {
           status: data.action === "APPROVE" ? "APPROVED" : "REJECTED",
-          reviewerUserId: user.userId,
+          reviewedBy: user.userId,
+          reviewedByName: user.name || "Administrator",
+          reviewerComments: data.reason || (data.action === "APPROVE" ? "Approved" : "Rejected"),
           reviewedAt: new Date(),
-          reviewComment: data.reason || (data.action === "APPROVE" ? "Approved" : "Rejected"),
         },
       });
     }
