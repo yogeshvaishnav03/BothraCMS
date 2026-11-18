@@ -365,10 +365,13 @@ export default function DashboardPage() {
   const [taskFilterOverdueOnly, setTaskFilterOverdueOnly] = useState(false);
   const [taskViewFilter, setTaskViewFilter] = useState<"ALL" | "MINE">("ALL");
   const [quickTitle, setQuickTitle] = useState("");
+  const [quickDescription, setQuickDescription] = useState("");
   const [quickProjectId, setQuickProjectId] = useState("");
   const [quickAssigneeId, setQuickAssigneeId] = useState("");
+  const [quickTaskType, setQuickTaskType] = useState<string>("STANDARD");
   const [quickPriority, setQuickPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
   const [quickDueAt, setQuickDueAt] = useState("");
+  const [quickReminderAt, setQuickReminderAt] = useState("");
   const [employees, setEmployees] = useState<any[]>([]);
 
   // Attendance state for logged in user
@@ -659,6 +662,17 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const resetQuickTaskForm = () => {
+    setQuickTitle("");
+    setQuickDescription("");
+    setQuickDueAt("");
+    setQuickReminderAt("");
+    setQuickAssigneeId("");
+    setQuickTaskType("STANDARD");
+    setQuickPriority("MEDIUM");
+    setQuickProjectId(projects.length > 0 ? projects[0].id : "OTHER");
+  };
+
   const handleQuickTaskSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickTitle.trim() || submittingTask) return;
@@ -676,9 +690,12 @@ export default function DashboardPage() {
         body: JSON.stringify({
           projectId: targetProjId,
           title: quickTitle.trim(),
+          description: quickDescription ? quickDescription.trim() : undefined,
           priority: quickPriority,
-          dueAt: quickDueAt ? new Date(quickDueAt).toISOString() : new Date().toISOString(),
+          taskType: quickTaskType,
           assigneeUserId: quickAssigneeId || undefined,
+          dueAt: quickDueAt ? new Date(quickDueAt).toISOString() : undefined,
+          reminderAt: quickReminderAt ? new Date(quickReminderAt).toISOString() : undefined,
         }),
       });
 
@@ -690,9 +707,7 @@ export default function DashboardPage() {
 
       setStatusMessage(`Task "${data.data.title}" created & assigned successfully!`);
       setShowQuickTaskModal(false);
-      setQuickTitle("");
-      setQuickDueAt("");
-      setQuickAssigneeId("");
+      resetQuickTaskForm();
       loadDashboard(activeSiteId);
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to create task"}`);
@@ -3542,38 +3557,27 @@ export default function DashboardPage() {
         {/* Modal: Quick Task Creation */}
         {showQuickTaskModal && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto animate-scale-in">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
+              <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-amber-500" />
                   <span>Create / Assign Site Task</span>
                 </div>
                 <button
-                  onClick={() => setShowQuickTaskModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  onClick={() => {
+                    setShowQuickTaskModal(false);
+                    resetQuickTaskForm();
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleQuickTaskSubmit} className="space-y-4">
+              <form id="quick-task-modal-form" onSubmit={handleQuickTaskSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Task Title *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={quickTitle}
-                    onChange={(e) => setQuickTitle(e.target.value)}
-                    placeholder="e.g. Slab Rebar Inspection Level 4"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Target Project *
+                    Target Project
                   </label>
                   <SearchableSelect
                     options={[
@@ -3590,48 +3594,105 @@ export default function DashboardPage() {
                       },
                     ]}
                     value={quickProjectId || (projects.length > 0 ? projects[0].id : "OTHER")}
-                    onChange={setQuickProjectId}
-                    placeholder="Select project..."
-                    searchPlaceholder="Search project name, code, or site..."
+                    onChange={(val) => setQuickProjectId(val)}
+                    searchPlaceholder="Search project by name or code..."
+                  />
+                  {projects.length === 0 ? (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      No project-specific site assigned. Task will be logged under General Site Operations.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Select specific project or choose &apos;Other / General Operations&apos; for unlinked tasks.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Task Title
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Tie rebar on 6th floor columns / Submit electrical drawings"
+                    value={quickTitle}
+                    onChange={(e) => setQuickTitle(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Assign To Team Member (Optional)
+                    Description & Specifications
                   </label>
-                  <SearchableSelect
-                    options={[
-                      { value: "", label: "Unassigned / General Pool" },
-                      ...employees.map((e) => ({
-                        value: e.id,
-                        label: e.name,
-                        badge: e.role || undefined,
-                        subLabel: e.email || undefined,
-                      })),
-                    ]}
-                    value={quickAssigneeId}
-                    onChange={setQuickAssigneeId}
-                    placeholder="Select team member to assign..."
-                    searchPlaceholder="Search by name, role, email..."
+                  <textarea
+                    rows={3}
+                    placeholder="Provide execution details, materials required, and safety instructions..."
+                    value={quickDescription}
+                    onChange={(e) => setQuickDescription(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Task Type
+                    </label>
+                    <SearchableSelect
+                      options={[
+                        { value: "STANDARD", label: "Standard Task" },
+                        { value: "PERSONAL", label: "Personal Task (My Todo)" },
+                        { value: "REQUEST_OWNER", label: "Raise Request for Owner" },
+                        { value: "REQUEST_MANAGER", label: "Raise Request for Manager" },
+                        { value: "REQUEST_ARCHITECT", label: "Raise Request for Architect" },
+                      ]}
+                      value={quickTaskType}
+                      onChange={(v) => setQuickTaskType(v as any)}
+                      placeholder="Select Task Type..."
+                      searchPlaceholder="Search task type..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Assign To Employee
+                    </label>
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "Unassigned / Current User" },
+                        ...(Array.isArray(employees) ? employees : []).map((emp) => ({
+                          value: emp.id,
+                          label: emp.name,
+                          badge: emp.role,
+                        })),
+                      ]}
+                      value={quickAssigneeId}
+                      onChange={setQuickAssigneeId}
+                      placeholder="Select Employee..."
+                      searchPlaceholder="Search employee name or role..."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Priority
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "LOW", label: "Low" },
+                        { value: "MEDIUM", label: "Medium" },
+                        { value: "HIGH", label: "High" },
+                        { value: "CRITICAL", label: "Critical" },
+                      ]}
                       value={quickPriority}
-                      onChange={(e) => setQuickPriority(e.target.value as any)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical</option>
-                    </select>
+                      onChange={(v) => setQuickPriority(v as any)}
+                      placeholder="Select Priority..."
+                      searchPlaceholder="Search priority..."
+                    />
                   </div>
 
                   <div>
@@ -3642,28 +3703,45 @@ export default function DashboardPage() {
                       type="date"
                       value={quickDueAt}
                       onChange={(e) => setQuickDueAt(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Reminder
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={quickReminderAt}
+                      onChange={(e) => setQuickReminderAt(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
                     />
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickTaskModal(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingTask}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm cursor-pointer disabled:opacity-50"
-                  >
-                    {submittingTask ? "Assigning Task..." : "Create / Assign Site Task"}
-                  </button>
-                </div>
               </form>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickTaskModal(false);
+                    resetQuickTaskForm();
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="quick-task-modal-form"
+                  disabled={submittingTask}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
+                >
+                  {submittingTask ? "Creating..." : "Create Task"}
+                </button>
+              </div>
             </div>
           </div>
         )}
