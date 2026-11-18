@@ -53,7 +53,7 @@ import ApprovalsWidget from "@/components/dashboard/ApprovalsWidget";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
-  const { refreshUser, refreshSites } = useAppSession();
+  const { user: sessionUser, refreshUser, refreshSites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [dashboardMode, setDashboardMode] = useState<"EXECUTIVE" | "EMPLOYEE">("EXECUTIVE");
   const [recentPhotos, setRecentPhotos] = useState<any[]>([]);
@@ -331,8 +331,10 @@ export default function DashboardPage() {
     }
   };
 
-  const isAdminUser = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
-  const isSupervisor = currentUser?.role === "SITE_SUPERVISOR" || (currentUser?.role as string) === "SUPERVISOR";
+  const activeUser = currentUser || sessionUser;
+  const isSuperAdmin = activeUser?.role === "SUPER_ADMIN";
+  const isAdminUser = activeUser?.role === "SUPER_ADMIN" || activeUser?.role === "ORG_ADMIN";
+  const isSupervisor = activeUser?.role === "SITE_SUPERVISOR" || (activeUser?.role as string) === "SUPERVISOR";
   const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
 
   // Live Camera state for Site Supervisors
@@ -1454,34 +1456,36 @@ export default function DashboardPage() {
               <PackageMinus className="w-3.5 h-3.5 text-amber-400" />
               <span>Issue Material</span>
             </Link>
-            {!isUserCheckedIn ? (
-              <button
-                type="button"
-                onClick={handleQuickCheckInOut}
-                disabled={submittingCheckIn}
-                className="px-3 py-1.5 bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-emerald-600/50 cursor-pointer disabled:opacity-50"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{submittingCheckIn ? "Checking In..." : "Check In"}</span>
-              </button>
-            ) : !isUserCheckedOut ? (
-              <button
-                type="button"
-                onClick={handleQuickCheckInOut}
-                disabled={submittingCheckIn}
-                className="px-3 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-rose-600/50 cursor-pointer disabled:opacity-50"
-              >
-                <Clock className="w-3.5 h-3.5 text-rose-400" />
-                <span>{submittingCheckIn ? "Checking Out..." : "Check Out"}</span>
-              </button>
-            ) : (
-              <Link
-                href="/attendance"
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Shift Done</span>
-              </Link>
+            {!isSuperAdmin && activeUser && (
+              !isUserCheckedIn ? (
+                <button
+                  type="button"
+                  onClick={handleQuickCheckInOut}
+                  disabled={submittingCheckIn}
+                  className="px-3 py-1.5 bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-emerald-600/50 cursor-pointer disabled:opacity-50"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{submittingCheckIn ? "Checking In..." : "Check In"}</span>
+                </button>
+              ) : !isUserCheckedOut ? (
+                <button
+                  type="button"
+                  onClick={handleQuickCheckInOut}
+                  disabled={submittingCheckIn}
+                  className="px-3 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-rose-600/50 cursor-pointer disabled:opacity-50"
+                >
+                  <Clock className="w-3.5 h-3.5 text-rose-400" />
+                  <span>{submittingCheckIn ? "Checking Out..." : "Check Out"}</span>
+                </button>
+              ) : (
+                <Link
+                  href="/attendance"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Shift Done</span>
+                </Link>
+              )
             )}
             <button
               type="button"
