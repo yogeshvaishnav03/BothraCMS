@@ -1732,6 +1732,69 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Supervisor Quick Actions Toolbar - PROMINENT ON TOP OF DASHBOARD */}
+        <div className="bg-slate-900 text-white rounded-xl px-4 py-2.5 border border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3 transition-all">
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wider font-black text-amber-400 flex items-center gap-1.5">
+              <span>⚡ Field Actions:</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href="/materials"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+            >
+              <PackagePlus className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Receive Goods</span>
+            </Link>
+            <Link
+              href="/materials"
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+            >
+              <PackageMinus className="w-3.5 h-3.5 text-amber-400" />
+              <span>Issue Material</span>
+            </Link>
+            {!isUserCheckedIn ? (
+              <button
+                type="button"
+                onClick={handleQuickCheckInOut}
+                disabled={submittingCheckIn}
+                className="px-3 py-1.5 bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-emerald-600/50 cursor-pointer disabled:opacity-50"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{submittingCheckIn ? "Checking In..." : "Check In"}</span>
+              </button>
+            ) : !isUserCheckedOut ? (
+              <button
+                type="button"
+                onClick={handleQuickCheckInOut}
+                disabled={submittingCheckIn}
+                className="px-3 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-rose-600/50 cursor-pointer disabled:opacity-50"
+              >
+                <Clock className="w-3.5 h-3.5 text-rose-400" />
+                <span>{submittingCheckIn ? "Checking Out..." : "Check Out"}</span>
+              </button>
+            ) : (
+              <Link
+                href="/attendance"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Shift Done</span>
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowQuickTaskModal(true)}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Quick Task</span>
+            </button>
+          </div>
+        </div>
+
         {/* Personalized Employee Workspace */}
         {dashboardMode === "EMPLOYEE" && (
           <div className="space-y-6">
@@ -2309,71 +2372,6 @@ export default function DashboardPage() {
             </div>
           </div>
         ))}
-
-        {/* Supervisor Quick Actions Toolbar */}
-        {(activeSectionTab === "ALL" || activeSectionTab === "SITES") && (
-          <div className="bg-slate-900 text-white rounded-xl px-4 py-2.5 border border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3 transition-all">
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wider font-black text-amber-400 flex items-center gap-1.5">
-                <span>⚡ Field Actions:</span>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <Link
-                href="/materials"
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
-              >
-                <PackagePlus className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Receive Goods</span>
-              </Link>
-              <Link
-                href="/materials"
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
-              >
-                <PackageMinus className="w-3.5 h-3.5 text-amber-400" />
-                <span>Issue Material</span>
-              </Link>
-              {!isUserCheckedIn ? (
-                <button
-                  type="button"
-                  onClick={handleQuickCheckInOut}
-                  disabled={submittingCheckIn}
-                  className="px-3 py-1.5 bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-emerald-600/50 cursor-pointer disabled:opacity-50"
-                >
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{submittingCheckIn ? "Checking In..." : "Check In"}</span>
-                </button>
-              ) : !isUserCheckedOut ? (
-                <button
-                  type="button"
-                  onClick={handleQuickCheckInOut}
-                  disabled={submittingCheckIn}
-                  className="px-3 py-1.5 bg-rose-900/80 hover:bg-rose-800 text-rose-200 font-bold text-xs rounded-lg transition flex items-center gap-1.5 border border-rose-600/50 cursor-pointer disabled:opacity-50"
-                >
-                  <Clock className="w-3.5 h-3.5 text-rose-400" />
-                  <span>{submittingCheckIn ? "Checking Out..." : "Check Out"}</span>
-                </button>
-              ) : (
-                <Link
-                  href="/attendance"
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Shift Done</span>
-                </Link>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowQuickTaskModal(true)}
-                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>Quick Task</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* ALL-IN-ONE VIEW: Balanced 2-Column Command Center */}
         {activeSectionTab === "ALL" && (
