@@ -290,7 +290,10 @@ export function escapeXml(value: string): string {
 /** Allows only internal upload endpoints or safe raster base64 data URLs. */
 export function isSafeMediaUrl(url: string): boolean {
   const trimmed = url.trim();
-  if (/^\/api\/uploads\/[A-Za-z0-9._-]+(\?t=\d+)?$/.test(trimmed)) {
+  if (/^\/api\/uploads\/[A-Za-z0-9._-]+(\?.*)?$/.test(trimmed)) {
+    return true;
+  }
+  if (/^https:\/\/[A-Za-z0-9.-]+\.(blob\.vercel-storage\.com|amazonaws\.com|r2\.cloudflarestorage\.com)\//i.test(trimmed)) {
     return true;
   }
   return /^data:(image\/(png|jpeg|jpg|webp|gif)|video\/(mp4|webm|quicktime|3gpp|ogg)|audio\/(webm|ogg|mp4|m4a|mpeg|wav|aac)|application\/(pdf|x-pdf));base64,[A-Za-z0-9+/=]+$/i.test(trimmed);

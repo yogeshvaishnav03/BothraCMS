@@ -8,7 +8,6 @@ import { ContactActions, WhatsAppIcon } from "@/components/ui/ContactActions";
 import { whatsappLink } from "@/lib/contact-links";
 import { formatDateTime } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
-import { compressVideoFile } from "@/lib/video-compression";
 import { uploadClientMedia } from "@/lib/upload-client";
 import { useLanguage } from "@/lib/i18n";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -539,50 +538,34 @@ export default function ChatPage() {
 
   // Direct WhatsApp-style Instant Media Sender (Photos, Videos, PDFs, Voice Notes)
   const sendSelectedFiles = async (rawFiles: FileList | File[], caption = "") => {
-    if (!activeConversationId || rawFiles.length === 0) return;
+    if (!activeConversationId) {
+      setActionError("Please select a conversation first.");
+      return;
+    }
+    const fileArray = Array.from(rawFiles || []);
+    if (fileArray.length === 0) return;
+
     const convId = activeConversationId;
     setActionError(null);
     setShowAttachMenu(false);
 
-    for (let i = 0; i < rawFiles.length; i++) {
-      const rawFile = rawFiles[i];
-      const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+    // Prepare optimistic items for every file so all of them appear in chat immediately
+    const optimisticBatch = fileArray.map((rawFile, i) => {
+      const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi|mkv)$/i.test(rawFile.name);
       const isAudio = rawFile.type.startsWith("audio/") || /\.(weba|ogg|oga|mp3|m4a|wav|aac)$/i.test(rawFile.name);
-      const isImage = rawFile.type.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(rawFile.name);
+      const isImage = rawFile.type.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(rawFile.name);
 
       let type: "image" | "video" | "audio" | "document" = "document";
-      let processedFile = rawFile;
-      let previewUrl = "";
+      if (isImage) type = "image";
+      else if (isVideo) type = "video";
+      else if (isAudio) type = "audio";
+      else type = "document";
 
-      if (isImage) {
-        type = "image";
-        if (rawFile.size < 40 * 1024 * 1024) {
-          try {
-            processedFile = await compressImageFile(rawFile, { preset: "photo" });
-          } catch {
-            processedFile = rawFile;
-          }
-        }
-        previewUrl = URL.createObjectURL(processedFile);
-      } else if (isVideo) {
-        type = "video";
-        if (rawFile.size <= 250 * 1024 * 1024) {
-          try {
-            processedFile = await compressVideoFile(rawFile);
-          } catch {
-            processedFile = rawFile;
-          }
-          previewUrl = URL.createObjectURL(processedFile);
-        } else {
-          setActionError(`Video "${rawFile.name}" exceeds the 250MB limit.`);
-          continue;
-        }
-      } else if (isAudio) {
-        type = "audio";
+      let previewUrl = "";
+      try {
         previewUrl = URL.createObjectURL(rawFile);
-      } else {
-        type = "document";
-        previewUrl = URL.createObjectURL(rawFile);
+      } catch (err) {
+        console.warn("Could not create object URL for file:", rawFile.name, err);
       }
 
       const defaultPlaceholder =
@@ -595,7 +578,7 @@ export default function ChatPage() {
           : "[Photo]";
 
       const msgContent = i === 0 && caption ? caption : defaultPlaceholder;
-      const tempId = `temp_file_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`;
+      const tempId = `temp_file_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`;
 
       const optimisticMsg: MessageItem = {
         id: tempId,
@@ -614,13 +597,32 @@ export default function ChatPage() {
         isSending: true,
       };
 
-      // Instantly appear in the chat stream
-      setMessages((prev) => [...prev, optimisticMsg]);
-      setTimeout(() => scrollToBottom(true), 50);
+      return { rawFile, type, previewUrl, msgContent, tempId, optimisticMsg };
+    });
 
-      // Upload and post asynchronously
+    // Instantly appear in the chat stream!
+    setMessages((prev) => [...prev, ...optimisticBatch.map((item) => item.optimisticMsg)]);
+    setTimeout(() => scrollToBottom(true), 50);
+
+    // Upload each file asynchronously in the background
+    for (const item of optimisticBatch) {
+      const { rawFile, type, previewUrl, msgContent, tempId } = item;
       (async () => {
         try {
+          let processedFile = rawFile;
+
+          // For images: quick background compression if large, with a 2.5-second timeout guard
+          if (type === "image" && rawFile.size > 2 * 1024 * 1024 && rawFile.size < 40 * 1024 * 1024) {
+            try {
+              processedFile = await Promise.race([
+                compressImageFile(rawFile, { preset: "photo" }),
+                new Promise<File>((_, reject) => setTimeout(() => reject(new Error("Compression timeout")), 2500)),
+              ]);
+            } catch {
+              processedFile = rawFile;
+            }
+          }
+
           const category =
             type === "video"
               ? "VIDEO"
@@ -643,8 +645,8 @@ export default function ChatPage() {
             console.warn("Storage upload error, attempting data URL fallback:", uploadErr);
           }
 
-          // Fallback to data URL for small images if storage upload failed
-          if (!uploadedUrl && type === "image" && processedFile.size < 2 * 1024 * 1024) {
+          // Fallback to data URL for images (< 3MB) if storage upload failed
+          if (!uploadedUrl && type === "image" && processedFile.size < 3 * 1024 * 1024) {
             try {
               uploadedUrl = await compressImageToDataUrl(processedFile, 1200, 0.8);
             } catch {}
@@ -685,15 +687,36 @@ export default function ChatPage() {
     }
   };
 
-  // When files are picked, immediately send and share them to the chat
+  // When files are picked via native file dialog, immediately send and share them to the chat
   const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFiles = e.target.files;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    // Reset input value so user can re-select the same file later if desired
     e.target.value = "";
-    if (!rawFiles || rawFiles.length === 0) return;
 
     const caption = messageInput.trim();
     setMessageInput("");
-    await sendSelectedFiles(rawFiles, caption);
+    await sendSelectedFiles(files, caption);
+  };
+
+  // Clipboard paste support (e.g. Ctrl+V screenshots directly into chat)
+  const handleInputPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items || items.length === 0) return;
+    const pastedFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === "file") {
+        const file = items[i].getAsFile();
+        if (file) pastedFiles.push(file);
+      }
+    }
+    if (pastedFiles.length > 0) {
+      e.preventDefault();
+      const caption = messageInput.trim();
+      setMessageInput("");
+      sendSelectedFiles(pastedFiles, caption);
+    }
   };
 
   // Voice Note Recording (WhatsApp style)
@@ -1988,7 +2011,7 @@ export default function ChatPage() {
                     <input
                       type="file"
                       ref={fileInputRef}
-                      accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*"
+                      accept="image/*,video/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.mp4,.mov,.webm,.3gp,.avi,.mkv"
                       multiple
                       onChange={handleFilesSelect}
                       className="sr-only"
@@ -2063,6 +2086,7 @@ export default function ChatPage() {
                             placeholder={t("chat.typeMessage", "Type a message... (Press Enter to send)")}
                             value={messageInput}
                             onChange={(e) => setMessageInput(e.target.value)}
+                            onPaste={handleInputPaste}
                             className="flex-1 min-w-0 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-400 shadow-2xs"
                             disabled={sending}
                           />
