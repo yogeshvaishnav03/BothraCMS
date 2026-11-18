@@ -118,46 +118,6 @@ export async function GET(req: NextRequest) {
       }).catch(() => []);
     }
 
-    // Auto-heal empty database: if no sites exist, automatically populate authoritative website data
-    if (sites.length === 0) {
-      try {
-        const { bootstrapWebsiteDataRuntime } = await import("@/lib/runtime-seeder");
-        const seeded = await bootstrapWebsiteDataRuntime(user.organizationId);
-        if (seeded) {
-          sites = await prisma.site.findMany({
-            where: baseWhere,
-            include: {
-              stores: {
-                where: { status: "ACTIVE" },
-              },
-              projects: {
-                where: { isArchived: false },
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                  status: true,
-                  budgetAmount: true,
-                  _count: {
-                    select: { tasks: true, dailyReports: true },
-                  },
-                },
-              },
-              _count: {
-                select: {
-                  projects: true,
-                  workforceMembers: true,
-                },
-              },
-            },
-            orderBy: { name: "asc" },
-          }).catch(() => []);
-        }
-      } catch (seedErr) {
-        console.warn("[SITES_API] Runtime self-healing notice:", seedErr);
-      }
-    }
-
     return jsonSuccess(sites);
   } catch (error) {
     return handleApiError(error);

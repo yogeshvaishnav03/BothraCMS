@@ -197,10 +197,10 @@ if (
   }
 }
 
-// Always ensure authoritative website data (sites, projects, materials, users) is loaded into database
+// Clear demo data if requested or in production clean deployment
 try {
-  console.log("⚡ Ensuring authoritative website data (sites, projects, materials, users) is loaded into database...");
-  execSync("node scripts/load-website-data.js", {
+  console.log("⚡ Purging sample/demo data to maintain a clean database for manual entry...");
+  execSync("node scripts/clear-demo-data.js", {
     stdio: "inherit",
     env: {
       ...process.env,
@@ -208,9 +208,27 @@ try {
       DIRECT_URL: directUrl || dbUrl,
     },
   });
-  console.log("✅ Authoritative website data loaded successfully.");
-} catch (dataErr) {
-  console.warn("Notice: Authoritative website data load notice:", dataErr.message);
+  console.log("✅ Demo data purge completed.");
+} catch (clearErr) {
+  console.warn("Notice: Demo data purge notice:", clearErr.message);
+}
+
+// Only load website sample data when explicitly requested via ALLOW_DEMO_SEED=true
+if (process.env.ALLOW_DEMO_SEED === "true") {
+  try {
+    console.log("⚡ Explicit demo seed requested (ALLOW_DEMO_SEED=true)...");
+    execSync("node scripts/load-website-data.js", {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        DATABASE_URL: directUrl || dbUrl || "file:./dev.db",
+        DIRECT_URL: directUrl || dbUrl,
+      },
+    });
+    console.log("✅ Authoritative website data loaded successfully.");
+  } catch (dataErr) {
+    console.warn("Notice: Authoritative website data load notice:", dataErr.message);
+  }
 }
 
 // Always ensure core users exist

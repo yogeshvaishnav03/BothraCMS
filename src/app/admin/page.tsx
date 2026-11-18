@@ -31,6 +31,7 @@ import {
   Landmark,
   CreditCard,
   Wallet,
+  Trash2,
 } from "lucide-react";
 
 interface Tenant {
@@ -63,6 +64,8 @@ export default function SuperAdminDashboardPage() {
   const [seeding, setSeeding] = useState(false);
   const [seedSummary, setSeedSummary] = useState<any>(null);
   const [seedCredentials, setSeedCredentials] = useState<{ password: string; emails: string[] } | null>(null);
+  const [clearingData, setClearingData] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -383,6 +386,31 @@ export default function SuperAdminDashboardPage() {
     }
   }
 
+  async function handleClearDemoData() {
+    setShowClearConfirm(false);
+    setClearingData(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch("/api/admin/clear-demo-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccessMsg("All demo data deleted successfully! The database is now completely clean for your manual data entry.");
+        await loadTenants();
+        await loadPendingOrders();
+      } else {
+        setErrorMsg(data.error || "Failed to clear demo data.");
+      }
+    } catch (err: any) {
+      setErrorMsg(`Error: ${err.message || "Failed to clear demo data"}`);
+    } finally {
+      setClearingData(false);
+    }
+  }
+
   const handleCopyMessage = () => {
     if (approvedNotification?.message) {
       navigator.clipboard.writeText(approvedNotification.message);
@@ -625,8 +653,17 @@ export default function SuperAdminDashboardPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <button
+              onClick={() => setShowClearConfirm(true)}
+              disabled={clearingData || seeding || loading}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50 cursor-pointer"
+              title="Delete all demo sites, projects, materials, stock records, bills, payments, and worker records"
+            >
+              <Trash2 className="w-4 h-4 text-white" />
+              {clearingData ? "Clearing Demo Data..." : "Clear All Demo Data"}
+            </button>
+            <button
               onClick={() => handleSeedDemoData()}
-              disabled={seeding || loading}
+              disabled={seeding || clearingData || loading}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
               title="Add sample sites, projects, materials, workers, bills, and attendance for testing"
             >
@@ -1139,14 +1176,24 @@ export default function SuperAdminDashboardPage() {
               Add sample construction records (2 sites, projects, material stock, vendor bills, worker attendance, and daily reports) so new users can explore safely.
             </p>
           </div>
-          <button
-            onClick={() => handleSeedDemoData()}
-            disabled={seeding || loading}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition disabled:opacity-50 shrink-0"
-          >
-            <Sparkles className="w-4 h-4 text-slate-950" />
-            <span>{seeding ? "Loading Sample Data..." : "Load Sample Data"}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              disabled={clearingData || seeding || loading}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md transition disabled:opacity-50 shrink-0 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4 text-white" />
+              <span>{clearingData ? "Purging Data..." : "Clear All Demo Data"}</span>
+            </button>
+            <button
+              onClick={() => handleSeedDemoData()}
+              disabled={seeding || clearingData || loading}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition disabled:opacity-50 shrink-0 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-slate-950" />
+              <span>{seeding ? "Loading Sample Data..." : "Load Sample Data"}</span>
+            </button>
+          </div>
         </div>
 
         {/* Demo Data Seeding Summary Modal/Card */}
@@ -1469,6 +1516,57 @@ export default function SuperAdminDashboardPage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Clear Demo Data Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Delete All Demo Data?</h3>
+                  <p className="text-xs text-slate-500">Reset database to clean state</p>
+                </div>
+              </div>
+
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 text-xs text-rose-800 space-y-1.5 leading-relaxed">
+                <p className="font-semibold">⚠️ This will delete all sample records:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-[11px] text-rose-700">
+                  <li>Sample construction sites &amp; projects</li>
+                  <li>Material stock, storage &amp; inventory balances</li>
+                  <li>Sample contractor &amp; vendor profiles</li>
+                  <li>Registered sample workers &amp; attendance history</li>
+                  <li>Demo bills, payments &amp; financial day book entries</li>
+                </ul>
+                <p className="text-[11px] text-emerald-800 font-semibold pt-1 border-t border-rose-200/60">
+                  ✓ Your administrator user login and organization account are preserved so you can start entering your real company data immediately.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(false)}
+                  disabled={clearingData}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearDemoData}
+                  disabled={clearingData}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg transition shadow-sm disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{clearingData ? "Purging..." : "Yes, Delete All Demo Data"}</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
