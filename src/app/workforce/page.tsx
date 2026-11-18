@@ -1246,24 +1246,11 @@ export default function WorkforcePage() {
         type: "text",
       },
       {
-        key: "artisanCount",
-        label: "Artisan (Direct Count)",
-        accessor: (r) => Number(r.artisanCount ?? r.artisanTotal ?? 0),
-        type: "number",
-        align: "right",
-      },
-      {
-        key: "laborer",
-        label: "Laborer (M / F / Total)",
-        accessor: (r) => `${r.laborerTotal} (M:${r.laborerMale}, F:${r.laborerFemale})`,
-        type: "text",
-      },
-      {
         key: "grandTotal",
         label: "Total Workers",
-        accessor: (r) => Number(r.grandTotal) || 0,
-        type: "number",
-        align: "right",
+        accessor: (r) => `${Number(r.grandTotal) || 0} Workers (Artisans: ${r.artisanCount ?? r.artisanTotal ?? 0}, Laborers: ${r.laborerTotal} [Male: ${r.laborerMale}, Female: ${r.laborerFemale}])`,
+        type: "text",
+        align: "left",
       },
       {
         key: "contractor",
@@ -1657,31 +1644,18 @@ export default function WorkforcePage() {
                             </div>
                           </td>
 
-                          {/* Artisan */}
+                          {/* Total Workforce with Breakdown */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <div className="font-bold text-slate-900 tabular-nums">
-                              {r.artisanCount ?? r.artisanTotal ?? 0}
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              Direct Count
-                            </div>
-                          </td>
-
-                          {/* Laborer */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            <div className="font-bold text-slate-800">{r.laborerTotal} total</div>
-                            <div className="text-[10px] text-slate-500">
-                              M: {r.laborerMale} &bull; F: {r.laborerFemale}
-                            </div>
-                          </td>
-
-                          {/* Total Workforce */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
-                              {r.grandTotal} Workers
+                            <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
+                              {r.grandTotal} {r.grandTotal === 1 ? "Worker" : "Workers"}
                             </span>
-                            <div className="text-[10px] text-slate-500 mt-0.5">
-                              Artisans: {r.artisanCount ?? r.artisanTotal ?? 0} &bull; Laborers: {r.laborerTotal}
+                            <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                              <span>Artisans: <strong className="text-slate-700">{r.artisanCount ?? r.artisanTotal ?? 0}</strong></span>
+                              <span className="text-slate-300">&bull;</span>
+                              <span>
+                                Laborers: <strong className="text-slate-700">{r.laborerTotal}</strong>{" "}
+                                <span className="text-slate-500 font-medium">(Male: {r.laborerMale}, Female: {r.laborerFemale})</span>
+                              </span>
                             </div>
                           </td>
 
@@ -1778,8 +1752,11 @@ export default function WorkforcePage() {
 
                           <div className="shrink-0 text-right">
                             <span className="inline-block whitespace-nowrap px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
-                              {r.grandTotal} Workers
+                              {r.grandTotal} {r.grandTotal === 1 ? "Worker" : "Workers"}
                             </span>
+                            <div className="text-[10px] text-slate-500 mt-1 text-right">
+                              Artisans: <strong className="text-slate-700">{r.artisanCount ?? r.artisanTotal ?? 0}</strong> &bull; Laborers: <strong className="text-slate-700">{r.laborerTotal}</strong> (Male: {r.laborerMale}, Female: {r.laborerFemale})
+                            </div>
                             {r.totalExpense ? (
                               <div className="font-mono font-bold text-emerald-700 text-xs mt-1">
                                 ₹{Math.round(r.totalExpense / 100).toLocaleString("en-IN")}
