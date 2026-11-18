@@ -1240,6 +1240,12 @@ export default function WorkforcePage() {
   const headcountColumns: ExcelColumn<any>[] = useMemo(
     () => [
       {
+        key: "contractor",
+        label: "Contractor / Vendor",
+        accessor: (r) => r.contractorName || r.contractor?.name || "Direct Site",
+        type: "text",
+      },
+      {
         key: "date",
         label: "Date & Shift",
         accessor: (r) => `${formatDate(r.date)} ${r.shift} SHIFT`,
@@ -1251,12 +1257,6 @@ export default function WorkforcePage() {
         accessor: (r) => `${Number(r.grandTotal) || 0} Workers (Artisans: ${r.artisanCount ?? r.artisanTotal ?? 0}, Laborers: ${r.laborerTotal} [Male: ${r.laborerMale}, Female: ${r.laborerFemale}])`,
         type: "text",
         align: "left",
-      },
-      {
-        key: "contractor",
-        label: "Contractor / Agency",
-        accessor: (r) => r.contractorName || r.contractor?.name || "Direct Site",
-        type: "text",
       },
       {
         key: "totalExpense",
@@ -1635,6 +1635,30 @@ export default function WorkforcePage() {
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {excelHeadcount.paginatedData.map((r) => (
                         <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                          {/* Contractor / Vendor */}
+                          <td className="py-3.5 px-4 text-slate-700">
+                            {r.contractorName ? (
+                              <span className="font-semibold text-slate-800">{r.contractorName}</span>
+                            ) : (
+                              <span className="text-slate-400 italic">Direct / Self</span>
+                            )}
+                            {r.notes && (
+                              <div className="text-[10px] text-slate-500 break-words whitespace-normal mt-0.5">
+                                {r.notes.includes("[Project:") ? (
+                                  <>
+                                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold mr-1">
+                                      {r.notes.match(/\[Project:\s*(.*?)\]/)?.[1] || "Project"}
+                                    </span>
+                                    <span>{r.notes.replace(/\[Project:\s*.*?\]\s*/, "")}</span>
+                                  </>
+                                ) : (
+                                  r.notes
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Date & Shift */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="font-bold text-slate-900">{formatDate(r.date)}</div>
                             <div className="text-[10px] font-mono text-slate-500 mt-0.5">
@@ -1657,29 +1681,6 @@ export default function WorkforcePage() {
                                 <span className="text-slate-500 font-medium">(Male: {r.laborerMale}, Female: {r.laborerFemale})</span>
                               </span>
                             </div>
-                          </td>
-
-                          {/* Contractor */}
-                          <td className="py-3.5 px-4 text-slate-700">
-                            {r.contractorName ? (
-                              <span className="font-semibold text-slate-800">{r.contractorName}</span>
-                            ) : (
-                              <span className="text-slate-400 italic">Direct / Self</span>
-                            )}
-                            {r.notes && (
-                              <div className="text-[10px] text-slate-500 break-words whitespace-normal mt-0.5">
-                                {r.notes.includes("[Project:") ? (
-                                  <>
-                                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold mr-1">
-                                      {r.notes.match(/\[Project:\s*(.*?)\]/)?.[1] || "Project"}
-                                    </span>
-                                    <span>{r.notes.replace(/\[Project:\s*.*?\]\s*/, "")}</span>
-                                  </>
-                                ) : (
-                                  r.notes
-                                )}
-                              </div>
-                            )}
                           </td>
 
                           {/* Labour Expense */}
@@ -1740,13 +1741,15 @@ export default function WorkforcePage() {
                       <div key={`hc-card-${r.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="font-bold text-slate-900 text-sm">{formatDate(r.date)}</div>
+                            <div className="font-bold text-slate-900 text-sm truncate">
+                              {r.contractorName || "Direct Site / Self"}
+                            </div>
                             <div className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-1.5 min-w-0">
+                              <span className="font-semibold text-slate-700">{formatDate(r.date)}</span>
+                              <span className="shrink-0">·</span>
                               <span className="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-700 shrink-0 whitespace-nowrap">
                                 {r.shift} SHIFT
                               </span>
-                              <span className="shrink-0">·</span>
-                              <span className="truncate">{r.contractorName || "Direct Site / Self"}</span>
                             </div>
                           </div>
 
