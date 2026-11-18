@@ -25,6 +25,7 @@ const createPaymentSchema = z.object({
   idempotencyKey: z.string().min(1),
   costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
   notes: z.string().optional(),
+  attachmentFileId: z.string().optional(),
   autoApprove: z.boolean().optional(),
   tds: z
     .object({
@@ -136,6 +137,25 @@ export async function POST(req: NextRequest) {
       allocations: data.allocations,
       tds: data.tds,
     });
+
+    if (data.attachmentFileId && result.payment?.id) {
+      try {
+        await prisma.attachment.updateMany({
+          where: {
+            fileId: data.attachmentFileId,
+            organizationId: user.organizationId,
+          },
+          data: {
+            entityId: result.payment.id,
+            paymentId: result.payment.id,
+            entityType: "PAYMENT",
+            projectId: data.projectId || null,
+          },
+        });
+      } catch (err) {
+        console.warn("[payments] Could not link attachment to payment:", err);
+      }
+    }
 
     // Tell admins on mobile push & WhatsApp that a payment is waiting for approval.
     if (!result.idempotentReplay && result.payment.status === "PENDING_APPROVAL") {

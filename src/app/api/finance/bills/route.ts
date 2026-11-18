@@ -16,6 +16,7 @@ const createBillSchema = z.object({
   dueDate: z.string().optional(),
   costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
   notes: z.string().optional(),
+  attachmentFileId: z.string().optional(),
   gst: z
     .object({
       rate: z.number().min(0).max(28).nullable().optional(),
@@ -112,6 +113,24 @@ export async function POST(req: NextRequest) {
       role: user.role,
       permissions: user.permissions,
     });
+
+    if (data.attachmentFileId) {
+      try {
+        await prisma.attachment.updateMany({
+          where: {
+            fileId: data.attachmentFileId,
+            organizationId: user.organizationId,
+          },
+          data: {
+            entityId: bill.id,
+            entityType: "BILL",
+            projectId: data.projectId || null,
+          },
+        });
+      } catch (err) {
+        console.warn("[bills] Could not link attachment to bill:", err);
+      }
+    }
 
     return jsonSuccess(bill, 201);
   } catch (error) {

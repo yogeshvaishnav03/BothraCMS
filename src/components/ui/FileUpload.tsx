@@ -15,8 +15,8 @@ export function FileUpload({
   category = "GENERAL",
   label = "Attach file (Photo, Video, or PDF)",
 }: {
-  value: { url: string; name: string } | null;
-  onChange: (file: { url: string; name: string } | null) => void;
+  value: { url: string; name: string; fileId?: string } | null;
+  onChange: (file: { url: string; name: string; fileId?: string } | null) => void;
   entityType: string;
   projectId?: string | null;
   category?: string;
@@ -44,7 +44,7 @@ export function FileUpload({
         createAttachment: true,
       });
       if (uploadResult?.url) {
-        onChange({ url: uploadResult.url, name: uploadResult.fileName || file.name });
+        onChange({ url: uploadResult.url, name: uploadResult.fileName || file.name, fileId: uploadResult.fileId });
       } else {
         setError("Could not upload file. Use JPG, PNG, WebP, Video (MP4/WebM), or PDF under 250 MB.");
       }

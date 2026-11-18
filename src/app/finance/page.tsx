@@ -38,6 +38,7 @@ import {
   Edit2,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
+import { FileUpload } from "@/components/ui/FileUpload";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { canUser } from "@/lib/permissions";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -94,6 +95,7 @@ export default function FinancePage() {
   const [tdsManual, setTdsManual] = useState("");
   const [tdsReason, setTdsReason] = useState("");
   const [tdsPreview, setTdsPreview] = useState<any>(null);
+  const [paymentFile, setPaymentFile] = useState<{ url: string; name: string; fileId?: string } | null>(null);
 
   // Bill Modal state
   const [showBillModal, setShowBillModal] = useState(false);
@@ -110,6 +112,7 @@ export default function FinancePage() {
   const [billDate, setBillDate] = useState(new Date().toISOString().split("T")[0]);
   const [billDueDate, setBillDueDate] = useState("");
   const [billNotes, setBillNotes] = useState("");
+  const [billFile, setBillFile] = useState<{ url: string; name: string; fileId?: string } | null>(null);
   const [billGstRate, setBillGstRate] = useState("");
   const [billTaxType, setBillTaxType] = useState<"AUTO" | "LOCAL" | "IGST">("AUTO");
   const [billItc, setBillItc] = useState(true);
@@ -290,6 +293,13 @@ export default function FinancePage() {
     }
 
     try {
+      const finalNotes = [
+        notes?.trim(),
+        paymentFile ? `[Attached Payment Proof: ${paymentFile.name} | ${paymentFile.url}]` : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
       const payload: any = {
         partyId: finalPartyId,
         recipientType,
@@ -301,7 +311,8 @@ export default function FinancePage() {
         method,
         referenceNumber,
         idempotencyKey,
-        notes: notes || undefined,
+        notes: finalNotes || undefined,
+        attachmentFileId: paymentFile?.fileId || undefined,
         autoApprove: currentUser?.role === "SUPER_ADMIN" ? autoApprove : false,
       };
 
@@ -351,6 +362,7 @@ export default function FinancePage() {
         setTdsManual("");
         setTdsReason("");
         setTdsPreview(null);
+        setPaymentFile(null);
         loadData();
       }
     } catch {
@@ -523,6 +535,13 @@ export default function FinancePage() {
     setErrorMessage(null);
     setStatusMessage(null);
 
+    const finalBillNotes = [
+      billNotes.trim(),
+      billFile ? `[Attached Invoice Photo: ${billFile.name} | ${billFile.url}]` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
     try {
       const res = await fetch("/api/finance/bills", {
         method: "POST",
@@ -533,7 +552,8 @@ export default function FinancePage() {
           billNumber: billNumber.trim(),
           billDate: new Date(billDate).toISOString(),
           dueDate: billDueDate ? new Date(billDueDate).toISOString() : undefined,
-          notes: billNotes || undefined,
+          notes: finalBillNotes || undefined,
+          attachmentFileId: billFile?.fileId || undefined,
           gst:
             billGstRate === ""
               ? undefined
@@ -562,6 +582,7 @@ export default function FinancePage() {
         setBillItc(true);
         setBillRcm(false);
         setBillLines([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
+        setBillFile(null);
         loadData();
       }
     } catch {
@@ -2261,7 +2282,10 @@ export default function FinancePage() {
                   <span>Record Payment &amp; Request Approval</span>
                 </div>
                 <button
-                  onClick={() => setShowPaymentModal(false)}
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setPaymentFile(null);
+                  }}
                   className="p-1 text-slate-400 hover:text-slate-600 shrink-0"
                 >
                   <X className="w-5 h-5" />
@@ -2552,7 +2576,22 @@ export default function FinancePage() {
                   </div>
                 )}
 
-                {/* 8. Super Admin Auto-Approve Checkbox or Normal User Alert */}
+                {/* 8. Payment Proof / Receipt Photo */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Payment Proof / Receipt Photo (Optional)
+                  </label>
+                  <FileUpload
+                    value={paymentFile}
+                    onChange={setPaymentFile}
+                    entityType="PAYMENT"
+                    projectId={selectedProjectId || undefined}
+                    category="RECEIPT"
+                    label="Upload Payment Receipt, Cheque, or Transfer Screenshot"
+                  />
+                </div>
+
+                {/* 9. Super Admin Auto-Approve Checkbox or Normal User Alert */}
                 {currentUser?.role === "SUPER_ADMIN" ? (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -2579,7 +2618,10 @@ export default function FinancePage() {
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowPaymentModal(false)}
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setPaymentFile(null);
+                    }}
                     className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg whitespace-nowrap shrink-0"
                   >
                     Cancel
@@ -2682,7 +2724,10 @@ export default function FinancePage() {
                   <span className="truncate">Record Vendor / Contractor Bill</span>
                 </div>
                 <button
-                  onClick={() => setShowBillModal(false)}
+                  onClick={() => {
+                    setShowBillModal(false);
+                    setBillFile(null);
+                  }}
                   className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0"
                 >
                   <X className="w-5 h-5" />
@@ -2985,12 +3030,30 @@ export default function FinancePage() {
                   />
                 </div>
 
+                {/* Photo / Invoice Document Upload */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Bill / Invoice Photo / Document (Optional)
+                  </label>
+                  <FileUpload
+                    value={billFile}
+                    onChange={setBillFile}
+                    entityType="BILL"
+                    projectId={billProjectId || undefined}
+                    category="INVOICE"
+                    label="Upload Bill Photo, Tax Invoice, or Delivery Challan"
+                  />
+                </div>
+
               </form>
 
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowBillModal(false)}
+                  onClick={() => {
+                    setShowBillModal(false);
+                    setBillFile(null);
+                  }}
                   className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
                 >
                   Cancel
