@@ -96,6 +96,8 @@ interface MessageItem {
   createdAt: string;
   senderId: string;
   isMine: boolean;
+  isSending?: boolean;
+  uploadFailed?: boolean;
   sender: {
     id: string;
     name: string;
@@ -349,15 +351,6 @@ export default function ChatPage() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
 
-  // Multiple Files & Media Staging State (WhatsApp-style)
-  interface StagedAttachment {
-    id: string;
-    file: File;
-    previewUrl?: string;
-    type: "image" | "video" | "audio" | "document";
-  }
-
-  const [stagedFiles, setStagedFiles] = useState<StagedAttachment[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
@@ -544,14 +537,12 @@ export default function ChatPage() {
     setShowScrollBottomBtn(scrolledUp);
   }, []);
 
-  // Handle multiple file attachments (Photos, Videos, Audio, PDFs, Documents)
-  const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFiles = e.target.files;
-    e.target.value = "";
-    if (!rawFiles || rawFiles.length === 0) return;
-
+  // Direct WhatsApp-style Instant Media Sender (Photos, Videos, PDFs, Voice Notes)
+  const sendSelectedFiles = async (rawFiles: FileList | File[], caption = "") => {
+    if (!activeConversationId || rawFiles.length === 0) return;
+    const convId = activeConversationId;
     setActionError(null);
-    const newItems: StagedAttachment[] = [];
+    setShowAttachMenu(false);
 
     for (let i = 0; i < rawFiles.length; i++) {
       const rawFile = rawFiles[i];
@@ -588,39 +579,121 @@ export default function ChatPage() {
         }
       } else if (isAudio) {
         type = "audio";
+        previewUrl = URL.createObjectURL(rawFile);
       } else {
         type = "document";
+        previewUrl = URL.createObjectURL(rawFile);
       }
 
-      newItems.push({
-        id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        file: processedFile,
-        previewUrl,
-        type,
-      });
-    }
+      const defaultPlaceholder =
+        type === "video"
+          ? "[Video]"
+          : type === "audio"
+          ? "[Voice Note]"
+          : type === "document"
+          ? `[Document: ${rawFile.name}]`
+          : "[Photo]";
 
-    if (newItems.length > 0) {
-      setStagedFiles((prev) => [...prev, ...newItems]);
-      setShowAttachMenu(false);
+      const msgContent = i === 0 && caption ? caption : defaultPlaceholder;
+      const tempId = `temp_file_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`;
+
+      const optimisticMsg: MessageItem = {
+        id: tempId,
+        conversationId: convId,
+        content: msgContent,
+        imageUrl: previewUrl,
+        senderId: currentUser?.id || "me",
+        sender: {
+          id: currentUser?.id || "me",
+          name: currentUser?.name || "You",
+          role: currentUser?.role || "USER",
+          email: "",
+        },
+        createdAt: new Date().toISOString(),
+        isMine: true,
+        isSending: true,
+      };
+
+      // Instantly appear in the chat stream
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setTimeout(() => scrollToBottom(true), 50);
+
+      // Upload and post asynchronously
+      (async () => {
+        try {
+          const category =
+            type === "video"
+              ? "VIDEO"
+              : type === "audio"
+              ? "VOICE_NOTE"
+              : type === "document"
+              ? "DOCUMENT"
+              : "PHOTO";
+
+          let uploadedUrl: string | null = null;
+          try {
+            const uploadRes = await uploadClientMedia(processedFile, {
+              entityType: "CHAT",
+              entityId: convId,
+              category,
+              createAttachment: true,
+            });
+            if (uploadRes?.url) uploadedUrl = uploadRes.url;
+          } catch (uploadErr) {
+            console.warn("Storage upload error, attempting data URL fallback:", uploadErr);
+          }
+
+          // Fallback to data URL for small images if storage upload failed
+          if (!uploadedUrl && type === "image" && processedFile.size < 2 * 1024 * 1024) {
+            try {
+              uploadedUrl = await compressImageToDataUrl(processedFile, 1200, 0.8);
+            } catch {}
+          }
+
+          if (!uploadedUrl) {
+            throw new Error(`Failed to upload ${rawFile.name}. Please check connection.`);
+          }
+
+          const json = await safeFetchJson(`/api/chat/conversations/${convId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: msgContent,
+              imageUrl: uploadedUrl,
+            }),
+          });
+
+          if (json.success && json.data?.message) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === tempId ? { ...json.data.message, isMine: true } : m))
+            );
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            safeFetchJson("/api/chat/conversations").then((r) => {
+              if (r.success) setConversations(r.data.conversations || []);
+            });
+          } else {
+            throw new Error(json?.error?.message || `Failed to post message for ${rawFile.name}`);
+          }
+        } catch (err: any) {
+          console.error(`Error sending ${rawFile.name}:`, err);
+          setActionError(err.message || `Failed to send ${rawFile.name}`);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === tempId ? { ...m, isSending: false, uploadFailed: true } : m))
+          );
+        }
+      })();
     }
   };
 
-  const removeStagedFile = (id: string) => {
-    setStagedFiles((prev) => {
-      const item = prev.find((f) => f.id === id);
-      if (item?.previewUrl) {
-        URL.revokeObjectURL(item.previewUrl);
-      }
-      return prev.filter((f) => f.id !== id);
-    });
-  };
+  // When files are picked, immediately send and share them to the chat
+  const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFiles = e.target.files;
+    e.target.value = "";
+    if (!rawFiles || rawFiles.length === 0) return;
 
-  const clearAllStagedFiles = () => {
-    stagedFiles.forEach((f) => {
-      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-    });
-    setStagedFiles([]);
+    const caption = messageInput.trim();
+    setMessageInput("");
+    await sendSelectedFiles(rawFiles, caption);
   };
 
   // Voice Note Recording (WhatsApp style)
@@ -690,10 +763,14 @@ export default function ChatPage() {
 
     const recorder = mediaRecorderRef.current;
     const finalSeconds = recordingSeconds;
+    const convId = activeConversationId;
 
     recorder.onstop = async () => {
       recorder.stream?.getTracks().forEach((track) => track.stop());
-      const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      const rawMime = recorder.mimeType || "audio/webm";
+      // Normalize MIME type by stripping codecs (e.g. 'audio/webm;codecs=opus' -> 'audio/webm')
+      const cleanMime = rawMime.split(";")[0].trim().toLowerCase() || "audio/webm";
+      const audioBlob = new Blob(audioChunksRef.current, { type: cleanMime });
       audioChunksRef.current = [];
       setIsRecording(false);
       setRecordingSeconds(0);
@@ -703,23 +780,44 @@ export default function ChatPage() {
         return;
       }
 
-      const ext = recorder.mimeType?.includes("ogg") ? ".oga" : recorder.mimeType?.includes("mp4") ? ".m4a" : ".weba";
+      const ext = cleanMime.includes("ogg") ? ".oga" : cleanMime.includes("mp4") ? ".m4a" : ".weba";
       const voiceFile = new File([audioBlob], `voice_note_${Date.now()}${ext}`, {
-        type: recorder.mimeType || "audio/webm",
+        type: cleanMime,
       });
 
-      setSending(true);
+      const localBlobUrl = URL.createObjectURL(audioBlob);
+      const tempId = `temp_voice_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const optimisticMsg: MessageItem = {
+        id: tempId,
+        conversationId: convId,
+        content: `[Voice Note] (${finalSeconds}s)`,
+        imageUrl: localBlobUrl,
+        senderId: currentUser?.id || "me",
+        sender: {
+          id: currentUser?.id || "me",
+          name: currentUser?.name || "You",
+          role: currentUser?.role || "USER",
+          email: "",
+        },
+        createdAt: new Date().toISOString(),
+        isMine: true,
+        isSending: true,
+      };
+
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setTimeout(() => scrollToBottom(true), 50);
+
       try {
         const uploadRes = await uploadClientMedia(voiceFile, {
           entityType: "CHAT",
-          entityId: activeConversationId,
+          entityId: convId,
           category: "VOICE_NOTE",
           createAttachment: true,
         });
 
         if (!uploadRes?.url) throw new Error("Failed to upload voice note.");
 
-        const json = await safeFetchJson(`/api/chat/conversations/${activeConversationId}/messages`, {
+        const json = await safeFetchJson(`/api/chat/conversations/${convId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -729,16 +827,22 @@ export default function ChatPage() {
         });
 
         if (json.success && json.data?.message) {
-          setMessages((prev) => [...prev, json.data.message]);
-          setTimeout(() => scrollToBottom(true), 50);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === tempId ? { ...json.data.message, isMine: true } : m))
+          );
+          URL.revokeObjectURL(localBlobUrl);
           safeFetchJson("/api/chat/conversations").then((r) => {
             if (r.success) setConversations(r.data.conversations || []);
           });
+        } else {
+          throw new Error(json?.error?.message || "Failed to post voice note message");
         }
       } catch (err: any) {
+        console.error("Voice note send error:", err);
         setActionError(err.message || "Failed to send voice note.");
-      } finally {
-        setSending(false);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, isSending: false, uploadFailed: true } : m))
+        );
       }
     };
 
@@ -936,124 +1040,66 @@ export default function ChatPage() {
     }
   };
 
-  // Send a message (Text, Multiple Images, Videos, Voice Notes, Documents)
+  // Send a text message with optimistic instant delivery
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!activeConversationId || sending) return;
 
     const content = messageInput.trim();
-    if (!content && stagedFiles.length === 0) return;
+    if (!content) return;
 
+    const convId = activeConversationId;
+    setMessageInput("");
     setSending(true);
     setActionError(null);
 
+    const tempId = `temp_txt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const optimisticMsg: MessageItem = {
+      id: tempId,
+      conversationId: convId,
+      content,
+      senderId: currentUser?.id || "me",
+      sender: {
+        id: currentUser?.id || "me",
+        name: currentUser?.name || "You",
+        role: currentUser?.role || "USER",
+        email: "",
+      },
+      createdAt: new Date().toISOString(),
+      isMine: true,
+      isSending: true,
+    };
+
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setTimeout(() => scrollToBottom(true), 50);
+
     try {
-      if (stagedFiles.length === 0) {
-        // 1. Text only message
-        const json = await safeFetchJson(`/api/chat/conversations/${activeConversationId}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
-        });
-
-        if (json.success && json.data?.message) {
-          setMessages((prev) => [...prev, json.data.message]);
-          setMessageInput("");
-          setTimeout(() => scrollToBottom(true), 50);
-        } else {
-          setActionError(json.error?.message || "Failed to send message");
-        }
-      } else {
-        // 2. Multiple attachments (Images, Videos, PDFs, Documents)
-        const filesToSend = [...stagedFiles];
-        const typedCaption = content;
-
-        // Reset staging state
-        clearAllStagedFiles();
-        setMessageInput("");
-
-        for (let i = 0; i < filesToSend.length; i++) {
-          const item = filesToSend[i];
-          let fileToUpload = item.file;
-          let uploadedUrl: string | null = null;
-
-          if (item.type === "video") {
-            fileToUpload = await compressVideoFile(item.file);
-          } else if (item.type === "image") {
-            fileToUpload = await compressImageFile(item.file, { preset: "photo" });
-          }
-
-          try {
-            const category =
-              item.type === "video"
-                ? "VIDEO"
-                : item.type === "audio"
-                ? "VOICE_NOTE"
-                : item.type === "document"
-                ? "DOCUMENT"
-                : "PHOTO";
-
-            const uploadRes = await uploadClientMedia(fileToUpload, {
-              entityType: "CHAT",
-              entityId: activeConversationId,
-              category,
-              createAttachment: true,
-            });
-
-            if (uploadRes?.url) {
-              uploadedUrl = uploadRes.url;
-            }
-          } catch (uploadErr) {
-            console.warn("Storage upload failed, attempting fallback:", uploadErr);
-          }
-
-          if (!uploadedUrl && item.type === "image" && fileToUpload.size < 2 * 1024 * 1024) {
-            try {
-              uploadedUrl = await compressImageToDataUrl(fileToUpload, 1200, 0.8);
-            } catch {}
-          }
-
-          if (!uploadedUrl) {
-            throw new Error(`Failed to upload ${item.file.name}. Please check your connection.`);
-          }
-
-          const defaultPlaceholder =
-            item.type === "video"
-              ? "[Video]"
-              : item.type === "audio"
-              ? "[Voice Note]"
-              : item.type === "document"
-              ? `[Document: ${item.file.name}]`
-              : "[Photo]";
-
-          const msgContent = i === 0 && typedCaption ? typedCaption : defaultPlaceholder;
-
-          const json = await safeFetchJson(`/api/chat/conversations/${activeConversationId}/messages`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              content: msgContent,
-              imageUrl: uploadedUrl,
-            }),
-          });
-
-          if (json.success && json.data?.message) {
-            setMessages((prev) => [...prev, json.data.message]);
-            setTimeout(() => scrollToBottom(true), 50);
-          }
-        }
-      }
-
-      // Refresh conversations list to update latestMessage
-      safeFetchJson("/api/chat/conversations").then((r) => {
-        if (r.success) setConversations(r.data.conversations || []);
+      const json = await safeFetchJson(`/api/chat/conversations/${convId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
       });
+
+      if (json.success && json.data?.message) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...json.data.message, isMine: true } : m))
+        );
+        safeFetchJson("/api/chat/conversations").then((r) => {
+          if (r.success) setConversations(r.data.conversations || []);
+        });
+      } else {
+        throw new Error(json?.error?.message || "Failed to send message");
+      }
     } catch (err: any) {
       console.error("Error sending message:", err);
       setActionError(err.message || "Failed to send message. Please try again.");
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, isSending: false, uploadFailed: true } : m))
+      );
     } finally {
       setSending(false);
     }
+  };
   };
 
   // Create a new group (Super Admin only)
@@ -1834,9 +1880,16 @@ export default function ChatPage() {
                                         : ""}
                                     </span>
                                     {m.isEdited && <span className="italic">• edited</span>}
-                                    {m.isMine && (
+                                    {m.isSending ? (
+                                      <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                                        <span className="w-2.5 h-2.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin inline-block" />
+                                        <span>Sending...</span>
+                                      </span>
+                                    ) : m.uploadFailed ? (
+                                      <span className="text-rose-400 font-bold">Failed</span>
+                                    ) : m.isMine ? (
                                       <CheckCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 inline" />
-                                    )}
+                                    ) : null}
                                   </div>
                                 </div>
                               </div>
@@ -1859,59 +1912,7 @@ export default function ChatPage() {
                       </button>
                     )}
 
-                    {/* Staged Multiple Files Preview Tray (WhatsApp-style) */}
-                    {stagedFiles.length > 0 && (
-                      <div className="p-2.5 px-3 bg-slate-100/90 border-t border-slate-200/90 flex items-center gap-2.5 overflow-x-auto shrink-0 animate-in fade-in slide-in-from-bottom-1">
-                        {stagedFiles.map((staged) => (
-                          <div
-                            key={staged.id}
-                            className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-white border border-slate-300 shadow-2xs group flex flex-col items-center justify-center"
-                          >
-                            {staged.type === "image" && staged.previewUrl ? (
-                              <img src={staged.previewUrl} alt={staged.file.name} className="w-full h-full object-cover" />
-                            ) : staged.type === "video" && staged.previewUrl ? (
-                              <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
-                                <video src={staged.previewUrl} className="w-full h-full object-cover" muted />
-                                <Play className="w-4 h-4 text-white fill-current absolute" />
-                              </div>
-                            ) : staged.type === "audio" ? (
-                              <div className="w-full h-full flex flex-col items-center justify-center bg-emerald-50 text-emerald-700 p-1">
-                                <Mic className="w-5 h-5 text-emerald-600 mb-0.5" />
-                                <span className="text-[8px] font-bold truncate max-w-[50px]">{staged.file.name}</span>
-                              </div>
-                            ) : (
-                              <div className="w-full h-full flex flex-col items-center justify-center bg-rose-50 text-rose-700 p-1">
-                                <FileText className="w-5 h-5 text-rose-600 mb-0.5" />
-                                <span className="text-[8px] font-bold truncate max-w-[50px]">{staged.file.name}</span>
-                              </div>
-                            )}
-
-                            {/* Remove file button */}
-                            <button
-                              type="button"
-                              onClick={() => removeStagedFile(staged.id)}
-                              className="absolute top-1 right-1 w-4 h-4 rounded-full bg-slate-900/80 hover:bg-rose-600 text-white flex items-center justify-center cursor-pointer transition shadow-xs"
-                              title="Remove file"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
-                          </div>
-                        ))}
-
-                        {/* Add More Files Button */}
-                        <button
-                          type="button"
-                          onClick={() => setShowAttachMenu((prev) => !prev)}
-                          className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 text-slate-400 hover:text-emerald-600 flex flex-col items-center justify-center gap-1 shrink-0 transition cursor-pointer bg-white"
-                          title="Add more files"
-                        >
-                          <Plus className="w-5 h-5" />
-                          <span className="text-[9px] font-bold">Add</span>
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Action Error Banner */}
+{/* Action Error Banner */}
                     {actionError && (
                       <div className="p-2.5 px-3 bg-rose-50 border-t border-rose-200 text-xs text-rose-800 flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-2">
@@ -2048,7 +2049,7 @@ export default function ChatPage() {
                             onClick={() => setShowAttachMenu((prev) => !prev)}
                             disabled={sending}
                             className={`p-2.5 rounded-full transition shrink-0 flex items-center justify-center cursor-pointer ${
-                              showAttachMenu || stagedFiles.length > 0
+                              showAttachMenu
                                 ? "bg-emerald-600 text-white shadow-xs"
                                 : "text-slate-600 hover:text-emerald-700 hover:bg-slate-200"
                             } disabled:opacity-50`}
@@ -2060,11 +2061,7 @@ export default function ChatPage() {
                           {/* Message Text Input */}
                           <input
                             type="text"
-                            placeholder={
-                              stagedFiles.length > 0
-                                ? `Add a caption for ${stagedFiles.length} file(s)... (Press Enter to send)`
-                                : t("chat.typeMessage", "Type a message... (Press Enter to send)")
-                            }
+                            placeholder={t("chat.typeMessage", "Type a message... (Press Enter to send)")}
                             value={messageInput}
                             onChange={(e) => setMessageInput(e.target.value)}
                             className="flex-1 min-w-0 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-400 shadow-2xs"
@@ -2072,7 +2069,7 @@ export default function ChatPage() {
                           />
 
                           {/* Right Action Button: Send if has text/files; Mic if empty */}
-                          {messageInput.trim() || stagedFiles.length > 0 ? (
+                          {messageInput.trim() ? (
                             <button
                               type="submit"
                               disabled={sending}

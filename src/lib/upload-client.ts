@@ -48,7 +48,17 @@ export async function uploadClientMedia(
       form.append("category", category);
 
       options.onProgress?.(40, "Uploading...");
-      const res = await fetch(endpoint, { method: "POST", body: form });
+      let res = await fetch(endpoint, { method: "POST", body: form });
+
+      // If /api/attachments failed and createAttachment was true, fallback to /api/uploads
+      if (!res.ok && res.status !== 413 && createAttachment) {
+        try {
+          const fallbackRes = await fetch("/api/uploads", { method: "POST", body: form });
+          if (fallbackRes.ok) {
+            res = fallbackRes;
+          }
+        } catch {}
+      }
 
       if (res.status === 413) {
         // Fallback to chunked upload if server gateway returns 413
@@ -91,7 +101,7 @@ export async function uploadClientMedia(
     chunkForm.append("chunkIndex", String(chunkIndex));
     chunkForm.append("totalChunks", String(totalChunks));
     chunkForm.append("fileName", file.name);
-    chunkForm.append("fileType", file.type || "application/octet-stream");
+    chunkForm.append("fileType", (file.type || "").split(";")[0].trim().toLowerCase() || "application/octet-stream");
     chunkForm.append("entityType", entityType);
     if (entityId) chunkForm.append("entityId", entityId);
     if (projectId) chunkForm.append("projectId", projectId);

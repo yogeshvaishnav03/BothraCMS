@@ -10,6 +10,7 @@ import {
   STANDARD_EXTENSION_MAP as EXTENSION_MAP,
   isValidMagicBytes,
   sanitizeFileName,
+  normalizeMimeType,
 } from "@/lib/upload-validation";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +53,9 @@ export async function POST(req: NextRequest) {
       return jsonError("Individual chunk exceeds max allowable limit of 4 MB", "CHUNK_TOO_LARGE", 413);
     }
 
-    if (!ALLOWED_MIME_TYPES.has(fileType)) {
+    const normalizedMime = normalizeMimeType(fileType, fileName);
+
+    if (!ALLOWED_MIME_TYPES.has(normalizedMime)) {
       return jsonError(`File type '${fileType}' is not allowed`, "INVALID_FILE_TYPE", 400);
     }
 
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Magic Bytes Content Verification
-    if (!isValidMagicBytes(fullBuffer, fileType)) {
+    if (!isValidMagicBytes(fullBuffer, normalizedMime, fileName)) {
       await prisma.idempotencyRecord.deleteMany({
         where: {
           organizationId: user.organizationId,
@@ -148,12 +151,12 @@ export async function POST(req: NextRequest) {
 
     // Determine storage target
     const fileId = crypto.randomUUID();
-    const safeExt = EXTENSION_MAP[fileType] || path.extname(fileName) || ".bin";
+    const safeExt = EXTENSION_MAP[normalizedMime] || path.extname(fileName) || ".bin";
     const diskFileName = `${user.organizationId}_${fileId}${safeExt}`;
     const sanitizedOriginalName = sanitizeFileName(fileName);
 
     const storage = getStorageProvider();
-    await storage.put(diskFileName, fullBuffer, fileType);
+    await storage.put(diskFileName, fullBuffer, normalizedMime);
 
     try {
       await backupFileToDatabase(
@@ -175,7 +178,7 @@ export async function POST(req: NextRequest) {
           fileId,
           fileName: sanitizedOriginalName,
           fileSize: fullBuffer.length,
-          mimeType: fileType,
+          mimeType: normalizedMime,
           category: category.toUpperCase(),
           diskFileName,
           projectId: projectId || null,

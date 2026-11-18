@@ -10,6 +10,7 @@ import {
   FINANCIAL_CATEGORIES,
   isValidMagicBytes,
   sanitizeFileName,
+  normalizeMimeType,
 } from "@/lib/upload-validation";
 
 import {
@@ -171,15 +172,17 @@ export async function POST(req: NextRequest) {
       return jsonError("No file provided in request", "MISSING_FILE", 400);
     }
 
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    const normalizedMime = normalizeMimeType(file.type, file.name);
+
+    if (!ALLOWED_MIME_TYPES.has(normalizedMime)) {
       return jsonError(
-        `Invalid file format '${file.type}'. Supported formats: Images, Videos, Voice Notes/Audio, PDF & Documents`,
+        `Invalid file format '${file.type || "unknown"}'. Supported formats: Images, Videos, Voice Notes/Audio, PDF & Documents`,
         "INVALID_FILE_TYPE",
         400
       );
     }
 
-    const isLargeMedia = file.type.startsWith("video/") || file.type.startsWith("audio/");
+    const isLargeMedia = normalizedMime.startsWith("video/") || normalizedMime.startsWith("audio/");
     const maxLimitBytes = isLargeMedia ? 250 * 1024 * 1024 : 15 * 1024 * 1024;
     const maxLimitMb = isLargeMedia ? 250 : 15;
 
@@ -193,18 +196,18 @@ export async function POST(req: NextRequest) {
 
     const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-    if (!isValidMagicBytes(fileBuffer, file.type)) {
+    if (!isValidMagicBytes(fileBuffer, normalizedMime, file.name)) {
       return jsonError("File signature verification failed", "MIME_SPOOFING_DETECTED", 400);
     }
 
-    const safeExt = EXTENSION_MAP[file.type] || ".bin";
+    const safeExt = EXTENSION_MAP[normalizedMime] || path.extname(file.name) || ".bin";
     const fileId = crypto.randomUUID();
     const diskFileName = `${user.organizationId}_${fileId}${safeExt}`;
     const sanitizedOriginalName = sanitizeFileName(file.name);
 
     // Put file in storage backend
     const storage = getStorageProvider();
-    await storage.put(diskFileName, fileBuffer, file.type);
+    await storage.put(diskFileName, fileBuffer, normalizedMime);
 
     // A copy in the database when there is no cloud storage, so the file survives on Vercel.
     try {
@@ -222,7 +225,7 @@ export async function POST(req: NextRequest) {
         fileId,
         fileName: sanitizedOriginalName,
         fileSize: file.size,
-        mimeType: file.type,
+        mimeType: normalizedMime,
         category: category.toUpperCase(),
         diskFileName,
         projectId: projectId || null,
