@@ -8,6 +8,7 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 const issueMaterialSchema = z.object({
+  action: z.literal("issue").optional(),
   materialId: z.string().min(1, "Material is required"),
   storeId: z.string().min(1, "Store/warehouse is required"),
   projectId: z.string().min(1, "Project is required"),
@@ -16,6 +17,18 @@ const issueMaterialSchema = z.object({
   notes: z.string().optional(),
   movementAt: z.string().optional(),
   attachmentIds: z.array(z.string()).optional(),
+});
+
+const returnMaterialSchema = z.object({
+  action: z.literal("return"),
+  issueId: z.string().optional(),
+  materialId: z.string().min(1, "Material is required"),
+  storeId: z.string().min(1, "Store/warehouse is required"),
+  projectId: z.string().optional(),
+  quantity: z.number().positive("Return quantity must be strictly greater than 0"),
+  returnedByName: z.string().min(2, "Contractor / person name is required"),
+  notes: z.string().optional(),
+  movementAt: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -32,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     const where: any = {
       organizationId: user.organizationId,
-      movementType: "ISSUE",
+      movementType: { in: ["ISSUE", "RETURN"] },
       isArchived: false,
     };
 
@@ -103,18 +116,23 @@ export async function GET(req: NextRequest) {
     }
 
     const data = movements.map((m: any) => {
-      const issuedQty = Math.abs(Number(m.quantityDelta) || 0);
+      const isReturn = m.movementType === "RETURN";
+      const qtyDelta = Number(m.quantityDelta) || 0;
+      const movementQty = Math.abs(qtyDelta);
       const remainingQty = balanceMap.get(`${m.materialId}_${m.storeId}`) || 0;
-      const totalAvailable = remainingQty + issuedQty;
+      const totalAvailable = isReturn ? remainingQty : (remainingQty + movementQty);
 
       return {
         id: m.id,
+        movementType: m.movementType,
         materialId: m.materialId,
         materialName: m.material?.name || "Material",
         materialSku: m.material?.sku || "—",
         materialCategory: m.material?.category?.name || "General",
         totalMaterial: totalAvailable,
-        issuedMaterial: issuedQty,
+        issuedMaterial: isReturn ? -movementQty : movementQty,
+        quantity: movementQty,
+        isReturn,
         remainingMaterial: remainingQty,
         unit: m.unitCode || m.material?.unitCode || "UNIT",
         storeId: m.storeId,
@@ -128,9 +146,10 @@ export async function GET(req: NextRequest) {
         issuedBy: m.creator?.name || "Staff",
         issuedByRole: m.creator?.role || "USER",
         creationDate: m.movementAt ? m.movementAt.toISOString() : m.createdAt.toISOString(),
-        status: m.issueStatus || "ISSUED",
+        status: isReturn ? "RETURNED" : (m.issueStatus || "ISSUED"),
         notes: m.notes || "",
         attachments: m.attachments || [],
+        reversalOfId: m.reversalOfId,
       };
     });
 
@@ -146,6 +165,98 @@ export async function POST(req: NextRequest) {
     requirePermission(user, "inventory:issue");
 
     const body = await req.json();
+
+    // Handle Return Unused Material
+    if (body.action === "return") {
+      const data = returnMaterialSchema.parse(body);
+
+      const material = await prisma.material.findFirst({
+        where: { id: data.materialId, organizationId: user.organizationId },
+      });
+      if (!material) {
+        return jsonError("NotFound: Material not found", "NOT_FOUND", 404);
+      }
+
+      const store = await prisma.store.findFirst({
+        where: { id: data.storeId, organizationId: user.organizationId },
+      });
+      if (!store) {
+        return jsonError("NotFound: Store not found or outside organization", "NOT_FOUND", 404);
+      }
+
+      const result = await prisma.$transaction(async (tx: any) => {
+        // 1. Credit stock balance (increment back into store)
+        const updatedBalance = await tx.stockBalance.upsert({
+          where: {
+            materialId_storeId: {
+              materialId: data.materialId,
+              storeId: data.storeId,
+            },
+          },
+          update: {
+            quantityOnHand: { increment: data.quantity },
+          },
+          create: {
+            materialId: data.materialId,
+            storeId: data.storeId,
+            quantityOnHand: data.quantity,
+          },
+        });
+
+        // 2. Create RETURN movement (positive delta)
+        const movement = await tx.stockMovement.create({
+          data: {
+            organizationId: user.organizationId,
+            materialId: data.materialId,
+            storeId: data.storeId,
+            movementType: "RETURN",
+            quantityDelta: data.quantity,
+            unitCode: material.unitCode,
+            projectId: data.projectId || null,
+            issuedToName: data.returnedByName,
+            issueStatus: "RETURNED",
+            reversalOfId: data.issueId || null,
+            notes: data.notes || `Returned unused material from ${data.returnedByName}`,
+            createdBy: user.userId,
+            movementAt: data.movementAt ? new Date(data.movementAt) : new Date(),
+          },
+        });
+
+        // 3. If linked to an issue record, mark status as RETURNED
+        if (data.issueId) {
+          await tx.stockMovement.update({
+            where: { id: data.issueId },
+            data: {
+              issueStatus: "RETURNED",
+            },
+          });
+        }
+
+        // 4. Record audit event
+        await tx.auditEvent.create({
+          data: {
+            organizationId: user.organizationId,
+            actorUserId: user.userId,
+            action: "INVENTORY_RETURN",
+            entityType: "STOCK_MOVEMENT",
+            entityId: movement.id,
+            afterJson: JSON.stringify({
+              materialId: data.materialId,
+              quantity: data.quantity,
+              storeId: data.storeId,
+              returnedBy: data.returnedByName,
+              issueId: data.issueId,
+            }),
+          },
+        });
+
+        return { movement, currentStock: updatedBalance.quantityOnHand };
+      });
+
+      return jsonSuccess(result, 201);
+    }
+
+    // Default: Issue Material
     const data = issueMaterialSchema.parse(body);
 
     await requireProjectAccess(user, data.projectId, "inventory:issue");

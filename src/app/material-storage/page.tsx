@@ -27,6 +27,7 @@ import {
   ChevronDown,
   Warehouse,
   AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 
 interface StorageMovement {
@@ -52,6 +53,9 @@ interface StorageMovement {
   creationDate: string;
   status: string;
   notes: string;
+  movementType?: string;
+  isReturn?: boolean;
+  quantity?: number;
   attachments?: Array<{
     id: string;
     fileId: string;
@@ -120,6 +124,19 @@ export default function MaterialStoragePage() {
     movementAt: todayStr,
   });
   const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string } | null>(null);
+
+  // Return Modal State
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnForm, setReturnForm] = useState({
+    issueId: "",
+    materialId: "",
+    storeId: "",
+    projectId: "",
+    quantity: "",
+    returnedByName: "",
+    notes: "",
+    movementAt: todayStr,
+  });
 
   const fetchMovements = async () => {
     try {
@@ -292,6 +309,86 @@ export default function MaterialStoragePage() {
     }
   };
 
+  const handleReturnSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+
+    const qty = parseFloat(returnForm.quantity);
+    if (!returnForm.materialId) {
+      setError("Please select the material being returned");
+      return;
+    }
+    if (!returnForm.storeId) {
+      setError("Please select the warehouse/store receiving the returned material");
+      return;
+    }
+    if (isNaN(qty) || qty <= 0) {
+      setError("Return quantity must be strictly greater than zero");
+      return;
+    }
+    if (!returnForm.returnedByName.trim()) {
+      setError("Please specify the contractor or person returning the material");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const res = await fetch("/api/material-storage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "return",
+          issueId: returnForm.issueId || undefined,
+          materialId: returnForm.materialId,
+          storeId: returnForm.storeId,
+          projectId: returnForm.projectId || undefined,
+          quantity: qty,
+          returnedByName: returnForm.returnedByName.trim(),
+          notes: returnForm.notes ? returnForm.notes.trim() : undefined,
+          movementAt: returnForm.movementAt ? `${returnForm.movementAt}T12:00:00.000Z` : undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to return material to storage");
+      }
+
+      setSuccessMsg(`Unused material (${qty}) successfully returned to storage! Live stock balance has been updated.`);
+      setShowReturnModal(false);
+      setReturnForm({
+        issueId: "",
+        materialId: "",
+        storeId: "",
+        projectId: "",
+        quantity: "",
+        returnedByName: "",
+        notes: "",
+        movementAt: todayStr,
+      });
+      fetchMovements();
+    } catch (err: any) {
+      setError(err?.message || "Failed to return material to storage");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOpenReturnForIssue = (item: StorageMovement) => {
+    setReturnForm({
+      issueId: item.id,
+      materialId: item.materialId,
+      storeId: item.storeId,
+      projectId: item.projectId || "",
+      quantity: String(item.issuedMaterial > 0 ? item.issuedMaterial : ""),
+      returnedByName: item.responsiblePerson || "",
+      notes: `Unused material returned from ${item.responsiblePerson || "contractor"}`,
+      movementAt: todayStr,
+    });
+    setShowReturnModal(true);
+  };
+
   // Filtered movements based on search query
   const filteredMovements = useMemo(() => {
     return movements.filter((m) => {
@@ -351,6 +448,25 @@ export default function MaterialStoragePage() {
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                 <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <button
+                onClick={() => {
+                  setReturnForm({
+                    issueId: "",
+                    materialId: "",
+                    storeId: "",
+                    projectId: "",
+                    quantity: "",
+                    returnedByName: "",
+                    notes: "",
+                    movementAt: todayStr,
+                  });
+                  setShowReturnModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Return Material
               </button>
               <button
                 onClick={() => setShowIssueModal(true)}
@@ -561,6 +677,7 @@ export default function MaterialStoragePage() {
                     <th className="py-3 px-4">Creation Date</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-center">Attachments</th>
+                    <th className="py-3 px-4 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -582,8 +699,21 @@ export default function MaterialStoragePage() {
                         {formatQuantity(item.totalMaterial)} {item.unit}
                       </td>
 
-                      <td className="py-3 px-4 text-right font-bold text-amber-600 dark:text-amber-400">
-                        {formatQuantity(item.issuedMaterial)} {item.unit}
+                      <td className="py-3 px-4 text-right">
+                        {item.status === "RETURNED" ? (
+                          <div>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                              +{formatQuantity(Math.abs(item.issuedMaterial))} {item.unit}
+                            </span>
+                            <div className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                              Returned to Store
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="font-bold text-amber-600 dark:text-amber-400">
+                            {formatQuantity(item.issuedMaterial)} {item.unit}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 text-right font-semibold text-emerald-600 dark:text-emerald-400">
@@ -623,10 +753,17 @@ export default function MaterialStoragePage() {
                       </td>
 
                       <td className="py-3 px-4 text-center">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                          <CheckCircle2 className="w-3 h-3" />
-                          {item.status}
-                        </span>
+                        {item.status === "RETURNED" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                            <CheckCircle2 className="w-3 h-3" />
+                            RETURNED
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                            <CheckCircle2 className="w-3 h-3" />
+                            {item.status}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 text-center">
@@ -639,6 +776,26 @@ export default function MaterialStoragePage() {
                           <span className="text-xs text-slate-400 italic">Photo attached</span>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        {item.status !== "RETURNED" && item.issuedMaterial > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReturnForIssue(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors shadow-2xs"
+                            title="Return unused material from this contractor back into storage"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Return Unused</span>
+                          </button>
+                        ) : item.status === "RETURNED" ? (
+                          <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                            Added to Storage
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
                         )}
                       </td>
                     </tr>
@@ -723,6 +880,19 @@ export default function MaterialStoragePage() {
                     <div className="text-xs bg-slate-50 dark:bg-slate-800 p-2 rounded text-slate-600 dark:text-slate-300">
                       <span className="font-medium text-slate-700 dark:text-slate-200">Notes: </span>
                       {item.notes}
+                    </div>
+                  )}
+
+                  {item.status !== "RETURNED" && item.issuedMaterial > 0 && (
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReturnForIssue(item)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors w-full justify-center"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Return Unused Material to Storage</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -911,6 +1081,179 @@ export default function MaterialStoragePage() {
                       <>
                         <PackageMinus className="w-4 h-4" />
                         Confirm & Issue Stock
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        {/* Return Material Modal */}
+        {showReturnModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="w-5 h-5 text-emerald-600" />
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                    Return Unused Material to Storage
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReturnModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleReturnSubmit} className="space-y-4">
+                {/* Material Select */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Select Material *
+                  </label>
+                  <select
+                    value={returnForm.materialId}
+                    onChange={(e) => setReturnForm({ ...returnForm, materialId: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="">-- Choose Material --</option>
+                    {materials.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.categoryName}) - Stock: {m.quantityOnHand || 0} {m.unitCode}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Receiving Store & Project */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Receiving Warehouse / Store *
+                    </label>
+                    <select
+                      value={returnForm.storeId}
+                      onChange={(e) => setReturnForm({ ...returnForm, storeId: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">-- Select Store --</option>
+                      {stores.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code || "Store"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Project (Source of Return)
+                    </label>
+                    <select
+                      value={returnForm.projectId}
+                      onChange={(e) => setReturnForm({ ...returnForm, projectId: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">-- Optional: Select Project --</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} {p.siteName ? `(${p.siteName})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Return Quantity & Return Date */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Unused Return Quantity *
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.01"
+                      required
+                      placeholder="e.g. 10"
+                      value={returnForm.quantity}
+                      onChange={(e) => setReturnForm({ ...returnForm, quantity: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      Return Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={returnForm.movementAt}
+                      onChange={(e) => setReturnForm({ ...returnForm, movementAt: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Returned By (Contractor / Worker) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Returned by (Contractor / Person Name) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Apex Civil Contractors / Mr. Suresh"
+                    value={returnForm.returnedByName}
+                    onChange={(e) => setReturnForm({ ...returnForm, returnedByName: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                {/* Return Notes */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Return Remarks / Reason
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. 2nd floor plaster work finished; 10 unused bags returned to store..."
+                    value={returnForm.notes}
+                    onChange={(e) => setReturnForm({ ...returnForm, notes: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowReturnModal(false)}
+                    className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Recording Return...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-4 h-4" />
+                        Confirm & Return to Storage
                       </>
                     )}
                   </button>
