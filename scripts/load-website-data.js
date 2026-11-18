@@ -171,29 +171,28 @@ async function loadWebsiteData(options = {}) {
 
     // 2. Users
     const orgId = orgData.id;
-    console.log(`👥 Upserting ${dataset.users?.length || 0} Default Core Users...`);
+    console.log(`👥 Checking ${dataset.users?.length || 0} Default Core Users...`);
     for (const u of dataset.users || []) {
-      const passwordHash = u.passwordHash || (await hashPassword(u.password || "Password123!"));
-      await prisma.user.upsert({
+      const email = u.email.toLowerCase().trim();
+      const existingUser = await prisma.user.findFirst({
         where: {
-          organizationId_email: {
-            organizationId: orgId,
-            email: u.email.toLowerCase().trim(),
-          },
+          organizationId: orgId,
+          email,
         },
-        update: {
-          name: u.name,
-          role: u.role,
-          jobTitle: u.jobTitle || null,
-          phone: u.phone || null,
-          status: u.status || "ACTIVE",
-          // Do not overwrite existing password hash on update to protect existing admin accounts
-        },
-        create: {
+      });
+
+      if (existingUser) {
+        console.log(`  ✓ Preserving existing user customizations for: ${existingUser.name} (${email})`);
+        continue;
+      }
+
+      const passwordHash = u.passwordHash || (await hashPassword(u.password || "Password123!"));
+      await prisma.user.create({
+        data: {
           id: u.id,
           organizationId: orgId,
           name: u.name,
-          email: u.email.toLowerCase().trim(),
+          email,
           passwordHash,
           role: u.role,
           jobTitle: u.jobTitle || null,
@@ -244,24 +243,31 @@ async function loadWebsiteData(options = {}) {
     }
 
     // 3. Sites
-    console.log(`📍 Upserting ${dataset.sites?.length || 0} Operational Sites...`);
+    console.log(`📍 Checking ${dataset.sites?.length || 0} Operational Sites...`);
     for (const s of dataset.sites || []) {
-      await prisma.site.upsert({
+      const existingSite = await prisma.site.findFirst({
         where: {
-          organizationId_code: {
-            organizationId: orgId,
-            code: s.code,
-          },
+          organizationId: orgId,
+          code: s.code,
         },
-        update: {
-          name: s.name,
-          address: s.address,
-          latitude: s.latitude,
-          longitude: s.longitude,
-          geofenceM: s.geofenceM || 300,
-          status: s.status || "ACTIVE",
-        },
-        create: {
+      });
+
+      if (existingSite) {
+        if (existingSite.latitude == null && s.latitude != null) {
+          await prisma.site.update({
+            where: { id: existingSite.id },
+            data: {
+              latitude: s.latitude,
+              longitude: s.longitude,
+              geofenceM: existingSite.geofenceM || s.geofenceM || 300,
+            },
+          });
+        }
+        continue;
+      }
+
+      await prisma.site.create({
+        data: {
           id: s.id,
           organizationId: orgId,
           code: s.code,
@@ -277,49 +283,41 @@ async function loadWebsiteData(options = {}) {
     }
 
     // 4. Stores
-    console.log(`🏪 Upserting ${dataset.stores?.length || 0} Site Stores & Depots...`);
+    console.log(`🏪 Checking ${dataset.stores?.length || 0} Site Stores & Depots...`);
     for (const st of dataset.stores || []) {
       const existing = await prisma.store.findFirst({
         where: { organizationId: orgId, siteId: st.siteId, name: st.name },
       });
       if (existing) {
-        await prisma.store.update({
-          where: { id: existing.id },
-          data: { status: st.status || "ACTIVE" },
-        });
-      } else {
-        await prisma.store.create({
-          data: {
-            id: st.id,
-            organizationId: orgId,
-            siteId: st.siteId,
-            name: st.name,
-            status: st.status || "ACTIVE",
-          },
-        });
+        continue;
       }
+      await prisma.store.create({
+        data: {
+          id: st.id,
+          organizationId: orgId,
+          siteId: st.siteId,
+          name: st.name,
+          status: st.status || "ACTIVE",
+        },
+      });
       counts.stores++;
     }
 
     // 5. Projects
-    console.log(`🏗️ Upserting ${dataset.projects?.length || 0} Landmark Construction Projects...`);
+    console.log(`🏗️ Checking ${dataset.projects?.length || 0} Landmark Construction Projects...`);
     for (const p of dataset.projects || []) {
-      await prisma.project.upsert({
+      const existingProject = await prisma.project.findFirst({
         where: {
-          organizationId_code: {
-            organizationId: orgId,
-            code: p.code,
-          },
+          organizationId: orgId,
+          code: p.code,
         },
-        update: {
-          name: p.name,
-          siteId: p.siteId,
-          managerUserId: p.managerUserId || null,
-          status: p.status || "IN_PROGRESS",
-          budgetAmount: p.budgetAmount || 0,
-          notes: p.notes || null,
-        },
-        create: {
+      });
+      if (existingProject) {
+        continue;
+      }
+
+      await prisma.project.create({
+        data: {
           id: p.id,
           organizationId: orgId,
           siteId: p.siteId,
@@ -357,25 +355,19 @@ async function loadWebsiteData(options = {}) {
     }
 
     // 7. Materials
-    console.log(`🧱 Upserting ${dataset.materials?.length || 0} Inventory Materials...`);
+    console.log(`🧱 Checking ${dataset.materials?.length || 0} Inventory Materials...`);
     for (const m of dataset.materials || []) {
-      await prisma.material.upsert({
+      const existing = await prisma.material.findFirst({
         where: {
-          organizationId_sku: {
-            organizationId: orgId,
-            sku: m.sku,
-          },
+          organizationId: orgId,
+          sku: m.sku,
         },
-        update: {
-          name: m.name,
-          categoryId: m.categoryId || null,
-          unitCode: m.unitCode,
-          minStockQty: m.minStockQty || 0,
-          reorderQty: m.reorderQty || 0,
-          unitPrice: m.unitPrice || 0,
-          active: m.active !== false,
-        },
-        create: {
+      });
+      if (existing) {
+        continue;
+      }
+      await prisma.material.create({
+        data: {
           id: m.id,
           organizationId: orgId,
           categoryId: m.categoryId || null,
@@ -392,32 +384,16 @@ async function loadWebsiteData(options = {}) {
     }
 
     // 8. Parties (Vendors & Subcontractors)
-    console.log(`🤝 Upserting ${dataset.parties?.length || 0} Vendors & Subcontractors...`);
+    console.log(`🤝 Checking ${dataset.parties?.length || 0} Vendors & Subcontractors...`);
     for (const p of dataset.parties || []) {
-      await prisma.party.upsert({
+      const existing = await prisma.party.findFirst({
         where: { id: p.id },
-        update: {
-          name: p.name,
-          partyType: p.partyType,
-          category: p.category || null,
-          contactPerson: p.contactPerson || null,
-          phone: p.phone || null,
-          email: p.email || null,
-          address: p.address || null,
-          taxIdentifier: p.taxIdentifier || null,
-          panNumber: p.panNumber || null,
-          tdsSection: p.tdsSection || null,
-          dailyWageRate: p.dailyWageRate || null,
-          maleHelperWageRate: p.maleHelperWageRate || null,
-          femaleHelperWageRate: p.femaleHelperWageRate || null,
-          contractValue: p.contractValue || null,
-          bankName: p.bankName || null,
-          bankAccountNumber: p.bankAccountNumber || null,
-          bankIfsc: p.bankIfsc || null,
-          bankBranch: p.bankBranch || null,
-          active: p.active !== false,
-        },
-        create: {
+      });
+      if (existing) {
+        continue;
+      }
+      await prisma.party.create({
+        data: {
           id: p.id,
           organizationId: orgId,
           name: p.name,
@@ -445,27 +421,19 @@ async function loadWebsiteData(options = {}) {
     }
 
     // 9. Workforce Members
-    console.log(`👷 Upserting ${dataset.workforceMembers?.length || 0} Workforce Members...`);
+    console.log(`👷 Checking ${dataset.workforceMembers?.length || 0} Workforce Members...`);
     for (const wf of dataset.workforceMembers || []) {
-      await prisma.workforceMember.upsert({
+      const existing = await prisma.workforceMember.findFirst({
         where: {
-          organizationId_employeeCode: {
-            organizationId: orgId,
-            employeeCode: wf.employeeCode,
-          },
+          organizationId: orgId,
+          employeeCode: wf.employeeCode,
         },
-        update: {
-          name: wf.name,
-          workerType: wf.workerType,
-          phone: wf.phone || null,
-          defaultSiteId: wf.defaultSiteId || null,
-          contractorId: wf.contractorId || null,
-          dailyWageRate: wf.dailyWageRate || null,
-          maleHelperWageRate: wf.maleHelperWageRate || null,
-          femaleHelperWageRate: wf.femaleHelperWageRate || null,
-          active: wf.active !== false,
-        },
-        create: {
+      });
+      if (existing) {
+        continue;
+      }
+      await prisma.workforceMember.create({
+        data: {
           id: wf.id,
           organizationId: orgId,
           employeeCode: wf.employeeCode,
