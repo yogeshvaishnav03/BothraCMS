@@ -265,85 +265,6 @@ function MiniStat({ label, value, Icon, tone, href }: { label: string; value: st
   );
 }
 
-/** Seven days of cash paid vs bills booked, as paired bars with hover values. */
-function CashTrend({ trend, hi }: { trend: Overview["finance"]["trend"]; hi: boolean }) {
-  const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...trend.map((d) => Math.max(d.paid, d.billed, d.received || 0)));
-  const showIn = trend.some((d) => (d.received || 0) > 0);
-  const W = 280;
-  const H = 120;
-  const slot = W / trend.length;
-  const barW = showIn ? Math.min(9, slot / 4) : Math.min(12, slot / 3);
-  const active = hover !== null ? trend[hover] : trend[trend.length - 1];
-
-  return (
-    <div>
-      <div className="flex items-baseline justify-between gap-2 mb-2">
-        <div className="text-xs text-slate-500">
-          {new Date(`${active?.date}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
-        </div>
-        <div className="flex items-center gap-3 text-xs">
-          <span className="flex items-center gap-1.5 text-slate-600">
-            <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
-            {hi ? "भुगतान" : "Paid"} <b className="text-slate-900 tabular-nums">{formatCompactINR(active?.paid)}</b>
-          </span>
-          <span className="flex items-center gap-1.5 text-slate-600">
-            <span className="w-2.5 h-2.5 rounded-sm bg-slate-400" />
-            {hi ? "बिल" : "Billed"} <b className="text-slate-900 tabular-nums">{formatCompactINR(active?.billed)}</b>
-          </span>
-          {showIn && (
-            <span className="flex items-center gap-1.5 text-slate-600">
-              <span className="w-2.5 h-2.5 rounded-sm bg-teal-500" />
-              {hi ? "प्राप्त" : "Received"} <b className="text-slate-900 tabular-nums">{formatCompactINR(active?.received || 0)}</b>
-            </span>
-          )}
-        </div>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H + 18}`} className="w-full h-auto" role="img" aria-label="Cash paid and bills booked over the last seven days">
-        <line x1="0" x2={W} y1={H} y2={H} stroke="#e3e7ef" strokeWidth="1" />
-        {trend.map((d, i) => {
-          const cx = slot * i + slot / 2;
-          const hp = (d.paid / max) * (H - 8);
-          const hb = (d.billed / max) * (H - 8);
-          const dim = hover !== null && hover !== i;
-          return (
-            <g key={d.date} opacity={dim ? 0.4 : 1} style={{ transition: "opacity 150ms" }}>
-              {showIn ? (
-                <>
-                  <rect x={cx - barW * 1.5 - 2} y={H - hp} width={barW} height={Math.max(hp, 0)} rx="3" fill="#f59e0b" />
-                  <rect x={cx - barW / 2} y={H - hb} width={barW} height={Math.max(hb, 0)} rx="3" fill="#94a3b8" />
-                  <rect x={cx + barW / 2 + 2} y={H - ((d.received || 0) / max) * (H - 8)} width={barW} height={Math.max(((d.received || 0) / max) * (H - 8), 0)} rx="3" fill="#14b8a6" />
-                </>
-              ) : (
-                <>
-                  <rect x={cx - barW - 1} y={H - hp} width={barW} height={Math.max(hp, 0)} rx="3" fill="#f59e0b" />
-                  <rect x={cx + 1} y={H - hb} width={barW} height={Math.max(hb, 0)} rx="3" fill="#94a3b8" />
-                </>
-              )}
-              <text x={cx} y={H + 13} textAnchor="middle" fontSize="9" fill="#64748b">
-                {new Date(`${d.date}T00:00:00`).toLocaleDateString("en-IN", { weekday: "narrow" })}
-              </text>
-              <rect
-                x={slot * i}
-                y="0"
-                width={slot}
-                height={H + 18}
-                fill="transparent"
-                className="cursor-pointer"
-                onClick={() => setHover((prev) => (prev === i ? null : i))}
-                onMouseEnter={() => setHover(i)}
-                onMouseLeave={() => setHover(null)}
-              >
-                <title>{`${d.date}: paid ${formatCurrency(d.paid)}, billed ${formatCurrency(d.billed)}${showIn ? `, received ${formatCurrency(d.received || 0)}` : ""}`}</title>
-              </rect>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 export default function CommandCenter({ userName, siteId }: { userName?: string; siteId?: string }) {
   const { language, t } = useLanguage();
   const hi = language === "hi";
@@ -833,14 +754,6 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
 
         {/* ── Right rail ──────────────────────────────────────────────────── */}
         <div className="space-y-4 min-w-0">
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5">
-            <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2 mb-3">
-              <IndianRupee className="w-4 h-4 text-amber-500" aria-hidden />
-              {hi ? "पिछले 7 दिन का कैश" : "Cash, last 7 days"}
-            </h2>
-            {data ? <CashTrend trend={data.finance.trend} hi={hi} /> : <div className="skeleton h-32" />}
-          </div>
-
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5">
             <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2 mb-3">
               <Users className="w-4 h-4 text-amber-500" aria-hidden />
