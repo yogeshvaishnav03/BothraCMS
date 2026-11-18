@@ -7,7 +7,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, useTablePagination, ExcelColumnHeader, ExcelTableToolbar, ShowEntriesControl, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
-import { formatCurrency, formatCompactINR, formatCompactNumber, rupeesToPaise, paiseToRupees } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatCompactNumber, rupeesToPaise, paiseToRupees, formatFileSize } from "@/lib/formatters";
 import {
   Building2,
   Plus,
@@ -31,11 +31,16 @@ import {
   IndianRupee,
   Users,
   FileText,
+  Paperclip,
+  Upload,
+  CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { cn } from "@/lib/cn";
+import { uploadClientMedia } from "@/lib/upload-client";
 
 type PartyType = "VENDOR" | "CONTRACTOR" | "BOTH";
 
@@ -63,6 +68,49 @@ const EMPTY_FORM = {
   upiId: "",
   editReason: "",
 };
+
+interface PendingPartyDoc {
+  key: string;
+  file: File;
+  category: string;
+  label: string;
+  previewUrl?: string;
+}
+
+const KYC_DOCUMENT_SLOTS = [
+  {
+    key: "AADHAAR",
+    category: "AADHAAR",
+    label: "Aadhaar Card",
+    hint: "Govt Identity Proof (PDF / Scan)",
+    badge: "Identity",
+    badgeCls: "bg-blue-50 text-blue-700 ring-1 ring-blue-200/80",
+  },
+  {
+    key: "PAN",
+    category: "PAN",
+    label: "PAN Card",
+    hint: "Tax & TDS Proof (PDF / Scan)",
+    badge: "Statutory",
+    badgeCls: "bg-purple-50 text-purple-700 ring-1 ring-purple-200/80",
+  },
+  {
+    key: "BANK_DETAILS",
+    category: "BANK_DETAILS",
+    label: "Bank Details",
+    hint: "Cancelled Cheque / Passbook (PDF)",
+    badge: "Payouts",
+    badgeCls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/80",
+  },
+  {
+    key: "CONTRACT",
+    category: "CONTRACT",
+    label: "Contract / Agreement",
+    hint: "Signed agreement between us (PDF)",
+    badge: "Legal",
+    badgeCls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200/80",
+  },
+];
 
 const CATEGORY_SUGGESTIONS = [
   "Cement",
@@ -239,6 +287,35 @@ export default function PartiesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingDeleteParty, setPendingDeleteParty] = useState<{ id: string; name: string } | null>(null);
 
+  // KYC & Contract PDF Documents
+  const [pendingDocs, setPendingDocs] = useState<PendingPartyDoc[]>([]);
+  const [existingPartyDocs, setExistingPartyDocs] = useState<any[]>([]);
+  const [loadingPartyDocs, setLoadingPartyDocs] = useState(false);
+  const [uploadProgressMsg, setUploadProgressMsg] = useState<string | null>(null);
+
+  const handleDocFileSelect = (key: string, category: string, label: string, file: File) => {
+    const previewUrl = URL.createObjectURL(file);
+    setPendingDocs((prev) => [
+      ...prev.filter((d) => d.key !== key),
+      { key, file, category, label, previewUrl },
+    ]);
+  };
+
+  const handleRemovePendingDoc = (key: string) => {
+    setPendingDocs((prev) => prev.filter((d) => d.key !== key));
+  };
+
+  const handleDeleteExistingDoc = async (attachmentId: string) => {
+    try {
+      const res = await fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
+      if (res.ok) {
+        setExistingPartyDocs((prev) => prev.filter((d) => d.id !== attachmentId));
+      }
+    } catch (err) {
+      console.error("Failed to delete attachment:", err);
+    }
+  };
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem("bothra_parties_view");
@@ -297,13 +374,19 @@ export default function PartiesPage() {
   const handleOpenCreate = () => {
     setEditingPartyId(null);
     setHadAccountOnFile(null);
+    setPendingDocs([]);
+    setExistingPartyDocs([]);
+    setUploadProgressMsg(null);
     setForm({ ...EMPTY_FORM, partyType: typeFilter === "CONTRACTOR" ? "CONTRACTOR" : "VENDOR" });
     setShowModal(true);
   };
 
-  const handleOpenEdit = (p: any) => {
+  const handleOpenEdit = async (p: any) => {
     setEditingPartyId(p.id);
     setHadAccountOnFile(p.bankAccountMasked || null);
+    setPendingDocs([]);
+    setExistingPartyDocs([]);
+    setUploadProgressMsg(null);
     setForm({
       ...EMPTY_FORM,
       name: p.name,
@@ -329,6 +412,20 @@ export default function PartiesPage() {
       upiId: p.upiId || "",
     });
     setShowModal(true);
+
+    // Fetch existing documents for this vendor / contractor
+    try {
+      setLoadingPartyDocs(true);
+      const res = await fetch(`/api/attachments?entityType=PARTY&entityId=${p.id}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setExistingPartyDocs(data.data || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingPartyDocs(false);
+    }
   };
 
   const handleDeleteParty = (id: string, partyName: string) => {
@@ -408,8 +505,28 @@ export default function PartiesPage() {
         if (!res.ok || !data.success) {
           setErrorMessage(data.error?.message || "Could not save changes. Please check the form and try again.");
         } else {
-          setStatusMessage(`Saved changes for "${form.name}".`);
+          if (pendingDocs.length > 0) {
+            setUploadProgressMsg(`Uploading ${pendingDocs.length} KYC document(s)...`);
+            for (const doc of pendingDocs) {
+              try {
+                await uploadClientMedia(doc.file, {
+                  entityType: "PARTY",
+                  entityId: editingPartyId,
+                  category: doc.category,
+                  createAttachment: true,
+                });
+              } catch (err: any) {
+                console.error(`Failed to upload ${doc.label}:`, err);
+              }
+            }
+          }
+          setStatusMessage(
+            pendingDocs.length > 0
+              ? `Saved changes for "${form.name}" and uploaded ${pendingDocs.length} document(s).`
+              : `Saved changes for "${form.name}".`
+          );
           setShowModal(false);
+          setPendingDocs([]);
           loadParties();
         }
       } else {
@@ -424,8 +541,29 @@ export default function PartiesPage() {
         if (!res.ok || !data.success) {
           setErrorMessage(data.error?.message || "Could not add vendor or contractor. Please check the form and try again.");
         } else {
-          setStatusMessage("Vendor or contractor added!");
+          const createdPartyId = data.data?.id;
+          if (createdPartyId && pendingDocs.length > 0) {
+            setUploadProgressMsg(`Uploading ${pendingDocs.length} KYC document(s)...`);
+            for (const doc of pendingDocs) {
+              try {
+                await uploadClientMedia(doc.file, {
+                  entityType: "PARTY",
+                  entityId: createdPartyId,
+                  category: doc.category,
+                  createAttachment: true,
+                });
+              } catch (err: any) {
+                console.error(`Failed to upload ${doc.label}:`, err);
+              }
+            }
+          }
+          setStatusMessage(
+            pendingDocs.length > 0
+              ? `Added "${form.name}" with ${pendingDocs.length} uploaded KYC / contract document(s)!`
+              : "Vendor or contractor added!"
+          );
           setShowModal(false);
+          setPendingDocs([]);
           loadParties();
         }
       }
@@ -433,6 +571,7 @@ export default function PartiesPage() {
       setErrorMessage("Connection error. Check your internet connection and try again.");
     } finally {
       setSubmitting(false);
+      setUploadProgressMsg(null);
     }
   };
 
@@ -1214,6 +1353,214 @@ export default function PartiesPage() {
                   <p className="text-[11px] text-slate-500 flex items-center gap-1">
                     <ShieldAlert className="w-3.5 h-3.5" /> Only admins and accountants can see the full account number. Others see the last 4 digits.
                   </p>
+                </section>
+
+                {/* KYC & Contract Documents (PDF Upload) */}
+                <section className="space-y-3.5 rounded-2xl bg-amber-50/40 p-4 ring-1 ring-amber-200/80 border border-amber-100/60">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center font-bold">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                          KYC &amp; Contract Documents (PDF / Scans)
+                        </h3>
+                        <p className="text-[11px] text-slate-500">
+                          Upload official PDF documents: Aadhaar Card, PAN Card, Bank Details, and the Contract between us.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                      PDF &amp; Scans
+                    </span>
+                  </div>
+
+                  {/* 4 Dedicated Slots */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {KYC_DOCUMENT_SLOTS.map((slot) => {
+                      const pending = pendingDocs.find((d) => d.key === slot.key);
+                      const existing = existingPartyDocs.find((d) => d.category === slot.category);
+                      const inputId = `kyc-upload-${slot.key}`;
+
+                      return (
+                        <div
+                          key={slot.key}
+                          className="bg-white rounded-xl p-3 border border-slate-200 hover:border-amber-300 transition-all flex flex-col justify-between gap-2.5 shadow-2xs"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-xs text-slate-900">{slot.label}</span>
+                                <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", slot.badgeCls)}>
+                                  {slot.badge}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">{slot.hint}</p>
+                            </div>
+                            <span className="text-slate-400">
+                              <Paperclip className="w-3.5 h-3.5" />
+                            </span>
+                          </div>
+
+                          {/* File status */}
+                          {pending ? (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold text-emerald-900 truncate" title={pending.file.name}>
+                                    {pending.file.name}
+                                  </div>
+                                  <div className="text-[10px] text-emerald-700">
+                                    {formatFileSize(pending.file.size)} • Ready to save
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {pending.previewUrl && (
+                                  <a
+                                    href={pending.previewUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded text-xs"
+                                    title="Preview file"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePendingDoc(slot.key)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                  title="Remove"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : existing ? (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold text-blue-900 truncate" title={existing.fileName}>
+                                    {existing.fileName}
+                                  </div>
+                                  <div className="text-[10px] text-blue-700">
+                                    {formatFileSize(existing.fileSize)} • On file
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <a
+                                  href={existing.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded"
+                                  title="View document"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExistingDoc(existing.id)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                  title="Delete document"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <input
+                                id={inputId}
+                                type="file"
+                                accept=".pdf,application/pdf,image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleDocFileSelect(slot.key, slot.category, slot.label, file);
+                                  e.target.value = "";
+                                }}
+                              />
+                              <label
+                                htmlFor={inputId}
+                                className="w-full flex items-center justify-center gap-1.5 py-2 px-3 border border-dashed border-slate-300 rounded-lg text-xs font-semibold text-slate-600 hover:border-amber-400 hover:text-amber-800 hover:bg-amber-50/50 cursor-pointer transition"
+                              >
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>Upload {slot.label} (PDF)</span>
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Combined / Additional Documents Option */}
+                  <div className="pt-2 border-t border-amber-200/50 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-500">
+                      Have a single combined file or other certificate?
+                    </p>
+                    <div>
+                      <input
+                        id="kyc-upload-combined"
+                        type="file"
+                        accept=".pdf,application/pdf,image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const customKey = `EXTRA_${Date.now()}`;
+                            handleDocFileSelect(customKey, "GENERAL", file.name, file);
+                          }
+                          e.target.value = "";
+                        }}
+                      />
+                      <label
+                        htmlFor="kyc-upload-combined"
+                        className="inline-flex items-center gap-1.5 py-1.5 px-3 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-amber-400 cursor-pointer transition shadow-2xs"
+                      >
+                        <Plus className="w-3 h-3 text-amber-600" />
+                        <span>Upload Combined PDF / Other</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Any extra uploaded docs not in the 4 presets */}
+                  {pendingDocs.filter((d) => !KYC_DOCUMENT_SLOTS.some((s) => s.key === d.key)).length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      {pendingDocs
+                        .filter((d) => !KYC_DOCUMENT_SLOTS.some((s) => s.key === d.key))
+                        .map((extra) => (
+                          <div
+                            key={extra.key}
+                            className="bg-white border border-slate-200 rounded-lg p-2 flex items-center justify-between text-xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="font-semibold text-slate-800 truncate">{extra.file.name}</span>
+                              <span className="text-[10px] text-slate-400">({formatFileSize(extra.file.size)})</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePendingDoc(extra.key)}
+                              className="text-slate-400 hover:text-rose-600 p-0.5"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  {uploadProgressMsg && (
+                    <div className="text-xs font-semibold text-amber-800 bg-amber-100/80 rounded-lg p-2 text-center animate-pulse">
+                      {uploadProgressMsg}
+                    </div>
+                  )}
                 </section>
 
                 {isEditing && (
