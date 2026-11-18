@@ -1349,15 +1349,17 @@ export default function WorkforcePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={openReportsModal}
-              className="flex items-center gap-1.5 px-3.5 h-9 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer whitespace-nowrap shrink-0"
-              title="View comprehensive labour expense reports & contractor costs"
-            >
-              <BarChart3 className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Labour Reports</span>
-            </button>
+            {canWrite && (
+              <button
+                type="button"
+                onClick={openCreateWorkerModal}
+                className="flex items-center gap-1.5 px-3.5 h-9 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer whitespace-nowrap shrink-0"
+                title="Register a new skilled worker, artisan, or trade specialist"
+              >
+                <UserPlus className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Register Worker</span>
+              </button>
+            )}
 
             {canWrite && (
               <button
