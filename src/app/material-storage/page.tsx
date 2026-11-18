@@ -5,6 +5,7 @@ import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { FileUpload } from "@/components/ui/FileUpload";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatQuantity } from "@/lib/formatters";
@@ -926,19 +927,19 @@ export default function MaterialStoragePage() {
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                     Select Material to Provide *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={materials.map((m) => ({
+                      value: m.id,
+                      label: m.name,
+                      subLabel: m.categoryName ? `${m.categoryName}` : undefined,
+                      badge: `Stock: ${m.quantityOnHand || 0} ${m.unitCode}`,
+                    }))}
                     value={issueForm.materialId}
-                    onChange={(e) => setIssueForm({ ...issueForm, materialId: e.target.value })}
+                    onChange={(val) => setIssueForm({ ...issueForm, materialId: val })}
+                    placeholder="-- Choose Material to Provide --"
+                    searchPlaceholder="Type to search material name or category..."
                     required
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="">-- Choose Material to Provide --</option>
-                    {materials.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.categoryName}) - Stock: {m.quantityOnHand || 0} {m.unitCode}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 {/* Warehouse & Project */}
@@ -947,38 +948,37 @@ export default function MaterialStoragePage() {
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Dispatch Store / Warehouse *
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={stores.map((s) => ({
+                        value: s.id,
+                        label: s.name,
+                        badge: s.code || "Store",
+                      }))}
                       value={issueForm.storeId}
-                      onChange={(e) => setIssueForm({ ...issueForm, storeId: e.target.value })}
+                      onChange={(val) => setIssueForm({ ...issueForm, storeId: val })}
+                      placeholder="-- Select Store --"
+                      searchPlaceholder="Search warehouse or store..."
                       required
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="">-- Select Store --</option>
-                      {stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.code || "Store"})
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Destination Project *
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={projects.map((p) => ({
+                        value: p.id,
+                        label: p.name,
+                        subLabel: p.siteName ? `${p.siteName}` : undefined,
+                        badge: p.code || undefined,
+                      }))}
                       value={issueForm.projectId}
-                      onChange={(e) => setIssueForm({ ...issueForm, projectId: e.target.value })}
+                      onChange={(val) => setIssueForm({ ...issueForm, projectId: val })}
+                      placeholder="-- Select Project --"
+                      searchPlaceholder="Search destination project..."
                       required
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="">-- Select Project --</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} {p.siteName ? `(${p.siteName})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
 
@@ -1115,19 +1115,19 @@ export default function MaterialStoragePage() {
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                     Select Material *
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={materials.map((m) => ({
+                      value: m.id,
+                      label: m.name,
+                      subLabel: m.categoryName ? `${m.categoryName}` : undefined,
+                      badge: `Stock: ${m.quantityOnHand || 0} ${m.unitCode}`,
+                    }))}
                     value={returnForm.materialId}
-                    onChange={(e) => setReturnForm({ ...returnForm, materialId: e.target.value })}
+                    onChange={(val) => setReturnForm({ ...returnForm, materialId: val })}
+                    placeholder="-- Choose Material --"
+                    searchPlaceholder="Type to search material name or category..."
                     required
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="">-- Choose Material --</option>
-                    {materials.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.categoryName}) - Stock: {m.quantityOnHand || 0} {m.unitCode}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 {/* Receiving Store & Project */}
@@ -1136,37 +1136,39 @@ export default function MaterialStoragePage() {
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Receiving Warehouse / Store *
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={stores.map((s) => ({
+                        value: s.id,
+                        label: s.name,
+                        badge: s.code || "Store",
+                      }))}
                       value={returnForm.storeId}
-                      onChange={(e) => setReturnForm({ ...returnForm, storeId: e.target.value })}
+                      onChange={(val) => setReturnForm({ ...returnForm, storeId: val })}
+                      placeholder="-- Select Store --"
+                      searchPlaceholder="Search warehouse or store..."
                       required
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option value="">-- Select Store --</option>
-                      {stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.code || "Store"})
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Project (Source of Return)
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "-- None / General Yard --" },
+                        ...projects.map((p) => ({
+                          value: p.id,
+                          label: p.name,
+                          subLabel: p.siteName ? `${p.siteName}` : undefined,
+                          badge: p.code || undefined,
+                        })),
+                      ]}
                       value={returnForm.projectId}
-                      onChange={(e) => setReturnForm({ ...returnForm, projectId: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option value="">-- Optional: Select Project --</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} {p.siteName ? `(${p.siteName})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setReturnForm({ ...returnForm, projectId: val })}
+                      placeholder="-- Optional: Select Project --"
+                      searchPlaceholder="Search project..."
+                    />
                   </div>
                 </div>
 

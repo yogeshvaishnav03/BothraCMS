@@ -156,33 +156,33 @@ export default function SearchableSelect({
         id={id}
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-white border rounded-xl text-left text-xs sm:text-sm transition shadow-2xs outline-none ${
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-800 border rounded-xl text-left text-xs sm:text-sm transition shadow-2xs outline-none ${
           isOpen
             ? "border-amber-500 ring-2 ring-amber-500/20"
-            : "border-slate-200 hover:border-slate-300 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/20"
-        } ${disabled ? "opacity-60 bg-slate-50 cursor-not-allowed" : "cursor-pointer"}`}
+            : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/20"
+        } ${disabled ? "opacity-60 bg-slate-50 dark:bg-slate-900 cursor-not-allowed" : "cursor-pointer"}`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
         <div className="flex-1 min-w-0">
           {selectedOption ? (
             <div className="flex items-center gap-2 min-w-0">
-              <span className="truncate font-semibold text-slate-900 text-xs sm:text-sm">
+              <span className="truncate font-semibold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
                 {selectedOption.label}
               </span>
               {selectedOption.badge && (
-                <span className="shrink-0 font-mono text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">
+                <span className="shrink-0 font-mono text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">
                   {selectedOption.badge}
                 </span>
               )}
               {selectedOption.subLabel && (
-                <span className="shrink-0 text-slate-500 text-xs font-medium truncate hidden sm:inline">
+                <span className="shrink-0 text-slate-500 dark:text-slate-400 text-xs font-medium truncate hidden sm:inline">
                   {selectedOption.subLabel}
                 </span>
               )}
             </div>
           ) : (
-            <span className="text-slate-400 text-xs sm:text-sm">{placeholder}</span>
+            <span className="text-slate-400 dark:text-slate-500 text-xs sm:text-sm">{placeholder}</span>
           )}
         </div>
         <ChevronDown
@@ -194,9 +194,9 @@ export default function SearchableSelect({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           {/* Search Box Header */}
-          <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+          <div className="p-2 border-b border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50">
             <div className="relative flex items-center">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
               <input
@@ -205,7 +205,7 @@ export default function SearchableSelect({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition font-medium"
+                className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition font-medium"
               />
               {searchQuery && (
                 <button
@@ -214,7 +214,7 @@ export default function SearchableSelect({
                     setSearchQuery("");
                     searchInputRef.current?.focus();
                   }}
-                  className="absolute right-2.5 p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition"
+                  className="absolute right-2.5 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                   aria-label="Clear search"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -222,14 +222,14 @@ export default function SearchableSelect({
               )}
             </div>
             {/* Filter Count Counter */}
-            <div className="flex items-center justify-between px-1 pt-1.5 text-[11px] text-slate-500 font-medium">
+            <div className="flex items-center justify-between px-1 pt-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               <span>
                 {filteredOptions.length === options.length
                   ? `Showing all ${options.length} options`
                   : `Showing ${filteredOptions.length} of ${options.length} matches`}
               </span>
               {searchQuery && filteredOptions.length > 0 && (
-                <span className="text-[10px] text-amber-700 bg-amber-100/70 px-1.5 py-0.2 rounded font-semibold">
+                <span className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/50 px-1.5 py-0.2 rounded font-semibold">
                   Filtered
                 </span>
               )}
@@ -239,15 +239,15 @@ export default function SearchableSelect({
           {/* Options List */}
           <div
             ref={listRef}
-            className="max-h-[40dvh] sm:max-h-72 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-slate-50"
+            className="max-h-[40dvh] sm:max-h-72 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-slate-50 dark:divide-slate-700/50"
             role="listbox"
           >
             {filteredOptions.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500 space-y-1">
-                <Search className="w-6 h-6 text-slate-300 mx-auto mb-1.5" />
-                <div className="font-semibold text-slate-700">No results found</div>
-                <div className="text-[11px] text-slate-400 max-w-xs mx-auto">
-                  No options matched &ldquo;<span className="font-semibold text-slate-600">{searchQuery}</span>&rdquo;. Try searching with another keyword.
+              <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                <Search className="w-6 h-6 text-slate-300 dark:text-slate-600 mx-auto mb-1.5" />
+                <div className="font-semibold text-slate-700 dark:text-slate-300">No results found</div>
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs mx-auto">
+                  No options matched &ldquo;<span className="font-semibold text-slate-600 dark:text-slate-300">{searchQuery}</span>&rdquo;. Try searching with another keyword.
                 </div>
               </div>
             ) : (
@@ -264,10 +264,10 @@ export default function SearchableSelect({
                     onMouseEnter={() => setHighlightedIndex(idx)}
                     className={`w-full text-left px-3 py-2.5 rounded-xl text-xs sm:text-sm flex items-center justify-between gap-2.5 transition ${
                       isSelected
-                        ? "bg-amber-500/10 text-amber-950 font-semibold border border-amber-300/50"
+                        ? "bg-amber-500/10 dark:bg-amber-500/20 text-amber-950 dark:text-amber-100 font-semibold border border-amber-300/50 dark:border-amber-600/50"
                         : isHighlighted
-                        ? "bg-slate-100 text-slate-900"
-                        : "hover:bg-slate-50 text-slate-800"
+                        ? "bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                        : "hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-800 dark:text-slate-200"
                     }`}
                     role="option"
                     aria-selected={isSelected}
@@ -276,13 +276,13 @@ export default function SearchableSelect({
                       <div className="flex items-center justify-between gap-2 min-w-0">
                         <span className="line-clamp-2 leading-snug">{opt.label}</span>
                         {opt.badge && (
-                          <span className="shrink-0 font-mono text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">
+                          <span className="shrink-0 font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 rounded">
                             {opt.badge}
                           </span>
                         )}
                       </div>
                       {opt.subLabel && (
-                        <div className="text-[11px] text-slate-500 font-normal mt-0.5 truncate">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-normal mt-0.5 truncate">
                           {opt.subLabel}
                         </div>
                       )}
