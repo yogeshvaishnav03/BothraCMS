@@ -340,6 +340,12 @@ export async function GET(
       else if (ext === ".mov") mimeType = "video/quicktime";
       else if (ext === ".3gp") mimeType = "video/3gpp";
       else if (ext === ".avi") mimeType = "video/x-msvideo";
+      else if (ext === ".weba") mimeType = "audio/webm";
+      else if (ext === ".ogg" || ext === ".oga") mimeType = "audio/ogg";
+      else if (ext === ".mp3") mimeType = "audio/mpeg";
+      else if (ext === ".m4a") mimeType = "audio/mp4";
+      else if (ext === ".wav") mimeType = "audio/wav";
+      else if (ext === ".aac") mimeType = "audio/aac";
     }
 
     if (!fileBuffer) {
@@ -422,7 +428,7 @@ export async function GET(
       "Accept-Ranges": "bytes",
     };
 
-    if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) {
+    if (mimeType.startsWith("image/") || mimeType.startsWith("video/") || mimeType.startsWith("audio/")) {
       headers["Content-Security-Policy"] = "default-src 'self' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:;";
     } else {
       headers["Content-Security-Policy"] = "default-src 'none'; sandbox";

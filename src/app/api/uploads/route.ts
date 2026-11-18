@@ -34,15 +34,15 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_MIME_TYPES.has(file.type)) {
       return jsonError(
-        `Invalid file type '${file.type}'. Allowed types: Images (JPEG, PNG, WebP), Videos (MP4, WebM, MOV), PDF`,
+        `Invalid file type '${file.type}'. Allowed types: Images, Videos, Voice Notes/Audio, PDF & Documents`,
         "INVALID_FILE_TYPE",
         400
       );
     }
 
-    const isVideo = file.type.startsWith("video/");
-    const maxLimit = isVideo ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
-    const maxLimitMb = isVideo ? 250 : 15;
+    const isLargeMedia = file.type.startsWith("video/") || file.type.startsWith("audio/");
+    const maxLimit = isLargeMedia ? MAX_VIDEO_SIZE_BYTES : MAX_IMAGE_SIZE_BYTES;
+    const maxLimitMb = isLargeMedia ? 250 : 15;
 
     if (file.size > maxLimit) {
       return jsonError(

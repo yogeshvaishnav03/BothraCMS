@@ -173,15 +173,15 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_MIME_TYPES.has(file.type)) {
       return jsonError(
-        `Invalid file format '${file.type}'. Supported formats: Images (JPEG, PNG, WEBP), Videos (MP4, WebM, QuickTime), PDF`,
+        `Invalid file format '${file.type}'. Supported formats: Images, Videos, Voice Notes/Audio, PDF & Documents`,
         "INVALID_FILE_TYPE",
         400
       );
     }
 
-    const isVideo = file.type.startsWith("video/");
-    const maxLimitBytes = isVideo ? 250 * 1024 * 1024 : 15 * 1024 * 1024;
-    const maxLimitMb = isVideo ? 250 : 15;
+    const isLargeMedia = file.type.startsWith("video/") || file.type.startsWith("audio/");
+    const maxLimitBytes = isLargeMedia ? 250 * 1024 * 1024 : 15 * 1024 * 1024;
+    const maxLimitMb = isLargeMedia ? 250 : 15;
 
     if (file.size > maxLimitBytes) {
       return jsonError(

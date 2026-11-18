@@ -154,12 +154,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return jsonError("Invalid image URL: only verified upload URLs or raster images are allowed", "INVALID_MEDIA_URL", 400);
     }
 
+    let defaultPlaceholder = "[Photo]";
+    if (imageUrl) {
+      if (/\.(weba|ogg|oga|mp3|m4a|wav|aac)($|\?)/i.test(imageUrl) || imageUrl.startsWith("data:audio/")) {
+        defaultPlaceholder = "[Voice Note]";
+      } else if (/\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(imageUrl) || imageUrl.startsWith("data:video/")) {
+        defaultPlaceholder = "[Video]";
+      } else if (/\.(pdf|doc|docx|xls|xlsx|txt|csv)($|\?)/i.test(imageUrl) || imageUrl.startsWith("data:application/pdf")) {
+        defaultPlaceholder = "[Document]";
+      }
+    }
+
     // Create the message
     const message = await prisma.chatMessage.create({
       data: {
         conversationId: params.id,
         senderId: user.userId,
-        content: textContent || (imageUrl ? "[Photo]" : ""),
+        content: textContent || (imageUrl ? defaultPlaceholder : ""),
         imageUrl,
       },
       include: {
@@ -212,7 +223,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           conv?.type === "GROUP"
             ? `New message in "${convName}" from ${senderName}`
             : `New message from ${senderName}`;
-        const bodyText = textContent || (imageUrl ? "📷 [Photo]" : "New message");
+        const bodyText =
+          textContent ||
+          (imageUrl
+            ? defaultPlaceholder === "[Voice Note]"
+              ? "🎙️ [Voice Note]"
+              : defaultPlaceholder === "[Video]"
+              ? "📹 [Video]"
+              : defaultPlaceholder === "[Document]"
+              ? "📄 [Document]"
+              : "📷 [Photo]"
+            : "New message");
         await pushToPeople(user.organizationId, recipientIds, {
           title,
           body: bodyText,

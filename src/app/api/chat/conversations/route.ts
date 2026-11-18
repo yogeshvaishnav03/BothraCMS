@@ -131,8 +131,14 @@ export async function GET(req: NextRequest) {
           ? {
               id: latestMsg.id,
               content:
-                latestMsg.imageUrl && (!latestMsg.content || latestMsg.content === "[Photo]")
-                  ? "📷 Photo"
+                latestMsg.imageUrl && (!latestMsg.content || latestMsg.content === "[Photo]" || latestMsg.content === "[Video]" || latestMsg.content === "[Voice Note]" || latestMsg.content === "[Document]")
+                  ? (/\.(weba|ogg|oga|mp3|m4a|wav|aac)($|\?)/i.test(latestMsg.imageUrl) || latestMsg.content === "[Voice Note]"
+                    ? "🎙️ Voice Note"
+                    : /\.(mp4|webm|mov|3gp|avi)($|\?)/i.test(latestMsg.imageUrl) || latestMsg.content === "[Video]"
+                    ? "📹 Video"
+                    : /\.(pdf|doc|docx|xls|xlsx|txt|csv)($|\?)/i.test(latestMsg.imageUrl) || latestMsg.content === "[Document]"
+                    ? "📄 Document"
+                    : "📷 Photo")
                   : latestMsg.content,
               imageUrl: latestMsg.imageUrl,
               createdAt: latestMsg.createdAt,

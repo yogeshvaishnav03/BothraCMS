@@ -39,7 +39,14 @@ import {
   Pencil,
   Trash2,
   Play,
+  Pause,
   Video,
+  Mic,
+  Paperclip,
+  FileText,
+  File,
+  CheckCheck,
+  Volume2,
 } from "lucide-react";
 
 interface Employee {
@@ -160,6 +167,162 @@ function compressImageToDataUrl(file: File, maxDimension = 1280, quality = 0.8):
   });
 }
 
+function VoiceNoteBubble({ url, isMine }: { url: string; isMine: boolean }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const updateTime = () => setCurrentTime(audio.currentTime);
+    const updateDuration = () => {
+      if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+        setDuration(audio.duration);
+      }
+    };
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    };
+    audio.addEventListener("timeupdate", updateTime);
+    audio.addEventListener("loadedmetadata", updateDuration);
+    audio.addEventListener("ended", handleEnded);
+    return () => {
+      audio.removeEventListener("timeupdate", updateTime);
+      audio.removeEventListener("loadedmetadata", updateDuration);
+      audio.removeEventListener("ended", handleEnded);
+    };
+  }, []);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(() => setIsPlaying(true)).catch((err) => {
+        console.warn("Audio play prevented:", err);
+      });
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const time = Number(e.target.value);
+    audio.currentTime = time;
+    setCurrentTime(time);
+  };
+
+  const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs === Infinity || secs < 0) return "0:00";
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
+
+  return (
+    <div className="flex items-center gap-2.5 py-1 px-1 min-w-[210px] sm:min-w-[250px]">
+      <audio ref={audioRef} src={url} preload="metadata" />
+      <button
+        type="button"
+        onClick={togglePlay}
+        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-xs transition transform active:scale-95 cursor-pointer ${
+          isMine
+            ? "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+            : "bg-emerald-600 text-white hover:bg-emerald-500"
+        }`}
+        title={isPlaying ? "Pause" : "Play voice note"}
+      >
+        {isPlaying ? (
+          <Pause className="w-4 h-4 fill-current" />
+        ) : (
+          <Play className="w-4 h-4 fill-current ml-0.5" />
+        )}
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <input
+          type="range"
+          min={0}
+          max={duration || 100}
+          value={currentTime}
+          onChange={handleSeek}
+          className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-emerald-500 ${
+            isMine ? "bg-slate-700" : "bg-slate-200"
+          }`}
+        />
+        <div className={`flex justify-between text-[10px] mt-1 font-mono ${isMine ? "text-slate-300" : "text-slate-500"}`}>
+          <span>{formatTime(currentTime)}</span>
+          <span>{duration > 0 ? formatTime(duration) : "Voice Note"}</span>
+        </div>
+      </div>
+      <div className={`p-1.5 rounded-full shrink-0 ${isMine ? "bg-slate-800 text-emerald-400" : "bg-slate-100 text-emerald-600"}`}>
+        <Mic className="w-3.5 h-3.5" />
+      </div>
+    </div>
+  );
+}
+
+function DocumentBubble({ url, filename, isMine }: { url: string; filename?: string; isMine: boolean }) {
+  const cleanName =
+    filename && filename !== "[Document]" && !filename.startsWith("[Document: ")
+      ? filename
+      : filename?.startsWith("[Document: ")
+      ? filename.replace(/^\[Document:\s*/, "").replace(/\]$/, "")
+      : url.split("/").pop()?.split("?")[0] || "Document.pdf";
+
+  const isPdf = /\.pdf($|\?)/i.test(url) || /\.pdf$/i.test(cleanName);
+
+  return (
+    <div
+      onClick={() => window.open(url, "_blank")}
+      className={`flex items-center gap-3 p-2.5 rounded-xl border transition cursor-pointer group ${
+        isMine
+          ? "bg-slate-800/90 hover:bg-slate-800 border-slate-700 text-white"
+          : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900"
+      }`}
+    >
+      <div
+        className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+          isPdf
+            ? "bg-rose-500/20 text-rose-500 border border-rose-500/30"
+            : "bg-amber-500/20 text-amber-500 border border-amber-500/30"
+        }`}
+      >
+        {isPdf ? <FileText className="w-5 h-5" /> : <File className="w-5 h-5" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-bold truncate group-hover:underline">{cleanName}</div>
+        <div className={`text-[10px] flex items-center gap-1.5 mt-0.5 ${isMine ? "text-slate-300" : "text-slate-500"}`}>
+          <span className="font-mono uppercase font-bold text-[9px] px-1 py-0.2 rounded bg-black/20">
+            {isPdf ? "PDF" : cleanName.split(".").pop()?.toUpperCase() || "FILE"}
+          </span>
+          <span>Click to view &bull; Open</span>
+        </div>
+      </div>
+      <a
+        href={url}
+        download={cleanName}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className={`p-2 rounded-lg transition shrink-0 ${
+          isMine
+            ? "text-slate-300 hover:text-white hover:bg-slate-700"
+            : "text-slate-600 hover:text-slate-950 hover:bg-slate-200"
+        }`}
+        title="Download file"
+      >
+        <Download className="w-4 h-4" />
+      </a>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const { t } = useLanguage();
 
@@ -186,13 +349,28 @@ export default function ChatPage() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
 
-  // Image Sharing & Fullscreen Modal State
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  // Multiple Files & Media Staging State (WhatsApp-style)
+  interface StagedAttachment {
+    id: string;
+    file: File;
+    previewUrl?: string;
+    type: "image" | "video" | "audio" | "document";
+  }
+
+  const [stagedFiles, setStagedFiles] = useState<StagedAttachment[]>([]);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
 
+  // Voice Note Recording State (WhatsApp-style live recording)
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const docInputRef = useRef<HTMLInputElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const isScrolledUpRef = useRef<boolean>(false);
   const prevMessagesCountRef = useRef<number>(0);
@@ -366,65 +544,208 @@ export default function ChatPage() {
     setShowScrollBottomBtn(scrolledUp);
   }, []);
 
-  // Handle media selection from file picker (photos or videos)
-  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
+  // Handle multiple file attachments (Photos, Videos, Audio, PDFs, Documents)
+  const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFiles = e.target.files;
     e.target.value = "";
-    if (!rawFile) return;
+    if (!rawFiles || rawFiles.length === 0) return;
 
-    const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
-    if (!rawFile.type.startsWith("image/") && !isVideo) {
-      setActionError("Please select a valid image or video file (JPEG, PNG, WebP, MP4, WebM, MOV).");
-      return;
-    }
-
-    if (isVideo) {
-      if (rawFile.size > 250 * 1024 * 1024) {
-        setActionError("Video file exceeds the 250 MB limit. Please select a shorter or smaller clip.");
-        return;
-      }
-      setActionError(null);
-      if (imagePreviewUrl) {
-        URL.revokeObjectURL(imagePreviewUrl);
-      }
-      // Auto-compress video client-side when supported
-      const compressedVideo = await compressVideoFile(rawFile);
-      setSelectedImage(compressedVideo);
-      const previewUrl = URL.createObjectURL(compressedVideo);
-      setImagePreviewUrl(previewUrl);
-      return;
-    }
-
-    if (rawFile.size > 40 * 1024 * 1024) {
-      setActionError("Image file is too large to process.");
-      return;
-    }
-
-    const file = await compressImageFile(rawFile, { preset: "photo" });
-
-    if (file.size > 15 * 1024 * 1024) {
-      setActionError("Image size exceeds 15MB limit even after compression. Please select a smaller photo.");
-      return;
-    }
     setActionError(null);
+    const newItems: StagedAttachment[] = [];
 
-    if (imagePreviewUrl) {
-      URL.revokeObjectURL(imagePreviewUrl);
+    for (let i = 0; i < rawFiles.length; i++) {
+      const rawFile = rawFiles[i];
+      const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+      const isAudio = rawFile.type.startsWith("audio/") || /\.(weba|ogg|oga|mp3|m4a|wav|aac)$/i.test(rawFile.name);
+      const isImage = rawFile.type.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif)$/i.test(rawFile.name);
+
+      let type: "image" | "video" | "audio" | "document" = "document";
+      let processedFile = rawFile;
+      let previewUrl = "";
+
+      if (isImage) {
+        type = "image";
+        if (rawFile.size < 40 * 1024 * 1024) {
+          try {
+            processedFile = await compressImageFile(rawFile, { preset: "photo" });
+          } catch {
+            processedFile = rawFile;
+          }
+        }
+        previewUrl = URL.createObjectURL(processedFile);
+      } else if (isVideo) {
+        type = "video";
+        if (rawFile.size <= 250 * 1024 * 1024) {
+          try {
+            processedFile = await compressVideoFile(rawFile);
+          } catch {
+            processedFile = rawFile;
+          }
+          previewUrl = URL.createObjectURL(processedFile);
+        } else {
+          setActionError(`Video "${rawFile.name}" exceeds the 250MB limit.`);
+          continue;
+        }
+      } else if (isAudio) {
+        type = "audio";
+      } else {
+        type = "document";
+      }
+
+      newItems.push({
+        id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        file: processedFile,
+        previewUrl,
+        type,
+      });
     }
-    setSelectedImage(file);
-    const previewUrl = URL.createObjectURL(file);
-    setImagePreviewUrl(previewUrl);
+
+    if (newItems.length > 0) {
+      setStagedFiles((prev) => [...prev, ...newItems]);
+      setShowAttachMenu(false);
+    }
   };
 
-  // Clear selected image
-  const handleClearImage = () => {
-    if (imagePreviewUrl) {
-      URL.revokeObjectURL(imagePreviewUrl);
+  const removeStagedFile = (id: string) => {
+    setStagedFiles((prev) => {
+      const item = prev.find((f) => f.id === id);
+      if (item?.previewUrl) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+      return prev.filter((f) => f.id !== id);
+    });
+  };
+
+  const clearAllStagedFiles = () => {
+    stagedFiles.forEach((f) => {
+      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+    });
+    setStagedFiles([]);
+  };
+
+  // Voice Note Recording (WhatsApp style)
+  const startVoiceRecording = async () => {
+    setShowAttachMenu(false);
+    try {
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+        setActionError("Voice recording is not supported in this browser.");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+
+      let mimeType = "audio/webm";
+      if (typeof MediaRecorder !== "undefined") {
+        if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/ogg")) {
+          mimeType = "audio/ogg";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        } else {
+          mimeType = "";
+        }
+      }
+
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.start(250);
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      setActionError(null);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error("Microphone access error:", err);
+      setActionError("Microphone access required. Please allow microphone permission to record voice notes.");
     }
-    setSelectedImage(null);
-    setImagePreviewUrl(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  };
+
+  const cancelVoiceRecording = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream?.getTracks().forEach((track) => track.stop());
+      } catch {}
+    }
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordingSeconds(0);
+  };
+
+  const stopAndSendVoiceRecording = async () => {
+    if (!mediaRecorderRef.current || !activeConversationId) return;
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+
+    const recorder = mediaRecorderRef.current;
+    const finalSeconds = recordingSeconds;
+
+    recorder.onstop = async () => {
+      recorder.stream?.getTracks().forEach((track) => track.stop());
+      const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      audioChunksRef.current = [];
+      setIsRecording(false);
+      setRecordingSeconds(0);
+
+      if (audioBlob.size < 100) {
+        setActionError("Voice recording was too short.");
+        return;
+      }
+
+      const ext = recorder.mimeType?.includes("ogg") ? ".oga" : recorder.mimeType?.includes("mp4") ? ".m4a" : ".weba";
+      const voiceFile = new File([audioBlob], `voice_note_${Date.now()}${ext}`, {
+        type: recorder.mimeType || "audio/webm",
+      });
+
+      setSending(true);
+      try {
+        const uploadRes = await uploadClientMedia(voiceFile, {
+          entityType: "CHAT",
+          entityId: activeConversationId,
+          category: "VOICE_NOTE",
+          createAttachment: true,
+        });
+
+        if (!uploadRes?.url) throw new Error("Failed to upload voice note.");
+
+        const json = await safeFetchJson(`/api/chat/conversations/${activeConversationId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: `[Voice Note] (${finalSeconds}s)`,
+            imageUrl: uploadRes.url,
+          }),
+        });
+
+        if (json.success && json.data?.message) {
+          setMessages((prev) => [...prev, json.data.message]);
+          setTimeout(() => scrollToBottom(true), 50);
+          safeFetchJson("/api/chat/conversations").then((r) => {
+            if (r.success) setConversations(r.data.conversations || []);
+          });
+        }
+      } catch (err: any) {
+        setActionError(err.message || "Failed to send voice note.");
+      } finally {
+        setSending(false);
+      }
+    };
+
+    try {
+      recorder.stop();
+    } catch {
+      cancelVoiceRecording();
     }
   };
 
@@ -615,82 +936,118 @@ export default function ChatPage() {
     }
   };
 
-  // Send a message (with optional image attachment)
+  // Send a message (Text, Multiple Images, Videos, Voice Notes, Documents)
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!activeConversationId || sending) return;
 
     const content = messageInput.trim();
-    if (!content && !selectedImage) return;
+    if (!content && stagedFiles.length === 0) return;
 
     setSending(true);
+    setActionError(null);
 
     try {
-      let uploadedImageUrl: string | null = null;
-      const isVideoMessage = Boolean(
-        selectedImage &&
-          (selectedImage.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(selectedImage.name))
-      );
-
-      // 1. Upload compressed photo/video if selected
-      if (selectedImage) {
-        const fileToUpload = isVideoMessage
-          ? await compressVideoFile(selectedImage)
-          : await compressImageFile(selectedImage, { preset: "photo" });
-
-        try {
-          const uploadRes = await uploadClientMedia(fileToUpload, {
-            entityType: "CHAT",
-            entityId: activeConversationId,
-            category: isVideoMessage ? "VIDEO" : "PHOTO",
-            createAttachment: true,
-          });
-          if (uploadRes?.url) {
-            uploadedImageUrl = uploadRes.url;
-          }
-        } catch (uploadErr) {
-          console.warn("Storage upload failed:", uploadErr);
-        }
-
-        // Emergency fallback: only inline tiny compressed photo (<2MB) if upload failed
-        if (!uploadedImageUrl) {
-          if (!isVideoMessage && fileToUpload.size < 2 * 1024 * 1024) {
-            try {
-              uploadedImageUrl = await compressImageToDataUrl(fileToUpload, 1200, 0.8);
-            } catch (compressErr) {
-              console.warn("Failed to build fallback image data URL:", compressErr);
-            }
-          }
-        }
-
-        if (!uploadedImageUrl && !content) {
-          throw new Error("Unable to attach media. Please check your connection and try again.");
-        }
-      }
-
-      // 2. Post message with content and optional imageUrl
-      const json = await safeFetchJson(`/api/chat/conversations/${activeConversationId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: content || (uploadedImageUrl ? (isVideoMessage ? "[Video]" : "[Photo]") : ""),
-          imageUrl: uploadedImageUrl,
-        }),
-      });
-
-      if (json.success && json.data?.message) {
-        setMessages((prev) => [...prev, json.data.message]);
-        setMessageInput("");
-        handleClearImage();
-        setTimeout(() => scrollToBottom(true), 50);
-
-        // Refresh conversations list to update latestMessage
-        safeFetchJson("/api/chat/conversations").then((r) => {
-          if (r.success) setConversations(r.data.conversations || []);
+      if (stagedFiles.length === 0) {
+        // 1. Text only message
+        const json = await safeFetchJson(`/api/chat/conversations/${activeConversationId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
         });
+
+        if (json.success && json.data?.message) {
+          setMessages((prev) => [...prev, json.data.message]);
+          setMessageInput("");
+          setTimeout(() => scrollToBottom(true), 50);
+        } else {
+          setActionError(json.error?.message || "Failed to send message");
+        }
       } else {
-        setActionError(json.error?.message || "Failed to send message");
+        // 2. Multiple attachments (Images, Videos, PDFs, Documents)
+        const filesToSend = [...stagedFiles];
+        const typedCaption = content;
+
+        // Reset staging state
+        clearAllStagedFiles();
+        setMessageInput("");
+
+        for (let i = 0; i < filesToSend.length; i++) {
+          const item = filesToSend[i];
+          let fileToUpload = item.file;
+          let uploadedUrl: string | null = null;
+
+          if (item.type === "video") {
+            fileToUpload = await compressVideoFile(item.file);
+          } else if (item.type === "image") {
+            fileToUpload = await compressImageFile(item.file, { preset: "photo" });
+          }
+
+          try {
+            const category =
+              item.type === "video"
+                ? "VIDEO"
+                : item.type === "audio"
+                ? "VOICE_NOTE"
+                : item.type === "document"
+                ? "DOCUMENT"
+                : "PHOTO";
+
+            const uploadRes = await uploadClientMedia(fileToUpload, {
+              entityType: "CHAT",
+              entityId: activeConversationId,
+              category,
+              createAttachment: true,
+            });
+
+            if (uploadRes?.url) {
+              uploadedUrl = uploadRes.url;
+            }
+          } catch (uploadErr) {
+            console.warn("Storage upload failed, attempting fallback:", uploadErr);
+          }
+
+          if (!uploadedUrl && item.type === "image" && fileToUpload.size < 2 * 1024 * 1024) {
+            try {
+              uploadedUrl = await compressImageToDataUrl(fileToUpload, 1200, 0.8);
+            } catch {}
+          }
+
+          if (!uploadedUrl) {
+            throw new Error(`Failed to upload ${item.file.name}. Please check your connection.`);
+          }
+
+          const defaultPlaceholder =
+            item.type === "video"
+              ? "[Video]"
+              : item.type === "audio"
+              ? "[Voice Note]"
+              : item.type === "document"
+              ? `[Document: ${item.file.name}]`
+              : "[Photo]";
+
+          const msgContent = i === 0 && typedCaption ? typedCaption : defaultPlaceholder;
+
+          const json = await safeFetchJson(`/api/chat/conversations/${activeConversationId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: msgContent,
+              imageUrl: uploadedUrl,
+            }),
+          });
+
+          if (json.success && json.data?.message) {
+            setMessages((prev) => [...prev, json.data.message]);
+            setTimeout(() => scrollToBottom(true), 50);
+          }
+        }
       }
+
+      // Refresh conversations list to update latestMessage
+      safeFetchJson("/api/chat/conversations").then((r) => {
+        if (r.success) setConversations(r.data.conversations || []);
+      });
     } catch (err: any) {
       console.error("Error sending message:", err);
       setActionError(err.message || "Failed to send message. Please try again.");
@@ -1253,9 +1610,32 @@ export default function ChatPage() {
                         messages.map((m) => {
                           const senderName = m.sender?.name || "User";
                           const senderRole = m.sender?.role || "";
-                          const hasPhoto = Boolean(m.imageUrl);
+
+                          const isVoiceNote = Boolean(
+                            m.imageUrl &&
+                            (
+                              /\.(weba|ogg|oga|mp3|m4a|wav|aac)($|\?)/i.test(m.imageUrl) ||
+                              m.imageUrl.startsWith("data:audio/") ||
+                              m.content?.startsWith("[Voice Note]") ||
+                              m.content?.startsWith("[Audio]")
+                            )
+                          );
+
+                          const isDocument = Boolean(
+                            m.imageUrl &&
+                            !isVoiceNote &&
+                            (
+                              /\.(pdf|doc|docx|xls|xlsx|txt|csv)($|\?)/i.test(m.imageUrl) ||
+                              m.imageUrl.startsWith("data:application/pdf") ||
+                              m.content?.startsWith("[Document") ||
+                              m.content?.startsWith("[PDF")
+                            )
+                          );
+
                           const isVideo = Boolean(
                             m.imageUrl &&
+                            !isVoiceNote &&
+                            !isDocument &&
                             (
                               m.content === "[Video]" ||
                               m.content?.startsWith("[Video]") ||
@@ -1263,11 +1643,17 @@ export default function ChatPage() {
                               m.imageUrl.startsWith("data:video/")
                             )
                           );
+
+                          const isPhoto = Boolean(m.imageUrl && !isVoiceNote && !isDocument && !isVideo);
+
                           const hasCaption = Boolean(
                             m.content &&
                             m.content !== "[Photo]" &&
-                            m.content !== "[Video]"
+                            m.content !== "[Video]" &&
+                            !m.content.startsWith("[Voice Note]") &&
+                            !m.content.startsWith("[Document")
                           );
+
                           const isEditing = editingMessageId === m.id;
                           const canEdit = m.isMine;
                           const canDelete = m.isMine || isSuperAdmin;
@@ -1279,21 +1665,8 @@ export default function ChatPage() {
                             >
                               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mb-1 px-1 text-[10px] text-slate-500 max-w-full">
                                 {!m.isMine && (
-                                  <span className="font-bold text-slate-700">
+                                  <span className="font-bold text-emerald-800">
                                     {senderName} {senderRole ? `(${senderRole})` : ""}
-                                  </span>
-                                )}
-                                <span>
-                                  {m.createdAt
-                                    ? new Date(m.createdAt).toLocaleTimeString([], {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })
-                                    : ""}
-                                </span>
-                                {m.isEdited && (
-                                  <span className="text-[9px] text-amber-500 font-semibold italic">
-                                    • edited
                                   </span>
                                 )}
                               </div>
@@ -1332,48 +1705,59 @@ export default function ChatPage() {
                                 <div
                                   className={`${
                                     m.isMine ? "order-2" : "order-1"
-                                  } min-w-0 max-w-[calc(100%-4.25rem)] sm:max-w-md p-2.5 rounded-2xl text-xs leading-relaxed shadow-2xs ${
+                                  } min-w-0 max-w-[calc(100%-3rem)] sm:max-w-md p-2.5 rounded-2xl text-xs leading-relaxed shadow-xs ${
                                     m.isMine
-                                      ? "bg-slate-900 text-white rounded-tr-none"
-                                      : "bg-white text-slate-900 border border-slate-200 rounded-tl-none"
+                                      ? "bg-[#0b3b32] text-white rounded-tr-xs"
+                                      : "bg-white text-slate-900 border border-slate-200/90 rounded-tl-xs"
                                   }`}
                                 >
-                                  {/* Shared Photo / Video Preview */}
-                                  {m.imageUrl && (
-                                    isVideo ? (
-                                      <div className="relative group overflow-hidden rounded-xl bg-slate-950 p-0.5">
-                                        <video
-                                          src={m.imageUrl}
-                                          controls
-                                          playsInline
-                                          preload="metadata"
-                                          className="max-h-72 w-auto max-w-full rounded-xl object-contain bg-black"
-                                        />
+                                  {/* Voice Note Player */}
+                                  {isVoiceNote && m.imageUrl && (
+                                    <VoiceNoteBubble url={m.imageUrl} isMine={m.isMine} />
+                                  )}
+
+                                  {/* Document / PDF Bubble */}
+                                  {isDocument && m.imageUrl && (
+                                    <DocumentBubble url={m.imageUrl} filename={m.content} isMine={m.isMine} />
+                                  )}
+
+                                  {/* Shared Video */}
+                                  {isVideo && m.imageUrl && (
+                                    <div className="relative group overflow-hidden rounded-xl bg-slate-950 p-0.5">
+                                      <video
+                                        src={m.imageUrl}
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        className="max-h-72 w-auto max-w-full rounded-xl object-contain bg-black"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Shared Photo */}
+                                  {isPhoto && m.imageUrl && (
+                                    <div className="relative group overflow-hidden rounded-xl bg-slate-950/10 cursor-pointer">
+                                      <img
+                                        src={m.imageUrl}
+                                        alt="Shared in chat"
+                                        onClick={() => setFullscreenImage(m.imageUrl || null)}
+                                        className="max-h-72 w-auto max-w-full rounded-xl object-contain transition duration-200 group-hover:scale-101"
+                                        loading="lazy"
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                          const target = e.currentTarget;
+                                          target.onerror = null;
+                                          target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='120' viewBox='0 0 260 120'%3E%3Crect width='260' height='120' fill='%23f1f5f9' rx='10'/%3E%3Ctext x='130' y='65' text-anchor='middle' font-family='sans-serif' font-size='12' fill='%2364748b'%3E📷 Photo unavailable%3C/text%3E%3C/svg%3E";
+                                        }}
+                                      />
+                                      <div
+                                        onClick={() => setFullscreenImage(m.imageUrl || null)}
+                                        className="hover-hint-only hidden md:flex absolute inset-0 bg-slate-950/40 opacity-0 md:group-hover:opacity-100 transition items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                        <span>Click to preview</span>
                                       </div>
-                                    ) : (
-                                      <div className="relative group overflow-hidden rounded-xl bg-slate-950/10 cursor-pointer">
-                                        <img
-                                          src={m.imageUrl}
-                                          alt="Shared in chat"
-                                          onClick={() => setFullscreenImage(m.imageUrl || null)}
-                                          className="max-h-72 w-auto max-w-full rounded-xl object-contain transition duration-200 group-hover:scale-101"
-                                          loading="lazy"
-                                          referrerPolicy="no-referrer"
-                                          onError={(e) => {
-                                            const target = e.currentTarget;
-                                            target.onerror = null;
-                                            target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='120' viewBox='0 0 260 120'%3E%3Crect width='260' height='120' fill='%23f1f5f9' rx='10'/%3E%3Ctext x='130' y='65' text-anchor='middle' font-family='sans-serif' font-size='12' fill='%2364748b'%3E📷 Photo unavailable%3C/text%3E%3C/svg%3E";
-                                          }}
-                                        />
-                                        <div
-                                          onClick={() => setFullscreenImage(m.imageUrl || null)}
-                                          className="hover-hint-only hidden md:flex absolute inset-0 bg-slate-950/40 opacity-0 md:group-hover:opacity-100 transition items-center justify-center gap-1.5 text-white font-bold text-xs rounded-xl"
-                                        >
-                                          <Eye className="w-4 h-4" />
-                                          <span>Click to preview</span>
-                                        </div>
-                                      </div>
-                                    )
+                                    </div>
                                   )}
 
                                   {/* Inline Edit Form when isEditing is true */}
@@ -1431,13 +1815,29 @@ export default function ChatPage() {
                                     hasCaption && (
                                       <div
                                         className={`whitespace-pre-wrap break-words ${
-                                          hasPhoto ? "mt-2 pt-1 border-t border-white/10 px-0.5" : "px-1"
+                                          m.imageUrl ? "mt-2 pt-1 border-t border-white/10 px-0.5" : "px-0.5"
                                         }`}
                                       >
                                         {m.content}
                                       </div>
                                     )
                                   )}
+
+                                  {/* Bottom metadata row inside WhatsApp bubble */}
+                                  <div className="flex items-center justify-end gap-1 mt-1 text-[9px] text-slate-400 select-none">
+                                    <span>
+                                      {m.createdAt
+                                        ? new Date(m.createdAt).toLocaleTimeString([], {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                          })
+                                        : ""}
+                                    </span>
+                                    {m.isEdited && <span className="italic">• edited</span>}
+                                    {m.isMine && (
+                                      <CheckCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 inline" />
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1459,44 +1859,54 @@ export default function ChatPage() {
                       </button>
                     )}
 
-                    {/* Selected Image / Video Preview Attachment Banner */}
-                    {selectedImage && (
-                      <div className="p-2.5 px-3 bg-amber-50/90 border-t border-amber-200/80 flex items-center justify-between gap-3 shrink-0 animate-in fade-in slide-in-from-bottom-1">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {imagePreviewUrl && (selectedImage.type.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)$/i.test(selectedImage.name)) ? (
-                            <div className="relative w-12 h-12 rounded-lg bg-slate-950 overflow-hidden flex items-center justify-center border border-amber-300 shadow-2xs shrink-0">
-                              <video src={imagePreviewUrl} className="w-full h-full object-cover" muted preload="metadata" />
-                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <Play className="w-4 h-4 text-white fill-current" />
+                    {/* Staged Multiple Files Preview Tray (WhatsApp-style) */}
+                    {stagedFiles.length > 0 && (
+                      <div className="p-2.5 px-3 bg-slate-100/90 border-t border-slate-200/90 flex items-center gap-2.5 overflow-x-auto shrink-0 animate-in fade-in slide-in-from-bottom-1">
+                        {stagedFiles.map((staged) => (
+                          <div
+                            key={staged.id}
+                            className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-white border border-slate-300 shadow-2xs group flex flex-col items-center justify-center"
+                          >
+                            {staged.type === "image" && staged.previewUrl ? (
+                              <img src={staged.previewUrl} alt={staged.file.name} className="w-full h-full object-cover" />
+                            ) : staged.type === "video" && staged.previewUrl ? (
+                              <div className="relative w-full h-full bg-slate-950 flex items-center justify-center">
+                                <video src={staged.previewUrl} className="w-full h-full object-cover" muted />
+                                <Play className="w-4 h-4 text-white fill-current absolute" />
                               </div>
-                            </div>
-                          ) : imagePreviewUrl ? (
-                            <img
-                              src={imagePreviewUrl}
-                              alt="Upload preview"
-                              className="w-12 h-12 object-cover rounded-lg border border-amber-300 shadow-2xs shrink-0"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-amber-200 flex items-center justify-center shrink-0">
-                              <ImageIcon className="w-6 h-6 text-amber-700" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-slate-900 truncate">
-                              {selectedImage.name}
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              {(selectedImage.size / 1024).toFixed(1)} KB &bull; {selectedImage.type.startsWith("video/") ? "Video" : "Photo"} ready to send
-                            </div>
+                            ) : staged.type === "audio" ? (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-emerald-50 text-emerald-700 p-1">
+                                <Mic className="w-5 h-5 text-emerald-600 mb-0.5" />
+                                <span className="text-[8px] font-bold truncate max-w-[50px]">{staged.file.name}</span>
+                              </div>
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-rose-50 text-rose-700 p-1">
+                                <FileText className="w-5 h-5 text-rose-600 mb-0.5" />
+                                <span className="text-[8px] font-bold truncate max-w-[50px]">{staged.file.name}</span>
+                              </div>
+                            )}
+
+                            {/* Remove file button */}
+                            <button
+                              type="button"
+                              onClick={() => removeStagedFile(staged.id)}
+                              className="absolute top-1 right-1 w-4 h-4 rounded-full bg-slate-900/80 hover:bg-rose-600 text-white flex items-center justify-center cursor-pointer transition shadow-xs"
+                              title="Remove file"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
                           </div>
-                        </div>
+                        ))}
+
+                        {/* Add More Files Button */}
                         <button
                           type="button"
-                          onClick={handleClearImage}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          title="Remove media"
+                          onClick={() => setShowAttachMenu((prev) => !prev)}
+                          className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 text-slate-400 hover:text-emerald-600 flex flex-col items-center justify-center gap-1 shrink-0 transition cursor-pointer bg-white"
+                          title="Add more files"
                         >
-                          <X className="w-4 h-4" />
+                          <Plus className="w-5 h-5" />
+                          <span className="text-[9px] font-bold">Add</span>
                         </button>
                       </div>
                     )}
@@ -1518,69 +1928,177 @@ export default function ChatPage() {
                       </div>
                     )}
 
-                    {/* Message Input Box */}
-                    <form
-                      onSubmit={handleSendMessage}
-                      className="relative p-2 sm:p-3 border-t border-slate-200 bg-white flex items-center gap-1.5 sm:gap-2 shrink-0 w-full min-w-0"
-                    >
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*"
-                        onChange={handleImageSelect}
-                        className="sr-only"
-                      />
+                    {/* WhatsApp-style Attachment Popup Menu */}
+                    {showAttachMenu && (
+                      <div className="absolute bottom-16 left-3 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-40 flex flex-col gap-1 w-52 animate-in fade-in slide-in-from-bottom-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachMenu(false);
+                            fileInputRef.current?.click();
+                          }}
+                          className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                            <ImageIcon className="w-4 h-4" />
+                          </div>
+                          <div className="text-left">
+                            <div>Photos &amp; Videos</div>
+                            <div className="text-[10px] text-slate-400 font-normal">Multiple images or clips</div>
+                          </div>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={sending}
-                        className={`p-2 rounded-xl transition border shrink-0 flex items-center justify-center ${
-                          selectedImage
-                            ? "bg-amber-100 text-amber-800 border-amber-300"
-                            : "text-slate-500 hover:text-amber-600 hover:bg-amber-50 border-slate-200 hover:border-amber-300"
-                        } disabled:opacity-50`}
-                        title="Attach photo or video (up to 250MB)"
-                      >
-                        {selectedImage?.type.startsWith("video/") ? (
-                          <Video className="w-4 h-4 text-amber-800" />
-                        ) : (
-                          <ImageIcon className="w-4 h-4" />
-                        )}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachMenu(false);
+                            docInputRef.current?.click();
+                          }}
+                          className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 rounded-xl transition cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="text-left">
+                            <div>Document / PDF</div>
+                            <div className="text-[10px] text-slate-400 font-normal">PDFs, Sheets, Docs</div>
+                          </div>
+                        </button>
 
-                      <input
-                        type="text"
-                        placeholder={
-                          selectedImage
-                            ? "Add an optional caption for this photo... (Press Enter to send)"
-                            : t("chat.typeMessage", "Type your message... (Press Enter to send)")
-                        }
-                        value={messageInput}
-                        onChange={(e) => setMessageInput(e.target.value)}
-                        className="flex-1 min-w-0 w-full px-2.5 sm:px-3 py-2 border border-slate-200 rounded-xl text-sm sm:text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                        disabled={sending}
-                      />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachMenu(false);
+                            startVoiceRecording();
+                          }}
+                          className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700 rounded-xl transition cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
+                            <Mic className="w-4 h-4" />
+                          </div>
+                          <div className="text-left">
+                            <div>Voice Note</div>
+                            <div className="text-[10px] text-slate-400 font-normal">Record live audio</div>
+                          </div>
+                        </button>
+                      </div>
+                    )}
 
-                      <button
-                        type="submit"
-                        disabled={sending || (!messageInput.trim() && !selectedImage)}
-                        className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs whitespace-nowrap transition disabled:opacity-50 shadow-sm shrink-0"
-                      >
-                        {sending ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin shrink-0" />
-                            <span className="hidden sm:inline">Sending...</span>
-                            <span className="sm:hidden">Send</span>
-                          </>
-                        ) : (
-                          <>
-                            <Send className="w-3.5 h-3.5 shrink-0" />
-                            <span>{t("chat.send", "Send")}</span>
-                          </>
-                        )}
-                      </button>
-                    </form>
+                    {/* Hidden Native File Pickers with 'multiple' attribute */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*"
+                      multiple
+                      onChange={handleFilesSelect}
+                      className="sr-only"
+                    />
+
+                    <input
+                      type="file"
+                      ref={docInputRef}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,application/pdf"
+                      multiple
+                      onChange={handleFilesSelect}
+                      className="sr-only"
+                    />
+
+                    {/* WhatsApp-Style Message Input Box */}
+                    <div className="relative p-2 sm:p-2.5 border-t border-slate-200 bg-[#f0f2f5] flex items-center gap-2 shrink-0 w-full min-w-0">
+                      {isRecording ? (
+                        /* Live Voice Recording Status Bar */
+                        <div className="flex-1 flex items-center justify-between gap-3 px-4 py-2 bg-rose-50 border border-rose-200 rounded-2xl animate-in fade-in">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-3 h-3 rounded-full bg-rose-600 animate-ping shrink-0" />
+                            <span className="text-xs font-bold text-rose-900">Recording Voice Note...</span>
+                            <span className="font-mono text-xs font-black text-rose-700 px-2 py-0.5 bg-rose-100 rounded-md">
+                              {Math.floor(recordingSeconds / 60)}:{recordingSeconds % 60 < 10 ? "0" : ""}{recordingSeconds % 60}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={cancelVoiceRecording}
+                              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-100 rounded-xl transition cursor-pointer"
+                              title="Discard recording"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={stopAndSendVoiceRecording}
+                              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                              title="Send voice note"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Send</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Standard WhatsApp Composer Form */
+                        <form
+                          onSubmit={handleSendMessage}
+                          className="flex-1 flex items-center gap-2 min-w-0"
+                        >
+                          {/* Attachment (Paperclip) Button */}
+                          <button
+                            type="button"
+                            onClick={() => setShowAttachMenu((prev) => !prev)}
+                            disabled={sending}
+                            className={`p-2.5 rounded-full transition shrink-0 flex items-center justify-center cursor-pointer ${
+                              showAttachMenu || stagedFiles.length > 0
+                                ? "bg-emerald-600 text-white shadow-xs"
+                                : "text-slate-600 hover:text-emerald-700 hover:bg-slate-200"
+                            } disabled:opacity-50`}
+                            title="Attach photos, videos, voice note, or PDF"
+                          >
+                            <Paperclip className="w-4 h-4" />
+                          </button>
+
+                          {/* Message Text Input */}
+                          <input
+                            type="text"
+                            placeholder={
+                              stagedFiles.length > 0
+                                ? `Add a caption for ${stagedFiles.length} file(s)... (Press Enter to send)`
+                                : t("chat.typeMessage", "Type a message... (Press Enter to send)")
+                            }
+                            value={messageInput}
+                            onChange={(e) => setMessageInput(e.target.value)}
+                            className="flex-1 min-w-0 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-400 shadow-2xs"
+                            disabled={sending}
+                          />
+
+                          {/* Right Action Button: Send if has text/files; Mic if empty */}
+                          {messageInput.trim() || stagedFiles.length > 0 ? (
+                            <button
+                              type="submit"
+                              disabled={sending}
+                              className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center transition disabled:opacity-50 shadow-sm shrink-0 cursor-pointer transform active:scale-95"
+                              title="Send message"
+                            >
+                              {sending ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                              ) : (
+                                <Send className="w-4 h-4 ml-0.5 shrink-0" />
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={startVoiceRecording}
+                              disabled={sending}
+                              className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center transition disabled:opacity-50 shadow-sm shrink-0 cursor-pointer transform active:scale-95"
+                              title="Record voice note"
+                            >
+                              <Mic className="w-4 h-4 shrink-0" />
+                            </button>
+                          )}
+                        </form>
+                      )}
+                    </div>
                   </>
                 );
               })()
