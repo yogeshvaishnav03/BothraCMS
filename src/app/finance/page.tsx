@@ -188,9 +188,20 @@ export default function FinancePage() {
           setBillToDate("");
         } else if (statusParam === "paid") {
           setBillStatus("PAID");
+        } else if (statusParam === "all") {
+          setBillStatus("ALL");
+          setBillDatePreset("ALL");
+          setBillFromDate("");
+          setBillToDate("");
         }
-      } else if (tabParam === "payments" || tabParam === "register") {
+      } else if (tabParam === "payments" || tabParam === "register" || statusParam === "paid" || statusParam === "posted") {
         setActiveTab("PAYMENTS");
+        if (statusParam === "paid" || statusParam === "posted" || statusParam === "approved") {
+          setPaymentStatus("POSTED");
+          setDatePreset("ALL");
+          setPaymentFromDate("");
+          setPaymentToDate("");
+        }
       }
     };
 
@@ -739,6 +750,9 @@ export default function FinancePage() {
     setPaymentMaxAmount("");
     setDatePreset("ALL");
     setAmountPreset("ALL");
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/finance?tab=payments");
+    }
   };
 
   const paymentCounts = useMemo(() => {
@@ -817,6 +831,57 @@ export default function FinancePage() {
     } else if (preset === "CUSTOM") {
       setShowAdvancedFilters(true);
     }
+  };
+
+  const scrollToTable = () => {
+    if (typeof document !== "undefined") {
+      const el = document.getElementById("finance-records-section");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+  };
+
+  const handleFilterTotalBilled = () => {
+    setActiveTab("BILLS");
+    setBillStatus("ALL");
+    setBillDatePreset("ALL");
+    setBillFromDate("");
+    setBillToDate("");
+    setBillSearch("");
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/finance?tab=bills&status=all");
+    }
+    scrollToTable();
+  };
+
+  const handleFilterTotalPaid = () => {
+    setActiveTab("PAYMENTS");
+    setPaymentStatus("POSTED");
+    setDatePreset("ALL");
+    setPaymentFromDate("");
+    setPaymentToDate("");
+    setPaymentSearch("");
+    setPaymentPayeeType("ALL");
+    setPaymentPayingAccount("ALL");
+    setPaymentMethod("ALL");
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/finance?tab=payments&status=paid");
+    }
+    scrollToTable();
+  };
+
+  const handleFilterUnpaidBalance = () => {
+    setActiveTab("BILLS");
+    setBillStatus("PENDING");
+    setBillDatePreset("ALL");
+    setBillFromDate("");
+    setBillToDate("");
+    setBillSearch("");
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/finance?tab=bills&status=pending");
+    }
+    scrollToTable();
   };
 
   const exportPaymentsToCSV = () => {
@@ -1340,41 +1405,92 @@ export default function FinancePage() {
 
         {/* Financial KPI Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Billed (Liability)
-            </span>
+          <button
+            type="button"
+            onClick={handleFilterTotalBilled}
+            className={`text-left p-4 rounded-xl border transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${
+              activeTab === "BILLS" && billStatus === "ALL" && billDatePreset === "ALL"
+                ? "bg-blue-50/50 border-blue-400 ring-2 ring-blue-500/20"
+                : "bg-white border-slate-200 hover:border-slate-300"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-hover:text-blue-700 transition-colors">
+                Total Billed (Liability)
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${
+                activeTab === "BILLS" && billStatus === "ALL" && billDatePreset === "ALL"
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700"
+              }`}>
+                {activeTab === "BILLS" && billStatus === "ALL" && billDatePreset === "ALL" ? "Filtering Table" : "Filter Bills"}
+              </span>
+            </div>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalBilledAll)}>
               {formatCompactINR(totalBilledAll)}
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Total across all recorded vendor &amp; contractor bills</div>
-          </div>
+          </button>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Paid
-            </span>
+          <button
+            type="button"
+            onClick={handleFilterTotalPaid}
+            className={`text-left p-4 rounded-xl border transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group focus:outline-none focus:ring-2 focus:ring-emerald-500/40 ${
+              activeTab === "PAYMENTS" && (paymentStatus === "POSTED" || paymentStatus === "APPROVED") && datePreset === "ALL"
+                ? "bg-emerald-50/50 border-emerald-400 ring-2 ring-emerald-500/20"
+                : "bg-white border-slate-200 hover:border-slate-300"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
+                Total Paid
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${
+                activeTab === "PAYMENTS" && (paymentStatus === "POSTED" || paymentStatus === "APPROVED") && datePreset === "ALL"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-700"
+              }`}>
+                {activeTab === "PAYMENTS" && (paymentStatus === "POSTED" || paymentStatus === "APPROVED") && datePreset === "ALL" ? "Filtering Table" : "Filter Payments"}
+              </span>
+            </div>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalPaidAll)}>
               {formatCompactINR(totalPaidAll)}
             </div>
             <div className="text-[11px] text-slate-500 mt-1">Approved payments released (excluding reversed)</div>
-          </div>
+          </button>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm bg-gradient-to-br from-amber-50/50 to-white">
-            <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
-              Unpaid Balance (Payables)
-            </span>
+          <button
+            type="button"
+            onClick={handleFilterUnpaidBalance}
+            className={`text-left p-4 rounded-xl border transition-all duration-150 cursor-pointer shadow-xs hover:shadow-md hover:-translate-y-0.5 group focus:outline-none focus:ring-2 focus:ring-amber-500/40 ${
+              activeTab === "BILLS" && billStatus === "PENDING" && billDatePreset === "ALL"
+                ? "bg-amber-50/70 border-amber-400 ring-2 ring-amber-500/20"
+                : "bg-gradient-to-br from-amber-50/30 to-white border-slate-200 hover:border-amber-300"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider group-hover:text-amber-900 transition-colors">
+                Unpaid Balance (Payables)
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${
+                activeTab === "BILLS" && billStatus === "PENDING" && billDatePreset === "ALL"
+                  ? "bg-amber-600 text-white"
+                  : "bg-amber-100/80 text-amber-800 group-hover:bg-amber-200"
+              }`}>
+                {activeTab === "BILLS" && billStatus === "PENDING" && billDatePreset === "ALL" ? "Filtering Table" : "Filter Unpaid"}
+              </span>
+            </div>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(totalOutstandingAll)}>
               {formatCompactINR(totalOutstandingAll)}
             </div>
             <div className="text-[11px] text-amber-700 font-medium mt-1">
               Amount still owed across unpaid bills
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Tab Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 overflow-x-auto max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div id="finance-records-section" className="flex items-center gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 overflow-x-auto max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => setActiveTab("PAYMENTS")}
             className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
@@ -1524,6 +1640,32 @@ export default function FinancePage() {
                   <option value="OUT_OF_POCKET">Cash Expenses (Petty Cash)</option>
                 </select>
               </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-500 font-semibold text-[11px]">Status:</span>
+                <select
+                  value={paymentStatus}
+                  onChange={(e) => setPaymentStatus(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="POSTED">Approved & Released</option>
+                  <option value="PENDING_APPROVAL">Pending Approval</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="REVERSED">Reversed</option>
+                </select>
+              </div>
+
+              {(paymentStatus !== "ALL" || paymentPayeeType !== "ALL" || paymentFromDate || paymentToDate || paymentSearch) && (
+                <button
+                  type="button"
+                  onClick={clearAllPaymentFilters}
+                  className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition"
+                >
+                  Reset
+                </button>
+              )}
             </div>
 
             {/* Dynamic Filtered Total Banner (Feature 18) */}
@@ -2105,6 +2247,9 @@ export default function FinancePage() {
                     onClick={() => {
                       setBillSearch("");
                       setBillStatus("ALL");
+                      if (typeof window !== "undefined") {
+                        window.history.replaceState(null, "", "/finance?tab=bills");
+                      }
                     }}
                     className="px-2.5 py-2 text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition"
                   >
