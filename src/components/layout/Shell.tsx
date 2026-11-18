@@ -226,6 +226,15 @@ export default function Shell({ children }: ShellProps) {
       ],
     },
     {
+      key: "nav.group.people",
+      label: "People",
+      items: [
+        { key: "nav.workforce", defaultLabel: "Workers", href: "/workforce", icon: Users },
+        { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
+        { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
+      ],
+    },
+    {
       key: "nav.group.siteWork",
       label: "Site Work",
       items: [
@@ -251,15 +260,6 @@ export default function Shell({ children }: ShellProps) {
         { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
         ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),
         ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Accounts Export", href: "/exports", icon: Landmark }] : []),
-      ],
-    },
-    {
-      key: "nav.group.people",
-      label: "People",
-      items: [
-        { key: "nav.workforce", defaultLabel: "Workers", href: "/workforce", icon: Users },
-        { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
-        { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
       ],
     },
     {
