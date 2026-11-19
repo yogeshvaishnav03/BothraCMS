@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
-import { assertPermission } from "@/lib/permissions";
+import { assertPermission, resolveCanonicalRole } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -78,7 +78,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
+    const userRole = resolveCanonicalRole(user.role);
+    const isAdmin = userRole === "SUPER_ADMIN" || userRole === "ORG_ADMIN" || user.role === "ADMIN";
 
     // WhatsApp, SMS, Razorpay and VAPID push private keys stay on the server.
     const { messaging: _messaging, payments: _payments, push: _push, ...settings } = parsedSettings as any;
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
       ...organization,
       users: isAdmin ? organization.users : [],
       settingsJson: undefined,
-      settings,
+      settings: isAdmin ? settings : { language: settings?.language },
     });
   } catch (error) {
     return handleApiError(error);
@@ -97,6 +98,12 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    const userRole = resolveCanonicalRole(user.role);
+    const isAdmin = userRole === "SUPER_ADMIN" || userRole === "ORG_ADMIN" || user.role === "ADMIN";
+    if (!isAdmin) {
+      return jsonError("Forbidden: Only Company Admin or Super Admin can modify company details", "FORBIDDEN", 403);
+    }
 
     // Only ORG_ADMIN or SUPER_ADMIN can modify organization settings
     assertPermission(user, "users:manage");

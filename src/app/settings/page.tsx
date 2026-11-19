@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { useLanguage, LanguageCode } from "@/lib/i18n";
-import { canUser } from "@/lib/permissions";
+import { canUser, resolveCanonicalRole } from "@/lib/permissions";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import {
   Building2,
@@ -99,10 +99,15 @@ interface OrgData {
 
 export default function SettingsPage() {
   const { language, setLanguage, t } = useLanguage();
-  const { refreshUser } = useAppSession();
+  const { user: sessionUser, refreshUser } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const canManageSettings = canUser(currentUser, "org:settings");
-  const isAdminOrSuperAdmin = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+  const effectiveUser = currentUser || sessionUser;
+  const canonicalRole = resolveCanonicalRole(effectiveUser?.role);
+  const isAdminOrSuperAdmin =
+    canonicalRole === "SUPER_ADMIN" ||
+    canonicalRole === "ORG_ADMIN" ||
+    effectiveUser?.role === "ADMIN";
+  const canManageSettings = isAdminOrSuperAdmin || canUser(effectiveUser, "org:settings");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -373,7 +378,9 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Settings Form */}
             <div className="lg:col-span-2 space-y-6">
-              <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+              {/* Company Details & Tax Settings - Visible only to Admin and Super Admin */}
+              {isAdminOrSuperAdmin && (
+                <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
                 <h2 className="text-base font-bold text-slate-800 border-b border-slate-100 pb-3">
                   Company Details & Tax Settings
                 </h2>
@@ -560,6 +567,7 @@ export default function SettingsPage() {
                   </p>
                 )}
               </form>
+              )}
 
               {canManageSettings && (
                 <Link
