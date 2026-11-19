@@ -67,6 +67,15 @@ export async function bootstrapWebsiteDataRuntime(targetOrgId?: string): Promise
             status: "ACTIVE",
           },
         });
+      } else {
+        await client.user.update({
+          where: { id: existing.id },
+          data: {
+            role: u.role,
+            status: "ACTIVE",
+            passwordHash: u.passwordHash || fallbackHash,
+          },
+        }).catch(() => {});
       }
     }
 

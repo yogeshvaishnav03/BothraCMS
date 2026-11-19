@@ -104,7 +104,15 @@ async function bootstrapAllUsers() {
       });
 
       if (existingUser) {
-        console.log(`  ✓ Preserved existing ${u.role}: ${normalizedEmail}`);
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            role: u.role,
+            status: "ACTIVE",
+            passwordHash,
+          },
+        }).catch(() => {});
+        console.log(`  ✓ Updated & verified active status & password for ${u.role}: ${normalizedEmail}`);
       } else {
         await prisma.user.create({
           data: {
@@ -118,7 +126,7 @@ async function bootstrapAllUsers() {
             jobTitle: u.jobTitle,
           },
         });
-        console.log(`  + Created ${u.role}: ${normalizedEmail}`);
+        console.log(`  + Created ${u.role}: ${normalizedEmail} (ID: ${u.id})`);
       }
     }
 
