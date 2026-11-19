@@ -1077,12 +1077,7 @@ export default function ProjectDetailsPage() {
                       Priority
                     </label>
                     <SearchableSelect
-                      options={TASK_PRIORITY_OPTIONS.map((opt) => ({
-                        value: opt.value,
-                        label: opt.label,
-                        badge: opt.badge,
-                        subLabel: opt.description,
-                      }))}
+                      options={TASK_PRIORITY_OPTIONS}
                       value={taskPriority}
                       onChange={(v) => setTaskPriority(v as any)}
                       placeholder="Select Priority..."

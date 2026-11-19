@@ -1044,12 +1044,7 @@ export default function TasksPage() {
                       Priority
                     </label>
                     <SearchableSelect
-                      options={TASK_PRIORITY_OPTIONS.map((opt) => ({
-                        value: opt.value,
-                        label: opt.label,
-                        badge: opt.badge,
-                        subLabel: opt.description,
-                      }))}
+                      options={TASK_PRIORITY_OPTIONS}
                       value={priority}
                       onChange={(v) => setPriority(v as any)}
                       placeholder="Select Priority..."
@@ -1159,7 +1154,7 @@ export default function TasksPage() {
                     >
                       {TASK_PRIORITY_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>
-                          {opt.label} ({opt.badge})
+                          {opt.label}
                         </option>
                       ))}
                     </select>

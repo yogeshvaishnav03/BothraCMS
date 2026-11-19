@@ -11,20 +11,17 @@ export const TASK_PRIORITY_OPTIONS = [
   {
     value: "DAILY",
     label: "Daily",
-    description: "3 times a day until completed",
-    badge: "3x / day",
+    subLabel: "3 times a day until completed",
   },
   {
     value: "GENERAL",
     label: "General",
-    description: "2 times a day (morning & evening) until completed",
-    badge: "2x / day",
+    subLabel: "2 times a day (morning & evening)",
   },
   {
     value: "CRITICAL",
     label: "Critical",
-    description: "Every 3 hours until completed",
-    badge: "Every 3h",
+    subLabel: "Every 3 hours until completed",
   },
 ];
 

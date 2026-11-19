@@ -170,16 +170,6 @@ export default function SearchableSelect({
               <span className="truncate font-semibold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
                 {selectedOption.label}
               </span>
-              {selectedOption.badge && (
-                <span className="shrink-0 font-mono text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">
-                  {selectedOption.badge}
-                </span>
-              )}
-              {selectedOption.subLabel && (
-                <span className="shrink-0 text-slate-500 dark:text-slate-400 text-xs font-medium truncate hidden sm:inline">
-                  {selectedOption.subLabel}
-                </span>
-              )}
             </div>
           ) : (
             <span className="text-slate-400 dark:text-slate-500 text-xs sm:text-sm">{placeholder}</span>

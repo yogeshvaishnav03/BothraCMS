@@ -3641,12 +3641,7 @@ export default function DashboardPage() {
                       Priority
                     </label>
                     <SearchableSelect
-                      options={TASK_PRIORITY_OPTIONS.map((opt) => ({
-                        value: opt.value,
-                        label: opt.label,
-                        badge: opt.badge,
-                        subLabel: opt.description,
-                      }))}
+                      options={TASK_PRIORITY_OPTIONS}
                       value={quickPriority}
                       onChange={(v) => setQuickPriority(v as any)}
                       placeholder="Select Priority..."
