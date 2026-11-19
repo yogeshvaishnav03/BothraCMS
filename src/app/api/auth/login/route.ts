@@ -102,6 +102,29 @@ export async function POST(req: NextRequest) {
     }
 
     if (lastDbErr) {
+      // If tables are missing on a fresh or reconnected database, auto-initialize schema and seed users
+      if (
+        lastDbErr?.message?.includes("does not exist") ||
+        lastDbErr?.message?.includes("User") ||
+        lastDbErr?.message?.includes("relation")
+      ) {
+        try {
+          await ensurePostgresColumns();
+          const { bootstrapWebsiteDataRuntime } = await import("@/lib/runtime-seeder");
+          await bootstrapWebsiteDataRuntime();
+          const client = getDirectPrisma();
+          user = await client.user.findFirst({
+            where: { email: normalizedEmail },
+            select: userSelect,
+          });
+          if (user) lastDbErr = null;
+        } catch (healErr) {
+          console.error("[AUTH] Schema auto-heal error:", healErr);
+        }
+      }
+    }
+
+    if (lastDbErr) {
       // Diagnostic logged securely to protected server stdout/stderr (secrets redacted)
       console.error("[AUTH] Authoritative database connection error during login:", lastDbErr?.message || lastDbErr);
 

@@ -1001,6 +1001,19 @@ async function applyMigration() {
     ).catch(() => []);
     console.log(`ℹ️ [POSTGRES_MIGRATOR] Pre-migration check: ${existingTables.length} public tables found.`);
 
+    // If base tables are missing (e.g. empty or reconnected database), apply complete init migration
+    if (existingTables.length === 0 || !existingTables.some((t) => t.table_name === "User")) {
+      console.log("⚡ [POSTGRES_MIGRATOR] Base tables missing. Initializing full schema from migration...");
+      const fs = require("fs");
+      const path = require("path");
+      const initSqlPath = path.resolve(__dirname, "..", "prisma", "migrations", "20261027000000_init_postgresql", "migration.sql");
+      if (fs.existsSync(initSqlPath)) {
+        const sql = fs.readFileSync(initSqlPath, "utf8");
+        await prisma.$executeRawUnsafe(sql);
+        console.log("✅ [POSTGRES_MIGRATOR] Base PostgreSQL schema initialized successfully.");
+      }
+    }
+
     // 2. Sequential Columns Migration
     console.log(`⚡ [POSTGRES_MIGRATOR] Applying ${POSTGRES_COLUMNS.length} column definitions...`);
     for (const sql of POSTGRES_COLUMNS) {

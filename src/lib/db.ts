@@ -150,6 +150,24 @@ export async function ensurePostgresColumns() {
   try {
     const raw = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
     if (raw && (raw.startsWith("postgres://") || raw.startsWith("postgresql://"))) {
+      // Check if User base table exists; if not, apply complete init migration first
+      try {
+        const tableCheck: any = await prisma.$queryRawUnsafe(`
+          SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'User';
+        `).catch(() => []);
+        if (!tableCheck || (Array.isArray(tableCheck) && tableCheck.length === 0)) {
+          const fs = require("fs");
+          const path = require("path");
+          const initSqlPath = path.resolve(process.cwd(), "prisma", "migrations", "20261027000000_init_postgresql", "migration.sql");
+          if (fs.existsSync(initSqlPath)) {
+            const sql = fs.readFileSync(initSqlPath, "utf8");
+            await prisma.$executeRawUnsafe(sql).catch((err: any) => {
+              console.warn("Notice during init schema migration:", err?.message);
+            });
+          }
+        }
+      } catch {}
+
       await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "assignedSiteIdsJson" TEXT;`).catch(() => {});
       await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "extraPermissionsJson" TEXT;`).catch(() => {});
       await prisma.$executeRawUnsafe(`ALTER TABLE "WorkforceMember" ADD COLUMN IF NOT EXISTS "contractorId" TEXT;`).catch(() => {});
