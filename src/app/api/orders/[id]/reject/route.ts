@@ -11,10 +11,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    const canReject = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
+    const canReject =
+      user.role === "SUPER_ADMIN" ||
+      user.role === "ORG_ADMIN" ||
+      (user.role as string) === "ADMIN";
     if (!canReject) {
       return jsonError(
-        "Super Admin or Organization Admin credentials required to reject purchase orders",
+        "Admin credentials required to reject purchase orders",
         "FORBIDDEN",
         403
       );

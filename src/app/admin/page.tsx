@@ -877,52 +877,163 @@ export default function SuperAdminDashboardPage() {
         </div>
 
         {/* Modal for Super Admin Approved Vendor Dispatch */}
+        {/* Approved Order Vendor Notification Modal */}
         {approvedNotification && (
           <div
             className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-fade-in"
             onClick={() => setApprovedNotification(null)}
           >
             <div
-              className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in"
+              className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-scale-in"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                  <span className="font-bold text-sm">Order Approved — Dispatch to Vendor</span>
+              <div className="bg-gradient-to-r from-emerald-800 to-slate-900 text-white px-5 py-4 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-white leading-tight">Order Request Approved</h3>
+                    <p className="text-[11px] text-emerald-200">Ready for WhatsApp Vendor Dispatch</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setApprovedNotification(null)}
-                  className="p-1 text-slate-400 hover:text-white rounded"
+                  className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <div className="p-5 space-y-4 flex-1 overflow-y-auto">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950">
-                  <div className="font-bold">Super Admin Approval Recorded</div>
-                  <div className="text-[11px] text-emerald-800 mt-0.5">
-                    Vendor WhatsApp message and email have been prepared for{" "}
-                    <strong>{approvedNotification.vendorName}</strong>.
+                {/* Target Vendor & WhatsApp Destination Highlight */}
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl shadow-xs space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-2.5">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
+                        Target Vendor Full Name
+                      </span>
+                      <h4 className="text-base font-extrabold text-slate-900">
+                        {approvedNotification.vendorName || "Vendor Name Unavailable"}
+                      </h4>
+                    </div>
+                    {approvedNotification.vendorPhone ? (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-black shadow-xs">
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>{approvedNotification.vendorPhone}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 font-semibold">
+                        No phone registered
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-emerald-900">
+                    <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      WhatsApp message will be shared to:{" "}
+                      {approvedNotification.vendorPhone ? (
+                        <strong className="font-bold underline decoration-emerald-500 text-emerald-950">
+                          {approvedNotification.vendorPhone}
+                        </strong>
+                      ) : (
+                        <span className="italic text-slate-500">None (phone number missing)</span>
+                      )}
+                    </span>
                   </div>
                 </div>
 
+                {/* Complete Order Details Card */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Order Details</span>
+                    <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-md bg-slate-200 text-slate-800">
+                      {approvedNotification.orderNumber || approvedNotification.order?.orderNumber || "PO"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Material</span>
+                      <span className="font-bold text-slate-900 text-sm">
+                        {approvedNotification.materialName || approvedNotification.order?.material?.name || "Material"}
+                      </span>
+                      {approvedNotification.materialSku && (
+                        <span className="text-[10px] text-slate-500 block font-mono">
+                          SKU: {approvedNotification.materialSku}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Quantity</span>
+                      <span className="font-bold text-slate-900 text-sm">
+                        {approvedNotification.quantity?.toLocaleString("en-IN") || approvedNotification.order?.quantity || "0"}{" "}
+                        {approvedNotification.unitCode || approvedNotification.order?.unitCode || ""}
+                      </span>
+                    </div>
+
+                    {(approvedNotification.unitRate || approvedNotification.order?.unitRate) && (
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Unit Rate</span>
+                        <span className="font-bold text-slate-800">
+                          ₹{((approvedNotification.unitRate || approvedNotification.order?.unitRate) / 100).toFixed(2)} / {approvedNotification.unitCode || approvedNotification.order?.unitCode}
+                        </span>
+                      </div>
+                    )}
+
+                    {(approvedNotification.totalAmount || approvedNotification.order?.totalAmount) && (
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Total Estimated Amount</span>
+                        <span className="font-black text-emerald-700 text-sm">
+                          ₹{((approvedNotification.totalAmount || approvedNotification.order?.totalAmount) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Delivery Location</span>
+                      <span className="font-semibold text-slate-800">
+                        {approvedNotification.deliveryLocation || approvedNotification.siteName || approvedNotification.order?.site?.name || "Main Site"}
+                      </span>
+                    </div>
+
+                    {approvedNotification.expectedDeliveryDate && (
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Expected Delivery</span>
+                        <span className="font-semibold text-slate-800">
+                          {approvedNotification.expectedDeliveryDate}
+                        </span>
+                      </div>
+                    )}
+
+                    {approvedNotification.approvedBy && (
+                      <div className="sm:col-span-2 pt-1 border-t border-slate-200/60 flex items-center gap-1.5 text-[11px] text-slate-600">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Approved by: <strong>{approvedNotification.approvedBy}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* WhatsApp & Email Action Buttons */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {approvedNotification.whatsappUrl ? (
                     <a
                       href={approvedNotification.whatsappUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition"
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition group"
                     >
                       <MessageSquare className="w-4 h-4" />
-                      <span>Send WhatsApp to Vendor</span>
-                      <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                      <span>Send WhatsApp ({approvedNotification.vendorPhone || "Vendor"})</span>
+                      <ExternalLink className="w-3.5 h-3.5 opacity-70 group-hover:translate-x-0.5 transition-transform" />
                     </a>
                   ) : (
-                    <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-500">
-                      No vendor phone registered
+                    <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-500 text-center font-medium">
+                      No vendor phone registered for WhatsApp
                     </div>
                   )}
 
@@ -935,32 +1046,46 @@ export default function SuperAdminDashboardPage() {
                       <span>Send Email to Vendor</span>
                     </a>
                   ) : (
-                    <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-500">
+                    <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-500 text-center font-medium">
                       No vendor email registered
                     </div>
                   )}
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                    <span>Approved Order Summary Text:</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyMessage}
-                      className="flex items-center gap-1 text-amber-600 hover:underline font-bold"
-                    >
-                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copied ? "Copied!" : "Copy Text"}</span>
-                    </button>
+                {/* Formatted Message Preview & Copy */}
+                {approvedNotification.message && (
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
+                      <span className="font-semibold">WhatsApp Message Preview:</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyMessage}
+                        className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy Text</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl text-[11px] font-mono max-h-40 overflow-y-auto whitespace-pre-wrap border border-slate-800">
+                      {approvedNotification.message}
+                    </pre>
                   </div>
-                  <pre className="p-3 bg-slate-950 text-slate-200 rounded-lg text-[11px] font-mono max-h-48 overflow-y-auto whitespace-pre-wrap">
-                    {approvedNotification.message}
-                  </pre>
-                </div>
-
+                )}
               </div>
 
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end shrink-0">
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+                <span className="text-[11px] text-slate-500">
+                  The purchase order has been approved in the system.
+                </span>
                 <button
                   type="button"
                   onClick={() => setApprovedNotification(null)}

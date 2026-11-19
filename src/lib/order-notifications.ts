@@ -49,7 +49,7 @@ export function formatNotificationMessage(data: FormatNotificationParams): strin
   parts.push(``);
   parts.push(`👤 *Requested by:* ${data.orderedByName}`);
   if (data.approvedByName) {
-    parts.push(`✅ *Approved by Super Admin:* ${data.approvedByName}`);
+    parts.push(`✅ *Approved by:* ${data.approvedByName}`);
   }
   parts.push(`Please confirm order receipt, stock availability, and your dispatch timeline.`);
   parts.push(`Thank you!`);

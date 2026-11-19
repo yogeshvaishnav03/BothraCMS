@@ -16,11 +16,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    // Only Super Admin or Organization Admin can approve purchase orders
-    const canApprove = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
+    // Super Admin, Org Admin, or Admin can approve purchase orders
+    const canApprove =
+      user.role === "SUPER_ADMIN" ||
+      user.role === "ORG_ADMIN" ||
+      (user.role as string) === "ADMIN";
     if (!canApprove) {
       return jsonError(
-        "Super Admin or Organization Admin credentials required to approve purchase orders",
+        "Admin credentials required to approve purchase orders",
         "FORBIDDEN",
         403
       );
@@ -164,6 +167,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       message: `Purchase order ${updated.orderNumber} has been approved. Vendor notification ready for dispatch.`,
       notification: {
         sent: true,
+        orderNumber: updated.orderNumber,
+        materialName: updated.material.name,
+        materialSku: updated.material.sku,
+        quantity: updated.quantity,
+        unitCode: updated.unitCode,
+        unitRate: updated.unitRate,
+        totalAmount: updated.totalAmount,
+        deliveryLocation,
+        siteName: updated.site?.name,
+        expectedDeliveryDate: expDateFormatted,
+        approvedBy: updated.approvedBy,
         vendorName: updated.vendor.name,
         vendorPhone: updated.vendor.phone,
         vendorEmail: updated.vendor.email,

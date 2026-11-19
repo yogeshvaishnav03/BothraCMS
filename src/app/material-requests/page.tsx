@@ -22,12 +22,17 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  Copy,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
   Loader2,
+  Mail,
+  MessageSquare,
   Package,
   PackageCheck,
   PackagePlus,
+  Phone,
   Plus,
   Receipt,
   Search,
@@ -1291,12 +1296,22 @@ export default function MaterialOrderHistoryPage() {
   const [receivingOrder, setReceivingOrder] = useState<{ order: any; item: any; request?: any } | null>(null);
   const [pendingDeleteOrder, setPendingDeleteOrder] = useState<any | null>(null);
   const [deletingOrder, setDeletingOrder] = useState(false);
+  const [approvedNotification, setApprovedNotification] = useState<any | null>(null);
+  const [copiedNotification, setCopiedNotification] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
 
   const isAdmin = me?.role === "SUPER_ADMIN" || me?.role === "ORG_ADMIN" || (me?.role as string) === "ADMIN";
+
+  const handleCopyNotificationMessage = () => {
+    if (approvedNotification?.message) {
+      navigator.clipboard.writeText(approvedNotification.message);
+      setCopiedNotification(true);
+      setTimeout(() => setCopiedNotification(false), 2000);
+    }
+  };
 
   const handleApproveOrder = async (po: any) => {
     try {
@@ -1310,6 +1325,12 @@ export default function MaterialOrderHistoryPage() {
         throw new Error(data.error?.message || "Failed to approve purchase order");
       }
       setNotice(`Purchase order ${po.orderNumber} successfully approved!`);
+      if (data.data?.notification) {
+        setApprovedNotification({
+          ...data.data.notification,
+          order: data.data.order || po,
+        });
+      }
       load();
     } catch (err: any) {
       setError(err.message || "Failed to approve purchase order");
@@ -1767,11 +1788,45 @@ export default function MaterialOrderHistoryPage() {
           vendors={vendors}
           materials={materials}
           onClose={() => setOrdering(null)}
-          onDone={(updated: any) => {
+          onDone={async (updated: any) => {
+            const currentItem = ordering.item;
             setOrdering(null);
             setNotice("Purchase order created. It can now be received when delivered at site.");
             replace(updated);
             load();
+
+            // If the ordered line was auto-approved into a purchase order, fetch PO details and show WhatsApp dispatch modal
+            const orderedLine = updated?.items?.find((i: any) => i.id === currentItem.id);
+            if (orderedLine?.purchaseOrderId) {
+              try {
+                const poData = await api<any>(`/api/orders/${orderedLine.purchaseOrderId}`);
+                if (poData && poData.status === "APPROVED") {
+                  setApprovedNotification({
+                    sent: true,
+                    orderNumber: poData.orderNumber,
+                    materialName: poData.material?.name,
+                    materialSku: poData.material?.sku,
+                    quantity: poData.quantity,
+                    unitCode: poData.unitCode,
+                    unitRate: poData.unitRate,
+                    totalAmount: poData.totalAmount,
+                    deliveryLocation: poData.store ? `${poData.site?.name || "Site"} — ${poData.store.name}` : poData.site?.name || "Main Site Yard",
+                    siteName: poData.site?.name,
+                    expectedDeliveryDate: poData.expectedDeliveryDate ? new Date(poData.expectedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null,
+                    approvedBy: poData.approvedBy,
+                    vendorName: poData.vendor?.name,
+                    vendorPhone: poData.vendor?.phone,
+                    vendorEmail: poData.vendor?.email,
+                    message: poData.notificationMessage,
+                    whatsappUrl: poData.whatsappUrl,
+                    mailtoUrl: poData.mailtoUrl,
+                    order: poData,
+                  });
+                }
+              } catch (e) {
+                console.warn("Could not load PO details for notification dispatch", e);
+              }
+            }
           }}
         />
       )}
@@ -1839,6 +1894,228 @@ export default function MaterialOrderHistoryPage() {
               >
                 {deletingOrder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                 <span>{deletingOrder ? "Deleting..." : "Delete Order"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Approved Order Vendor Notification & WhatsApp Details Modal */}
+      {approvedNotification && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-fade-in"
+          onClick={() => setApprovedNotification(null)}
+        >
+          <div
+            className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-800 to-slate-900 text-white px-5 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white leading-tight">Order Request Approved</h3>
+                  <p className="text-[11px] text-emerald-200">Ready for WhatsApp Vendor Dispatch</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setApprovedNotification(null)}
+                className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 flex-1 overflow-y-auto">
+              {/* Target Vendor & WhatsApp Destination Highlight */}
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl shadow-xs space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-2.5">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
+                      Target Vendor Full Name
+                    </span>
+                    <h4 className="text-base font-extrabold text-slate-900">
+                      {approvedNotification.vendorName || "Vendor Name Unavailable"}
+                    </h4>
+                  </div>
+                  {approvedNotification.vendorPhone ? (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-black shadow-xs">
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>{approvedNotification.vendorPhone}</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 font-semibold">
+                      No phone registered
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-emerald-900">
+                  <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    WhatsApp message will be shared to:{" "}
+                    {approvedNotification.vendorPhone ? (
+                      <strong className="font-bold underline decoration-emerald-500 text-emerald-950">
+                        {approvedNotification.vendorPhone}
+                      </strong>
+                    ) : (
+                      <span className="italic text-slate-500">None (phone number missing)</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Complete Order Details Card */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Order Details</span>
+                  <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-md bg-slate-200 text-slate-800">
+                    {approvedNotification.orderNumber || approvedNotification.order?.orderNumber || "PO"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Material</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {approvedNotification.materialName || approvedNotification.order?.material?.name || "Material"}
+                    </span>
+                    {approvedNotification.materialSku && (
+                      <span className="text-[10px] text-slate-500 block font-mono">
+                        SKU: {approvedNotification.materialSku}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Quantity</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {approvedNotification.quantity?.toLocaleString("en-IN") || approvedNotification.order?.quantity || "0"}{" "}
+                      {approvedNotification.unitCode || approvedNotification.order?.unitCode || ""}
+                    </span>
+                  </div>
+
+                  {(approvedNotification.unitRate || approvedNotification.order?.unitRate) && (
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Unit Rate</span>
+                      <span className="font-bold text-slate-800">
+                        ₹{((approvedNotification.unitRate || approvedNotification.order?.unitRate) / 100).toFixed(2)} / {approvedNotification.unitCode || approvedNotification.order?.unitCode}
+                      </span>
+                    </div>
+                  )}
+
+                  {(approvedNotification.totalAmount || approvedNotification.order?.totalAmount) && (
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Total Estimated Amount</span>
+                      <span className="font-black text-emerald-700 text-sm">
+                        ₹{((approvedNotification.totalAmount || approvedNotification.order?.totalAmount) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Delivery Location</span>
+                    <span className="font-semibold text-slate-800">
+                      {approvedNotification.deliveryLocation || approvedNotification.siteName || approvedNotification.order?.site?.name || "Main Site"}
+                    </span>
+                  </div>
+
+                  {approvedNotification.expectedDeliveryDate && (
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Expected Delivery</span>
+                      <span className="font-semibold text-slate-800">
+                        {approvedNotification.expectedDeliveryDate}
+                      </span>
+                    </div>
+                  )}
+
+                  {approvedNotification.approvedBy && (
+                    <div className="sm:col-span-2 pt-1 border-t border-slate-200/60 flex items-center gap-1.5 text-[11px] text-slate-600">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Approved by: <strong>{approvedNotification.approvedBy}</strong></span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* WhatsApp & Email Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {approvedNotification.whatsappUrl ? (
+                  <a
+                    href={approvedNotification.whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition group"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Send WhatsApp ({approvedNotification.vendorPhone || "Vendor"})</span>
+                    <ExternalLink className="w-3.5 h-3.5 opacity-70 group-hover:translate-x-0.5 transition-transform" />
+                  </a>
+                ) : (
+                  <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-500 text-center font-medium">
+                    No vendor phone registered for WhatsApp
+                  </div>
+                )}
+
+                {approvedNotification.mailtoUrl ? (
+                  <a
+                    href={approvedNotification.mailtoUrl}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md transition"
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>Send Email to Vendor</span>
+                  </a>
+                ) : (
+                  <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-500 text-center font-medium">
+                    No vendor email registered
+                  </div>
+                )}
+              </div>
+
+              {/* Formatted Message Preview & Copy */}
+              {approvedNotification.message && (
+                <div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
+                    <span className="font-semibold">WhatsApp Message Preview:</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyNotificationMessage}
+                      className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-bold"
+                    >
+                      {copiedNotification ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Text</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <pre className="p-3 bg-slate-900 text-slate-200 rounded-xl text-[11px] font-mono max-h-40 overflow-y-auto whitespace-pre-wrap border border-slate-800">
+                    {approvedNotification.message}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-slate-500">
+                The purchase order has been approved in the system.
+              </span>
+              <button
+                type="button"
+                onClick={() => setApprovedNotification(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl text-xs transition"
+              >
+                Close
               </button>
             </div>
           </div>
