@@ -357,12 +357,14 @@ export default function ChatPage() {
   // Voice Note Recording State (WhatsApp-style live recording)
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [showAudioFallbackModal, setShowAudioFallbackModal] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const docInputRef = useRef<HTMLInputElement | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const isScrolledUpRef = useRef<boolean>(false);
   const prevMessagesCountRef = useRef<number>(0);
@@ -727,7 +729,43 @@ export default function ChatPage() {
         setActionError("Voice recording is not supported in this browser.");
         return;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Check if browser site permission is granted
+      let hasBrowserPermission = false;
+      try {
+        if (typeof navigator !== "undefined" && (navigator as any).permissions?.query) {
+          const perm = await (navigator as any).permissions.query({ name: "microphone" });
+          if (perm && perm.state === "granted") {
+            hasBrowserPermission = true;
+          }
+        }
+      } catch {}
+
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (firstErr: any) {
+        // Fallback: If default audio: true fails with NotFoundError, check if enumerateDevices lists any available audio input device
+        if (typeof navigator !== "undefined" && navigator.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+          const audioInputs = devices.filter((d) => d.kind === "audioinput");
+          for (const dev of audioInputs) {
+            if (dev.deviceId) {
+              try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                  audio: { deviceId: { exact: dev.deviceId } },
+                });
+                if (stream) break;
+              } catch {}
+            }
+          }
+        }
+        if (!stream) {
+          firstErr.__hasBrowserPermission = hasBrowserPermission;
+          throw firstErr;
+        }
+      }
+
       audioChunksRef.current = [];
 
       let mimeType = "audio/webm";
@@ -764,9 +802,30 @@ export default function ChatPage() {
       console.error("Microphone access error:", err);
       const errName = err?.name || "";
       const errMsg = (err?.message || "").toLowerCase();
-      if (errName === "NotFoundError" || errName === "DevicesNotFoundError" || errMsg.includes("device not found") || errMsg.includes("not found")) {
-        setActionError("No microphone found. Please connect or enable a microphone on this device to record voice notes.");
-      } else if (errName === "NotAllowedError" || errName === "PermissionDeniedError" || errMsg.includes("denied") || errMsg.includes("not allowed")) {
+      const hasPerm = Boolean(err?.__hasBrowserPermission);
+
+      if (
+        errName === "NotFoundError" ||
+        errName === "DevicesNotFoundError" ||
+        errMsg.includes("device not found") ||
+        errMsg.includes("not found")
+      ) {
+        if (hasPerm) {
+          setActionError(
+            "Browser permission is ON, but Windows reports no active microphone or headset plugged into this computer."
+          );
+        } else {
+          setActionError(
+            "No microphone hardware detected on this computer. Please connect a headset/microphone, or upload an audio file."
+          );
+        }
+        setShowAudioFallbackModal(true);
+      } else if (
+        errName === "NotAllowedError" ||
+        errName === "PermissionDeniedError" ||
+        errMsg.includes("denied") ||
+        errMsg.includes("not allowed")
+      ) {
         setActionError("Microphone permission was denied. Please allow microphone access in your browser site settings.");
       } else if (errName === "SecurityError" || errMsg.includes("permissions policy")) {
         setActionError("Microphone access is restricted by browser security policy.");
@@ -1202,7 +1261,7 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    const anyModal = showCreateGroupModal || Boolean(fullscreenImage) || Boolean(confirmDeleteMessageId);
+    const anyModal = showCreateGroupModal || Boolean(fullscreenImage) || Boolean(confirmDeleteMessageId) || showAudioFallbackModal;
     if (!anyModal) return;
     document.body.style.overflow = "hidden";
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1210,6 +1269,7 @@ export default function ChatPage() {
         setShowCreateGroupModal(false);
         setFullscreenImage(null);
         setConfirmDeleteMessageId(null);
+        setShowAudioFallbackModal(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -1217,7 +1277,7 @@ export default function ChatPage() {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [showCreateGroupModal, fullscreenImage, confirmDeleteMessageId]);
+  }, [showCreateGroupModal, fullscreenImage, confirmDeleteMessageId, showAudioFallbackModal]);
 
   const filteredConversations = conversations.filter((c) => {
     const q = search.toLowerCase();
@@ -1408,7 +1468,7 @@ export default function ChatPage() {
                                     {displayName}
                                   </span>
                                   {c.latestMessage && (
-                                    <span className="text-[10px] text-slate-400 whitespace-nowrap ml-1 font-mono">
+                                    <span className="text-[10px] text-slate-400 whitespace-nowrap ml-1 font-mono" suppressHydrationWarning>
                                       {new Date(c.latestMessage.createdAt).toLocaleTimeString([], {
                                         hour: "2-digit",
                                         minute: "2-digit",
@@ -1905,7 +1965,7 @@ export default function ChatPage() {
 
                                   {/* Bottom metadata row inside WhatsApp bubble */}
                                   <div className="flex items-center justify-end gap-1 mt-1 text-[9px] text-slate-400 select-none">
-                                    <span>
+                                    <span suppressHydrationWarning>
                                       {m.createdAt
                                         ? new Date(m.createdAt).toLocaleTimeString([], {
                                             hour: "2-digit",
@@ -1946,17 +2006,26 @@ export default function ChatPage() {
                       </button>
                     )}
 
-{/* Action Error Banner */}
+                    {/* Action Error Banner */}
                     {actionError && (
                       <div className="p-2.5 px-3 bg-rose-50 border-t border-rose-200 text-xs text-rose-800 flex items-center justify-between shrink-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                          <span>{actionError}</span>
+                          <span className="truncate">{actionError}</span>
+                          {(actionError.toLowerCase().includes("microphone") || actionError.toLowerCase().includes("audio")) && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAudioFallbackModal(true)}
+                              className="ml-2 text-rose-700 underline font-semibold hover:text-rose-900 shrink-0 cursor-pointer"
+                            >
+                              Options / Upload File
+                            </button>
+                          )}
                         </div>
                         <button
                           type="button"
                           onClick={() => setActionError(null)}
-                          className="p-1 text-rose-500 hover:text-rose-700 rounded cursor-pointer"
+                          className="p-1 text-rose-500 hover:text-rose-700 rounded cursor-pointer shrink-0"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -2004,6 +2073,23 @@ export default function ChatPage() {
                           type="button"
                           onClick={() => {
                             setShowAttachMenu(false);
+                            audioInputRef.current?.click();
+                          }}
+                          className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-700 rounded-xl transition cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                            <Volume2 className="w-4 h-4" />
+                          </div>
+                          <div className="text-left">
+                            <div>Audio / Voice File</div>
+                            <div className="text-[10px] text-slate-400 font-normal">MP3, WAV, Voice memo</div>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachMenu(false);
                             startVoiceRecording();
                           }}
                           className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-700 rounded-xl transition cursor-pointer"
@@ -2012,7 +2098,7 @@ export default function ChatPage() {
                             <Mic className="w-4 h-4" />
                           </div>
                           <div className="text-left">
-                            <div>Voice Note</div>
+                            <div>Record Voice Note</div>
                             <div className="text-[10px] text-slate-400 font-normal">Record live audio</div>
                           </div>
                         </button>
@@ -2033,6 +2119,15 @@ export default function ChatPage() {
                       type="file"
                       ref={docInputRef}
                       accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,application/pdf"
+                      multiple
+                      onChange={handleFilesSelect}
+                      className="sr-only"
+                    />
+
+                    <input
+                      type="file"
+                      ref={audioInputRef}
+                      accept="audio/*,.mp3,.wav,.m4a,.ogg,.weba,.webm,.aac,.flac,.opus"
                       multiple
                       onChange={handleFilesSelect}
                       className="sr-only"
@@ -2447,6 +2542,88 @@ export default function ChatPage() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NO MICROPHONE HARDWARE DETECTED / AUDIO FALLBACK MODAL */}
+      {showAudioFallbackModal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-fade-in"
+          onClick={() => setShowAudioFallbackModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 text-white px-5 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                  <Mic className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Microphone Hardware Not Detected</h2>
+                  <p className="text-[11px] text-slate-400">Audio input device status on this computer</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAudioFallbackModal(false)}
+                className="p-1 text-slate-400 hover:text-white rounded cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs text-slate-600">
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block text-emerald-950">Browser Permission: Granted</strong>
+                  <span>Your browser allows microphone access for this website.</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block text-amber-950">Hardware Status: No Microphone Found</strong>
+                  <span>Windows reports that no physical microphone, headset, or active audio input is plugged into this computer.</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1.5 leading-relaxed">
+                <p className="font-semibold text-slate-900">To record live voice notes:</p>
+                <ul className="list-disc list-inside space-y-1 pl-1">
+                  <li>Plug in earphones, headphones, or a USB microphone.</li>
+                  <li>Check Windows <strong>Settings &gt; System &gt; Sound</strong> to ensure an input device is active.</li>
+                </ul>
+                <p className="pt-1 text-slate-500">
+                  Or, you can select any recorded audio file from your computer to send as a voice note right now:
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAudioFallbackModal(false);
+                    audioInputRef.current?.click();
+                  }}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  <Volume2 className="w-4 h-4" />
+                  <span>Upload Audio File</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAudioFallbackModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

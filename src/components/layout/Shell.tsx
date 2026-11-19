@@ -606,9 +606,9 @@ export default function Shell({ children }: ShellProps) {
           <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <span>{todayLabel}</span>
+                <span suppressHydrationWarning>{todayLabel}</span>
                 <span className="text-slate-300">•</span>
-                <span className="tabular-nums">{clock}</span>
+                <span className="tabular-nums" suppressHydrationWarning>{clock}</span>
                 <span className="text-slate-300">•</span>
                 <span className="flex items-center gap-1.5 truncate">
                   <span className={`w-1.5 h-1.5 rounded-full ${activeSiteId ? "bg-emerald-500" : "bg-amber-500"}`} />
