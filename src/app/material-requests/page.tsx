@@ -788,6 +788,8 @@ function RequestCard({
   onOrder,
   onReceive,
   onDeleteOrder,
+  onApproveOrder,
+  onRejectOrder,
 }: {
   r: any;
   me: any;
@@ -796,6 +798,8 @@ function RequestCard({
   onOrder: (item: any) => void;
   onReceive: (target: { order: any; item: any; request: any }) => void;
   onDeleteOrder?: (po: any) => void;
+  onApproveOrder?: (po: any) => void;
+  onRejectOrder?: (po: any) => void;
 }) {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -805,6 +809,9 @@ function RequestCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const st = STATUS[r.status] || STATUS.PENDING;
+
+  const isAdmin = me?.role === "SUPER_ADMIN" || me?.role === "ORG_ADMIN" || (me?.role as string) === "ADMIN";
+  const canReview = r.canManage || isAdmin;
 
   const act = async (fn: () => Promise<any>) => {
     setBusy(true);
@@ -864,7 +871,7 @@ function RequestCard({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {r.status === "PENDING" && r.canManage && !approving && !rejecting && (
+          {r.status === "PENDING" && canReview && !approving && !rejecting && (
             <>
               <button onClick={() => { setConfirmCancel(false); setApproving(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800">
                 <Check className="h-3.5 w-3.5" /> Review
@@ -1066,7 +1073,45 @@ function RequestCard({
                         <span className="text-[10px] text-slate-400">
                           {po.vendor?.name}
                         </span>
-                        {isDelivered ? (
+                        {po.status === "PENDING_APPROVAL" ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            {isAdmin ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onApproveOrder?.(po)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-emerald-700 transition"
+                                  title="Approve purchase order"
+                                >
+                                  <CheckCircle2 className="h-3 w-3" /> Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onRejectOrder?.(po)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 transition"
+                                  title="Decline purchase order"
+                                >
+                                  <XCircle className="h-3 w-3" /> Decline
+                                </button>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full ring-1 ring-amber-200">
+                                <Clock className="h-3 w-3 text-amber-600" /> Pending Approval
+                              </span>
+                            )}
+                            {onDeleteOrder && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteOrder(po)}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                                title="Delete purchase order"
+                                aria-label={`Delete purchase order ${po.orderNumber}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        ) : isDelivered ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-300">
                             <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Received & Billed
                           </span>
@@ -1092,7 +1137,7 @@ function RequestCard({
                           </div>
                         )}
                       </span>
-                    ) : r.canManage && ["APPROVED", "PARTLY_ORDERED"].includes(r.status) && (i.approvedQty ?? 0) > 0 ? (
+                    ) : canReview && ["APPROVED", "PARTLY_ORDERED"].includes(r.status) && (i.approvedQty ?? 0) > 0 ? (
                       <button onClick={() => onOrder(i)} className="rounded-md bg-gradient-brand px-2.5 py-1 text-[11px] font-bold text-slate-950">
                         Order
                       </button>
@@ -1126,14 +1171,22 @@ function RequestCard({
 
 function PurchaseOrderRow({
   po,
+  isAdmin,
   onReceive,
   onDelete,
+  onApprove,
+  onReject,
 }: {
   po: any;
+  isAdmin?: boolean;
   onReceive: (target: { order: any; item: any }) => void;
   onDelete?: (po: any) => void;
+  onApprove?: (po: any) => void;
+  onReject?: (po: any) => void;
 }) {
+  const isPending = po.status === "PENDING_APPROVAL";
   const isDelivered = po.status === "DELIVERED";
+  const isApproved = ["APPROVED", "PLACED", "CONFIRMED"].includes(po.status);
   const st = ORDER_STATUS[po.status] || { label: po.status, pill: "bg-slate-100 text-slate-700" };
 
   return (
@@ -1159,17 +1212,46 @@ function PurchaseOrderRow({
       </div>
 
       <div className="shrink-0 flex items-center justify-end gap-2">
-        {isDelivered ? (
+        {isPending ? (
+          isAdmin ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onApprove?.(po)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+                title="Approve purchase order"
+              >
+                <CheckCircle2 className="h-4 w-4" /> Approve
+              </button>
+              <button
+                type="button"
+                onClick={() => onReject?.(po)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition"
+                title="Decline purchase order"
+              >
+                <XCircle className="h-4 w-4" /> Decline
+              </button>
+            </div>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+              <Clock className="h-4 w-4 text-amber-600" /> Pending Approval
+            </span>
+          )
+        ) : isDelivered ? (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-300">
             <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Received & Billed
           </span>
-        ) : (
+        ) : isApproved ? (
           <button
             onClick={() => onReceive({ order: po, item: { description: po.material?.name, unitCode: po.unitCode || po.material?.unitCode, quantity: po.quantity } })}
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
           >
             <Receipt className="h-4 w-4" /> Receive Goods & Bill
           </button>
+        ) : (
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1", st.pill)}>
+            {st.label}
+          </span>
         )}
         {onDelete && !isDelivered && (
           <button
@@ -1213,6 +1295,46 @@ export default function MaterialOrderHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
+
+  const isAdmin = me?.role === "SUPER_ADMIN" || me?.role === "ORG_ADMIN" || (me?.role as string) === "ADMIN";
+
+  const handleApproveOrder = async (po: any) => {
+    try {
+      const res = await fetch(`/api/orders/${po.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to approve purchase order");
+      }
+      setNotice(`Purchase order ${po.orderNumber} successfully approved!`);
+      load();
+    } catch (err: any) {
+      setError(err.message || "Failed to approve purchase order");
+    }
+  };
+
+  const handleRejectOrder = async (po: any) => {
+    const reason = window.prompt(`Enter reason for declining purchase order ${po.orderNumber}:`);
+    if (reason === null) return;
+    try {
+      const res = await fetch(`/api/orders/${po.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() || "Rejected by administrator" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to decline purchase order");
+      }
+      setNotice(`Purchase order ${po.orderNumber} declined.`);
+      load();
+    } catch (err: any) {
+      setError(err.message || "Failed to decline purchase order");
+    }
+  };
 
   const executeDeleteOrder = async () => {
     if (!pendingDeleteOrder) return;
@@ -1528,6 +1650,8 @@ export default function MaterialOrderHistoryPage() {
                     onOrder={(item) => setOrdering({ request: r, item })}
                     onReceive={(target) => setReceivingOrder(target)}
                     onDeleteOrder={(targetPo) => setPendingDeleteOrder(targetPo)}
+                    onApproveOrder={handleApproveOrder}
+                    onRejectOrder={handleRejectOrder}
                   />
                 ))}
                 <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
@@ -1595,8 +1719,11 @@ export default function MaterialOrderHistoryPage() {
                   <PurchaseOrderRow
                     key={po.id}
                     po={po}
+                    isAdmin={isAdmin}
                     onReceive={(target) => setReceivingOrder(target)}
                     onDelete={(targetPo) => setPendingDeleteOrder(targetPo)}
+                    onApprove={handleApproveOrder}
+                    onReject={handleRejectOrder}
                   />
                 ))}
                 <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">

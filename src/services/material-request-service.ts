@@ -284,7 +284,7 @@ export class MaterialRequestService {
     const unitRatePaise = input.unitRate && input.unitRate > 0 ? Math.round(input.unitRate * 100) : null;
     const totalAmount = unitRatePaise ? Math.round(qty * unitRatePaise) : null;
     const now = new Date();
-    const autoApprove = user.role === "SUPER_ADMIN";
+    const autoApprove = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || (user.role as string) === "ADMIN";
     const orderNumber = `PO-${now.toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const order = await prisma.$transaction(async (tx) => {

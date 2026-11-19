@@ -209,10 +209,10 @@ export async function POST(req: NextRequest) {
     const totalAmountPaise = unitRatePaise ? Math.round(quantity * unitRatePaise) : null;
     const parsedExpDate = expectedDeliveryDate ? new Date(expectedDeliveryDate) : null;
 
-    // Workflow: Any order raised by users requires Super Admin confirmation and approval!
-    // If the creator IS Super Admin and explicitly requested autoApprove, approve immediately.
-    const isSuperAdmin = user.role === "SUPER_ADMIN";
-    const shouldApproveImmediately = isSuperAdmin && autoApprove === true;
+    // Workflow: Orders raised by non-admins require Administrator confirmation and approval.
+    // Administrators (SUPER_ADMIN, ORG_ADMIN) approve immediately unless explicitly requested otherwise.
+    const isAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || (user.role as string) === "ADMIN";
+    const shouldApproveImmediately = isAdmin && (autoApprove === true || autoApprove === undefined);
     const initialStatus = shouldApproveImmediately ? "APPROVED" : "PENDING_APPROVAL";
 
     const orderQueryText =

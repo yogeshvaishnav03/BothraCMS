@@ -113,8 +113,11 @@ export default function SuperAdminDashboardPage() {
       .then((u) => {
         if (u) {
           setCurrentUser(u);
-          if (u.role === "SUPER_ADMIN") {
-            loadTenants();
+          const isAdminRole = u.role === "SUPER_ADMIN" || u.role === "ORG_ADMIN" || (u.role as string) === "ADMIN";
+          if (isAdminRole) {
+            if (u.role === "SUPER_ADMIN") {
+              loadTenants();
+            }
             loadPendingOrders();
             loadPendingPayments();
           } else {
@@ -605,8 +608,9 @@ export default function SuperAdminDashboardPage() {
     );
   }
 
-  // Access Denied for Non-Super Admins
-  if (currentUser?.role !== "SUPER_ADMIN") {
+  // Access Denied for Non-Admins
+  const isAdminRole = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN" || (currentUser?.role as string) === "ADMIN";
+  if (!isAdminRole) {
     return (
       <Shell>
         <div className="max-w-xl mx-auto my-12 bg-white rounded-2xl border border-rose-200 p-8 text-center shadow-lg space-y-4">
@@ -614,11 +618,11 @@ export default function SuperAdminDashboardPage() {
             <ShieldAlert className="w-8 h-8" />
           </div>
           <h1 className="font-display text-xl font-extrabold text-slate-900 tracking-tight">
-            Super Admin Access Required
+            Administrator Access Required
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Only <span className="font-semibold text-rose-600">Super Admin</span> accounts can open the
-            Super Admin Console and manage companies. Your account (
+            Only <span className="font-semibold text-rose-600">Administrator</span> accounts can open the
+            Admin Approval Console and manage operations. Your account (
             <span className="font-semibold">{currentUser?.email}</span>) has the{" "}
             <span className="font-semibold">{currentUser?.role}</span> role.
           </p>
@@ -645,10 +649,12 @@ export default function SuperAdminDashboardPage() {
               <ShieldAlert className="w-4 h-4" /> Platform Admin
             </div>
             <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight mt-0.5">
-              Super Admin Console
+              {currentUser?.role === "SUPER_ADMIN" ? "Super Admin Console" : "Admin Approval Console"}
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Approve orders and payments, manage companies, and configure system settings.
+              {currentUser?.role === "SUPER_ADMIN"
+                ? "Approve orders and payments, manage companies, and configure system settings."
+                : "Approve pending material purchase orders and payment disbursements for your organization."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
@@ -1144,7 +1150,8 @@ export default function SuperAdminDashboardPage() {
           )}
         </div>
 
-        {/* Global Telemetry KPI Cards */}
+        {/* Global Telemetry KPI Cards (Super Admin only) */}
+        {currentUser?.role === "SUPER_ADMIN" && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between text-slate-400">
@@ -1294,6 +1301,7 @@ export default function SuperAdminDashboardPage() {
             itemLabel="companies"
           />
         </div>
+        )}
 
         {/* Unified Admin Action Confirmation / Reason Modal */}
         {adminDialog && (

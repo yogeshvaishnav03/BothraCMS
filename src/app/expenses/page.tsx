@@ -1123,6 +1123,28 @@ export default function ExpensesPage() {
                           {/* Actions Column */}
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5 shrink-0">
+                              {exp.status === "PENDING_APPROVAL" && isApprover && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveExpense(exp.id)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-2xs whitespace-nowrap shrink-0"
+                                    title="Approve expense claim"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Approve</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setRejectingExpenseId(exp.id); setRejectionReason(""); }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition shadow-2xs whitespace-nowrap shrink-0"
+                                    title="Decline expense claim"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Decline</span>
+                                  </button>
+                                </>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditModal(exp)}
@@ -1212,7 +1234,27 @@ export default function ExpensesPage() {
                       )}
 
                       {/* Footer Actions: Receipt View, Update & Delete */}
-                      <div className={`mt-3 pt-2.5 border-t border-slate-100 grid ${receipt ? "grid-cols-3" : "grid-cols-2"} gap-2`}>
+                      {exp.status === "PENDING_APPROVAL" && isApprover && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleApproveExpense(exp.id)}
+                            className="h-8 flex items-center justify-center gap-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white transition shadow-2xs"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>Approve</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setRejectingExpenseId(exp.id); setRejectionReason(""); }}
+                            className="h-8 flex items-center justify-center gap-1.5 px-2 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-bold text-rose-700 transition shadow-2xs"
+                          >
+                            <XCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Decline</span>
+                          </button>
+                        </div>
+                      )}
+                      <div className={`mt-2.5 pt-2 border-t border-slate-100 grid ${receipt ? "grid-cols-3" : "grid-cols-2"} gap-2`}>
                         {receipt ? (
                           <button
                             type="button"

@@ -68,7 +68,7 @@ export function requireFinanceReverse(user: UserContext): void {
  * 4. Check if user is Super Admin or Organization Admin (Owner privileges)
  */
 export function isOrgOwnerOrAdmin(user: UserContext): boolean {
-  return user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
+  return user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN" || (user.role as string) === "ADMIN";
 }
 
 /**
