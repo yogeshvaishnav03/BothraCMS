@@ -218,7 +218,7 @@ async function staffLines(organizationId: string, month: string): Promise<DraftL
   if (profiles.length === 0) return [];
   const userIds = profiles.map((p) => p.userId);
   const [users, records] = await Promise.all([
-    prisma.user.findMany({ where: { id: { in: userIds }, organizationId, status: "ACTIVE" }, select: { id: true, name: true, jobTitle: true, role: true } }),
+    prisma.user.findMany({ where: { id: { in: userIds }, organizationId, status: "ACTIVE", role: { not: "SUPER_ADMIN" } }, select: { id: true, name: true, jobTitle: true, role: true } }),
     prisma.staffAttendance.findMany({
       where: { organizationId, userId: { in: userIds }, workDate: { gte: days[0], lte: days[days.length - 1] } },
       select: { userId: true, workDate: true, status: true },
@@ -680,11 +680,11 @@ export class PayrollService {
 
   // ── Salaries and advances ────────────────────────────────────────────────
 
-  /** Every active staff login with their salary (if set). */
+  /** Every active staff login with their salary (if set). Super Admin is excluded. */
   static async listProfiles(organizationId: string) {
     const [users, profiles] = await Promise.all([
       prisma.user.findMany({
-        where: { organizationId, status: "ACTIVE" },
+        where: { organizationId, status: "ACTIVE", role: { not: "SUPER_ADMIN" } },
         select: { id: true, name: true, role: true, jobTitle: true, phone: true },
         orderBy: { name: "asc" },
       }),
@@ -1066,7 +1066,7 @@ export class PayrollService {
   static async people(organizationId: string) {
     const [labour, staff] = await Promise.all([
       prisma.workforceMember.findMany({ where: { organizationId, isArchived: false, active: true }, select: { id: true, name: true, workerType: true }, orderBy: { name: "asc" } }),
-      prisma.user.findMany({ where: { organizationId, status: "ACTIVE" }, select: { id: true, name: true, jobTitle: true }, orderBy: { name: "asc" } }),
+      prisma.user.findMany({ where: { organizationId, status: "ACTIVE", role: { not: "SUPER_ADMIN" } }, select: { id: true, name: true, jobTitle: true }, orderBy: { name: "asc" } }),
     ]);
     return [
       ...labour.map((l) => ({ personType: "LABOUR" as const, personId: l.id, name: l.name, label: l.workerType })),

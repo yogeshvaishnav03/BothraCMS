@@ -212,6 +212,7 @@ function AdvanceModal({ people, onClose, onSaved }: { people: any[]; onClose: ()
 }
 
 function SalaryMobileCard({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved: (staff: any[]) => void }) {
+  if (s.role === "SUPER_ADMIN" || s.name?.toLowerCase().includes("super admin")) return null;
   const [salary, setSalary] = useState(s.monthlySalary ? String(s.monthlySalary / 100) : "");
   const [pf, setPf] = useState<boolean>(s.pfApplicable);
   const [esi, setEsi] = useState<boolean>(s.esiApplicable);
@@ -433,6 +434,7 @@ function WorkerMobileCard({ w, canEdit, onSaved }: { w: any; canEdit: boolean; o
 }
 
 function SalaryRow({ s, canEdit, onSaved }: { s: any; canEdit: boolean; onSaved: (staff: any[]) => void }) {
+  if (s.role === "SUPER_ADMIN" || s.name?.toLowerCase().includes("super admin")) return null;
   const [salary, setSalary] = useState(s.monthlySalary ? String(s.monthlySalary / 100) : "");
   const [pf, setPf] = useState<boolean>(s.pfApplicable);
   const [esi, setEsi] = useState<boolean>(s.esiApplicable);
@@ -854,9 +856,11 @@ export default function PayrollPage() {
     try {
       const [s, a, st] = await Promise.all([api("/api/payroll/salaries"), api("/api/payroll/advances"), api("/api/payroll/settings")]);
       setSettings(st);
-      setStaff(s.staff);
+      const cleanStaff = (s.staff || []).filter((u: any) => u.role !== "SUPER_ADMIN" && !u.name?.toLowerCase().includes("super admin"));
+      setStaff(cleanStaff);
       setWorkers(s.workers || []);
-      setPeople(s.people);
+      const cleanPeople = (s.people || []).filter((p: any) => p.role !== "SUPER_ADMIN" && !p.name?.toLowerCase().includes("super admin"));
+      setPeople(cleanPeople);
       setAdvances(a);
     } catch (e: any) {
       setError(e.message);
@@ -1153,14 +1157,14 @@ export default function PayrollPage() {
                 </thead>
                 <tbody>
                   {staffSalaryPagination.paginatedData.map((s) => (
-                    <SalaryRow key={s.id} s={s} canEdit={canWrite} onSaved={(list) => { setStaff(list); setNotice(`Salary saved for ${s.name}.`); }} />
+                    <SalaryRow key={s.id} s={s} canEdit={canWrite} onSaved={(list) => { setStaff((list || []).filter((u: any) => u.role !== "SUPER_ADMIN" && !u.name?.toLowerCase().includes("super admin"))); setNotice(`Salary saved for ${s.name}.`); }} />
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="lg:hidden space-y-3 bg-slate-50/70 p-3">
               {staffSalaryPagination.paginatedData.map((s) => (
-                <SalaryMobileCard key={`ms-${s.id}`} s={s} canEdit={canWrite} onSaved={(list) => { setStaff(list); setNotice(`Salary saved for ${s.name}.`); }} />
+                <SalaryMobileCard key={`ms-${s.id}`} s={s} canEdit={canWrite} onSaved={(list) => { setStaff((list || []).filter((u: any) => u.role !== "SUPER_ADMIN" && !u.name?.toLowerCase().includes("super admin"))); setNotice(`Salary saved for ${s.name}.`); }} />
               ))}
             </div>
             {staff.length > 0 && (
