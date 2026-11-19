@@ -180,3 +180,109 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return handleApiError(error);
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const user = await getUserContext(req);
+    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    const where: any = { id: params.id };
+    if (user.role !== "SUPER_ADMIN") {
+      where.organizationId = user.organizationId;
+    }
+
+    const order = await prisma.purchaseOrder.findFirst({
+      where,
+      include: {
+        material: { select: { id: true, name: true } },
+        vendor: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!order) return jsonError("Purchase order not found", "NOT_FOUND", 404);
+
+    const isOwner = order.createdBy === user.userId;
+    const isPrivileged =
+      ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"].includes(user.role) ||
+      hasPermission(user, "inventory:write") ||
+      hasPermission(user, "projects:write");
+
+    if (!isOwner && !isPrivileged) {
+      return jsonError("Forbidden: You do not have permission to delete this purchase order", "FORBIDDEN", 403);
+    }
+
+    if (order.status === "DELIVERED" && user.role !== "SUPER_ADMIN" && user.role !== "ORG_ADMIN") {
+      return jsonError("Cannot delete an order that has already been delivered and billed.", "INVALID_STATE", 400);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Find all request items referencing this purchase order
+      const linkedItems = await tx.materialRequestItem.findMany({
+        where: { purchaseOrderId: order.id },
+        select: { id: true, requestId: true },
+      });
+
+      // 2. Disconnect request items
+      if (linkedItems.length > 0) {
+        await tx.materialRequestItem.updateMany({
+          where: { purchaseOrderId: order.id },
+          data: { purchaseOrderId: null },
+        });
+
+        // 3. Recalculate status for each affected material request
+        const affectedRequestIds = Array.from(new Set(linkedItems.map((item) => item.requestId)));
+        for (const reqId of affectedRequestIds) {
+          const allItems = await tx.materialRequestItem.findMany({
+            where: { requestId: reqId },
+            select: { approvedQty: true, purchaseOrderId: true },
+          });
+          const live = allItems.filter((i) => (i.approvedQty ?? 0) > 0);
+          const ordered = live.filter((i) => i.purchaseOrderId).length;
+          let newStatus = "APPROVED";
+          if (live.length > 0 && ordered === live.length) {
+            newStatus = "ORDERED";
+          } else if (ordered > 0) {
+            newStatus = "PARTLY_ORDERED";
+          }
+          await tx.materialRequest.update({
+            where: { id: reqId },
+            data: { status: newStatus },
+          });
+        }
+      }
+
+      // 4. Delete the purchase order
+      await tx.purchaseOrder.delete({
+        where: { id: order.id },
+      });
+
+      // 5. Create audit event
+      await tx.auditEvent.create({
+        data: {
+          organizationId: order.organizationId,
+          actorUserId: user.userId,
+          action: "PURCHASE_ORDER_DELETED",
+          entityType: "PURCHASE_ORDER",
+          entityId: order.id,
+          beforeJson: JSON.stringify({
+            orderNumber: order.orderNumber,
+            status: order.status,
+            material: order.material?.name,
+            quantity: order.quantity,
+            totalAmount: order.totalAmount,
+          }),
+          reason: `Deleted purchase order ${order.orderNumber}`,
+        },
+      });
+    });
+
+    return jsonSuccess({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      deleted: true,
+      message: `Purchase order ${order.orderNumber} deleted successfully`,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

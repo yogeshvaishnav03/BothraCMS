@@ -787,6 +787,7 @@ function RequestCard({
   onChange,
   onOrder,
   onReceive,
+  onDeleteOrder,
 }: {
   r: any;
   me: any;
@@ -794,6 +795,7 @@ function RequestCard({
   onChange: (r: any) => void;
   onOrder: (item: any) => void;
   onReceive: (target: { order: any; item: any; request: any }) => void;
+  onDeleteOrder?: (po: any) => void;
 }) {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -1069,12 +1071,25 @@ function RequestCard({
                             <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Received & Billed
                           </span>
                         ) : (
-                          <button
-                            onClick={() => onReceive({ order: po, item: i, request: r })}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-emerald-700 transition"
-                          >
-                            <Receipt className="h-3.5 w-3.5" /> Receive Goods & Bill
-                          </button>
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              onClick={() => onReceive({ order: po, item: i, request: r })}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-emerald-700 transition"
+                            >
+                              <Receipt className="h-3.5 w-3.5" /> Receive Goods & Bill
+                            </button>
+                            {onDeleteOrder && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteOrder(po)}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                                title="Delete purchase order"
+                                aria-label={`Delete purchase order ${po.orderNumber}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </span>
                     ) : r.canManage && ["APPROVED", "PARTLY_ORDERED"].includes(r.status) && (i.approvedQty ?? 0) > 0 ? (
@@ -1112,9 +1127,11 @@ function RequestCard({
 function PurchaseOrderRow({
   po,
   onReceive,
+  onDelete,
 }: {
   po: any;
   onReceive: (target: { order: any; item: any }) => void;
+  onDelete?: (po: any) => void;
 }) {
   const isDelivered = po.status === "DELIVERED";
   const st = ORDER_STATUS[po.status] || { label: po.status, pill: "bg-slate-100 text-slate-700" };
@@ -1154,6 +1171,17 @@ function PurchaseOrderRow({
             <Receipt className="h-4 w-4" /> Receive Goods & Bill
           </button>
         )}
+        {onDelete && !isDelivered && (
+          <button
+            type="button"
+            onClick={() => onDelete(po)}
+            className="inline-flex items-center justify-center p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition shadow-2xs"
+            title="Delete purchase order"
+            aria-label={`Delete purchase order ${po.orderNumber}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1179,10 +1207,29 @@ export default function MaterialOrderHistoryPage() {
   const [showNew, setShowNew] = useState(false);
   const [ordering, setOrdering] = useState<{ request: any; item: any } | null>(null);
   const [receivingOrder, setReceivingOrder] = useState<{ order: any; item: any; request?: any } | null>(null);
+  const [pendingDeleteOrder, setPendingDeleteOrder] = useState<any | null>(null);
+  const [deletingOrder, setDeletingOrder] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
+
+  const executeDeleteOrder = async () => {
+    if (!pendingDeleteOrder) return;
+    const po = pendingDeleteOrder;
+    setDeletingOrder(true);
+    try {
+      await api(`/api/orders/${po.id}`, { method: "DELETE" });
+      setOrders((prev) => (prev ? prev.filter((o) => o.id !== po.id) : prev));
+      setNotice(`Purchase order ${po.orderNumber} deleted successfully.`);
+      setPendingDeleteOrder(null);
+      load();
+    } catch (err: any) {
+      setError(err.message || "Failed to delete purchase order");
+    } finally {
+      setDeletingOrder(false);
+    }
+  };
 
   const load = useCallback(() => {
     const qs = new URLSearchParams();
@@ -1480,6 +1527,7 @@ export default function MaterialOrderHistoryPage() {
                     onChange={replace}
                     onOrder={(item) => setOrdering({ request: r, item })}
                     onReceive={(target) => setReceivingOrder(target)}
+                    onDeleteOrder={(targetPo) => setPendingDeleteOrder(targetPo)}
                   />
                 ))}
                 <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
@@ -1548,6 +1596,7 @@ export default function MaterialOrderHistoryPage() {
                     key={po.id}
                     po={po}
                     onReceive={(target) => setReceivingOrder(target)}
+                    onDelete={(targetPo) => setPendingDeleteOrder(targetPo)}
                   />
                 ))}
                 <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
@@ -1614,6 +1663,59 @@ export default function MaterialOrderHistoryPage() {
             load();
           }}
         />
+      )}
+
+      {/* Delete Purchase Order Confirmation Modal */}
+      {pendingDeleteOrder && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs animate-fade-in"
+          onClick={() => !deletingOrder && setPendingDeleteOrder(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2.5 rounded-full bg-rose-50 ring-1 ring-rose-200 shrink-0">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-slate-900 text-base">Delete Purchase Order?</h3>
+                <p className="font-mono text-xs text-slate-500">{pendingDeleteOrder.orderNumber}</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-600">
+              Are you sure you want to delete purchase order{" "}
+              <strong className="text-slate-900 font-semibold">{pendingDeleteOrder.orderNumber}</strong> (
+              <span className="font-medium text-slate-800">{pendingDeleteOrder.material?.name || "Material"}</span>
+              )?
+            </p>
+            <p className="text-xs text-slate-500 bg-slate-50 rounded-xl p-3 border border-slate-100">
+              This will remove the purchase order and re-open any associated material request line for ordering.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteOrder(null)}
+                disabled={deletingOrder}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              >
+                Keep Order
+              </button>
+              <button
+                type="button"
+                onClick={executeDeleteOrder}
+                disabled={deletingOrder}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-xs disabled:opacity-50"
+              >
+                {deletingOrder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                <span>{deletingOrder ? "Deleting..." : "Delete Order"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Shell>
   );
