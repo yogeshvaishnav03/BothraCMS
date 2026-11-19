@@ -1357,7 +1357,7 @@ export default function WorkforcePage() {
       {
         key: "grandTotal",
         label: "Total Workers",
-        accessor: (r) => `${Number(r.grandTotal) || 0} Workers (Artisans: ${r.artisanCount ?? r.artisanTotal ?? 0}, Laborers: ${r.laborerTotal} [Male: ${r.laborerMale}, Female: ${r.laborerFemale}])`,
+        accessor: (r) => `${Number(r.grandTotal) || 0} Workers (Artisans: ${r.artisanCount ?? r.artisanTotal ?? 0}, Laborers: ${r.laborerTotal} [M: ${r.laborerMale}, F: ${r.laborerFemale}])`,
         type: "text",
         align: "left",
       },
@@ -1704,7 +1704,7 @@ export default function WorkforcePage() {
                   {laborerMalePercent}% M / {laborerFemalePercent}% F
                 </div>
                 <div className="text-[10px] font-semibold text-slate-500 mt-1">
-                  Male: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerMale : siteLaborerMale} &bull; Female: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerFemale : siteLaborerFemale}
+                  M: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerMale : siteLaborerMale} &bull; F: {selectedSiteTodayRecord ? selectedSiteTodayRecord.laborerFemale : siteLaborerFemale}
                 </div>
               </div>
             </div>
@@ -1822,13 +1822,12 @@ export default function WorkforcePage() {
                             <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
                               <span>
                                 Artisans: <strong className="text-slate-700">{r.artisanCount ?? r.artisanTotal ?? 0}</strong>
-                                {r.skilledRate ? <span className="text-slate-400 font-mono ml-0.5">(@₹{Math.round(r.skilledRate / 100)})</span> : null}
                               </span>
                               <span className="text-slate-300">&bull;</span>
                               <span>
                                 Laborers: <strong className="text-slate-700">{r.laborerTotal}</strong>{" "}
                                 <span className="text-slate-500 font-medium">
-                                  (Male: {r.laborerMale}{r.maleRate ? ` @₹${Math.round(r.maleRate / 100)}` : ""}, Female: {r.laborerFemale}{r.femaleRate ? ` @₹${Math.round(r.femaleRate / 100)}` : ""})
+                                  (M: {r.laborerMale}, F: {r.laborerFemale})
                                 </span>
                               </span>
                             </div>
@@ -1952,7 +1951,7 @@ export default function WorkforcePage() {
                               {r.grandTotal} {r.grandTotal === 1 ? "Worker" : "Workers"}
                             </span>
                             <div className="text-[10px] text-slate-500 mt-1 text-right">
-                              Artisans: <strong className="text-slate-700">{r.artisanCount ?? r.artisanTotal ?? 0}</strong> &bull; Laborers: <strong className="text-slate-700">{r.laborerTotal}</strong> (Male: {r.laborerMale}, Female: {r.laborerFemale})
+                              Artisans: <strong className="text-slate-700">{r.artisanCount ?? r.artisanTotal ?? 0}</strong> &bull; Laborers: <strong className="text-slate-700">{r.laborerTotal}</strong> (M: {r.laborerMale}, F: {r.laborerFemale})
                             </div>
                             {r.totalExpense ? (
                               <div className="font-mono font-bold text-emerald-700 text-xs mt-1">
@@ -3486,7 +3485,7 @@ export default function WorkforcePage() {
                               {reportsData.directReport?.totalWorkers || 0}
                             </span>
                             <span className="text-[11px] text-amber-700 mt-1 block">
-                              Skilled: {reportsData.directReport?.skilledCount || 0} &bull; Male: {reportsData.directReport?.maleCount || 0} &bull; Female: {reportsData.directReport?.femaleCount || 0}
+                              Skilled: {reportsData.directReport?.skilledCount || 0} &bull; M: {reportsData.directReport?.maleCount || 0} &bull; F: {reportsData.directReport?.femaleCount || 0}
                             </span>
                           </div>
 
