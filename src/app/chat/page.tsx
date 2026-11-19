@@ -762,7 +762,19 @@ export default function ChatPage() {
       }, 1000);
     } catch (err: any) {
       console.error("Microphone access error:", err);
-      setActionError("Microphone access required. Please allow microphone permission to record voice notes.");
+      const errName = err?.name || "";
+      const errMsg = (err?.message || "").toLowerCase();
+      if (errName === "NotFoundError" || errName === "DevicesNotFoundError" || errMsg.includes("device not found") || errMsg.includes("not found")) {
+        setActionError("No microphone found. Please connect or enable a microphone on this device to record voice notes.");
+      } else if (errName === "NotAllowedError" || errName === "PermissionDeniedError" || errMsg.includes("denied") || errMsg.includes("not allowed")) {
+        setActionError("Microphone permission was denied. Please allow microphone access in your browser site settings.");
+      } else if (errName === "SecurityError" || errMsg.includes("permissions policy")) {
+        setActionError("Microphone access is restricted by browser security policy.");
+      } else if (errName === "NotReadableError" || errName === "TrackStartError" || errMsg.includes("in use")) {
+        setActionError("Microphone is currently in use by another application or cannot be accessed.");
+      } else {
+        setActionError("Microphone access error. Please check your browser audio device settings.");
+      }
     }
   };
 

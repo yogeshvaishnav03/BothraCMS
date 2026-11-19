@@ -63,7 +63,7 @@ Security headers are enforced globally via `next.config.mjs` and applied to ever
 | **X-Content-Type-Options** | `nosniff` | Blocks MIME-type sniffing attacks. |
 | **Referrer-Policy** | `strict-origin-when-cross-origin` | Strips path information from cross-origin referrers while preserving origin. |
 | **X-XSS-Protection** | `1; mode=block` | Activates legacy browser reflective XSS filter. |
-| **Permissions-Policy** | `camera=(), microphone=(), geolocation=(self)` | Restricts hardware APIs; restricts geolocation to own origin. |
+| **Permissions-Policy** | `camera=(self), microphone=(self), geolocation=(self)` | Restricts hardware APIs to own origin (camera snapshots, voice notes, geolocation). |
 | **Cache-Control (API routes)** | `no-store, no-cache, must-revalidate, proxy-revalidate` | Guarantees sensitive financial and tenant data is never cached by intermediate proxies. |
 
 ---

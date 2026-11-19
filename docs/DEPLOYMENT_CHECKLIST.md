@@ -63,7 +63,7 @@ The application automatically injects hardened HTTP security headers via `next.c
 - `X-Frame-Options: DENY` (Clickjacking prevention)
 - `X-Content-Type-Options: nosniff` (MIME sniffing defense)
 - `Referrer-Policy: strict-origin-when-cross-origin`
-- `Permissions-Policy: camera=(), microphone=(), geolocation=(self)`
+- `Permissions-Policy: camera=(self), microphone=(self), geolocation=(self)`
 - `Content-Security-Policy`: Default-src restricted to self with verified image/data schemes.
 
 ---
