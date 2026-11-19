@@ -43,7 +43,7 @@ import {
   Mic,
   Paperclip,
   FileText,
-  File,
+  File as FileIcon,
   CheckCheck,
   Volume2,
 } from "lucide-react";
@@ -294,7 +294,7 @@ function DocumentBubble({ url, filename, isMine }: { url: string; filename?: str
             : "bg-amber-500/20 text-amber-500 border border-amber-500/30"
         }`}
       >
-        {isPdf ? <FileText className="w-5 h-5" /> : <File className="w-5 h-5" />}
+        {isPdf ? <FileText className="w-5 h-5" /> : <FileIcon className="w-5 h-5" />}
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-xs font-bold truncate group-hover:underline">{cleanName}</div>
@@ -875,9 +875,19 @@ export default function ChatPage() {
       }
 
       const ext = cleanMime.includes("ogg") ? ".oga" : cleanMime.includes("mp4") ? ".m4a" : ".weba";
-      const voiceFile = new File([audioBlob], `voice_note_${Date.now()}${ext}`, {
-        type: cleanMime,
-      });
+      const fileName = `voice_note_${Date.now()}${ext}`;
+      let voiceFile: File | Blob = audioBlob;
+      try {
+        if (typeof window !== "undefined" && typeof window.File === "function") {
+          voiceFile = new window.File([audioBlob], fileName, { type: cleanMime });
+        }
+      } catch {
+        try {
+          (audioBlob as any).name = fileName;
+          (audioBlob as any).lastModified = Date.now();
+        } catch {}
+        voiceFile = audioBlob;
+      }
 
       const localBlobUrl = URL.createObjectURL(audioBlob);
       const tempId = `temp_voice_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;

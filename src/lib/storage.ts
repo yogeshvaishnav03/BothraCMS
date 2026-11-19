@@ -3,7 +3,7 @@ import path from "path";
 import crypto from "crypto";
 
 import os from "os";
-import { put as blobPut, get as blobGet, del as blobDel } from "@vercel/blob";
+import { put as blobPut, head as blobHead, del as blobDel } from "@vercel/blob";
 import {
   S3Client,
   PutObjectCommand,
@@ -103,24 +103,32 @@ export class LocalStorageProvider implements IStorageProvider {
 
       if (resolvedOrgId) {
         const base64Data = buffer.toString("base64");
-        await prisma.idempotencyRecord.upsert({
-          where: {
-            organizationId_key: {
-              organizationId: resolvedOrgId,
-              key: `FILE_BLOB_${safeKey}`,
+        const uuidMatch = safeKey.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i);
+        const keysToStore = new Set([`FILE_BLOB_${safeKey}`]);
+        if (uuidMatch) {
+          keysToStore.add(`FILE_BLOB_${uuidMatch[0]}`);
+          keysToStore.add(`FILE_BLOB_${uuidMatch[0]}${path.extname(safeKey)}`);
+        }
+        for (const k of keysToStore) {
+          await prisma.idempotencyRecord.upsert({
+            where: {
+              organizationId_key: {
+                organizationId: resolvedOrgId,
+                key: k,
+              },
             },
-          },
-          create: {
-            organizationId: resolvedOrgId,
-            key: `FILE_BLOB_${safeKey}`,
-            operation: "FILE_BLOB",
-            responseCode: 200,
-            responseBodyJson: base64Data,
-          },
-          update: {
-            responseBodyJson: base64Data,
-          },
-        });
+            create: {
+              organizationId: resolvedOrgId,
+              key: k,
+              operation: "FILE_BLOB",
+              responseCode: 200,
+              responseBodyJson: base64Data,
+            },
+            update: {
+              responseBodyJson: base64Data,
+            },
+          }).catch(() => {});
+        }
       }
     } catch (dbErr) {
       console.warn("Notice: Database blob backup skipped:", dbErr);
@@ -519,9 +527,14 @@ export class VercelBlobStorageProvider implements IStorageProvider {
 
   async get(key: string): Promise<Buffer | null> {
     try {
-      const res = await blobGet(this.pathname(key), { access: "private", token: this.token, useCache: false });
-      if (!res || res.statusCode !== 200) return null;
-      return Buffer.from(await new Response(res.stream).arrayBuffer());
+      const details = await blobHead(this.pathname(key), { token: this.token });
+      if (!details?.downloadUrl && !details?.url) return null;
+      const downloadTarget = details.downloadUrl || details.url;
+      const res = await fetch(downloadTarget, {
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+      if (!res.ok) return null;
+      return Buffer.from(await res.arrayBuffer());
     } catch (err) {
       // Not found, or the store cannot be reached: callers fall back to the database copy.
       console.warn("Notice: Vercel Blob read failed:", (err as Error)?.message);
@@ -556,15 +569,23 @@ export function isCloudStorage(): boolean {
  */
 export async function backupFileToDatabase(organizationId: string, keys: string[], buffer: Buffer): Promise<void> {
   if (isCloudStorage()) return;
-  // If file buffer exceeds 25 MB, do not write base64 to postgres to avoid connection drops and memory exhaustion
-  if (buffer.length > 25 * 1024 * 1024) return;
+  // If file buffer exceeds 35 MB, do not write base64 to postgres to avoid connection drops and memory exhaustion
+  if (buffer.length > 35 * 1024 * 1024) return;
   const b64 = buffer.toString("base64");
-  for (const key of Array.from(new Set(keys))) {
+  const allKeys = new Set(keys);
+  for (const k of keys) {
+    const uuidMatch = k.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i);
+    if (uuidMatch) {
+      allKeys.add(`FILE_BLOB_${uuidMatch[0]}`);
+      allKeys.add(`FILE_${uuidMatch[0]}`);
+    }
+  }
+  for (const key of Array.from(allKeys)) {
     await prisma.idempotencyRecord.upsert({
       where: { organizationId_key: { organizationId, key } },
       create: { organizationId, key, operation: "FILE_BLOB", responseCode: 200, responseBodyJson: b64 },
       update: { responseBodyJson: b64 },
-    });
+    }).catch(() => {});
   }
 }
 

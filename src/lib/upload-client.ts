@@ -27,7 +27,7 @@ const DIRECT_UPLOAD_MAX_BYTES = 3.5 * 1024 * 1024;
  * to Vercel/Next.js without ever encountering HTTP 413 Payload Too Large.
  */
 export async function uploadClientMedia(
-  file: File,
+  file: File | Blob,
   options: UploadClientMediaOptions = {}
 ): Promise<UploadClientMediaResult> {
   const entityType = options.entityType || "GENERAL";
@@ -35,13 +35,24 @@ export async function uploadClientMedia(
   const category = options.category || "GENERAL";
   const projectId = options.projectId || "";
   const createAttachment = options.createAttachment ?? true;
+  const fileName =
+    (file as any).name ||
+    `upload_${Date.now()}${
+      file.type?.includes("video")
+        ? ".mp4"
+        : file.type?.includes("audio")
+        ? ".webm"
+        : file.type?.includes("image")
+        ? ".jpg"
+        : ".bin"
+    }`;
 
   // For small files (<= 3.5 MB), attempt standard single-request upload first
   if (file.size <= DIRECT_UPLOAD_MAX_BYTES) {
     try {
       const endpoint = createAttachment ? "/api/attachments" : "/api/uploads";
       const form = new FormData();
-      form.append("file", file, file.name);
+      form.append("file", file, fileName);
       form.append("entityType", entityType);
       if (entityId) form.append("entityId", entityId);
       if (projectId) form.append("projectId", projectId);
@@ -69,8 +80,8 @@ export async function uploadClientMedia(
           options.onProgress?.(100, "Upload complete");
           return {
             url: json.data.url,
-            fileId: json.data.fileId || file.name,
-            fileName: json.data.fileName || file.name,
+            fileId: json.data.fileId || fileName,
+            fileName: json.data.fileName || fileName,
             sizeBytes: file.size,
           };
         }
@@ -96,11 +107,11 @@ export async function uploadClientMedia(
     const chunkBlob = file.slice(start, end);
 
     const chunkForm = new FormData();
-    chunkForm.append("chunk", chunkBlob, file.name);
+    chunkForm.append("chunk", chunkBlob, fileName);
     chunkForm.append("uploadId", uploadId);
     chunkForm.append("chunkIndex", String(chunkIndex));
     chunkForm.append("totalChunks", String(totalChunks));
-    chunkForm.append("fileName", file.name);
+    chunkForm.append("fileName", fileName);
     chunkForm.append("fileType", (file.type || "").split(";")[0].trim().toLowerCase() || "application/octet-stream");
     chunkForm.append("entityType", entityType);
     if (entityId) chunkForm.append("entityId", entityId);
@@ -147,7 +158,7 @@ export async function uploadClientMedia(
       return {
         url: resJson.data.url,
         fileId: resJson.data.fileId,
-        fileName: resJson.data.fileName || file.name,
+        fileName: resJson.data.fileName || fileName,
         sizeBytes: resJson.data.sizeBytes || file.size,
       };
     }
