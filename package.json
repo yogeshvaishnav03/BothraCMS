@@ -21,6 +21,7 @@
     "db:restore": "node scripts/db-restore.js",
     "db:load-data": "node scripts/load-website-data.js",
     "db:seed:website": "node scripts/load-website-data.js",
+    "db:clear-demo": "node scripts/clear-demo-data.js",
     "admin:bootstrap": "tsx scripts/create-super-admin.ts"
   },
   "dependencies": {

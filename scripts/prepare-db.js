@@ -197,21 +197,9 @@ if (
   }
 }
 
-// Clear demo data if requested or in production clean deployment
-try {
-  console.log("⚡ Purging sample/demo data to maintain a clean database for manual entry...");
-  execSync("node scripts/clear-demo-data.js", {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      DATABASE_URL: directUrl || dbUrl || "file:./dev.db",
-      DIRECT_URL: directUrl || dbUrl,
-    },
-  });
-  console.log("✅ Demo data purge completed.");
-} catch (clearErr) {
-  console.warn("Notice: Demo data purge notice:", clearErr.message);
-}
+// Note: Demo data purge is NEVER run during build to protect persistent production data (sites, projects, finance, workforce).
+// To manually purge demo data, run `npm run db:clear-demo` or use the Admin Console.
+
 
 // Only load website sample data when explicitly requested via ALLOW_DEMO_SEED=true
 if (process.env.ALLOW_DEMO_SEED === "true") {
