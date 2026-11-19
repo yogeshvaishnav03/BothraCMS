@@ -62,13 +62,34 @@ export async function GET(
         },
         bills: hasFinanceAccess
           ? {
-              where: { status: "POSTED", isArchived: false },
+              where: { isArchived: false },
               include: {
                 party: true,
-                allocations: { where: { reversedAt: null } },
+                allocations: {
+                  where: { reversedAt: null },
+                  include: {
+                    payment: {
+                      select: {
+                        id: true,
+                        referenceNumber: true,
+                        paymentDate: true,
+                        status: true,
+                        amount: true,
+                        method: true,
+                      },
+                    },
+                  },
+                },
               },
+              orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
             }
           : false,
+        drawings: {
+          include: {
+            revisions: { orderBy: { createdAt: "desc" } },
+          },
+          orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        },
       },
     });
 
@@ -77,10 +98,12 @@ export async function GET(
     }
 
     let financials: any = undefined;
-    if (hasFinanceAccess && project.bills) {
-      const totalBilled = project.bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
-      const totalPaid = project.bills.reduce((sum: number, b: any) => {
-        const billPaid = b.allocations.reduce((pSum: number, a: any) => pSum + (a.amount || 0), 0);
+    let payments: any[] = [];
+    if (hasFinanceAccess) {
+      const bills = project.bills || [];
+      const totalBilled = bills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
+      const totalPaid = bills.reduce((sum: number, b: any) => {
+        const billPaid = (b.allocations || []).reduce((pSum: number, a: any) => pSum + (a.amount || 0), 0);
         return sum + billPaid;
       }, 0);
 
@@ -88,9 +111,46 @@ export async function GET(
         budgetAmount: project.budgetAmount,
         totalBilled,
         totalPaid,
-        outstandingAmount: totalBilled - totalPaid,
+        outstandingAmount: Math.max(0, totalBilled - totalPaid),
       };
+
+      payments = await prisma.payment.findMany({
+        where: {
+          organizationId: user.organizationId,
+          isArchived: false,
+          OR: [
+            { projectId: params.id },
+            { allocations: { some: { bill: { projectId: params.id } } } },
+          ],
+        },
+        include: {
+          party: true,
+          creator: { select: { id: true, name: true, role: true } },
+          allocations: {
+            where: { reversedAt: null },
+            include: {
+              bill: { select: { id: true, billNumber: true, totalAmount: true } },
+            },
+          },
+        },
+        orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
+      });
     }
+
+    const headcounts = await prisma.workforceHeadcount.findMany({
+      where: {
+        organizationId: user.organizationId,
+        OR: [
+          { projectId: params.id },
+          ...(project.siteId ? [{ siteId: project.siteId }] : []),
+        ],
+      },
+      include: {
+        site: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take: 100,
+    });
 
     const sanitizedProject: any = { ...project };
     if (!hasFinanceAccess) {
@@ -101,6 +161,8 @@ export async function GET(
     return jsonSuccess({
       ...sanitizedProject,
       financials,
+      payments: hasFinanceAccess ? payments : [],
+      headcounts,
     });
   } catch (error) {
     return handleApiError(error);
