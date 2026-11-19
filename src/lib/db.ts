@@ -211,6 +211,29 @@ export async function ensurePostgresColumns() {
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `).catch(() => {});
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "liquidatedDamagesTerms" TEXT;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "liquidatedDamagesPercent" DOUBLE PRECISION;`).catch(() => {});
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "LiquidatedDamage" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "organizationId" TEXT NOT NULL,
+          "partyId" TEXT NOT NULL,
+          "projectId" TEXT,
+          "amount" DOUBLE PRECISION NOT NULL,
+          "damageType" TEXT DEFAULT 'DELAY',
+          "reason" TEXT NOT NULL,
+          "referenceNumber" TEXT,
+          "deductionDate" TIMESTAMP(3) NOT NULL,
+          "status" TEXT NOT NULL DEFAULT 'APPLIED',
+          "waiveReason" TEXT,
+          "waivedAt" TIMESTAMP(3),
+          "waivedById" TEXT,
+          "notes" TEXT,
+          "createdById" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `).catch(() => {});
       ddlSynced = true;
     }
   } catch {}

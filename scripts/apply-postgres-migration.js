@@ -63,6 +63,8 @@ const POSTGRES_COLUMNS = [
   `ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "dailyWageRate" DOUBLE PRECISION;`,
   `ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "maleHelperWageRate" DOUBLE PRECISION;`,
   `ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "femaleHelperWageRate" DOUBLE PRECISION;`,
+  `ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "liquidatedDamagesTerms" TEXT;`,
+  `ALTER TABLE "Party" ADD COLUMN IF NOT EXISTS "liquidatedDamagesPercent" DOUBLE PRECISION;`,
   `ALTER TABLE "Notification" ADD COLUMN IF NOT EXISTS "whatsappAt" TIMESTAMP(3);`,
 
   // Contractor Rates Automation & Direct Labour Cost Management
@@ -815,6 +817,30 @@ const POSTGRES_TABLES = [
   );`,
   `CREATE INDEX IF NOT EXISTS "MaterialQuotation_org_mat_date_idx" ON "MaterialQuotation"("organizationId", "materialId", "quotationDate");`,
   `CREATE INDEX IF NOT EXISTS "MaterialQuotation_vendorPartyId_idx" ON "MaterialQuotation"("vendorPartyId");`,
+
+  `CREATE TABLE IF NOT EXISTS "LiquidatedDamage" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "organizationId" TEXT NOT NULL,
+    "partyId" TEXT NOT NULL,
+    "projectId" TEXT,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "damageType" TEXT DEFAULT 'DELAY',
+    "reason" TEXT NOT NULL,
+    "referenceNumber" TEXT,
+    "deductionDate" TIMESTAMP(3) NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'APPLIED',
+    "waiveReason" TEXT,
+    "waivedAt" TIMESTAMP(3),
+    "waivedById" TEXT,
+    "notes" TEXT,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`,
+  `CREATE INDEX IF NOT EXISTS "LiquidatedDamage_org_party_idx" ON "LiquidatedDamage"("organizationId", "partyId");`,
+  `CREATE INDEX IF NOT EXISTS "LiquidatedDamage_org_project_idx" ON "LiquidatedDamage"("organizationId", "projectId");`,
+  `CREATE INDEX IF NOT EXISTS "LiquidatedDamage_org_status_idx" ON "LiquidatedDamage"("organizationId", "status");`,
+  `CREATE INDEX IF NOT EXISTS "LiquidatedDamage_deductionDate_idx" ON "LiquidatedDamage"("deductionDate");`,
 ];
 
 const POSTGRES_CONSTRAINTS = [

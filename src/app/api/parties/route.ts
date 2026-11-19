@@ -37,6 +37,30 @@ export async function GET(req: NextRequest) {
 
     const hasFinanceAccess = canReadFinance(user);
 
+    let allDamages: any[] = [];
+    if (hasFinanceAccess) {
+      try {
+        if ((prisma as any).liquidatedDamage?.findMany) {
+          allDamages = await (prisma as any).liquidatedDamage.findMany({
+            where: { organizationId: user.organizationId, status: "APPLIED" },
+            select: { partyId: true, amount: true },
+          });
+        } else {
+          allDamages = await prisma.$queryRawUnsafe(
+            `SELECT "partyId", "amount" FROM "LiquidatedDamage" WHERE "organizationId" = ? AND "status" = 'APPLIED'`,
+            user.organizationId
+          ).catch(() => []);
+        }
+      } catch {
+        allDamages = [];
+      }
+    }
+
+    const damagesByParty: Record<string, number> = {};
+    for (const d of allDamages) {
+      damagesByParty[d.partyId] = (damagesByParty[d.partyId] || 0) + (Number(d.amount) || 0);
+    }
+
     const parties = await prisma.party.findMany({
       where,
       include: hasFinanceAccess
@@ -73,7 +97,8 @@ export async function GET(req: NextRequest) {
 
       const totalBilled = (p.bills || []).reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
       const totalPaid = (p.payments || []).reduce((sum: number, pay: any) => sum + (pay.amount || 0), 0);
-      const outstandingBalance = totalBilled - totalPaid;
+      const totalDamagesDeducted = damagesByParty[p.id] || 0;
+      const outstandingBalance = totalBilled - totalPaid - totalDamagesDeducted;
 
       return {
         id: p.id,
@@ -87,6 +112,7 @@ export async function GET(req: NextRequest) {
         contractValue: p.contractValue || 0,
         totalBilled,
         totalPaid,
+        totalDamagesDeducted,
         outstandingBalance,
         notes: p.notes,
         active: p.active,

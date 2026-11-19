@@ -43,6 +43,9 @@ export const partyProfileSchema = z.object({
   dailyWageRate: z.number().min(0).nullable().optional(),
   maleHelperWageRate: z.number().min(0).nullable().optional(),
   femaleHelperWageRate: z.number().min(0).nullable().optional(),
+  // Liquidated Damages Contract Clause & Penalty Terms
+  liquidatedDamagesTerms: optionalText(300),
+  liquidatedDamagesPercent: z.number().min(0).max(100).nullable().optional(),
 });
 
 export type PartyProfileInput = z.infer<typeof partyProfileSchema>;
@@ -84,5 +87,7 @@ export function publicPartyProfile(p: any) {
     dailyWageRate: p.dailyWageRate ?? null,
     maleHelperWageRate: p.maleHelperWageRate ?? null,
     femaleHelperWageRate: p.femaleHelperWageRate ?? null,
+    liquidatedDamagesTerms: p.liquidatedDamagesTerms ?? null,
+    liquidatedDamagesPercent: p.liquidatedDamagesPercent ?? null,
   };
 }

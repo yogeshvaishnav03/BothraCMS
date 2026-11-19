@@ -17,6 +17,7 @@ import {
   RotateCcw,
   CheckCircle2,
   AlertTriangle,
+  ShieldAlert,
   X,
   Search,
   Trash2,
@@ -2577,6 +2578,21 @@ export default function FinancePage() {
                             </option>
                           ))}
                         </select>
+                        {(() => {
+                          const p = parties.find((pt) => pt.id === selectedPartyId);
+                          if (p && p.totalDamagesDeducted > 0) {
+                            return (
+                              <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center justify-between">
+                                <span className="flex items-center gap-1 font-medium">
+                                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                  Liquidated Damages deducted:
+                                </span>
+                                <strong className="font-mono font-bold">−{formatCurrency(p.totalDamagesDeducted)}</strong>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       );
                     })()}
                   </div>

@@ -1192,15 +1192,57 @@ export class FinanceService {
       }
     });
 
-    const outstandingBalance = roundPaise(totalBilled - totalPaid);
+    // 3. Fetch Liquidated Damages deductions
+    let liquidatedDamages: any[] = [];
+    let totalDamagesDeducted = 0;
+    try {
+      if ((prisma as any).liquidatedDamage?.findMany) {
+        liquidatedDamages = await (prisma as any).liquidatedDamage.findMany({
+          where: { partyId, organizationId },
+          include: {
+            project: { select: { id: true, name: true, code: true } },
+            creator: { select: { id: true, name: true, role: true } },
+          },
+          orderBy: [{ deductionDate: "desc" }, { createdAt: "desc" }],
+        });
+      } else {
+        const rows: any[] = await prisma.$queryRawUnsafe(
+          `SELECT ld.*, p.name as "projectName", p.code as "projectCode", u.name as "creatorName"
+           FROM "LiquidatedDamage" ld
+           LEFT JOIN "Project" p ON ld."projectId" = p."id"
+           LEFT JOIN "User" u ON ld."createdById" = u."id"
+           WHERE ld."organizationId" = ? AND ld."partyId" = ?
+           ORDER BY ld."deductionDate" DESC, ld."createdAt" DESC`,
+          organizationId,
+          partyId
+        ).catch(() => []);
+        liquidatedDamages = (rows || []).map((d: any) => ({
+          ...d,
+          project: d.projectName ? { id: d.projectId, name: d.projectName, code: d.projectCode } : null,
+          creator: d.creatorName ? { id: d.createdById, name: d.creatorName } : null,
+        }));
+      }
+      totalDamagesDeducted = roundPaise(
+        liquidatedDamages
+          .filter((d: any) => d.status === "APPLIED")
+          .reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0)
+      );
+    } catch {
+      liquidatedDamages = [];
+      totalDamagesDeducted = 0;
+    }
+
+    const outstandingBalance = roundPaise(totalBilled - totalPaid - totalDamagesDeducted);
 
     return {
       party,
       totalBilled,
       totalPaid,
+      totalDamagesDeducted,
       outstandingBalance,
       bills: billsWithBalances,
       payments,
+      liquidatedDamages,
     };
   }
 }

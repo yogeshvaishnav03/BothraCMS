@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
-import { formatCurrency, formatCompactINR, formatDate, formatQuantity, formatDateTime } from "@/lib/formatters";
+import { formatCurrency, formatCompactINR, formatDate, formatQuantity, formatDateTime, rupeesToPaise, paiseToRupees } from "@/lib/formatters";
 import {
   Building2,
   ArrowLeft,
@@ -28,6 +28,11 @@ import {
   History,
   Package,
   Landmark,
+  ShieldAlert,
+  Plus,
+  RotateCcw,
+  X,
+  Trash2,
 } from "lucide-react";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
@@ -46,6 +51,24 @@ export default function PartyStatementPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [showPlaceOrderModal, setShowPlaceOrderModal] = useState(false);
   const [showAuditModal, setShowAuditModal] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+
+  // Liquidated Damages modal state
+  const [showDamageModal, setShowDamageModal] = useState(false);
+  const [damageAmount, setDamageAmount] = useState("");
+  const [damageType, setDamageType] = useState("DELAY");
+  const [damageReason, setDamageReason] = useState("");
+  const [damageRef, setDamageRef] = useState("");
+  const [damageDate, setDamageDate] = useState(new Date().toISOString().slice(0, 10));
+  const [damageProjectId, setDamageProjectId] = useState("");
+  const [damageNotes, setDamageNotes] = useState("");
+  const [damageSubmitting, setDamageSubmitting] = useState(false);
+  const [damageError, setDamageError] = useState<string | null>(null);
+
+  // Waive damage modal state
+  const [waiveTarget, setWaiveTarget] = useState<any | null>(null);
+  const [waiveReason, setWaiveReason] = useState("");
+  const [waiveSubmitting, setWaiveSubmitting] = useState(false);
 
   const loadStatementAndOrders = () => {
     if (!partyId) return;
@@ -83,8 +106,76 @@ export default function PartyStatementPage() {
       })
       .catch(() => {});
     loadStatementAndOrders();
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data) setProjects(res.data);
+        else if (Array.isArray(res)) setProjects(res);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyId, refreshUser]);
+
+  const handleDamageSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsedAmount = parseFloat(damageAmount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setDamageError("Please enter a valid deduction amount in ₹.");
+      return;
+    }
+    setDamageSubmitting(true);
+    setDamageError(null);
+    try {
+      const res = await fetch(`/api/parties/${partyId}/damages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: rupeesToPaise(parsedAmount),
+          damageType,
+          reason: damageReason.trim(),
+          referenceNumber: damageRef.trim() || undefined,
+          deductionDate: damageDate || undefined,
+          projectId: damageProjectId || undefined,
+          notes: damageNotes.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDamageError(data.error?.message || "Failed to record liquidated damage deduction.");
+        return;
+      }
+      setShowDamageModal(false);
+      loadStatementAndOrders();
+    } catch (err: any) {
+      setDamageError(err.message || "Network error. Please try again.");
+    } finally {
+      setDamageSubmitting(false);
+    }
+  };
+
+  const handleWaiveSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!waiveTarget) return;
+    if (!waiveReason.trim()) return;
+    setWaiveSubmitting(true);
+    try {
+      const res = await fetch(`/api/parties/damages/${waiveTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ waiveReason: waiveReason.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setWaiveTarget(null);
+        setWaiveReason("");
+        loadStatementAndOrders();
+      }
+    } catch {
+      // ignore
+    } finally {
+      setWaiveSubmitting(false);
+    }
+  };
 
   const bills = useMemo(() => statementData?.bills || [], [statementData]);
   const payments = useMemo(() => statementData?.payments || [], [statementData]);
@@ -155,6 +246,27 @@ export default function PartyStatementPage() {
   const excelPayments = useExcelTable({
     data: payments,
     columns: paymentColumns,
+  });
+
+  const liquidatedDamages = useMemo(() => statementData?.liquidatedDamages || [], [statementData]);
+  const totalDamagesDeducted = statementData?.totalDamagesDeducted || 0;
+
+  const damageColumns: ExcelColumn<any>[] = useMemo(
+    () => [
+      { key: "deductionDate", label: "Date", accessor: (d) => formatDate(d.deductionDate), type: "date" },
+      { key: "referenceNumber", label: "Notice / Ref #", accessor: (d) => d.referenceNumber || "—", type: "text" },
+      { key: "project", label: "Project / Site", accessor: (d) => d.project?.name || "General / Head Office", type: "text" },
+      { key: "damageType", label: "Category", accessor: (d) => d.damageType || "DELAY", type: "text" },
+      { key: "reason", label: "Damage Assessment / Reason", accessor: (d) => d.reason, type: "text" },
+      { key: "amount", label: "Deducted Amount", accessor: (d) => (Number(d.amount) || 0) / 100, type: "currency", align: "right" },
+      { key: "status", label: "Status", accessor: (d) => d.status, type: "text", align: "center" },
+    ],
+    []
+  );
+
+  const excelDamages = useExcelTable({
+    data: liquidatedDamages,
+    columns: damageColumns,
   });
 
   const orderColumns: ExcelColumn<any>[] = useMemo(
@@ -261,6 +373,25 @@ export default function PartyStatementPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 print:hidden w-full sm:w-auto shrink-0">
+            {canWriteFinance && (
+              <button
+                onClick={() => {
+                  setDamageAmount("");
+                  setDamageReason("");
+                  setDamageRef(`LD-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+                  setDamageDate(new Date().toISOString().slice(0, 10));
+                  setDamageProjectId("");
+                  setDamageNotes("");
+                  setDamageError(null);
+                  setShowDamageModal(true);
+                }}
+                className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 font-bold rounded-xl text-xs shadow-sm transition whitespace-nowrap cursor-pointer"
+                title="Deduct Liquidated Damages for delays or site damages"
+              >
+                <ShieldAlert className="w-4 h-4 text-rose-600" />
+                <span>Deduct Liquidated Damages</span>
+              </button>
+            )}
             {isVendor && canPlaceOrder && (
               <button
                 onClick={() => setShowPlaceOrderModal(true)}
@@ -353,7 +484,7 @@ export default function PartyStatementPage() {
 
         {/* Financial Summary Cards */}
         {canReadFinance ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               {isContractor ? "Cumulative Work Certified / Billed" : "Total Billed (Liability)"}
@@ -378,15 +509,46 @@ export default function PartyStatementPage() {
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm bg-gradient-to-br from-amber-50/50 to-white">
+          <div className="bg-white p-4 rounded-xl border border-rose-200 shadow-sm bg-gradient-to-br from-rose-50/60 to-white">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-rose-800 uppercase tracking-wider">
+                Damages Deducted
+              </span>
+              {canWriteFinance && (
+                <button
+                  onClick={() => {
+                    setDamageAmount("");
+                    setDamageReason("");
+                    setDamageRef(`LD-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+                    setDamageDate(new Date().toISOString().slice(0, 10));
+                    setDamageProjectId("");
+                    setDamageNotes("");
+                    setDamageError(null);
+                    setShowDamageModal(true);
+                  }}
+                  className="text-[10px] font-bold text-rose-700 bg-rose-100 hover:bg-rose-200 px-2 py-0.5 rounded-md transition cursor-pointer"
+                >
+                  + Deduct
+                </button>
+              )}
+            </div>
+            <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
+              <span title={formatCurrency(totalDamagesDeducted)}>{formatCompactINR(totalDamagesDeducted)}</span>
+            </div>
+            <div className="text-[11px] text-rose-700 font-medium mt-1">
+              {liquidatedDamages.filter((d: any) => d.status === "APPLIED").length} applied deduction(s)
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm bg-gradient-to-br from-amber-50/50 to-white">
             <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
-              Unpaid Balance
+              Net Unpaid Balance
             </span>
             <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
               <span title={formatCurrency(outstandingBalance)}>{formatCompactINR(outstandingBalance)}</span>
             </div>
             <div className="text-[11px] text-amber-700 font-medium mt-1">
-              Net balance payable = Total Billed − Total Paid
+              Net balance = Billed − Paid − Damages
             </div>
           </div>
         </div>
@@ -552,6 +714,181 @@ export default function PartyStatementPage() {
             </>
           )}
         </div>
+        )}
+
+        {/* Liquidated Damages Deductions Register Table */}
+        {canReadFinance && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                  <ShieldAlert className="w-4 h-4 text-rose-600" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                    <span>Liquidated Damages &amp; Deductions Register</span>
+                    <span className="text-xs font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded">
+                      {liquidatedDamages.length} Records
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {party.liquidatedDamagesTerms
+                      ? `Contract Clause: ${party.liquidatedDamagesTerms}${party.liquidatedDamagesPercent ? ` (Max Cap: ${party.liquidatedDamagesPercent}%)` : ""}`
+                      : "Deduct money for contractual milestone delays, defective works, or damaged materials."}
+                  </p>
+                </div>
+              </div>
+              {canWriteFinance && (
+                <button
+                  onClick={() => {
+                    setDamageAmount("");
+                    setDamageReason("");
+                    setDamageRef(`LD-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+                    setDamageDate(new Date().toISOString().slice(0, 10));
+                    setDamageProjectId("");
+                    setDamageNotes("");
+                    setDamageError(null);
+                    setShowDamageModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs shadow-xs transition cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Deduct Damages</span>
+                </button>
+              )}
+            </div>
+
+            {liquidatedDamages.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs">
+                No liquidated damages or penalty deductions recorded for this party yet.
+                {canWriteFinance && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => {
+                        setDamageAmount("");
+                        setDamageReason("");
+                        setDamageRef(`LD-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+                        setDamageDate(new Date().toISOString().slice(0, 10));
+                        setDamageProjectId("");
+                        setDamageNotes("");
+                        setDamageError(null);
+                        setShowDamageModal(true);
+                      }}
+                      className="text-xs text-rose-600 font-semibold hover:underline"
+                    >
+                      + Deduct money for damages or delay penalties
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <ExcelTableToolbar
+                  table={excelDamages}
+                  columns={damageColumns}
+                  tableName="liquidated damages"
+                  showSearch={true}
+                  showExport={true}
+                />
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
+                      <tr>
+                        {damageColumns.map((col) => (
+                          <ExcelColumnHeader
+                            key={col.key}
+                            column={col}
+                            table={excelDamages}
+                            theme="darkHeader"
+                          />
+                        ))}
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {excelDamages.paginatedData.map((d: any) => (
+                        <tr key={d.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-4 text-xs font-mono text-slate-600">
+                            {formatDate(d.deductionDate)}
+                          </td>
+                          <td className="py-3 px-4 text-xs font-mono font-bold text-slate-900">
+                            {d.referenceNumber || "—"}
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-700">
+                            {d.project?.name || "General / Head Office"}
+                          </td>
+                          <td className="py-3 px-4 text-xs">
+                            <span className="font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200/60">
+                              {d.damageType === "DELAY"
+                                ? "Timeline Delay"
+                                : d.damageType === "DEFECT"
+                                ? "Quality Defect"
+                                : d.damageType === "BREAKAGE"
+                                ? "Site Breakage"
+                                : d.damageType === "SAFETY"
+                                ? "Safety Breach"
+                                : d.damageType === "BREACH"
+                                ? "Contract Breach"
+                                : "Damages"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-800">
+                            <div className="font-medium text-slate-900">{d.reason}</div>
+                            {d.notes && <div className="text-[11px] text-slate-500 mt-0.5">{d.notes}</div>}
+                            {d.waiveReason && (
+                              <div className="text-[11px] text-amber-700 font-medium mt-0.5 italic">
+                                Waived: {d.waiveReason}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right font-black text-rose-600 tabular-nums">
+                            −{formatCurrency(d.amount)}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                d.status === "APPLIED"
+                                  ? "bg-rose-100 text-rose-800"
+                                  : "bg-slate-100 text-slate-600 line-through"
+                              }`}
+                            >
+                              {d.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            {canWriteFinance && d.status === "APPLIED" && (
+                              <button
+                                onClick={() => {
+                                  setWaiveTarget(d);
+                                  setWaiveReason("");
+                                }}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                                title="Waive or reverse this damage deduction"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Waive</span>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <TablePagination
+                  currentPage={excelDamages.currentPage}
+                  totalPages={excelDamages.totalPages}
+                  totalItems={excelDamages.filteredCount}
+                  totalUnfiltered={excelDamages.totalRecords}
+                  pageSize={excelDamages.pageSize}
+                  startItem={excelDamages.startItem}
+                  endItem={excelDamages.endItem}
+                  onPageChange={excelDamages.setCurrentPage}
+                  itemLabel="damage deductions"
+                />
+              </>
+            )}
+          </div>
         )}
 
         {/* Payments Register Table */}
@@ -830,6 +1167,228 @@ export default function PartyStatementPage() {
           onClose={() => setShowPlaceOrderModal(false)}
           onOrderPlaced={() => loadStatementAndOrders()}
         />
+      )}
+
+      {/* Deduct Liquidated Damages Modal */}
+      {showDamageModal && canWriteFinance && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-scale-in">
+            <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 bg-rose-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
+                  <ShieldAlert className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-slate-900 text-base">
+                    Deduct Liquidated Damages
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium truncate">
+                    {party.name} ({party.partyType})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDamageModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleDamageSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              {damageError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium">
+                  {damageError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Deduction Amount (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.01"
+                    required
+                    placeholder="e.g. 25000"
+                    value={damageAmount}
+                    onChange={(e) => setDamageAmount(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-mono font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Damage Category *
+                  </label>
+                  <select
+                    value={damageType}
+                    onChange={(e) => setDamageType(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  >
+                    <option value="DELAY">Timeline / Milestone Delay (LD)</option>
+                    <option value="DEFECT">Work Quality / Defect Rectification</option>
+                    <option value="BREAKAGE">Material Breakage &amp; Site Damage</option>
+                    <option value="SAFETY">Safety &amp; Compliance Violation</option>
+                    <option value="BREACH">Contract Breach / Non-Performance</option>
+                    <option value="OTHER">Other Contractual Damages</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Project / Site (Optional)
+                  </label>
+                  <select
+                    value={damageProjectId}
+                    onChange={(e) => setDamageProjectId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  >
+                    <option value="">-- General / Head Office --</option>
+                    {projects.map((proj) => (
+                      <option key={proj.id} value={proj.id}>
+                        {proj.name} {proj.code ? `(${proj.code})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Deduction Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={damageDate}
+                    onChange={(e) => setDamageDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Notice / Reference # (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. LD-2026-081 or NOTICE-04"
+                  value={damageRef}
+                  onChange={(e) => setDamageRef(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Damage Assessment / Reason *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="e.g. 14 days delay in completion of Phase 2 RCC slab casting beyond agreed contractual milestone"
+                  value={damageReason}
+                  onChange={(e) => setDamageReason(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Contract Clause / Additional Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. As per Clause 14.2 of Subcontract Agreement"
+                  value={damageNotes}
+                  onChange={(e) => setDamageNotes(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                />
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs">
+                ℹ️ <strong>Financial Impact:</strong> This deduction will directly decrease the outstanding payable balance for this party and be recorded permanently in the financial audit trail.
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDamageModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={damageSubmitting}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm disabled:opacity-50 transition flex items-center gap-1.5"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>{damageSubmitting ? "Deducting..." : "Confirm & Deduct Damages"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Waive Damage Deduction Modal */}
+      {waiveTarget && canWriteFinance && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 p-5 space-y-4 animate-scale-in">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-5 h-5 text-amber-600" />
+                <h3 className="font-display font-bold text-slate-900 text-base">
+                  Waive Damage Deduction
+                </h3>
+              </div>
+              <button onClick={() => setWaiveTarget(null)} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs leading-relaxed">
+              Are you sure you want to waive / cancel deduction <strong className="font-mono">#{waiveTarget.referenceNumber || waiveTarget.id}</strong> of <strong>{formatCurrency(waiveTarget.amount)}</strong>? This will restore the party&apos;s payable balance.
+            </div>
+
+            <form onSubmit={handleWaiveSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Reason for Waiving Deduction *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="e.g. Contractor rectified defective casting at their own expense / Extension of Time (EOT) granted"
+                  value={waiveReason}
+                  onChange={(e) => setWaiveReason(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWaiveTarget(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={waiveSubmitting}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm disabled:opacity-50 transition"
+                >
+                  {waiveSubmitting ? "Waiving..." : "Confirm Waive"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </Shell>
   );

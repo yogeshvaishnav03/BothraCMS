@@ -29,6 +29,7 @@ model Organization {
   pushSubscriptions  PushSubscription[]
   tasks              Task[]
   bills              Bill[]
+  liquidatedDamages  LiquidatedDamage[]
   payments           Payment[]
   stores             Store[]
   stockMovements     StockMovement[]
@@ -116,6 +117,7 @@ model User {
   reviewedMaterialRequests    MaterialRequest[]     @relation("MaterialRequestReviewer")
   salesReceipts               SalesReceipt[]        @relation("SalesReceiptCreator")
   createdQuotations           MaterialQuotation[]   @relation("QuotationCreator")
+  createdLiquidatedDamages    LiquidatedDamage[]    @relation("LiquidatedDamageCreator")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -172,6 +174,7 @@ model Project {
   dailyReports       DailySiteReport[]
   stockMovements     StockMovement[]
   bills              Bill[]
+  liquidatedDamages  LiquidatedDamage[]
   payments           Payment[]
   attendanceSessions AttendanceSession[]
   purchaseOrders     PurchaseOrder[]
@@ -439,6 +442,9 @@ model Party {
   dailyWageRate        Float?   // paise per day (Skilled Worker Rate)
   maleHelperWageRate   Float?   // paise per day (Male Labour Rate)
   femaleHelperWageRate Float?   // paise per day (Female Labour Rate)
+  // Liquidated Damages Contract Clause
+  liquidatedDamagesTerms   String?  // e.g. "0.5% per week of delay (max 10% of contract value)"
+  liquidatedDamagesPercent Float?   // max cap % e.g. 10.0
   // Bank details for payments. Full account numbers are only returned by
   // GET /api/parties/[id]/bank (finance:write, audited); lists show the last 4 digits.
   bankAccountName   String?
@@ -455,6 +461,7 @@ model Party {
   stockMovements StockMovement[]
   bills          Bill[]
   payments       Payment[]
+  liquidatedDamages LiquidatedDamage[]
   purchaseOrders PurchaseOrder[]
   materialQuotations MaterialQuotation[]
   measurementBookEntries MeasurementBookEntry[]
@@ -590,6 +597,36 @@ model PaymentAllocation {
 
   @@index([paymentId])
   @@index([billId])
+}
+
+model LiquidatedDamage {
+  id              String    @id @default(uuid())
+  organizationId  String
+  partyId         String
+  projectId       String?
+  amount          Float     // minor units / paise (deducted amount)
+  damageType      String?   @default("DELAY") // DELAY, DEFECT, DAMAGE, SAFETY, BREACH, OTHER
+  reason          String    // cause/description of damages
+  referenceNumber String?   // notice or deduction ref e.g. LD-2026-001
+  deductionDate   DateTime
+  status          String    @default("APPLIED") // APPLIED, WAIVED
+  waiveReason     String?
+  waivedAt        DateTime?
+  waivedById      String?
+  notes           String?
+  createdById     String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  party           Party        @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  project         Project?     @relation(fields: [projectId], references: [id])
+  creator         User         @relation("LiquidatedDamageCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, partyId])
+  @@index([organizationId, projectId])
+  @@index([organizationId, status])
+  @@index([deductionDate])
 }
 
 model WorkforceMember {

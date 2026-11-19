@@ -61,6 +61,8 @@ const EMPTY_FORM = {
   panNumber: "",
   tdsSection: "",
   contractValueRupees: "",
+  liquidatedDamagesTerms: "",
+  liquidatedDamagesPercent: "",
   bankAccountName: "",
   bankAccountNumber: "",
   bankIfsc: "",
@@ -423,6 +425,8 @@ export default function PartiesPage() {
       panNumber: p.panNumber || "",
       tdsSection: p.tdsSection || "",
       contractValueRupees: p.contractValue ? paiseToRupees(p.contractValue).toString() : "",
+      liquidatedDamagesTerms: p.liquidatedDamagesTerms || "",
+      liquidatedDamagesPercent: p.liquidatedDamagesPercent ? String(p.liquidatedDamagesPercent) : "",
       bankAccountName: p.bankAccountName || "",
       bankAccountNumber: "", // never pre-filled; leave empty to keep the number on file
       bankIfsc: p.bankIfsc || "",
@@ -495,6 +499,8 @@ export default function PartiesPage() {
       address: form.address || null,
       taxIdentifier: form.taxIdentifier || null,
       contractValue: contractPaise,
+      liquidatedDamagesTerms: form.liquidatedDamagesTerms || null,
+      liquidatedDamagesPercent: form.liquidatedDamagesPercent ? parseFloat(form.liquidatedDamagesPercent) : null,
       contactPerson: form.contactPerson,
       whatsappNumber: form.whatsappNumber,
       whatsappGroupLink: form.whatsappGroupLink.trim(),
@@ -635,7 +641,8 @@ export default function PartiesPage() {
     const contractors = parties.filter((p) => p.partyType === "CONTRACTOR" || p.partyType === "BOTH").length;
     const outstanding = parties.reduce((s, p) => s + Math.max(0, p.outstandingBalance || 0), 0);
     const missingBank = parties.filter((p) => !p.hasBankDetails).length;
-    return { vendors, contractors, outstanding, missingBank };
+    const totalDamages = parties.reduce((s, p) => s + (p.totalDamagesDeducted || 0), 0);
+    return { vendors, contractors, outstanding, missingBank, totalDamages };
   }, [parties]);
 
   const filtersActive = Boolean(search || categoryFilter || cityFilter || onlyOutstanding || onlyMissingBank || typeFilter !== "ALL");
@@ -665,7 +672,8 @@ export default function PartiesPage() {
         ? [
             { key: "totalBilled", label: "Total Billed", accessor: (p: any) => (Number(p.totalBilled) || 0) / 100, type: "currency" as const, align: "right" as const },
             { key: "totalPaid", label: "Total Paid", accessor: (p: any) => (Number(p.totalPaid) || 0) / 100, type: "currency" as const, align: "right" as const },
-            { key: "outstandingBalance", label: "Outstanding", accessor: (p: any) => (Number(p.outstandingBalance) || 0) / 100, type: "currency" as const, align: "right" as const },
+            { key: "totalDamagesDeducted", label: "Damages Deducted", accessor: (p: any) => (Number(p.totalDamagesDeducted) || 0) / 100, type: "currency" as const, align: "right" as const },
+            { key: "outstandingBalance", label: "Net Due", accessor: (p: any) => (Number(p.outstandingBalance) || 0) / 100, type: "currency" as const, align: "right" as const },
           ]
         : []),
     ],
@@ -693,6 +701,15 @@ export default function PartiesPage() {
         >
           <Edit2 className="w-3.5 h-3.5" />
         </button>
+      )}
+      {canWriteFinance && (
+        <Link
+          href={`/parties/${p.id}`}
+          title="Liquidated damages & deductions"
+          className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 hover:ring-rose-200 transition"
+        >
+          <ShieldAlert className="w-3.5 h-3.5" />
+        </Link>
       )}
       <button
         onClick={() => setAuditParty({ id: p.id, name: p.name })}
@@ -959,6 +976,22 @@ export default function PartiesPage() {
                           {formatCompactINR(Math.abs(due))}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {canReadFinance && p.totalDamagesDeducted > 0 && (
+                    <div className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-xl bg-rose-50 border border-rose-100 text-rose-800">
+                      <span className="flex items-center gap-1 font-medium">
+                        <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        Damages Deducted
+                      </span>
+                      <strong className="font-mono font-bold">−{formatCurrency(p.totalDamagesDeducted)}</strong>
+                    </div>
+                  )}
+
+                  {p.liquidatedDamagesTerms && (
+                    <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200/60 rounded-lg px-2 py-1 truncate" title={p.liquidatedDamagesTerms}>
+                      <span className="font-semibold text-slate-700">LD Clause:</span> {p.liquidatedDamagesTerms}
                     </div>
                   )}
 
@@ -1370,6 +1403,31 @@ export default function PartiesPage() {
                         <input type="number" step="0.01" min="0" placeholder="500000" value={form.contractValueRupees} onChange={setField("contractValueRupees")} className={inputCls} />
                       </div>
                     )}
+                    <div>
+                      <label className={labelCls}>Liquidated Damages clause / penalty terms</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 0.5% per week of delay (max 10% of contract value)"
+                        value={form.liquidatedDamagesTerms}
+                        onChange={setField("liquidatedDamagesTerms")}
+                        className={inputCls}
+                      />
+                      <p className="mt-1 text-[11px] text-slate-400">Pre-agreed penalty terms to deduct money for milestone delays or defective work.</p>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Liquidated Damages max cap (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        placeholder="e.g. 10"
+                        value={form.liquidatedDamagesPercent}
+                        onChange={setField("liquidatedDamagesPercent")}
+                        className={inputCls}
+                      />
+                      <p className="mt-1 text-[11px] text-slate-400">Maximum percentage of contract or bill value that can be deducted.</p>
+                    </div>
                     <div>
                       <label className={labelCls}>Rating</label>
                       <select value={form.rating} onChange={setField("rating")} className={inputCls}>
