@@ -163,6 +163,13 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const clearAll = searchParams.get("all") === "true";
+
+    if (clearAll) {
+      const count = await WorkforceHeadcountService.clearAllRecords(user.organizationId);
+      return jsonSuccess({ deleted: true, count, all: true });
+    }
+
     if (!id) return jsonError("Record ID is required", "BAD_REQUEST", 400);
 
     const deleted = await WorkforceHeadcountService.deleteRecord(user.organizationId, id);

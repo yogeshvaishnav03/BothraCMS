@@ -546,18 +546,45 @@ export class WorkforceHeadcountService {
         where: { id, organizationId },
       });
 
-      await prisma.idempotencyRecord.deleteMany({
+      const idempDel = await prisma.idempotencyRecord.deleteMany({
         where: {
           organizationId,
           operation: "WORKFORCE_HEADCOUNT",
           responseBodyJson: { contains: id },
         },
-      }).catch(() => {});
+      }).catch(() => ({ count: 0 }));
 
-      return del.count > 0;
+      return del.count > 0 || (idempDel && idempDel.count > 0);
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Clear all headcount records for an organization
+   */
+  static async clearAllRecords(organizationId: string): Promise<number> {
+    emptyLegacyOrgCache.delete(organizationId);
+    let totalCount = 0;
+    try {
+      const del = await prisma.workforceHeadcount.deleteMany({
+        where: { organizationId },
+      });
+      totalCount += del.count;
+    } catch {}
+
+    try {
+      const idempDel = await prisma.idempotencyRecord.deleteMany({
+        where: {
+          organizationId,
+          operation: "WORKFORCE_HEADCOUNT",
+        },
+      });
+      totalCount += idempDel.count;
+    } catch {}
+
+    emptyLegacyOrgCache.set(organizationId, Date.now());
+    return totalCount;
   }
 
   /**

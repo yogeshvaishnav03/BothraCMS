@@ -587,9 +587,11 @@ export default function WorkforcePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingDeleteRecord, setPendingDeleteRecord] = useState<{ id: string; siteName: string; date: string } | null>(null);
   const [pendingDeleteWorker, setPendingDeleteWorker] = useState<{ id: string; name: string; employeeCode: string } | null>(null);
+  const [showClearHeadcountModal, setShowClearHeadcountModal] = useState<boolean>(false);
+  const [showClearWorkersModal, setShowClearWorkersModal] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord || pendingDeleteWorker || showReportsModal)) return;
+    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord || pendingDeleteWorker || showReportsModal || showClearHeadcountModal || showClearWorkersModal)) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (e: KeyboardEvent) => {
@@ -599,6 +601,8 @@ export default function WorkforcePage() {
         setPendingDeleteRecord(null);
         setPendingDeleteWorker(null);
         setShowReportsModal(false);
+        setShowClearHeadcountModal(false);
+        setShowClearWorkersModal(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -606,7 +610,7 @@ export default function WorkforcePage() {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord, pendingDeleteWorker, showReportsModal]);
+  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord, pendingDeleteWorker, showReportsModal, showClearHeadcountModal, showClearWorkersModal]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -1096,6 +1100,50 @@ export default function WorkforcePage() {
     }
   };
 
+  const executeClearAllHeadcount = async () => {
+    setSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    try {
+      const res = await fetch("/api/workforce/headcount?all=true", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to clear headcount records");
+      } else {
+        setStatusMessage("All site headcount records cleared successfully.");
+        setRecords([]);
+        await loadData();
+      }
+    } catch {
+      setErrorMessage("Network error clearing headcount records");
+    } finally {
+      setSubmitting(false);
+      setShowClearHeadcountModal(false);
+    }
+  };
+
+  const executeClearAllWorkers = async () => {
+    setSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    try {
+      const res = await fetch("/api/workforce?all=true", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to clear registered workers");
+      } else {
+        setStatusMessage("All registered workers removed from the roster.");
+        setWorkers([]);
+        await loadData();
+      }
+    } catch {
+      setErrorMessage("Network error clearing registered workers");
+    } finally {
+      setSubmitting(false);
+      setShowClearWorkersModal(false);
+    }
+  };
+
   // Register worker submit handler
   const openCreateWorkerModal = async () => {
     setEditingWorker(null);
@@ -1434,6 +1482,30 @@ export default function WorkforcePage() {
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 <span>Upload Site Headcount</span>
+              </button>
+            )}
+
+            {canWrite && activeTab === "headcount" && records.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowClearHeadcountModal(true)}
+                className="flex items-center gap-1.5 px-3 h-9 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs transition shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                title="Remove all headcount records from the table"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                <span>Clear Headcount Table</span>
+              </button>
+            )}
+
+            {canWrite && activeTab === "roster" && workers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowClearWorkersModal(true)}
+                className="flex items-center gap-1.5 px-3 h-9 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs transition shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                title="Remove all registered workers from the roster"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                <span>Clear Worker Roster</span>
               </button>
             )}
 
@@ -3659,6 +3731,86 @@ export default function WorkforcePage() {
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 transition"
                 >
                   {submitting ? "Deleting..." : "Delete Worker"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Clear All Headcount Confirmation Modal */}
+        {showClearHeadcountModal && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setShowClearHeadcountModal(false)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-base">
+                <Trash2 className="w-5 h-5 shrink-0" />
+                <span>Clear All Headcount Data?</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to permanently remove all{" "}
+                <strong className="text-slate-900">{filteredRecords.length} headcount records</strong> from the table?
+                This will reset the site headcount table to empty.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowClearHeadcountModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={executeClearAllHeadcount}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 transition"
+                >
+                  {submitting ? "Clearing..." : "Yes, Clear All Headcount"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Clear All Workers Confirmation Modal */}
+        {showClearWorkersModal && (
+          <div
+            className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+            onClick={() => setShowClearWorkersModal(false)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-3 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-base">
+                <Trash2 className="w-5 h-5 shrink-0" />
+                <span>Clear All Registered Workers?</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to remove all{" "}
+                <strong className="text-slate-900">{workers.length} registered workers</strong> from the roster?
+                This will reset the worker directory to empty.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowClearWorkersModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={executeClearAllWorkers}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 transition"
+                >
+                  {submitting ? "Clearing..." : "Yes, Clear All Workers"}
                 </button>
               </div>
             </div>

@@ -56,86 +56,13 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    if (workers.length === 0) {
-      const totalOrgWorkers = await prisma.workforceMember.count({
+    // If site filter was specified but returned 0 while org has active workers, fallback to all org active workers
+    if (workers.length === 0 && siteId) {
+      workers = await prisma.workforceMember.findMany({
         where: { organizationId: user.organizationId, active: true },
+        include: { defaultSite: true },
+        orderBy: { createdAt: "desc" },
       });
-
-      if (totalOrgWorkers === 0) {
-        let site = await prisma.site.findFirst({
-          where: { organizationId: user.organizationId, status: "ACTIVE" },
-          orderBy: { createdAt: "asc" },
-        });
-
-        if (!site) {
-          site = await prisma.site.create({
-            data: {
-              organizationId: user.organizationId,
-              name: "Main Construction Site",
-              code: "SITE-01",
-              address: "Central Project Yard",
-            },
-          });
-        }
-
-        const initialWorkers = [
-          {
-            name: "Ramesh Kumar",
-            employeeCode: "WRK-1001",
-            workerType: "MASON",
-            phone: "+91 98765 43210",
-            dailyWageRate: 85000,
-            defaultSiteId: site.id,
-            organizationId: user.organizationId,
-          },
-          {
-            name: "Suresh Sharma",
-            employeeCode: "WRK-1002",
-            workerType: "CARPENTER",
-            phone: "+91 98765 43211",
-            dailyWageRate: 85000,
-            defaultSiteId: site.id,
-            organizationId: user.organizationId,
-          },
-          {
-            name: "Mohd. Aslam",
-            employeeCode: "WRK-1003",
-            workerType: "ELECTRICIAN",
-            phone: "+91 98765 43212",
-            dailyWageRate: 900,
-            defaultSiteId: site.id,
-            organizationId: user.organizationId,
-          },
-          {
-            name: "Dinesh Yadav",
-            employeeCode: "WRK-1004",
-            workerType: "HELPER",
-            phone: "+91 98765 43213",
-            dailyWageRate: 550,
-            defaultSiteId: site.id,
-            organizationId: user.organizationId,
-          },
-        ];
-
-        for (const w of initialWorkers) {
-          await prisma.workforceMember.create({ data: w });
-        }
-
-        workers = await prisma.workforceMember.findMany({
-          where,
-          include: { defaultSite: true },
-          orderBy: { createdAt: "desc" },
-        });
-      }
-
-      // If site filter was specified but returned 0 while org has active workers, fallback to all org active workers
-      if (workers.length === 0 && siteId) {
-        workers = await prisma.workforceMember.findMany({
-          where: { organizationId: user.organizationId, active: true },
-          include: { defaultSite: true },
-          orderBy: { createdAt: "desc" },
-        });
-      }
     }
 
     if (workers.some((w) => w.employeeCode.startsWith("USR-"))) {
@@ -415,6 +342,39 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const clearAll = searchParams.get("all") === "true";
+
+    if (clearAll) {
+      const archived = await prisma.workforceMember.updateMany({
+        where: { organizationId: user.organizationId, active: true },
+        data: {
+          active: false,
+          isArchived: true,
+          archivedAt: new Date(),
+          archivedById: user.userId,
+          archiveReason: "Deactivated and cleared by user",
+        },
+      });
+
+      await prisma.auditEvent.create({
+        data: {
+          organizationId: user.organizationId,
+          actorUserId: user.userId,
+          action: "ALL_WORKERS_ARCHIVED",
+          entityType: "WORKFORCE_MEMBER",
+          entityId: user.organizationId,
+          reason: `Cleared all ${archived.count} active workforce members`,
+        },
+      }).catch(() => {});
+
+      return jsonSuccess({
+        success: true,
+        message: `Cleared ${archived.count} workers successfully`,
+        count: archived.count,
+        all: true,
+      });
+    }
+
     if (!id) return jsonError("Worker ID is required", "BAD_REQUEST", 400);
 
     const worker = await prisma.workforceMember.findFirst({
