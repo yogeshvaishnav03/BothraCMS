@@ -35,6 +35,7 @@ import {
   Upload,
   CheckCircle2,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
@@ -279,6 +280,20 @@ export default function PartiesPage() {
   const setField = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Custom Category / Trade management
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryText, setNewCategoryText] = useState("");
+
+  const handleAddCategorySubmit = () => {
+    const trimmed = newCategoryText.trim();
+    if (!trimmed) return;
+    setCustomCategories((prev) => Array.from(new Set([trimmed, ...prev])));
+    setForm((f) => ({ ...f, category: trimmed }));
+    setIsAddingCategory(false);
+    setNewCategoryText("");
+  };
+
   const [auditParty, setAuditParty] = useState<{ id: string; name: string } | null>(null);
   const [bankParty, setBankParty] = useState<any>(null);
 
@@ -377,6 +392,8 @@ export default function PartiesPage() {
     setPendingDocs([]);
     setExistingPartyDocs([]);
     setUploadProgressMsg(null);
+    setIsAddingCategory(false);
+    setNewCategoryText("");
     setForm({ ...EMPTY_FORM, partyType: typeFilter === "CONTRACTOR" ? "CONTRACTOR" : "VENDOR" });
     setShowModal(true);
   };
@@ -387,6 +404,8 @@ export default function PartiesPage() {
     setPendingDocs([]);
     setExistingPartyDocs([]);
     setUploadProgressMsg(null);
+    setIsAddingCategory(false);
+    setNewCategoryText("");
     setForm({
       ...EMPTY_FORM,
       name: p.name,
@@ -1221,13 +1240,106 @@ export default function PartiesPage() {
                       </select>
                     </div>
                     <div>
-                      <label className={labelCls}>Category / trade</label>
-                      <input list="party-categories" placeholder="e.g. Cement, RCC work" value={form.category} onChange={setField("category")} className={inputCls} />
-                      <datalist id="party-categories">
-                        {Array.from(new Set([...CATEGORY_SUGGESTIONS, ...categories])).map((c) => (
-                          <option key={c} value={c} />
-                        ))}
-                      </datalist>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls}>Category / trade</label>
+                        {!isAddingCategory ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingCategory(true);
+                              setNewCategoryText("");
+                            }}
+                            className="text-[11px] font-bold text-amber-600 hover:text-amber-700 inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ Add new Category / trade</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingCategory(false)}
+                            className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            Choose from list
+                          </button>
+                        )}
+                      </div>
+
+                      {isAddingCategory ? (
+                        <div className="space-y-1.5 p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/90 animate-in fade-in">
+                          <div className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span className="text-xs font-bold text-amber-900">Add New Category / Trade</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              placeholder="e.g. Glass & Glazing, HVAC, Solar..."
+                              value={newCategoryText}
+                              onChange={(e) => setNewCategoryText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleAddCategorySubmit();
+                                } else if (e.key === "Escape") {
+                                  setIsAddingCategory(false);
+                                }
+                              }}
+                              className="flex-1 bg-white border border-amber-300 rounded-lg p-2 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                            />
+                            <button
+                              type="button"
+                              disabled={!newCategoryText.trim()}
+                              onClick={handleAddCategorySubmit}
+                              className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                            >
+                              Add &amp; Select
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <input
+                            list="party-categories"
+                            placeholder="e.g. Cement, RCC work"
+                            value={form.category}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val.startsWith("+ Add new")) {
+                                setIsAddingCategory(true);
+                                setNewCategoryText("");
+                              } else {
+                                setForm((f) => ({ ...f, category: val }));
+                              }
+                            }}
+                            className={inputCls}
+                          />
+                          <datalist id="party-categories">
+                            <option value="+ Add new Category / trade..." />
+                            {Array.from(new Set([...customCategories, ...CATEGORY_SUGGESTIONS, ...categories])).map((c) => (
+                              <option key={c} value={c} />
+                            ))}
+                          </datalist>
+                          {form.category && (
+                            <div className="mt-1 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500">
+                                Selected: <strong className="text-slate-700">{form.category}</strong>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsAddingCategory(true);
+                                  setNewCategoryText("");
+                                }}
+                                className="text-amber-600 hover:text-amber-700 font-semibold cursor-pointer"
+                              >
+                                + Add another
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className={labelCls}>GSTIN</label>
