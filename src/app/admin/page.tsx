@@ -1277,7 +1277,8 @@ export default function SuperAdminDashboardPage() {
 
         {/* Global Telemetry KPI Cards (Super Admin only) */}
         {currentUser?.role === "SUPER_ADMIN" && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between text-slate-400">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -1426,6 +1427,7 @@ export default function SuperAdminDashboardPage() {
             itemLabel="companies"
           />
         </div>
+        </>
         )}
 
         {/* Unified Admin Action Confirmation / Reason Modal */}
