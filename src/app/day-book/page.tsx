@@ -1418,20 +1418,21 @@ export default function DayBookPage() {
       if (data.success) {
         const paymentId = data.data?.payment?.id || data.data?.id;
         if (paymentId && paymentPhotos.length > 0) {
-          for (let i = 0; i < paymentPhotos.length; i++) {
-            const photo = paymentPhotos[i];
-            try {
-              await uploadClientMedia(photo, {
-                entityType: "PAYMENT",
-                entityId: paymentId,
-                projectId: paymentProjectId || undefined,
-                category: "RECEIPT",
-                createAttachment: true,
-              });
-            } catch (err) {
-              console.error("Failed uploading payment photo:", photo.name, err);
-            }
-          }
+          await Promise.allSettled(
+            paymentPhotos.map(async (photo) => {
+              try {
+                await uploadClientMedia(photo, {
+                  entityType: "PAYMENT",
+                  entityId: paymentId,
+                  projectId: paymentProjectId || undefined,
+                  category: "RECEIPT",
+                  createAttachment: true,
+                });
+              } catch (err) {
+                console.error("Failed uploading payment photo:", photo.name, err);
+              }
+            })
+          );
         }
         paymentPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
         setPaymentPhotos([]);
@@ -1496,20 +1497,21 @@ export default function DayBookPage() {
       if (data.success) {
         const billId = data.data?.id;
         if (billId && billPhotos.length > 0) {
-          for (let i = 0; i < billPhotos.length; i++) {
-            const photo = billPhotos[i];
-            try {
-              await uploadClientMedia(photo, {
-                entityType: "BILL",
-                entityId: billId,
-                projectId: billProjectId || undefined,
-                category: "INVOICE",
-                createAttachment: true,
-              });
-            } catch (err) {
-              console.error("Failed uploading bill photo:", photo.name, err);
-            }
-          }
+          await Promise.allSettled(
+            billPhotos.map(async (photo) => {
+              try {
+                await uploadClientMedia(photo, {
+                  entityType: "BILL",
+                  entityId: billId,
+                  projectId: billProjectId || undefined,
+                  category: "INVOICE",
+                  createAttachment: true,
+                });
+              } catch (err) {
+                console.error("Failed uploading bill photo:", photo.name, err);
+              }
+            })
+          );
         }
         billPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
         setBillPhotos([]);
@@ -1623,20 +1625,21 @@ export default function DayBookPage() {
         // Upload any attached photos/videos via universal upload client (supports chunking up to 250MB)
         if (reportId && dsrPhotos.length > 0) {
           setUploadingPhotosCount(dsrPhotos.length);
-          for (let i = 0; i < dsrPhotos.length; i++) {
-            const photo = dsrPhotos[i];
-            try {
-              await uploadClientMedia(photo, {
-                entityType: "DAILY_REPORT",
-                entityId: reportId,
-                projectId: dsrProjectId,
-                category: "PHOTO",
-                createAttachment: true,
-              });
-            } catch (photoErr) {
-              console.error("Failed uploading photo:", photo.name, photoErr);
-            }
-          }
+          await Promise.allSettled(
+            dsrPhotos.map(async (photo) => {
+              try {
+                await uploadClientMedia(photo, {
+                  entityType: "DAILY_REPORT",
+                  entityId: reportId,
+                  projectId: dsrProjectId,
+                  category: "PHOTO",
+                  createAttachment: true,
+                });
+              } catch (photoErr) {
+                console.error("Failed uploading photo:", photo.name, photoErr);
+              }
+            })
+          );
           setUploadingPhotosCount(0);
         }
 

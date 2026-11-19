@@ -310,11 +310,20 @@ export default function PartiesPage() {
   const [loadingPartyDocs, setLoadingPartyDocs] = useState(false);
   const [uploadProgressMsg, setUploadProgressMsg] = useState<string | null>(null);
 
-  const handleDocFileSelect = (key: string, category: string, label: string, file: File) => {
-    const previewUrl = URL.createObjectURL(file);
+  const handleDocFileSelect = async (key: string, category: string, label: string, file: File) => {
+    let processedFile = file;
+    if (file.type.startsWith("image/") && !file.type.includes("svg")) {
+      try {
+        const { compressImageFile } = await import("@/lib/image-compression");
+        processedFile = await compressImageFile(file, { preset: "document", fileName: file.name });
+      } catch (err) {
+        console.warn("Client image compression fallback:", err);
+      }
+    }
+    const previewUrl = URL.createObjectURL(processedFile);
     setPendingDocs((prev) => [
       ...prev.filter((d) => d.key !== key),
-      { key, file, category, label, previewUrl },
+      { key, file: processedFile, category, label, previewUrl },
     ]);
   };
 
@@ -531,19 +540,26 @@ export default function PartiesPage() {
           setErrorMessage(data.error?.message || "Could not save changes. Please check the form and try again.");
         } else {
           if (pendingDocs.length > 0) {
-            setUploadProgressMsg(`Uploading ${pendingDocs.length} KYC document(s)...`);
-            for (const doc of pendingDocs) {
-              try {
-                await uploadClientMedia(doc.file, {
-                  entityType: "PARTY",
-                  entityId: editingPartyId,
-                  category: doc.category,
-                  createAttachment: true,
-                });
-              } catch (err: any) {
-                console.error(`Failed to upload ${doc.label}:`, err);
-              }
-            }
+            let completed = 0;
+            const total = pendingDocs.length;
+            setUploadProgressMsg(`Uploading ${total} document(s) in parallel (0/${total})...`);
+            await Promise.allSettled(
+              pendingDocs.map(async (doc) => {
+                try {
+                  await uploadClientMedia(doc.file, {
+                    entityType: "PARTY",
+                    entityId: editingPartyId,
+                    category: doc.category,
+                    createAttachment: true,
+                  });
+                } catch (err: any) {
+                  console.error(`Failed to upload ${doc.label}:`, err);
+                } finally {
+                  completed++;
+                  setUploadProgressMsg(`Uploading ${total} document(s) in parallel (${completed}/${total})...`);
+                }
+              })
+            );
           }
           setStatusMessage(
             pendingDocs.length > 0
@@ -568,19 +584,26 @@ export default function PartiesPage() {
         } else {
           const createdPartyId = data.data?.id;
           if (createdPartyId && pendingDocs.length > 0) {
-            setUploadProgressMsg(`Uploading ${pendingDocs.length} KYC document(s)...`);
-            for (const doc of pendingDocs) {
-              try {
-                await uploadClientMedia(doc.file, {
-                  entityType: "PARTY",
-                  entityId: createdPartyId,
-                  category: doc.category,
-                  createAttachment: true,
-                });
-              } catch (err: any) {
-                console.error(`Failed to upload ${doc.label}:`, err);
-              }
-            }
+            let completed = 0;
+            const total = pendingDocs.length;
+            setUploadProgressMsg(`Uploading ${total} KYC document(s) in parallel (0/${total})...`);
+            await Promise.allSettled(
+              pendingDocs.map(async (doc) => {
+                try {
+                  await uploadClientMedia(doc.file, {
+                    entityType: "PARTY",
+                    entityId: createdPartyId,
+                    category: doc.category,
+                    createAttachment: true,
+                  });
+                } catch (err: any) {
+                  console.error(`Failed to upload ${doc.label}:`, err);
+                } finally {
+                  completed++;
+                  setUploadProgressMsg(`Uploading ${total} KYC document(s) in parallel (${completed}/${total})...`);
+                }
+              })
+            );
           }
           setStatusMessage(
             pendingDocs.length > 0

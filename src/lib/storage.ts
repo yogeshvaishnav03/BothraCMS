@@ -102,33 +102,7 @@ export class LocalStorageProvider implements IStorageProvider {
       }
 
       if (resolvedOrgId) {
-        const base64Data = buffer.toString("base64");
-        const uuidMatch = safeKey.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i);
-        const keysToStore = new Set([`FILE_BLOB_${safeKey}`]);
-        if (uuidMatch) {
-          keysToStore.add(`FILE_BLOB_${uuidMatch[0]}`);
-          keysToStore.add(`FILE_BLOB_${uuidMatch[0]}${path.extname(safeKey)}`);
-        }
-        for (const k of keysToStore) {
-          await prisma.idempotencyRecord.upsert({
-            where: {
-              organizationId_key: {
-                organizationId: resolvedOrgId,
-                key: k,
-              },
-            },
-            create: {
-              organizationId: resolvedOrgId,
-              key: k,
-              operation: "FILE_BLOB",
-              responseCode: 200,
-              responseBodyJson: base64Data,
-            },
-            update: {
-              responseBodyJson: base64Data,
-            },
-          }).catch(() => {});
-        }
+        await backupFileToDatabase(resolvedOrgId, [`FILE_BLOB_${safeKey}`], buffer);
       }
     } catch (dbErr) {
       console.warn("Notice: Database blob backup skipped:", dbErr);
@@ -580,13 +554,16 @@ export async function backupFileToDatabase(organizationId: string, keys: string[
       allKeys.add(`FILE_${uuidMatch[0]}`);
     }
   }
-  for (const key of Array.from(allKeys)) {
-    await prisma.idempotencyRecord.upsert({
-      where: { organizationId_key: { organizationId, key } },
-      create: { organizationId, key, operation: "FILE_BLOB", responseCode: 200, responseBodyJson: b64 },
-      update: { responseBodyJson: b64 },
-    }).catch(() => {});
-  }
+  // Concurrent upserts to avoid slow serial round-trips over cloud database connections
+  await Promise.all(
+    Array.from(allKeys).map((key) =>
+      prisma.idempotencyRecord.upsert({
+        where: { organizationId_key: { organizationId, key } },
+        create: { organizationId, key, operation: "FILE_BLOB", responseCode: 200, responseBodyJson: b64 },
+        update: { responseBodyJson: b64 },
+      }).catch(() => {})
+    )
+  );
 }
 
 /**
