@@ -253,9 +253,6 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.money",
       label: "Money",
       items: [
-        ...((user?.role && ["SITE_SUPERVISOR", "PROJECT_MANAGER", "ACCOUNTANT", "ORG_ADMIN", "SUPER_ADMIN", "STOREKEEPER"].includes(user.role)) || canUser(user, "finance:write") || canUser(user, "tasks:write")
-          ? [{ key: "nav.expenses", defaultLabel: "Cash Expenses", href: "/expenses", icon: Receipt }]
-          : []),
         ...(canUser(user, "finance:read") ? [{ key: "nav.finance", defaultLabel: "Payments & Bills", href: "/finance", icon: DollarSign }] : []),
         { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
         ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),

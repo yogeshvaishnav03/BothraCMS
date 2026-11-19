@@ -2397,15 +2397,6 @@ export default function DayBookPage() {
                     >
                       <Printer className="w-3.5 h-3.5" />
                     </button>
-                    <Link
-                      href="/expenses"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 sm:py-1 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 rounded-lg text-xs font-bold whitespace-nowrap transition"
-                      title="Supervisors can log personal site expenses with mandatory receipt photos"
-                    >
-                      <Receipt className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span className="sm:hidden">Expense</span>
-                      <span className="hidden sm:inline">Cash Expense</span>
-                    </Link>
                     {canWriteFinance && (
                       <button
                         onClick={() => {
@@ -2429,13 +2420,6 @@ export default function DayBookPage() {
                     <p className="text-xs font-bold text-slate-700">No payments recorded on this date.</p>
                     <p className="text-[11px] text-slate-400 mt-0.5 mb-3">Record contractor advances, petty cash expenses, and vendor payments directly into Day Book.</p>
                     <div className="flex items-center gap-2 flex-wrap justify-center">
-                      <Link
-                        href="/expenses"
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition shadow-xs"
-                      >
-                        <Receipt className="w-4 h-4" />
-                        <span>Cash Expense</span>
-                      </Link>
                       {canWriteFinance && (
                         <button
                           onClick={() => {
