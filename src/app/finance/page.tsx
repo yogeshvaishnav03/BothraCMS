@@ -2560,39 +2560,41 @@ export default function FinancePage() {
                       const displayParties = typeFiltered.length > 0 ? typeFiltered : parties;
 
                       return (
-                        <select
-                          value={selectedPartyId}
-                          onChange={(e) => {
-                            setSelectedPartyId(e.target.value);
-                            setSelectedBillId("");
-                            const p = parties.find((pt) => pt.id === e.target.value);
-                            if (p) setRecipientName(p.name);
-                          }}
-                          required
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
-                        >
-                          <option value="">-- Choose {recipientType} --</option>
-                          {displayParties.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} {p.partyType ? `(${p.partyType})` : ""} — Outstanding: {formatCurrency(p.outstandingBalance)}
-                            </option>
-                          ))}
-                        </select>
-                        {(() => {
-                          const p = parties.find((pt) => pt.id === selectedPartyId);
-                          if (p && p.totalDamagesDeducted > 0) {
-                            return (
-                              <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center justify-between">
-                                <span className="flex items-center gap-1 font-medium">
-                                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                                  Liquidated Damages deducted:
-                                </span>
-                                <strong className="font-mono font-bold">−{formatCurrency(p.totalDamagesDeducted)}</strong>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
+                        <>
+                          <select
+                            value={selectedPartyId}
+                            onChange={(e) => {
+                              setSelectedPartyId(e.target.value);
+                              setSelectedBillId("");
+                              const p = parties.find((pt) => pt.id === e.target.value);
+                              if (p) setRecipientName(p.name);
+                            }}
+                            required
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                          >
+                            <option value="">-- Choose {recipientType} --</option>
+                            {displayParties.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.partyType ? `(${p.partyType})` : ""} — Outstanding: {formatCurrency(p.outstandingBalance)}
+                              </option>
+                            ))}
+                          </select>
+                          {(() => {
+                            const p = parties.find((pt) => pt.id === selectedPartyId);
+                            if (p && p.totalDamagesDeducted > 0) {
+                              return (
+                                <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center justify-between">
+                                  <span className="flex items-center gap-1 font-medium">
+                                    <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                    Liquidated Damages deducted:
+                                  </span>
+                                  <strong className="font-mono font-bold">−{formatCurrency(p.totalDamagesDeducted)}</strong>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </>
                       );
                     })()}
                   </div>
