@@ -99,6 +99,8 @@ interface StagedHeadcountEntry {
   femaleAmount: number; // in rupees
   totalWorkers: number;
   totalExpense: number; // in rupees
+  isOverridden?: boolean;
+  overrideReason?: string;
   notes?: string;
 }
 
@@ -165,6 +167,14 @@ export default function WorkforcePage() {
   const [hasContractorRates, setHasContractorRates] = useState<boolean>(false);
   const [contractorRateSource, setContractorRateSource] = useState<string>("NONE");
   const [selectedContractorId, setSelectedContractorId] = useState<string>("");
+
+  // Extra Workers custom rate override
+  const [isExtraWorkersRate, setIsExtraWorkersRate] = useState<boolean>(false);
+  const [baseContractorRates, setBaseContractorRates] = useState<{ skilled: number; male: number; female: number }>({
+    skilled: 0,
+    male: 0,
+    female: 0,
+  });
 
   // Direct Workforce state
   const [directSkilledCount, setDirectSkilledCount] = useState<number>(0);
@@ -335,9 +345,11 @@ export default function WorkforcePage() {
         setContractorSkilledRate(0);
         setContractorMaleRate(0);
         setContractorFemaleRate(0);
+        setBaseContractorRates({ skilled: 0, male: 0, female: 0 });
         setHasContractorRates(false);
         setContractorRateSource("NONE");
         setSelectedContractorId("");
+        setIsExtraWorkersRate(false);
         return;
       }
 
@@ -346,6 +358,7 @@ export default function WorkforcePage() {
         setContractorSkilledRate(900);
         setContractorMaleRate(600);
         setContractorFemaleRate(500);
+        setBaseContractorRates({ skilled: 900, male: 600, female: 500 });
         setHasContractorRates(true);
         setContractorRateSource("PARTY");
         return;
@@ -356,9 +369,13 @@ export default function WorkforcePage() {
         (p) => p.id === trimmed || p.name.toLowerCase() === trimmed.toLowerCase()
       );
       if (partyMatch && (partyMatch.dailyWageRate || partyMatch.maleHelperWageRate || partyMatch.femaleHelperWageRate)) {
-        setContractorSkilledRate(partyMatch.dailyWageRate ? partyMatch.dailyWageRate / 100 : 0);
-        setContractorMaleRate(partyMatch.maleHelperWageRate ? partyMatch.maleHelperWageRate / 100 : 0);
-        setContractorFemaleRate(partyMatch.femaleHelperWageRate ? partyMatch.femaleHelperWageRate / 100 : 0);
+        const s = partyMatch.dailyWageRate ? partyMatch.dailyWageRate / 100 : 0;
+        const m = partyMatch.maleHelperWageRate ? partyMatch.maleHelperWageRate / 100 : 0;
+        const f = partyMatch.femaleHelperWageRate ? partyMatch.femaleHelperWageRate / 100 : 0;
+        setContractorSkilledRate(s);
+        setContractorMaleRate(m);
+        setContractorFemaleRate(f);
+        setBaseContractorRates({ skilled: s, male: m, female: f });
         setSelectedContractorId(partyMatch.id);
         setHasContractorRates(true);
         setContractorRateSource("PARTY");
@@ -373,9 +390,13 @@ export default function WorkforcePage() {
           trimmed.includes(w.employeeCode)
       );
       if (wMatch && (wMatch.dailyWageRate || wMatch.maleHelperWageRate || wMatch.femaleHelperWageRate)) {
-        setContractorSkilledRate(wMatch.dailyWageRate ? wMatch.dailyWageRate / 100 : 0);
-        setContractorMaleRate(wMatch.maleHelperWageRate ? wMatch.maleHelperWageRate / 100 : 0);
-        setContractorFemaleRate(wMatch.femaleHelperWageRate ? wMatch.femaleHelperWageRate / 100 : 0);
+        const s = wMatch.dailyWageRate ? wMatch.dailyWageRate / 100 : 0;
+        const m = wMatch.maleHelperWageRate ? wMatch.maleHelperWageRate / 100 : 0;
+        const f = wMatch.femaleHelperWageRate ? wMatch.femaleHelperWageRate / 100 : 0;
+        setContractorSkilledRate(s);
+        setContractorMaleRate(m);
+        setContractorFemaleRate(f);
+        setBaseContractorRates({ skilled: s, male: m, female: f });
         setSelectedContractorId(wMatch.id);
         setHasContractorRates(true);
         setContractorRateSource("WORKER");
@@ -387,9 +408,13 @@ export default function WorkforcePage() {
         const res = await fetch(`/api/workforce/headcount?contractorRate=${encodeURIComponent(trimmed)}`);
         const json = await res.json();
         if (json.success && json.data && json.data.hasRates) {
-          setContractorSkilledRate(json.data.skilledRate ? json.data.skilledRate / 100 : 0);
-          setContractorMaleRate(json.data.maleRate ? json.data.maleRate / 100 : 0);
-          setContractorFemaleRate(json.data.femaleRate ? json.data.femaleRate / 100 : 0);
+          const s = json.data.skilledRate ? json.data.skilledRate / 100 : 0;
+          const m = json.data.maleRate ? json.data.maleRate / 100 : 0;
+          const f = json.data.femaleRate ? json.data.femaleRate / 100 : 0;
+          setContractorSkilledRate(s);
+          setContractorMaleRate(m);
+          setContractorFemaleRate(f);
+          setBaseContractorRates({ skilled: s, male: m, female: f });
           setHasContractorRates(true);
           setContractorRateSource(json.data.source);
           setSelectedContractorId(json.data.contractorId || "");
@@ -403,11 +428,22 @@ export default function WorkforcePage() {
       setContractorSkilledRate(0);
       setContractorMaleRate(0);
       setContractorFemaleRate(0);
+      setBaseContractorRates({ skilled: 0, male: 0, female: 0 });
       setHasContractorRates(false);
       setContractorRateSource("NONE");
     },
     [parties, workers]
   );
+
+  const handleToggleExtraWorkers = (checked: boolean) => {
+    setIsExtraWorkersRate(checked);
+    if (!checked) {
+      // Revert to auto-fetched base rates when unchecked
+      setContractorSkilledRate(baseContractorRates.skilled);
+      setContractorMaleRate(baseContractorRates.male);
+      setContractorFemaleRate(baseContractorRates.female);
+    }
+  };
 
   const handleSelectWorkerAsContractor = (w: any) => {
     const val = `${w.name} (${w.employeeCode} - ${w.workerType})`;
@@ -678,6 +714,7 @@ export default function WorkforcePage() {
         setContractorSkilledCount(0);
         setContractorMaleCount(0);
         setContractorFemaleCount(0);
+        setIsExtraWorkersRate(false);
       } else {
         setContractorSkilledCount(existing.artisanCount || 0);
         setContractorMaleCount(existing.laborerMale || 0);
@@ -685,6 +722,12 @@ export default function WorkforcePage() {
         setContractorSkilledRate(sRate);
         setContractorMaleRate(mRate);
         setContractorFemaleRate(fRate);
+        setBaseContractorRates({
+          skilled: sRate,
+          male: mRate,
+          female: fRate,
+        });
+        setIsExtraWorkersRate(Boolean(existing.isOverridden));
         setHasContractorRates(true);
         setDirectSkilledCount(0);
         setDirectMaleCount(0);
@@ -706,6 +749,7 @@ export default function WorkforcePage() {
       setContractorSkilledCount(0);
       setContractorMaleCount(0);
       setContractorFemaleCount(0);
+      setIsExtraWorkersRate(false);
 
       setDirectSkilledCount(0);
       setDirectMaleCount(0);
@@ -760,11 +804,17 @@ export default function WorkforcePage() {
         femaleAmount: contractorFemaleAmount,
         totalWorkers: contractorTotalWorkers,
         totalExpense: contractorTotalExpense,
+        isOverridden: isExtraWorkersRate,
+        overrideReason: isExtraWorkersRate ? "Extra workers rate override" : undefined,
         notes: notes.trim() || "-",
       });
       setContractorSkilledCount(0);
       setContractorMaleCount(0);
       setContractorFemaleCount(0);
+      setIsExtraWorkersRate(false);
+      setContractorSkilledRate(baseContractorRates.skilled);
+      setContractorMaleRate(baseContractorRates.male);
+      setContractorFemaleRate(baseContractorRates.female);
     }
 
     // Stage Direct Entry
@@ -812,6 +862,7 @@ export default function WorkforcePage() {
       setContractorMaleRate(entry.maleRate);
       setContractorFemaleRate(entry.femaleRate);
       setHasContractorRates(true);
+      setIsExtraWorkersRate(Boolean(entry.isOverridden));
       setNotes(entry.notes === "-" ? "" : entry.notes || "");
     } else {
       setDirectSkilledCount(entry.skilledCount);
@@ -856,6 +907,8 @@ export default function WorkforcePage() {
           femaleAmount: contractorFemaleAmount,
           totalWorkers: contractorTotalWorkers,
           totalExpense: contractorTotalExpense,
+          isOverridden: isExtraWorkersRate,
+          overrideReason: isExtraWorkersRate ? "Extra workers rate override" : undefined,
           notes: notes.trim() || "-",
         });
       }
@@ -922,6 +975,8 @@ export default function WorkforcePage() {
             femaleAmount: Math.round(entry.femaleAmount * 100),
             totalExpense: Math.round(entry.totalExpense * 100),
             rateUnit: "DAY",
+            isOverridden: Boolean(entry.isOverridden),
+            overrideReason: entry.overrideReason || (entry.isOverridden ? "Extra workers rate override" : undefined),
             notes: entryNotes || undefined,
           };
         }),
@@ -1257,6 +1312,16 @@ export default function WorkforcePage() {
         accessor: (r) => `${Number(r.grandTotal) || 0} Workers (Artisans: ${r.artisanCount ?? r.artisanTotal ?? 0}, Laborers: ${r.laborerTotal} [Male: ${r.laborerMale}, Female: ${r.laborerFemale}])`,
         type: "text",
         align: "left",
+      },
+      {
+        key: "rates",
+        label: "Applied Rates (Day)",
+        accessor: (r) =>
+          `₹${Math.round((r.skilledRate || 0) / 100)} / ₹${Math.round((r.maleRate || 0) / 100)} / ₹${Math.round((r.femaleRate || 0) / 100)}${
+            r.isOverridden ? " (Extra Workers)" : ""
+          }`,
+        type: "text",
+        align: "center",
       },
       {
         key: "totalExpense",
@@ -1639,11 +1704,18 @@ export default function WorkforcePage() {
                         <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                           {/* Contractor / Vendor */}
                           <td className="py-3.5 px-4 text-slate-700">
-                            {r.contractorName ? (
-                              <span className="font-semibold text-slate-800">{r.contractorName}</span>
-                            ) : (
-                              <span className="text-slate-400 italic">Direct / Self</span>
-                            )}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {r.contractorName ? (
+                                <span className="font-semibold text-slate-800">{r.contractorName}</span>
+                              ) : (
+                                <span className="text-slate-400 italic">Direct / Self</span>
+                              )}
+                              {r.isOverridden && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                  Extra Workers
+                                </span>
+                              )}
+                            </div>
                             {r.notes && (
                               <div className="text-[10px] text-slate-500 break-words whitespace-normal mt-0.5">
                                 {r.notes.includes("[Project:") ? (
@@ -1676,13 +1748,45 @@ export default function WorkforcePage() {
                               {r.grandTotal} {r.grandTotal === 1 ? "Worker" : "Workers"}
                             </span>
                             <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
-                              <span>Artisans: <strong className="text-slate-700">{r.artisanCount ?? r.artisanTotal ?? 0}</strong></span>
+                              <span>
+                                Artisans: <strong className="text-slate-700">{r.artisanCount ?? r.artisanTotal ?? 0}</strong>
+                                {r.skilledRate ? <span className="text-slate-400 font-mono ml-0.5">(@₹{Math.round(r.skilledRate / 100)})</span> : null}
+                              </span>
                               <span className="text-slate-300">&bull;</span>
                               <span>
                                 Laborers: <strong className="text-slate-700">{r.laborerTotal}</strong>{" "}
-                                <span className="text-slate-500 font-medium">(Male: {r.laborerMale}, Female: {r.laborerFemale})</span>
+                                <span className="text-slate-500 font-medium">
+                                  (Male: {r.laborerMale}{r.maleRate ? ` @₹${Math.round(r.maleRate / 100)}` : ""}, Female: {r.laborerFemale}{r.femaleRate ? ` @₹${Math.round(r.femaleRate / 100)}` : ""})
+                                </span>
                               </span>
                             </div>
+                          </td>
+
+                          {/* Applied Rates */}
+                          <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                            <div className="font-mono text-slate-800 font-bold text-xs inline-flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                              <span title="Skilled Worker Rate">₹{Math.round((r.skilledRate || 0) / 100)}</span>
+                              <span className="text-slate-300 font-normal">/</span>
+                              <span title="Male Labour Rate">₹{Math.round((r.maleRate || 0) / 100)}</span>
+                              <span className="text-slate-300 font-normal">/</span>
+                              <span title="Female Labour Rate">₹{Math.round((r.femaleRate || 0) / 100)}</span>
+                            </div>
+                            <div className="text-[9px] text-slate-400 mt-0.5">
+                              Skilled / Male / Female
+                            </div>
+                            {r.isOverridden ? (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                  ⚡ Extra Workers Rate
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-50 text-sky-700">
+                                  Rate Card
+                                </span>
+                              </div>
+                            )}
                           </td>
 
                           {/* Labour Expense */}
@@ -1690,8 +1794,16 @@ export default function WorkforcePage() {
                             <div className="font-bold font-mono text-emerald-700">
                               {r.totalExpense ? `₹${Math.round(r.totalExpense / 100).toLocaleString("en-IN")}` : "—"}
                             </div>
-                            <div className="text-[10px] text-slate-400">
-                              {r.source === "DIRECT" ? "Direct Labour" : (r.contractorName ? "Contractor Rate" : "Direct Rate")}
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {r.isOverridden ? (
+                                <span className="text-amber-700 font-bold">Extra Workers Rate</span>
+                              ) : r.source === "DIRECT" ? (
+                                "Direct Labour"
+                              ) : r.contractorName ? (
+                                "Contractor Rate"
+                              ) : (
+                                "Direct Rate"
+                              )}
                             </div>
                           </td>
 
@@ -1743,8 +1855,13 @@ export default function WorkforcePage() {
                       <div key={`hc-card-${r.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="font-bold text-slate-900 text-sm truncate">
-                              {r.contractorName || "Direct Site / Self"}
+                            <div className="font-bold text-slate-900 text-sm truncate flex items-center gap-1.5 flex-wrap">
+                              <span>{r.contractorName || "Direct Site / Self"}</span>
+                              {r.isOverridden && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                  Extra Workers
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-1.5 min-w-0">
                               <span className="font-semibold text-slate-700">{formatDate(r.date)}</span>
@@ -1752,6 +1869,9 @@ export default function WorkforcePage() {
                               <span className="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-700 shrink-0 whitespace-nowrap">
                                 {r.shift} SHIFT
                               </span>
+                            </div>
+                            <div className="text-[10px] font-mono text-slate-600 mt-1">
+                              Rates: ₹{Math.round((r.skilledRate || 0) / 100)} / ₹{Math.round((r.maleRate || 0) / 100)} / ₹{Math.round((r.femaleRate || 0) / 100)}
                             </div>
                           </div>
 
@@ -2289,43 +2409,140 @@ export default function WorkforcePage() {
                 </div>
 
                 {/* 3. Card 1: Contractor Rate Card (Auto-fetched) */}
-                <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3 sm:p-4 text-xs space-y-2">
-                  <div className="flex items-center justify-between">
+                <div
+                  className={`border rounded-xl p-3 sm:p-4 text-xs space-y-2.5 transition-colors ${
+                    isExtraWorkersRate
+                      ? "bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/30"
+                      : "bg-sky-50/70 border-sky-200"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-bold text-sky-950 flex items-center gap-1.5">
-                      <Briefcase className="w-4 h-4 text-sky-600" />
-                      <span>Contractor Rate Card (Auto-fetched)</span>
+                      <Briefcase className={`w-4 h-4 ${isExtraWorkersRate ? "text-amber-600" : "text-sky-600"}`} />
+                      <span>Contractor Rate Card {isExtraWorkersRate ? "(Extra Workers Override)" : "(Auto-fetched)"}</span>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                      Rates per Day
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 divide-x divide-sky-200/80 pt-1 text-center bg-white/70 rounded-lg p-2.5 border border-sky-100">
-                    <div>
-                      <div className="text-[10px] font-semibold text-slate-500">Skilled Worker Rate</div>
-                      <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
-                        ₹{contractorSkilledRate ? contractorSkilledRate.toLocaleString("en-IN") : "0"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-slate-500">Male Labour Rate</div>
-                      <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
-                        ₹{contractorMaleRate ? contractorMaleRate.toLocaleString("en-IN") : "0"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-slate-500">Female Labour Rate</div>
-                      <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
-                        ₹{contractorFemaleRate ? contractorFemaleRate.toLocaleString("en-IN") : "0"}
-                      </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white px-2.5 py-1 rounded-lg border border-sky-300 hover:border-sky-400 transition-colors shadow-2xs">
+                        <input
+                          type="checkbox"
+                          checked={isExtraWorkersRate}
+                          onChange={(e) => handleToggleExtraWorkers(e.target.checked)}
+                          className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 cursor-pointer"
+                        />
+                        <span className="font-bold text-slate-800 text-xs">
+                          Contractor sent extra workers (Change rates)
+                        </span>
+                      </label>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+                          isExtraWorkersRate ? "bg-amber-200 text-amber-900" : "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        {isExtraWorkersRate ? "Custom Rates Active" : "Rates per Day"}
+                      </span>
                     </div>
                   </div>
 
-                  {!hasContractorRates && contractorName && (
+                  {!isExtraWorkersRate ? (
+                    <div className="grid grid-cols-3 divide-x divide-sky-200/80 pt-1 text-center bg-white/70 rounded-lg p-2.5 border border-sky-100">
+                      <div>
+                        <div className="text-[10px] font-semibold text-slate-500">Skilled Worker Rate</div>
+                        <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
+                          ₹{contractorSkilledRate ? contractorSkilledRate.toLocaleString("en-IN") : "0"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold text-slate-500">Male Labour Rate</div>
+                        <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
+                          ₹{contractorMaleRate ? contractorMaleRate.toLocaleString("en-IN") : "0"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-semibold text-slate-500">Female Labour Rate</div>
+                        <div className="font-mono font-black text-slate-900 text-base sm:text-lg mt-0.5">
+                          ₹{contractorFemaleRate ? contractorFemaleRate.toLocaleString("en-IN") : "0"}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 bg-white rounded-lg p-3 border border-amber-300 shadow-2xs">
+                        <div>
+                          <label className="text-[10px] font-bold text-amber-950 uppercase block mb-1">
+                            Skilled Worker Rate (₹/day)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">₹</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={contractorSkilledRate || ""}
+                              placeholder="0"
+                              onChange={(e) => setContractorSkilledRate(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-full bg-amber-50/50 border border-amber-300 rounded-lg pl-6 pr-2 py-1.5 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                            />
+                          </div>
+                          <span className="text-[9px] text-amber-800 font-medium">Extra skilled rate</span>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-amber-950 uppercase block mb-1">
+                            Male Labour Rate (₹/day)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">₹</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={contractorMaleRate || ""}
+                              placeholder="0"
+                              onChange={(e) => setContractorMaleRate(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-full bg-amber-50/50 border border-amber-300 rounded-lg pl-6 pr-2 py-1.5 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                            />
+                          </div>
+                          <span className="text-[9px] text-amber-800 font-medium">Extra male labour rate</span>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-amber-950 uppercase block mb-1">
+                            Female Labour Rate (₹/day)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">₹</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={contractorFemaleRate || ""}
+                              placeholder="0"
+                              onChange={(e) => setContractorFemaleRate(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-full bg-amber-50/50 border border-amber-300 rounded-lg pl-6 pr-2 py-1.5 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                            />
+                          </div>
+                          <span className="text-[9px] text-amber-800 font-medium">Extra female labour rate</span>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-amber-900 bg-amber-100/70 p-2 rounded-lg border border-amber-300 flex items-center justify-between gap-1.5 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>
+                            <strong>Extra Workers Rates Active:</strong> Rates are unlocked. Editing these rates updates the Contractor Total and will be recorded in the table.
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleExtraWorkers(false)}
+                          className="text-[10px] font-bold text-amber-800 underline hover:text-amber-950 shrink-0 cursor-pointer"
+                        >
+                          Revert to rate card
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!hasContractorRates && contractorName && !isExtraWorkersRate && (
                     <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                       <span>
-                        Notice: No saved rate card found for &quot;{contractorName}&quot;. Direct worker rates can be entered below.
+                        Notice: No saved rate card found for &quot;{contractorName}&quot;. Check &quot;Contractor sent extra workers&quot; above to set rates or enter direct rates below.
                       </span>
                     </div>
                   )}
@@ -2621,16 +2838,29 @@ export default function WorkforcePage() {
                                 </span>
                               </td>
                               <td className="py-2.5 px-3 whitespace-nowrap font-semibold text-slate-900 max-w-[160px] truncate">
-                                {e.contractorName || "-"}
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="truncate">{e.contractorName || "-"}</span>
+                                  {e.isOverridden && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold border border-amber-300">
+                                      Extra Workers
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-2.5 px-2 text-right font-mono">{e.skilledCount}</td>
-                              <td className="py-2.5 px-2 text-right font-mono text-slate-500">₹{e.skilledRate.toLocaleString("en-IN")}</td>
+                              <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
+                                ₹{e.skilledRate.toLocaleString("en-IN")}
+                              </td>
                               <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.skilledAmount.toLocaleString("en-IN")}</td>
                               <td className="py-2.5 px-2 text-right font-mono">{e.maleCount}</td>
-                              <td className="py-2.5 px-2 text-right font-mono text-slate-500">₹{e.maleRate.toLocaleString("en-IN")}</td>
+                              <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
+                                ₹{e.maleRate.toLocaleString("en-IN")}
+                              </td>
                               <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.maleAmount.toLocaleString("en-IN")}</td>
                               <td className="py-2.5 px-2 text-right font-mono">{e.femaleCount}</td>
-                              <td className="py-2.5 px-2 text-right font-mono text-slate-500">₹{e.femaleRate.toLocaleString("en-IN")}</td>
+                              <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
+                                ₹{e.femaleRate.toLocaleString("en-IN")}
+                              </td>
                               <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.femaleAmount.toLocaleString("en-IN")}</td>
                               <td className="py-2.5 px-2 text-right font-mono font-bold">{e.totalWorkers}</td>
                               <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-600">
