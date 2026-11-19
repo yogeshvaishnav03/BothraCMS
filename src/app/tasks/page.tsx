@@ -671,7 +671,7 @@ export default function TasksPage() {
               <CheckSquare className="w-10 h-10 text-slate-300 mx-auto mb-2" />
               <div className="text-base font-bold text-slate-800">No tasks created yet</div>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                All demo data was cleared. Click below to create your first site task and assign it to staff!
+                No site tasks have been created yet. Click below to create your first site task and assign it to staff!
               </p>
               {canWriteTasks && (
                 <div className="pt-2">

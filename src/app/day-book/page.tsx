@@ -1789,19 +1789,6 @@ export default function DayBookPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-            {/* Populate Demo Data Button (Super Admin only - desktop) */}
-            {isSuperAdmin && (
-              <button
-                onClick={handleSeedDemoData}
-                disabled={actionLoading}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-800 text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50"
-                title="Add sample entries to see how Day Book works"
-              >
-                <Sparkles className="w-4 h-4 text-amber-600" />
-                <span>{actionLoading ? "Loading..." : "Load Sample Data"}</span>
-              </button>
-            )}
-
             {/* Quick Action Button */}
             {canLogDayEntry && (
               <button
