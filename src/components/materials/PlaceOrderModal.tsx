@@ -128,11 +128,17 @@ export default function PlaceOrderModal({
           if (initialMaterial.unitPrice && Number(initialMaterial.unitPrice) > 0) {
             setUnitRate(String(initialMaterial.unitPrice));
           }
+          if ((initialMaterial as any).preferredVendorId) {
+            setSelectedVendorId((initialMaterial as any).preferredVendorId);
+          }
           setApprovalQuery(`Critical site stock shortage for ${initialMaterial.name}. Minimum stock is ${initialMaterial.minStockQty || 0} ${initialMaterial.unitCode}, current stock is ${initialMaterial.currentStock || 0} ${initialMaterial.unitCode}. Requesting PO confirmation.`);
         } else if (mList.length > 0) {
           setSelectedMaterialId(mList[0].id);
           if (mList[0].unitPrice && Number(mList[0].unitPrice) > 0) {
             setUnitRate(String(mList[0].unitPrice));
+          }
+          if ((mList[0] as any)?.preferredVendorId) {
+            setSelectedVendorId((mList[0] as any).preferredVendorId);
           }
         }
 
@@ -527,6 +533,9 @@ export default function PlaceOrderModal({
                       const foundMat = materials.find((m) => m.id === matId);
                       if (foundMat?.unitPrice && Number(foundMat.unitPrice) > 0) {
                         setUnitRate(String(foundMat.unitPrice));
+                      }
+                      if ((foundMat as any)?.preferredVendorId) {
+                        setSelectedVendorId((foundMat as any).preferredVendorId);
                       }
                     }}
                     placeholder="Search and select material..."

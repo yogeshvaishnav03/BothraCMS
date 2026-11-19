@@ -173,10 +173,24 @@ export default function MaterialsPage() {
   const [newMatMinStock, setNewMatMinStock] = useState("");
   const [newMatReorder, setNewMatReorder] = useState("");
   const [newMatUnitPrice, setNewMatUnitPrice] = useState("");
+  const [newMatVendorId, setNewMatVendorId] = useState("");
   const [selectedMaterialPreset, setSelectedMaterialPreset] = useState("");
   const [isCustomMaterialName, setIsCustomMaterialName] = useState(false);
   const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
   const materialDropdownRef = useRef<HTMLDivElement>(null);
+
+  const generateAutoSku = (name?: string) => {
+    const clean = (name || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9\s]/g, "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("-");
+    const rand = Math.floor(100 + Math.random() * 900);
+    return clean ? `MAT-${clean}-${rand}` : `MAT-${Math.floor(1000 + Math.random() * 9000)}`;
+  };
 
   // Table row site breakdown expandable rows (Accordion)
   const [expandedMaterialIds, setExpandedMaterialIds] = useState<Set<string>>(new Set());
@@ -460,12 +474,13 @@ export default function MaterialsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sku: newMatSku.trim().toUpperCase(),
+          sku: (newMatSku.trim() || generateAutoSku(newMatName)).toUpperCase(),
           name: newMatName.trim(),
           unitCode: newMatUnit,
           unitPrice: newMatUnitPrice ? parseFloat(newMatUnitPrice) : 0,
           minStockQty: newMatMinStock ? parseFloat(newMatMinStock) : 0,
           reorderQty: newMatReorder ? parseFloat(newMatReorder) : 0,
+          vendorPartyId: newMatVendorId || undefined,
         }),
       });
 
@@ -480,6 +495,7 @@ export default function MaterialsPage() {
         setNewMatUnitPrice("");
         setNewMatMinStock("");
         setNewMatReorder("");
+        setNewMatVendorId("");
         setSelectedMaterialPreset("");
         setIsCustomMaterialName(false);
         setIsMaterialDropdownOpen(false);
@@ -756,10 +772,11 @@ export default function MaterialsPage() {
               <button
                 onClick={() => {
                   setNewMatName("");
-                  setNewMatSku("");
+                  setNewMatSku(generateAutoSku());
                   setNewMatUnitPrice("");
                   setNewMatMinStock("");
                   setNewMatReorder("");
+                  setNewMatVendorId("");
                   setSelectedMaterialPreset("");
                   setIsCustomMaterialName(false);
                   setIsMaterialDropdownOpen(false);
@@ -775,7 +792,16 @@ export default function MaterialsPage() {
               <button
                 onClick={() => {
                   loadStores();
-                  if (materials.length > 0) setSelectedMaterialId(materials[0].id);
+                  if (materials.length > 0) {
+                    const firstMat = materials[0];
+                    setSelectedMaterialId(firstMat.id);
+                    if (firstMat.unitPrice && Number(firstMat.unitPrice) > 0) {
+                      setUnitRate(String(firstMat.unitPrice));
+                    }
+                    if ((firstMat as any)?.preferredVendorId) {
+                      setVendorPartyId((firstMat as any).preferredVendorId);
+                    }
+                  }
                   setShowReceiveModal(true);
                 }}
                 className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs whitespace-nowrap shadow-sm transition-all cursor-pointer"
@@ -1441,7 +1467,16 @@ export default function MaterialsPage() {
                       subLabel: `Unit: ${m.unitCode}${m.totalStock !== undefined ? ` • Current Stock: ${m.totalStock} ${m.unitCode}` : ""}`,
                     }))}
                     value={selectedMaterialId}
-                    onChange={(val) => setSelectedMaterialId(val)}
+                    onChange={(val) => {
+                      setSelectedMaterialId(val);
+                      const foundMat = materials.find((m) => m.id === val);
+                      if (foundMat?.unitPrice && Number(foundMat.unitPrice) > 0) {
+                        setUnitRate(String(foundMat.unitPrice));
+                      }
+                      if ((foundMat as any)?.preferredVendorId) {
+                        setVendorPartyId((foundMat as any).preferredVendorId);
+                      }
+                    }}
                     placeholder="Search and select material..."
                     searchPlaceholder="Type to search (e.g. Cement, Steel, MAT-102)..."
                     required
@@ -1620,11 +1655,11 @@ export default function MaterialsPage() {
                       badge: m.sku,
                       subLabel: `Available: ${m.totalStock} ${m.unitCode}`,
                     }))}
-                    value={selectedMaterialId}
-                    onChange={(val) => setSelectedMaterialId(val)}
                     placeholder="Search material to provide..."
                     searchPlaceholder="Type to search material name or code..."
                     required
+                    value={selectedMaterialId}
+                    onChange={(val) => setSelectedMaterialId(val)}
                   />
                 </div>
 
@@ -2078,9 +2113,20 @@ export default function MaterialsPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      SKU / Code *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 uppercase">
+                        SKU / Code *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setNewMatSku(generateAutoSku(newMatName))}
+                        className="text-[10px] text-amber-700 font-bold hover:text-amber-800 flex items-center gap-1 cursor-pointer bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200"
+                        title="Click to regenerate automatic SKU code"
+                      >
+                        <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                        <span>Auto</span>
+                      </button>
+                    </div>
                     <input
                       type="text"
                       required
@@ -2108,6 +2154,28 @@ export default function MaterialsPage() {
                       <option value="BOX">BOX (Boxes)</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Vendor / Supplier Dropdown Search from Vendors & Contractors */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Vendor / Supplier (from Vendors &amp; Contractors)
+                  </label>
+                  <SearchableSelect
+                    options={parties.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      badge: p.partyType || "VENDOR",
+                      subLabel: p.phone ? `Phone: ${p.phone}${p.city ? ` • ${p.city}` : ""}` : (p.category || undefined),
+                    }))}
+                    value={newMatVendorId}
+                    onChange={(val) => setNewMatVendorId(val)}
+                    placeholder="Search and select vendor from directory (optional)..."
+                    searchPlaceholder="Type vendor name, phone, trade..."
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Links this material with a registered supplier from Vendors &amp; Contractors.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -2156,6 +2224,11 @@ export default function MaterialsPage() {
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
                     />
                   </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>Note:</strong> Unit price is added one time and auto-reflects whenever new stock is ordered or received.</span>
                 </div>
 
               </form>

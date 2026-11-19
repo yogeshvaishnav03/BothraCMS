@@ -15,6 +15,7 @@ const createMaterialSchema = z.object({
   unitPrice: z.number().min(0).optional().default(0),
   minStockQty: z.number().min(0).default(0),
   reorderQty: z.number().min(0).default(0),
+  vendorPartyId: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -69,6 +70,30 @@ export async function POST(req: NextRequest) {
       include: { category: true },
     });
 
+    if (data.vendorPartyId) {
+      try {
+        const baseRatePaise = Math.round((data.unitPrice || 0) * 100);
+        await prisma.materialQuotation.create({
+          data: {
+            organizationId: user.organizationId,
+            materialId: material.id,
+            vendorPartyId: data.vendorPartyId,
+            unitCode: material.unitCode,
+            ratePaise: baseRatePaise,
+            taxRatePercent: 0,
+            taxAmountPaise: 0,
+            additionalPaise: 0,
+            totalRatePaise: baseRatePaise,
+            quotationDate: new Date().toISOString().split("T")[0],
+            notes: "Master vendor and initial unit rate set upon material registration",
+            createdBy: user.userId,
+          },
+        });
+      } catch (qErr) {
+        console.warn("Could not record initial vendor quotation for material:", qErr);
+      }
+    }
+
     await prisma.auditEvent.create({
       data: {
         organizationId: user.organizationId,
@@ -76,7 +101,7 @@ export async function POST(req: NextRequest) {
         action: "MATERIAL_CREATED",
         entityType: "MATERIAL",
         entityId: material.id,
-        afterJson: JSON.stringify({ name: material.name, sku: material.sku, unitPrice: material.unitPrice }),
+        afterJson: JSON.stringify({ name: material.name, sku: material.sku, unitPrice: material.unitPrice, vendorPartyId: data.vendorPartyId }),
         reason: "Material item added to inventory catalog",
       },
     });

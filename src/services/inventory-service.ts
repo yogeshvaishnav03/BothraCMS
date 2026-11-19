@@ -859,6 +859,12 @@ export class InventoryService {
           stockBalances: {
             include: { store: { include: { site: true } } },
           },
+          quotations: {
+            where: { isArchived: false },
+            include: { vendor: { select: { id: true, name: true, phone: true } } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -1050,6 +1056,8 @@ export class InventoryService {
         categoryName: m.category?.name || "General",
         unitCode: m.unitCode,
         unitPrice: m.unitPrice ?? 0,
+        preferredVendorId: (m as any).quotations?.[0]?.vendorPartyId || null,
+        preferredVendorName: (m as any).quotations?.[0]?.vendor?.name || null,
         totalStock: availableStock,
         totalStockCompany: roundQuantity(companyStock),
         siteBreakdown,
