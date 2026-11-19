@@ -5,7 +5,7 @@
  * - Data API calls go straight to the network without service-worker cloning/cache writes.
  * - Alerts pushed by the server show as phone notifications; tapping one opens its page.
  */
-const VERSION = "bothra-v10";
+const VERSION = "bothra-v11";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const SHELL = [
