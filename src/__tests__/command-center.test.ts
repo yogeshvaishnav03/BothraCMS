@@ -139,13 +139,14 @@ describe("Admin Command Center API", () => {
 });
 
 describe("formatCompactINR", () => {
-  it("shortens paise amounts the Indian way", async () => {
+  it("formats full paise amounts cleanly without abbreviation", async () => {
     const { formatCompactINR } = await import("@/lib/formatters");
-    expect(formatCompactINR(95_000)).toBe("₹950");
-    expect(formatCompactINR(1_250_000)).toBe("₹12.5K");
-    expect(formatCompactINR(34_000_000)).toBe("₹3.4L");
-    expect(formatCompactINR(1_200_000_000)).toBe("₹1.2Cr");
-    expect(formatCompactINR(null)).toBe("₹0");
+    expect(formatCompactINR(95_000)).toBe("₹950.00");
+    expect(formatCompactINR(1_250_000)).toBe("₹12,500.00");
+    expect(formatCompactINR(34_000_000)).toBe("₹3,40,000.00");
+    expect(formatCompactINR(1_200_000_000)).toBe("₹1,20,00,000.00");
+    expect(formatCompactINR(8_271_587)).toBe("₹82,715.87");
+    expect(formatCompactINR(null)).toBe("₹0.00");
   });
 });
 
