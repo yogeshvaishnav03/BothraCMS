@@ -8,7 +8,6 @@ import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatQuantity, formatCompactNumber } from "@/lib/formatters";
 import {
   ShieldAlert,
-  Building,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -537,61 +536,6 @@ export default function SuperAdminDashboardPage() {
     columns: paymentColumns,
   });
 
-  const filteredTenants = tenants.filter(
-    (t) =>
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.id.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const tenantColumns: ExcelColumn<any>[] = useMemo(
-    () => [
-      {
-        key: "name",
-        label: "Company Name",
-        accessor: (t) => t.name,
-        type: "text",
-      },
-      {
-        key: "id",
-        label: "Company ID",
-        accessor: (t) => t.id,
-        type: "text",
-      },
-      {
-        key: "currency",
-        label: "Currency",
-        accessor: (t) => t.currency,
-        type: "text",
-      },
-      {
-        key: "usersCount",
-        label: "Users",
-        accessor: (t) => Number(t.stats.usersCount) || 0,
-        type: "number",
-        align: "right",
-      },
-      {
-        key: "sitesProjects",
-        label: "Sites & Projects",
-        accessor: (t) => `${t.stats.sitesCount} sites, ${t.stats.projectsCount} projects`,
-        type: "text",
-      },
-      {
-        key: "status",
-        label: "Status",
-        accessor: (t) => t.status,
-        type: "text",
-        align: "center",
-      },
-    ],
-    []
-  );
-
-  const excelTenants = useExcelTable({
-    data: filteredTenants,
-    columns: tenantColumns,
-  });
-
   if (loading) {
     return (
       <Shell>
@@ -652,9 +596,7 @@ export default function SuperAdminDashboardPage() {
               {currentUser?.role === "SUPER_ADMIN" ? "Super Admin Console" : "Admin Approval Console"}
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              {currentUser?.role === "SUPER_ADMIN"
-                ? "Approve orders and payments, manage companies, and configure system settings."
-                : "Approve pending material purchase orders and payment disbursements for your organization."}
+              Approve pending material purchase orders and payment disbursements for your organization.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
@@ -672,8 +614,8 @@ export default function SuperAdminDashboardPage() {
             </Link>
             <button
               onClick={() => {
-                loadTenants();
                 loadPendingOrders();
+                loadPendingPayments();
               }}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition shadow-sm"
             >
@@ -1274,161 +1216,6 @@ export default function SuperAdminDashboardPage() {
           </div>
           )}
         </div>
-
-        {/* Global Telemetry KPI Cards (Super Admin only) */}
-        {currentUser?.role === "SUPER_ADMIN" && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Total Companies
-              </span>
-              <Building className="w-5 h-5 text-amber-500" />
-            </div>
-            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(totalTenants)}>{formatCompactNumber(totalTenants)}</div>
-            <div className="text-xs text-slate-500 mt-1">Companies set up on this workspace</div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                Active Companies
-              </span>
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-            </div>
-            <div className="font-display text-xl sm:text-2xl font-extrabold text-emerald-600 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(activeTenants)}>{formatCompactNumber(activeTenants)}</div>
-            <div className="text-xs text-slate-500 mt-1">Currently active and running</div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-bold uppercase tracking-wider text-rose-700">
-                Suspended Companies
-              </span>
-              <XCircle className="w-5 h-5 text-rose-500" />
-            </div>
-            <div className="font-display text-xl sm:text-2xl font-extrabold text-rose-600 mt-2 tabular-nums tracking-tight leading-tight truncate" title={String(suspendedTenants)}>{formatCompactNumber(suspendedTenants)}</div>
-            <div className="text-xs text-slate-500 mt-1">Temporarily paused (read-only access)</div>
-          </div>
-        </div>
-
-        {/* Search & Directory Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-md">
-              <input
-                type="text"
-                placeholder="Search companies by name or ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-            </div>
-            <div className="text-xs text-slate-500 font-semibold">
-              Showing {filteredTenants.length} of {tenants.length} companies
-            </div>
-          </div>
-
-          <ExcelTableToolbar
-            table={excelTenants}
-            columns={tenantColumns}
-            tableName="companies"
-            showSearch={true}
-            showExport={true}
-          />
-          <div className="overflow-x-auto md:min-h-[400px]">
-            <table className="w-full text-left text-xs min-w-[650px]">
-              <thead className="bg-slate-900 text-slate-200 uppercase font-semibold">
-                <tr>
-                  {tenantColumns.map((col) => (
-                    <ExcelColumnHeader
-                      key={col.key}
-                      column={col}
-                      table={excelTenants}
-                      theme="darkHeader"
-                    />
-                  ))}
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {excelTenants.filteredData.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
-                      No matching companies found.
-                    </td>
-                  </tr>
-                ) : (
-                  excelTenants.paginatedData.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50/70">
-                      <td className="py-3 px-4 font-bold text-slate-900">{t.name}</td>
-                      <td className="py-3 px-4 font-mono text-[11px] text-slate-500">{t.id}</td>
-                      <td className="py-3 px-4 font-bold text-slate-700">{t.currency}</td>
-                      <td className="py-3 px-4">
-                        <span className="flex items-center gap-1 font-semibold text-slate-700">
-                          <Users className="w-3.5 h-3.5 text-slate-400" />
-                          {t.stats.usersCount}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2 text-slate-600 font-medium">
-                          <span>{t.stats.sitesCount} sites</span>
-                          <span>&bull;</span>
-                          <span>{t.stats.projectsCount} projects</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                            t.status === "ACTIVE"
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                              : "bg-rose-100 text-rose-800 border border-rose-200"
-                          }`}
-                        >
-                          {t.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => toggleTenantStatus(t.id, t.status)}
-                            disabled={actionLoading === t.id}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${
-                              t.status === "ACTIVE"
-                                ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
-                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                            }`}
-                          >
-                            {actionLoading === t.id
-                              ? "Updating..."
-                              : t.status === "ACTIVE"
-                              ? "Suspend"
-                              : "Activate"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <TablePagination
-            currentPage={excelTenants.currentPage}
-            totalPages={excelTenants.totalPages}
-            totalItems={excelTenants.filteredCount}
-            totalUnfiltered={excelTenants.totalRecords}
-            pageSize={excelTenants.pageSize}
-            startItem={excelTenants.startItem}
-            endItem={excelTenants.endItem}
-            onPageChange={excelTenants.setCurrentPage}
-            itemLabel="companies"
-          />
-        </div>
-        </>
-        )}
 
         {/* Unified Admin Action Confirmation / Reason Modal */}
         {adminDialog && (
