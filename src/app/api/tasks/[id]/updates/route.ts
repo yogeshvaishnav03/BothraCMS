@@ -1,7 +1,12 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireUserContext, requireProjectAccess, requirePermission } from "@/lib/server-auth";
+import {
+  requireUserContext,
+  requireProjectAccess,
+  requirePermission,
+  isOrgOwnerOrAdmin,
+} from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { TaskTimelineService, sanitizePhotoUrls } from "@/services/task-timeline-service";
 
@@ -26,6 +31,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
     if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
+      if (!isOrgOwnerOrAdmin(user)) {
+        return jsonError("Forbidden: You can only post updates on tasks assigned to you or created by you", "FORBIDDEN", 403);
+      }
       await requireProjectAccess(user, task.projectId, "tasks:write");
     }
 

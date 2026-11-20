@@ -34,6 +34,7 @@ import AttachmentManager from "@/components/attachments/AttachmentManager";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import TaskTimeline from "@/components/tasks/TaskTimeline";
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import SearchableMultiSelect from "@/components/ui/SearchableMultiSelect";
 import { canUser } from "@/lib/permissions";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -80,6 +81,7 @@ export default function TasksPage() {
   const [localSites, setLocalSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const isAdmin = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN" || currentUser?.role === "ADMIN";
   const canWriteTasks = canUser(currentUser, "tasks:write");
 
   // Filters
@@ -94,6 +96,7 @@ export default function TasksPage() {
   const [projectId, setProjectId] = useState("");
   const [priority, setPriority] = useState<string>("DAILY");
   const [assigneeUserId, setAssigneeUserId] = useState("");
+  const [assigneeUserIds, setAssigneeUserIds] = useState<string[]>([]);
   const [dueAt, setDueAt] = useState(() => istDateKey());
 
   // Edit Task Modal state
@@ -314,7 +317,8 @@ export default function TasksPage() {
           title,
           description: description || undefined,
           priority,
-          assigneeUserId: assigneeUserId || undefined,
+          assigneeUserId: assigneeUserIds.length === 1 ? assigneeUserIds[0] : (assigneeUserId || undefined),
+          assigneeUserIds: assigneeUserIds.length > 0 ? assigneeUserIds : undefined,
           dueAt: dueAt ? new Date(dueAt).toISOString() : new Date().toISOString(),
         }),
       });
@@ -323,16 +327,23 @@ export default function TasksPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Could not create task. Please check the title and try again.");
       } else {
-        setStatusMessage("Task created and assigned successfully!");
+        const count = data.data?.count || (Array.isArray(data.data?.tasks) ? data.data.tasks.length : 1);
+        setStatusMessage(
+          count > 1
+            ? `Successfully created ${count} tasks assigned to selected employees!`
+            : "Task created and assigned successfully!"
+        );
         setShowCreateModal(false);
         setTitle("");
         setDescription("");
         setDueAt(istDateKey());
         setAssigneeUserId("");
+        setAssigneeUserIds([]);
         setPriority("DAILY");
         setProjectId(projects.length > 0 ? projects[0].id : "OTHER");
         if (data.data) {
-          setTasks((prev) => [data.data, ...prev.filter((t) => t.id !== data.data.id)]);
+          const incoming = Array.isArray(data.data?.tasks) ? data.data.tasks : [data.data];
+          setTasks((prev) => [...incoming, ...prev.filter((t) => !incoming.some((inc: any) => inc.id === t.id))]);
         }
         loadData();
         window.dispatchEvent(new CustomEvent("refreshTasks"));
@@ -494,6 +505,13 @@ export default function TasksPage() {
     // If user opened a specific task link (?task=<id>), always keep it visible!
     if (urlTaskId && t.id === urlTaskId) return true;
 
+    // Strict user visibility rule: non-admin users only see tasks assigned to them or created by them
+    if (!isAdmin && currentUser?.id) {
+      const isAssigned = t.assigneeUserId === currentUser.id;
+      const isCreator = t.createdBy === currentUser.id;
+      if (!isAssigned && !isCreator) return false;
+    }
+
     if (activeSiteId) {
       const taskSiteId = t.project?.siteId || projects.find((p) => p.id === t.projectId)?.siteId;
       if (taskSiteId && taskSiteId !== activeSiteId) return false;
@@ -524,6 +542,7 @@ export default function TasksPage() {
                   }
                   return availableProjects.length > 0 ? availableProjects[0].id : "OTHER";
                 });
+                setAssigneeUserIds([]);
                 setShowCreateModal(true);
               }}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer"
@@ -572,22 +591,29 @@ export default function TasksPage() {
               </select>
             </div>
 
-            {/* Employee dropdown selector */}
-            <div className="flex items-center gap-2 shrink-0">
-              <User className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
-              <select
-                value={selectedEmployeeId}
-                onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                className="w-full sm:w-auto text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
-              >
-                <option value="">All Employees</option>
-                {(Array.isArray(employees) ? employees : []).map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name} ({emp.role})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Employee selector - Admins can inspect any employee; non-admins are scoped to their own tasks */}
+            {isAdmin ? (
+              <div className="flex items-center gap-2 shrink-0">
+                <User className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
+                <select
+                  value={selectedEmployeeId}
+                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                  className="w-full sm:w-auto text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                >
+                  <option value="">All Employees</option>
+                  {(Array.isArray(employees) ? employees : []).map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.name} ({emp.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold shrink-0">
+                <User className="w-3.5 h-3.5 text-amber-600" />
+                <span>My & Assigned Tasks</span>
+              </div>
+            )}
           </div>
 
           {/* Bottom row: Status & Priority tabs */}
@@ -1029,19 +1055,17 @@ export default function TasksPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Assign To Employee
                     </label>
-                    <SearchableSelect
-                      options={[
-                        { value: "", label: "Unassigned / Current User" },
-                        ...(Array.isArray(employees) ? employees : []).map((emp) => ({
-                          value: emp.id,
-                          label: emp.name,
-                          badge: emp.role,
-                        })),
-                      ]}
-                      value={assigneeUserId}
-                      onChange={setAssigneeUserId}
-                      placeholder="Select Employee..."
+                    <SearchableMultiSelect
+                      options={(Array.isArray(employees) ? employees : []).map((emp) => ({
+                        value: emp.id,
+                        label: emp.name,
+                        badge: emp.role,
+                      }))}
+                      values={assigneeUserIds}
+                      onChange={setAssigneeUserIds}
+                      placeholder="Select one or more employees..."
                       searchPlaceholder="Search employee name or role..."
+                      unassignedLabel="Unassigned / Current User"
                     />
                   </div>
 
@@ -1098,7 +1122,11 @@ export default function TasksPage() {
                   disabled={submitting}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
                 >
-                  {submitting ? "Creating..." : "Create Task"}
+                  {submitting
+                    ? "Creating..."
+                    : assigneeUserIds.length > 1
+                    ? `Create & Assign to ${assigneeUserIds.length} Employees`
+                    : "Create Task"}
                 </button>
               </div>
             </div>

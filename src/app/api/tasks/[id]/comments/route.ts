@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireUserContext, requireProjectAccess } from "@/lib/server-auth";
+import { requireUserContext, requireProjectAccess, isOrgOwnerOrAdmin } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyTaskUpdate } from "@/lib/task-notifications";
 import { sanitizePhotoUrls } from "@/services/task-timeline-service";
@@ -28,6 +28,9 @@ export async function GET(
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
     if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
+      if (!isOrgOwnerOrAdmin(user)) {
+        return jsonError("Forbidden: You can only view comments on tasks assigned to you or created by you", "FORBIDDEN", 403);
+      }
       await requireProjectAccess(user, task.projectId, "tasks:read");
     }
 
@@ -58,6 +61,9 @@ export async function POST(
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
     if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
+      if (!isOrgOwnerOrAdmin(user)) {
+        return jsonError("Forbidden: You can only comment on tasks assigned to you or created by you", "FORBIDDEN", 403);
+      }
       await requireProjectAccess(user, task.projectId, "tasks:write");
     }
 

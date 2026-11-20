@@ -6,6 +6,7 @@ import {
   requirePermission,
   requireProjectAccess,
   getUserAccessibleProjectIds,
+  isOrgOwnerOrAdmin,
 } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyPeople } from "@/lib/notify";
@@ -19,7 +20,8 @@ const createTaskSchema = z.object({
   title: z.string().min(2),
   description: z.string().optional(),
   priority: z.enum(["DAILY", "GENERAL", "CRITICAL", "LOW", "MEDIUM", "HIGH"]).default("DAILY"),
-  assigneeUserId: z.string().min(1).optional(),
+  assigneeUserId: z.string().min(1).optional().nullable(),
+  assigneeUserIds: z.array(z.string()).optional(),
   dueAt: z.string().optional(),
   taskType: z.enum(["STANDARD", "PERSONAL", "REQUEST_OWNER", "REQUEST_MANAGER", "REQUEST_ARCHITECT"]).optional(),
   reminderAt: z.string().optional(),
@@ -48,17 +50,40 @@ export async function GET(req: NextRequest) {
       where.isArchived = false;
     }
 
-    if (projectId) {
-      where.projectId = projectId;
-    } else {
-      const accessibleProjectIds = await getUserAccessibleProjectIds(user);
-      if (accessibleProjectIds !== null) {
-        where.OR = [
-          { projectId: { in: accessibleProjectIds } },
+    const conditions: any[] = [];
+
+    // CRITICAL USER VISIBILITY RULE:
+    // "Users should only see the tasks assigned to them and which they assign."
+    // Non-admins (regular staff/users) MUST only see tasks assigned to them or created by them.
+    if (!isOrgOwnerOrAdmin(user)) {
+      conditions.push({
+        OR: [
           { assigneeUserId: user.userId },
           { createdBy: user.userId },
-        ];
+        ],
+      });
+      if (projectId) {
+        conditions.push({ projectId });
       }
+    } else {
+      if (projectId) {
+        conditions.push({ projectId });
+      } else {
+        const accessibleProjectIds = await getUserAccessibleProjectIds(user);
+        if (accessibleProjectIds !== null) {
+          conditions.push({
+            OR: [
+              { projectId: { in: accessibleProjectIds } },
+              { assigneeUserId: user.userId },
+              { createdBy: user.userId },
+            ],
+          });
+        }
+      }
+    }
+
+    if (conditions.length > 0) {
+      where.AND = conditions;
     }
 
     if (status) where.status = status;
@@ -185,18 +210,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let targetAssigneeId = data.assigneeUserId;
-
-    if (resolvedType === "PERSONAL" && !targetAssigneeId) {
-      targetAssigneeId = user.userId;
+    // Support assigning task to multiple employees simultaneously
+    let targetAssigneeIds: (string | null)[] = [];
+    if (Array.isArray(data.assigneeUserIds) && data.assigneeUserIds.length > 0) {
+      targetAssigneeIds = Array.from(new Set(data.assigneeUserIds.filter(Boolean)));
+    } else if (data.assigneeUserId) {
+      targetAssigneeIds = [data.assigneeUserId];
+    } else {
+      targetAssigneeIds = [resolvedType === "PERSONAL" ? user.userId : null];
     }
 
-    if (targetAssigneeId) {
-      const assignee = await prisma.user.findFirst({
-        where: { id: targetAssigneeId, organizationId: user.organizationId },
+    if (targetAssigneeIds.length === 0) {
+      targetAssigneeIds = [null];
+    }
+
+    const nonNullAssignees = targetAssigneeIds.filter((id): id is string => Boolean(id));
+    if (nonNullAssignees.length > 0) {
+      const existingUsers = await prisma.user.findMany({
+        where: { id: { in: nonNullAssignees }, organizationId: user.organizationId },
+        select: { id: true, name: true },
       });
-      if (!assignee) {
-        return jsonError("Assignee user not found or outside organization scope", "USER_NOT_FOUND", 404);
+      if (existingUsers.length !== nonNullAssignees.length) {
+        return jsonError("One or more assignee users were not found or outside organization scope", "USER_NOT_FOUND", 404);
       }
     }
 
@@ -205,57 +240,65 @@ export async function POST(req: NextRequest) {
       ? new Date(data.reminderAt)
       : calculateInitialReminder(normalizedPriority);
 
-    const task = await prisma.task.create({
-      data: {
-        organizationId: user.organizationId,
-        projectId: effectiveProjectId,
-        title: data.title,
-        description: data.description,
-        priority: normalizedPriority,
-        assigneeUserId: targetAssigneeId,
-        taskType: resolvedType,
-        dueAt: data.dueAt ? new Date(data.dueAt) : null,
-        reminderAt: effectiveReminderAt,
-        createdBy: user.userId,
-      },
-      include: {
-        project: { include: { site: true } },
-        assignee: true,
-      },
-    });
-
-    // Initial status history
-    await prisma.taskStatusHistory.create({
-      data: {
-        taskId: task.id,
-        oldStatus: "NONE",
-        newStatus: "TODO",
-        changedBy: user.userId,
-        note: resolvedType === "PERSONAL" ? "Personal task initialized" : "Task created",
-      },
-    });
-
-    // Notify assignee if assigned to someone else with full project, site, and priority context
-    if (targetAssigneeId && targetAssigneeId !== user.userId) {
-      try {
-        await notifyTaskAssigned({
+    const createdTasks = [];
+    for (const targetAssigneeId of targetAssigneeIds) {
+      const task = await prisma.task.create({
+        data: {
           organizationId: user.organizationId,
-          actorUser: { id: user.userId, name: user.name },
+          projectId: effectiveProjectId,
+          title: data.title,
+          description: data.description,
+          priority: normalizedPriority,
           assigneeUserId: targetAssigneeId,
-          task: {
-            id: task.id,
-            title: task.title,
-            priority: task.priority,
-            taskType: task.taskType,
-            project: task.project,
-          },
-        });
-      } catch (notifErr) {
-        console.warn("Task assignment notification warning:", notifErr);
+          taskType: resolvedType,
+          dueAt: data.dueAt ? new Date(data.dueAt) : null,
+          reminderAt: effectiveReminderAt,
+          createdBy: user.userId,
+        },
+        include: {
+          project: { include: { site: true } },
+          assignee: true,
+        },
+      });
+
+      // Initial status history
+      await prisma.taskStatusHistory.create({
+        data: {
+          taskId: task.id,
+          oldStatus: "NONE",
+          newStatus: "TODO",
+          changedBy: user.userId,
+          note: resolvedType === "PERSONAL" ? "Personal task initialized" : "Task created",
+        },
+      });
+
+      // Notify assignee if assigned to someone else with full project, site, and priority context
+      if (targetAssigneeId && targetAssigneeId !== user.userId) {
+        try {
+          await notifyTaskAssigned({
+            organizationId: user.organizationId,
+            actorUser: { id: user.userId, name: user.name },
+            assigneeUserId: targetAssigneeId,
+            task: {
+              id: task.id,
+              title: task.title,
+              priority: task.priority,
+              taskType: task.taskType,
+              project: task.project,
+            },
+          });
+        } catch (notifErr) {
+          console.warn("Task assignment notification warning:", notifErr);
+        }
       }
+
+      createdTasks.push(task);
     }
 
-    return jsonSuccess(task, 201);
+    if (createdTasks.length === 1) {
+      return jsonSuccess(createdTasks[0], 201);
+    }
+    return jsonSuccess({ tasks: createdTasks, count: createdTasks.length }, 201);
   } catch (error) {
     return handleApiError(error);
   }
