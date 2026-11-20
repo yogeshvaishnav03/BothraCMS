@@ -543,7 +543,13 @@ export default function ProjectDetailsPage() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t: any) => {
-      if (taskStatusFilter !== "ALL" && t.status !== taskStatusFilter) return false;
+      if (taskStatusFilter === "CRITICAL") {
+        if (normalizePriority(t.priority) !== "CRITICAL") return false;
+      } else if (taskStatusFilter === "COMPLETED") {
+        if (t.status !== "COMPLETED" && t.status !== "VERIFIED") return false;
+      } else if (taskStatusFilter !== "ALL" && t.status !== taskStatusFilter) {
+        return false;
+      }
       if (taskSearch.trim()) {
         const q = taskSearch.toLowerCase();
         const matchTitle = t.title?.toLowerCase().includes(q);
