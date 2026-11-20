@@ -600,6 +600,16 @@ export default function SuperAdminDashboardPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {currentUser?.role === "SUPER_ADMIN" && (
+              <a
+                href="/api/admin/backup"
+                download
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                title="Download full live database backup (JSON)"
+              >
+                <Database className="w-4 h-4" /> Download DB Backup
+              </a>
+            )}
             <Link
               href="/chat"
               className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold transition shadow-sm"
