@@ -14,6 +14,7 @@ import {
   Video,
   Play,
   CheckCircle2,
+  Download,
 } from "lucide-react";
 import { formatFileSize } from "@/lib/formatters";
 import { compressImageFile, presetForAttachmentCategory } from "@/lib/image-compression";
@@ -302,10 +303,12 @@ export default function AttachmentManager({
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
           {attachments.map((att) => {
-            const isImage = att.mimeType.startsWith("image/");
+            const isPdf = att.mimeType === "application/pdf" || /\.pdf(\?.*)?$/i.test(att.fileName);
             const isVideo =
-              att.mimeType.startsWith("video/") ||
-              /\.(mp4|webm|mov|3gp|avi)(\?.*)?$/i.test(att.fileName);
+              !isPdf &&
+              (att.mimeType.startsWith("video/") ||
+                /\.(mp4|webm|mov|3gp|avi)(\?.*)?$/i.test(att.fileName));
+            const isImage = !isPdf && !isVideo && (att.mimeType.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i.test(att.fileName));
             return (
               <div
                 key={att.id}
@@ -352,10 +355,12 @@ export default function AttachmentManager({
                       href={att.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full h-24 bg-rose-50 border border-rose-100 rounded-lg flex flex-col items-center justify-center p-2 mb-1.5 hover:bg-rose-100/60 transition"
+                      className="w-full h-24 bg-rose-50 border border-rose-100 rounded-lg flex flex-col items-center justify-center p-2 mb-1.5 hover:bg-rose-100/60 transition group-hover:border-rose-300"
+                      title="Open PDF Document"
                     >
                       <FileText className="w-8 h-8 text-rose-500 mb-1" />
                       <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider">PDF Document</span>
+                      <span className="text-[9px] text-rose-600 font-semibold mt-0.5">Click to view</span>
                     </a>
                   )}
 
@@ -384,6 +389,14 @@ export default function AttachmentManager({
                         className="sr-only"
                       />
                     </label>
+                    <a
+                      href={att.url}
+                      download={att.fileName}
+                      className="p-1 text-slate-400 hover:text-amber-600 transition"
+                      title="Download document"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </a>
                     <a
                       href={att.url}
                       target="_blank"

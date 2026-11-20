@@ -38,10 +38,10 @@ const nextConfig = {
       "img-src 'self' data: blob: https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://*.blob.vercel-storage.com",
       "connect-src 'self' https://*.r2.cloudflarestorage.com https://*.amazonaws.com https://*.vercel-storage.com https://*.blob.vercel-storage.com",
       "worker-src 'self' blob:",
-      "object-src 'none'",
+      "object-src 'self' blob:",
       "base-uri 'self'",
       "form-action 'self'",
-      "frame-ancestors 'none'",
+      "frame-ancestors 'self'",
     ].join("; ");
 
     return [
@@ -64,7 +64,7 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: [
-          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-XSS-Protection", value: "1; mode=block" },

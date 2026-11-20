@@ -512,6 +512,9 @@ export async function GET(
 
     if (mimeType.startsWith("image/") || mimeType.startsWith("video/") || mimeType.startsWith("audio/")) {
       headers["Content-Security-Policy"] = "default-src 'self' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:;";
+    } else if (mimeType === "application/pdf") {
+      headers["Content-Security-Policy"] = "default-src 'self' data: blob:; object-src 'self' blob:; frame-ancestors 'self';";
+      headers["X-Frame-Options"] = "SAMEORIGIN";
     } else {
       headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
       headers["X-Frame-Options"] = "DENY";

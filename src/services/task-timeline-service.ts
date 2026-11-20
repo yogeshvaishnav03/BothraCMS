@@ -26,7 +26,7 @@ export interface TaskTimelineEntry {
   message: string;
   note?: string | null;
   changes: FieldChange[];
-  photos: { url: string; name?: string }[];
+  photos: { url: string; name?: string; mimeType?: string; sizeBytes?: number }[];
   commentType?: string;
 }
 
@@ -170,6 +170,69 @@ export class TaskTimelineService {
       }
     }
 
+    // Pre-load any missing attachments referenced by comments or history
+    const referencedPhotoUrls: string[] = [];
+    for (const c of comments) {
+      referencedPhotoUrls.push(...parsePhotoUrls(c.photoUrls), ...(c.photoUrl ? [c.photoUrl] : []));
+    }
+    const extractedFileIds = referencedPhotoUrls
+      .map((u) => u.replace(/^\/api\/uploads\//, "").replace(/\.[^/.]+$/, ""))
+      .filter((id) => id && id.length > 0);
+
+    const knownFileIds = new Set(attachments.map((a) => a.fileId).concat(attachments.map((a) => a.id)));
+    const missingFileIds = extractedFileIds.filter((id) => !knownFileIds.has(id));
+
+    if (missingFileIds.length > 0) {
+      const extraAttachments = await prisma.attachment.findMany({
+        where: {
+          organizationId,
+          OR: [
+            { fileId: { in: missingFileIds } },
+            { id: { in: missingFileIds } },
+            { diskFileName: { in: missingFileIds } },
+          ],
+        },
+        include: { uploadedBy: { select: { id: true, name: true, role: true } } },
+      });
+      attachments.push(...extraAttachments);
+    }
+
+    // Build comprehensive lookup map
+    const attachmentMap = new Map<string, (typeof attachments)[number]>();
+    for (const a of attachments) {
+      if (a.fileId) {
+        attachmentMap.set(a.fileId, a);
+        attachmentMap.set(`/api/uploads/${a.fileId}`, a);
+      }
+      if (a.id) {
+        attachmentMap.set(a.id, a);
+        attachmentMap.set(`/api/uploads/${a.id}`, a);
+      }
+      if (a.diskFileName) {
+        attachmentMap.set(a.diskFileName, a);
+        attachmentMap.set(`/api/uploads/${a.diskFileName}`, a);
+      }
+    }
+
+    const resolvePhoto = (rawUrl: string): { url: string; name?: string; mimeType?: string; sizeBytes?: number } => {
+      const clean = rawUrl.split("?")[0].split("#")[0];
+      const fileId = clean.replace(/^\/api\/uploads\//, "");
+      const att = attachmentMap.get(rawUrl) || attachmentMap.get(clean) || attachmentMap.get(fileId);
+      const name = att?.fileName || (fileId.includes(".") ? fileId : undefined);
+      let mimeType = att?.mimeType;
+      if (!mimeType) {
+        const lowerName = (name || clean).toLowerCase();
+        if (lowerName.endsWith(".pdf") || lowerName.includes(".pdf")) mimeType = "application/pdf";
+        else if (/\.(jpg|jpeg|png|webp|gif|svg)$/i.test(lowerName)) mimeType = "image/jpeg";
+      }
+      return {
+        url: rawUrl,
+        name,
+        mimeType,
+        sizeBytes: att?.fileSize,
+      };
+    };
+
     for (const h of history) {
       const paired = pairedByHistory.get(h.id);
       const photos = paired ? [...parsePhotoUrls(paired.photoUrls), ...(paired.photoUrl ? [paired.photoUrl] : [])] : [];
@@ -183,7 +246,7 @@ export class TaskTimelineService {
         message: `Moved from ${statusLabel(h.oldStatus)} to ${statusLabel(h.newStatus)}`,
         note: paired?.content || h.note,
         changes: [{ field: "status", label: "Status", from: h.oldStatus, to: h.newStatus }],
-        photos: photos.map((url) => ({ url })),
+        photos: photos.map(resolvePhoto),
       });
     }
 
@@ -232,7 +295,7 @@ export class TaskTimelineService {
           : "Commented",
         note: c.content,
         changes: [],
-        photos: photos.map((url) => ({ url })),
+        photos: photos.map(resolvePhoto),
         commentType: c.type,
       });
     }
@@ -244,8 +307,14 @@ export class TaskTimelineService {
       const url = `/api/uploads/${a.fileId}`;
       if (photoUrlsInComments.has(url)) continue;
       const t = a.createdAt.getTime();
+      const photoMeta = resolvePhoto(url);
       if (burst && burst.author?.id === a.uploadedById && t - burstEnd <= PHOTO_BURST_WINDOW_MS) {
-        burst.photos.push({ url, name: a.fileName });
+        burst.photos.push({
+          url,
+          name: a.fileName || photoMeta.name,
+          mimeType: a.mimeType || photoMeta.mimeType,
+          sizeBytes: a.fileSize || photoMeta.sizeBytes,
+        });
         burstEnd = t;
         burst.message = `Added ${burst.photos.length} files`;
         continue;
@@ -259,7 +328,14 @@ export class TaskTimelineService {
         message: "Added 1 file",
         note: a.notes,
         changes: [],
-        photos: [{ url, name: a.fileName }],
+        photos: [
+          {
+            url,
+            name: a.fileName || photoMeta.name,
+            mimeType: a.mimeType || photoMeta.mimeType,
+            sizeBytes: a.fileSize || photoMeta.sizeBytes,
+          },
+        ],
       };
       burstEnd = t;
       entries.push(burst);

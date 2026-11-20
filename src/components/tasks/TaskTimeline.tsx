@@ -5,6 +5,9 @@ import {
   ArrowRight,
   Camera,
   CheckCircle2,
+  Download,
+  ExternalLink,
+  FileText,
   GitCommitHorizontal,
   History,
   Loader2,
@@ -33,8 +36,76 @@ interface Entry {
   message: string;
   note?: string | null;
   changes: FieldChange[];
-  photos: { url: string; name?: string }[];
+  photos: { url: string; name?: string; mimeType?: string; sizeBytes?: number }[];
   commentType?: string;
+}
+
+export function isPdfDocument(
+  p: { url?: string; name?: string; mimeType?: string } | string | null | undefined
+): boolean {
+  if (!p) return false;
+  const url = typeof p === "string" ? p : p.url || "";
+  const name = typeof p === "string" ? "" : p.name || "";
+  const mime = typeof p === "string" ? "" : p.mimeType || "";
+  if (mime.toLowerCase() === "application/pdf") return true;
+  const check = `${url} ${name}`.toLowerCase().split("?")[0].split("#")[0];
+  return check.endsWith(".pdf") || check.includes(".pdf") || check.includes("application/pdf");
+}
+
+function formatBytes(bytes?: number): string | null {
+  if (!bytes || bytes <= 0) return null;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+function TimelinePhotoThumb({
+  photo,
+  onOpen,
+  onSwitchToPdf,
+}: {
+  photo: { url: string; name?: string; mimeType?: string; sizeBytes?: number };
+  onOpen: () => void;
+  onSwitchToPdf: () => void;
+}) {
+  const [loadError, setLoadError] = useState(false);
+
+  if (loadError) {
+    return (
+      <button
+        type="button"
+        onClick={onSwitchToPdf}
+        className="group flex flex-col items-center justify-center p-2 rounded-lg border border-rose-200 bg-rose-50/70 text-center aspect-square transition hover:bg-rose-100/70"
+        title={photo.name || "Open document"}
+      >
+        <FileText className="h-5 w-5 text-rose-500 mb-1 group-hover:scale-110 transition-transform" />
+        <span className="text-[10px] font-bold text-rose-800 truncate max-w-full leading-tight">
+          {photo.name || "Document"}
+        </span>
+        <span className="text-[9px] font-semibold text-rose-600 mt-0.5">Click to view</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100 hover:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
+      title={photo.name || "View photo"}
+    >
+      <img
+        src={photo.url}
+        alt={photo.name || "Task photo"}
+        loading="lazy"
+        onError={() => setLoadError(true)}
+        className="h-full w-full object-cover transition group-hover:opacity-90 group-hover:scale-105"
+      />
+      <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <ExternalLink className="h-4 w-4 text-white drop-shadow" />
+      </div>
+    </button>
+  );
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -64,7 +135,7 @@ const KIND_STYLE: Record<Entry["kind"], { dot: string; icon: React.ElementType }
 
 const FILTERS: { id: string; label: string; kinds: Entry["kind"][] }[] = [
   { id: "all", label: "All", kinds: [] },
-  { id: "photos", label: "Photos", kinds: [] },
+  { id: "photos", label: "Files & Photos", kinds: [] },
 ];
 
 function relativeTime(iso: string): string {
@@ -110,7 +181,12 @@ export default function TaskTimeline({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    url: string;
+    name?: string;
+    isPdf?: boolean;
+    mimeType?: string;
+  } | null>(null);
   const [currentStatus, setCurrentStatus] = useState(task.status);
 
   const [note, setNote] = useState("");
@@ -213,7 +289,7 @@ export default function TaskTimeline({
             </span>
             <span>·</span>
             <span>
-              {photoCount} {photoCount === 1 ? "photo" : "photos"}
+              {photoCount} {photoCount === 1 ? "file" : "files"}
             </span>
             <span>·</span>
             <span>
@@ -332,18 +408,104 @@ export default function TaskTimeline({
                       )}
 
                       {e.photos.length > 0 && (
-                        <div className="mt-2 grid grid-cols-3 gap-1.5">
-                          {e.photos.map((p) => (
-                            <button
-                              key={p.url}
-                              type="button"
-                              onClick={() => setLightbox(p.url)}
-                              className="group aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={p.url} alt={p.name || "Task photo"} loading="lazy" className="h-full w-full object-cover transition group-hover:opacity-90" />
-                            </button>
-                          ))}
+                        <div className="mt-2.5 space-y-2">
+                          {/* Dedicated PDF Documents */}
+                          {e.photos
+                            .filter((p) => isPdfDocument(p))
+                            .map((p) => (
+                              <div
+                                key={p.url}
+                                className="group flex items-center justify-between gap-3 p-2.5 rounded-xl border border-rose-200/90 bg-rose-50/50 hover:bg-rose-50/90 hover:border-rose-300 transition-all shadow-2xs"
+                              >
+                                <div
+                                  onClick={() =>
+                                    setLightbox({
+                                      url: p.url,
+                                      name: p.name || "document.pdf",
+                                      isPdf: true,
+                                      mimeType: p.mimeType,
+                                    })
+                                  }
+                                  className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+                                  title="Click to preview PDF"
+                                >
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 shadow-xs group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                                    <FileText className="h-5 w-5" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="truncate text-xs font-bold text-slate-800 group-hover:text-rose-700 transition-colors">
+                                        {p.name || "PDF Document"}
+                                      </span>
+                                      <span className="shrink-0 rounded bg-rose-200/80 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-800">
+                                        PDF
+                                      </span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
+                                      {p.sizeBytes ? <span>{formatBytes(p.sizeBytes)}</span> : <span>PDF document</span>}
+                                      <span>·</span>
+                                      <span className="text-rose-600 font-semibold group-hover:underline">Click to view</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setLightbox({
+                                        url: p.url,
+                                        name: p.name || "document.pdf",
+                                        isPdf: true,
+                                        mimeType: p.mimeType,
+                                      })
+                                    }
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-rose-700 hover:bg-rose-100/60 transition"
+                                    title="Preview PDF"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </button>
+                                  <a
+                                    href={p.url}
+                                    download={p.name || "document.pdf"}
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-rose-700 hover:bg-rose-100/60 transition"
+                                    title="Download PDF"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+
+                          {/* Photos & Images Grid */}
+                          {e.photos.filter((p) => !isPdfDocument(p)).length > 0 && (
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {e.photos
+                                .filter((p) => !isPdfDocument(p))
+                                .map((p) => (
+                                  <TimelinePhotoThumb
+                                    key={p.url}
+                                    photo={p}
+                                    onOpen={() =>
+                                      setLightbox({
+                                        url: p.url,
+                                        name: p.name,
+                                        isPdf: false,
+                                        mimeType: p.mimeType,
+                                      })
+                                    }
+                                    onSwitchToPdf={() =>
+                                      setLightbox({
+                                        url: p.url,
+                                        name: p.name || "document.pdf",
+                                        isPdf: true,
+                                        mimeType: "application/pdf",
+                                      })
+                                    }
+                                  />
+                                ))}
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -361,13 +523,129 @@ export default function TaskTimeline({
         </div>
       </aside>
 
-      {lightbox && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4 overflow-y-auto cursor-pointer" onClick={(e) => (e.stopPropagation(), setLightbox(null))}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="Task photo" className="max-h-full max-w-full rounded-lg shadow-xl" />
-          <button className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Close photo">
-            <X className="h-5 w-5" />
-          </button>
+      {/* Lightbox / PDF Viewer Modal */}
+      {lightbox && lightbox.isPdf && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 sm:p-4 animate-fade-in"
+          onClick={() => setLightbox(null)}
+        >
+          <div
+            className="flex h-[92vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 bg-slate-50/90">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600 shrink-0">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="truncate text-xs sm:text-sm font-bold text-slate-900" title={lightbox.name || "PDF Document"}>
+                    {lightbox.name || "PDF Document"}
+                  </h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">PDF Document</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={lightbox.url}
+                  download={lightbox.name || "document.pdf"}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition"
+                  title="Download PDF"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Download</span>
+                </a>
+                <a
+                  href={lightbox.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 px-2.5 py-1.5 text-xs font-bold text-slate-950 shadow-2xs transition"
+                  title="Open in new window"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Open Full</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setLightbox(null)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Embedded PDF viewer */}
+            <div className="relative flex-1 bg-slate-100">
+              <iframe
+                src={`${lightbox.url}#toolbar=1&navpanes=0`}
+                title={lightbox.name || "PDF Document"}
+                className="h-full w-full border-0 bg-white"
+              />
+            </div>
+
+            {/* Mobile / Fallback Helper Banner */}
+            <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 flex items-center justify-between text-xs text-slate-500">
+              <span className="text-[11px] truncate">
+                Preview not loading on your device?
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={lightbox.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] font-bold text-amber-600 hover:underline inline-flex items-center gap-1"
+                >
+                  Open in Browser <ExternalLink className="h-3 w-3" />
+                </a>
+                <span className="text-slate-300">|</span>
+                <a
+                  href={lightbox.url}
+                  download={lightbox.name || "document.pdf"}
+                  className="text-[11px] font-bold text-rose-600 hover:underline inline-flex items-center gap-1"
+                >
+                  Save File <Download className="h-3 w-3" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightbox && !lightbox.isPdf && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/90 p-4 overflow-y-auto cursor-pointer animate-fade-in"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="relative max-h-full max-w-full" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={lightbox.url}
+              alt={lightbox.name || "Task photo"}
+              className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+            />
+            <div className="absolute right-3 top-3 flex items-center gap-2">
+              <a
+                href={lightbox.url}
+                download={lightbox.name || "photo.jpg"}
+                className="rounded-full bg-slate-900/80 p-2 text-white hover:bg-slate-900 transition shadow"
+                title="Download photo"
+              >
+                <Download className="h-4 w-4" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setLightbox(null)}
+                className="rounded-full bg-slate-900/80 p-2 text-white hover:bg-slate-900 transition shadow"
+                aria-label="Close photo"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
