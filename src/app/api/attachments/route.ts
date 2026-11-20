@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
     // LocalStorageProvider already persists to database inside its put() method.
     if (storage.name !== "LOCAL") {
       try {
-        await backupFileToDatabase(user.organizationId, [`FILE_BLOB_${fileId}`, `FILE_BLOB_${diskFileName}`], fileBuffer);
+        await backupFileToDatabase(user.organizationId, [`FILE_BLOB_${diskFileName}`], fileBuffer);
       } catch (err) {
         console.warn("Notice: Blob database backup skipped in attachments POST:", err);
       }

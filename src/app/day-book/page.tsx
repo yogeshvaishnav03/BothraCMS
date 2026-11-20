@@ -1417,9 +1417,24 @@ export default function DayBookPage() {
       const data = await res.json();
       if (data.success) {
         const paymentId = data.data?.payment?.id || data.data?.id;
-        if (paymentId && paymentPhotos.length > 0) {
-          await Promise.allSettled(
-            paymentPhotos.map(async (photo) => {
+        const photosToUpload = [...paymentPhotos];
+        paymentPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+        setPaymentPhotos([]);
+        setPaymentPhotoPreviews([]);
+
+        // Dismiss modal immediately so user doesn't wait
+        setShowLogModal(false);
+        setPaymentAmount("");
+        setPaymentNotes("");
+        setPaymentRef("");
+        setSelectedPaymentBillId("");
+        loadDayBook(selectedDate, toDate, selectedSiteId);
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
+
+        if (paymentId && photosToUpload.length > 0) {
+          setStatusMessage(`✅ Day Book payment recorded! Uploading ${photosToUpload.length} voucher file(s) in background...`);
+          Promise.allSettled(
+            photosToUpload.map(async (photo) => {
               try {
                 await uploadClientMedia(photo, {
                   entityType: "PAYMENT",
@@ -1432,24 +1447,12 @@ export default function DayBookPage() {
                 console.error("Failed uploading payment photo:", photo.name, err);
               }
             })
-          );
+          ).then(() => {
+            setStatusMessage(`✅ Day Book payment & ${photosToUpload.length} voucher file(s) recorded successfully!`);
+          });
+        } else {
+          setStatusMessage("✅ Day Book payment recorded successfully!");
         }
-        paymentPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
-        setPaymentPhotos([]);
-        setPaymentPhotoPreviews([]);
-
-        setStatusMessage(
-          paymentPhotos.length > 0
-            ? `✅ Day Book payment & ${paymentPhotos.length} voucher file(s) recorded successfully!`
-            : "✅ Day Book payment recorded successfully!"
-        );
-        setShowLogModal(false);
-        setPaymentAmount("");
-        setPaymentNotes("");
-        setPaymentRef("");
-        setSelectedPaymentBillId("");
-        loadDayBook(selectedDate, toDate, selectedSiteId);
-        window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
         setStatusMessage(`❌ Could not save payment: ${data.error?.message || "Please check your entries and try again."}`);
       }
@@ -1496,9 +1499,23 @@ export default function DayBookPage() {
       const data = await res.json();
       if (data.success) {
         const billId = data.data?.id;
-        if (billId && billPhotos.length > 0) {
-          await Promise.allSettled(
-            billPhotos.map(async (photo) => {
+        const photosToUpload = [...billPhotos];
+        billPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+        setBillPhotos([]);
+        setBillPhotoPreviews([]);
+
+        // Dismiss modal immediately
+        setShowLogModal(false);
+        setBillAmount("");
+        setBillNumber("");
+        setBillNotes("");
+        loadDayBook(selectedDate, toDate, selectedSiteId);
+        window.dispatchEvent(new CustomEvent("refreshDayBook"));
+
+        if (billId && photosToUpload.length > 0) {
+          setStatusMessage(`✅ Day Book bill entered! Uploading ${photosToUpload.length} document file(s) in background...`);
+          Promise.allSettled(
+            photosToUpload.map(async (photo) => {
               try {
                 await uploadClientMedia(photo, {
                   entityType: "BILL",
@@ -1511,23 +1528,12 @@ export default function DayBookPage() {
                 console.error("Failed uploading bill photo:", photo.name, err);
               }
             })
-          );
+          ).then(() => {
+            setStatusMessage(`✅ Day Book bill & ${photosToUpload.length} document file(s) saved successfully!`);
+          });
+        } else {
+          setStatusMessage("✅ Day Book bill entered successfully!");
         }
-        billPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
-        setBillPhotos([]);
-        setBillPhotoPreviews([]);
-
-        setStatusMessage(
-          billPhotos.length > 0
-            ? `✅ Day Book bill & ${billPhotos.length} document file(s) saved successfully!`
-            : "✅ Day Book bill entered successfully!"
-        );
-        setShowLogModal(false);
-        setBillAmount("");
-        setBillNumber("");
-        setBillNotes("");
-        loadDayBook(selectedDate, toDate, selectedSiteId);
-        window.dispatchEvent(new CustomEvent("refreshDayBook"));
       } else {
         setStatusMessage(`❌ Could not save bill: ${data.error?.message || "Please check the bill details and try again."}`);
       }
@@ -1621,12 +1627,24 @@ export default function DayBookPage() {
       const data = await res.json();
       if (data.success) {
         const reportId = data.data?.id;
+        const photosToUpload = [...dsrPhotos];
 
-        // Upload any attached photos/videos via universal upload client (supports chunking up to 250MB)
-        if (reportId && dsrPhotos.length > 0) {
-          setUploadingPhotosCount(dsrPhotos.length);
-          await Promise.allSettled(
-            dsrPhotos.map(async (photo) => {
+        // Dismiss modal immediately so user isn't kept waiting
+        dsrPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+        setDsrPhotos([]);
+        setDsrPhotoPreviews([]);
+        setShowLogModal(false);
+        setDsrProgress("");
+        setDsrBlockers("");
+        setDsrSafety("");
+        loadDayBook(selectedDate, toDate, selectedSiteId);
+
+        // Upload any attached photos/videos in background
+        if (reportId && photosToUpload.length > 0) {
+          setUploadingPhotosCount(photosToUpload.length);
+          setStatusMessage(`✅ Daily Site Progress logged! Uploading ${photosToUpload.length} site photo(s) in background...`);
+          Promise.allSettled(
+            photosToUpload.map(async (photo) => {
               try {
                 await uploadClientMedia(photo, {
                   entityType: "DAILY_REPORT",
@@ -1639,24 +1657,13 @@ export default function DayBookPage() {
                 console.error("Failed uploading photo:", photo.name, photoErr);
               }
             })
-          );
-          setUploadingPhotosCount(0);
+          ).then(() => {
+            setUploadingPhotosCount(0);
+            setStatusMessage(`✅ Daily Site Progress & ${photosToUpload.length} site photo(s) saved in Day Book!`);
+          });
+        } else {
+          setStatusMessage("✅ Daily Site Progress logged in Day Book!");
         }
-
-        // Clean up preview URLs
-        dsrPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
-        setDsrPhotos([]);
-        setDsrPhotoPreviews([]);
-
-        setStatusMessage(
-          dsrPhotos.length > 0
-            ? `✅ Daily Site Progress & ${dsrPhotos.length} site photo(s) saved in Day Book!`
-            : "✅ Daily Site Progress logged in Day Book!"
-        );
-        setShowLogModal(false);
-        setDsrProgress("");
-        setDsrBlockers("");
-        setDsrSafety("");
         loadDayBook(selectedDate, toDate, selectedSiteId);
         window.dispatchEvent(new CustomEvent("refreshDayBook"));
         window.dispatchEvent(new CustomEvent("refreshDayBook"));

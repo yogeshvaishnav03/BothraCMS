@@ -546,24 +546,17 @@ export async function backupFileToDatabase(organizationId: string, keys: string[
   // If file buffer exceeds 35 MB, do not write base64 to postgres to avoid connection drops and memory exhaustion
   if (buffer.length > 35 * 1024 * 1024) return;
   const b64 = buffer.toString("base64");
-  const allKeys = new Set(keys);
-  for (const k of keys) {
-    const uuidMatch = k.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i);
-    if (uuidMatch) {
-      allKeys.add(`FILE_BLOB_${uuidMatch[0]}`);
-      allKeys.add(`FILE_${uuidMatch[0]}`);
-    }
-  }
-  // Concurrent upserts to avoid slow serial round-trips over cloud database connections
-  await Promise.all(
-    Array.from(allKeys).map((key) =>
-      prisma.idempotencyRecord.upsert({
-        where: { organizationId_key: { organizationId, key } },
-        create: { organizationId, key, operation: "FILE_BLOB", responseCode: 200, responseBodyJson: b64 },
-        update: { responseBodyJson: b64 },
-      }).catch(() => {})
-    )
-  );
+  
+  // Pick canonical key (prefer FILE_BLOB_${safeKey}) to avoid sending duplicate multi-megabyte payloads to Postgres
+  const primaryKey = keys.find((k) => k.startsWith("FILE_BLOB_")) || keys[0];
+  if (!primaryKey) return;
+
+  // Single fast upsert
+  await prisma.idempotencyRecord.upsert({
+    where: { organizationId_key: { organizationId, key: primaryKey } },
+    create: { organizationId, key: primaryKey, operation: "FILE_BLOB", responseCode: 200, responseBodyJson: b64 },
+    update: { responseBodyJson: b64 },
+  }).catch(() => {});
 }
 
 /**

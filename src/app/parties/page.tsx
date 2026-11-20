@@ -36,6 +36,8 @@ import {
   CheckCircle2,
   ExternalLink,
   Sparkles,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
@@ -310,6 +312,106 @@ export default function PartiesPage() {
   const [loadingPartyDocs, setLoadingPartyDocs] = useState(false);
   const [uploadProgressMsg, setUploadProgressMsg] = useState<string | null>(null);
 
+  // Non-blocking background upload status
+  interface BackgroundUploadState {
+    id: string;
+    partyName: string;
+    total: number;
+    completed: number;
+    failed: number;
+    status: "uploading" | "done" | "error";
+    errorDetails?: string[];
+  }
+  const [bgUpload, setBgUpload] = useState<BackgroundUploadState | null>(null);
+
+  // Prevent accidental navigation while background upload is active
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (bgUpload?.status === "uploading") {
+        e.preventDefault();
+        e.returnValue = "Documents are still uploading in the background. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [bgUpload]);
+
+  const startBackgroundUpload = (partyId: string, partyName: string, docs: PendingPartyDoc[]) => {
+    const total = docs.length;
+    let completedCount = 0;
+    let failedCount = 0;
+    const errors: string[] = [];
+
+    setBgUpload({
+      id: partyId,
+      partyName,
+      total,
+      completed: 0,
+      failed: 0,
+      status: "uploading",
+    });
+
+    setStatusMessage(`Added "${partyName}"! Uploading ${total} document(s) in background...`);
+
+    Promise.allSettled(
+      docs.map(async (doc) => {
+        try {
+          await uploadClientMedia(doc.file, {
+            entityType: "PARTY",
+            entityId: partyId,
+            category: doc.category,
+            createAttachment: true,
+          });
+          completedCount++;
+        } catch (err: any) {
+          failedCount++;
+          errors.push(doc.label || doc.file.name);
+          console.error(`Failed to upload ${doc.label}:`, err);
+        } finally {
+          setBgUpload((prev) =>
+            prev && prev.id === partyId
+              ? {
+                  ...prev,
+                  completed: completedCount,
+                  failed: failedCount,
+                }
+              : prev
+          );
+        }
+      })
+    ).then(() => {
+      if (failedCount === 0) {
+        setBgUpload({
+          id: partyId,
+          partyName,
+          total,
+          completed: total,
+          failed: 0,
+          status: "done",
+        });
+        setStatusMessage(`✅ All ${total} KYC document(s) for "${partyName}" uploaded successfully!`);
+        setTimeout(() => {
+          setBgUpload((curr) => (curr?.status === "done" && curr.id === partyId ? null : curr));
+        }, 5000);
+      } else {
+        setBgUpload({
+          id: partyId,
+          partyName,
+          total,
+          completed: completedCount,
+          failed: failedCount,
+          status: "error",
+          errorDetails: errors,
+        });
+        setErrorMessage(
+          `Uploaded ${completedCount} of ${total} documents for "${partyName}". ${failedCount} failed (${errors.join(", ")}). You can re-upload them by editing the vendor.`
+        );
+      }
+      loadParties();
+    });
+  };
+
   const handleDocFileSelect = async (key: string, category: string, label: string, file: File) => {
     let processedFile = file;
     if (file.type.startsWith("image/") && !file.type.includes("svg")) {
@@ -538,37 +640,25 @@ export default function PartiesPage() {
         const data = await res.json();
         if (!res.ok || !data.success) {
           setErrorMessage(data.error?.message || "Could not save changes. Please check the form and try again.");
+          setSubmitting(false);
+          return;
+        }
+
+        const partyName = form.name;
+        const partyId = editingPartyId;
+        const docsToUpload = [...pendingDocs];
+
+        // 1. Dismiss modal instantly so the user is NEVER held hostage or blocked
+        setShowModal(false);
+        setSubmitting(false);
+        setPendingDocs([]);
+        loadParties();
+
+        // 2. Upload any documents in the background without blocking the UI
+        if (docsToUpload.length > 0) {
+          startBackgroundUpload(partyId, partyName, docsToUpload);
         } else {
-          if (pendingDocs.length > 0) {
-            let completed = 0;
-            const total = pendingDocs.length;
-            setUploadProgressMsg(`Uploading ${total} document(s) in parallel (0/${total})...`);
-            await Promise.allSettled(
-              pendingDocs.map(async (doc) => {
-                try {
-                  await uploadClientMedia(doc.file, {
-                    entityType: "PARTY",
-                    entityId: editingPartyId,
-                    category: doc.category,
-                    createAttachment: true,
-                  });
-                } catch (err: any) {
-                  console.error(`Failed to upload ${doc.label}:`, err);
-                } finally {
-                  completed++;
-                  setUploadProgressMsg(`Uploading ${total} document(s) in parallel (${completed}/${total})...`);
-                }
-              })
-            );
-          }
-          setStatusMessage(
-            pendingDocs.length > 0
-              ? `Saved changes for "${form.name}" and uploaded ${pendingDocs.length} document(s).`
-              : `Saved changes for "${form.name}".`
-          );
-          setShowModal(false);
-          setPendingDocs([]);
-          loadParties();
+          setStatusMessage(`Saved changes for "${partyName}".`);
         }
       } else {
         // POST treats null as "not provided"; send undefined instead.
@@ -581,38 +671,25 @@ export default function PartiesPage() {
         const data = await res.json();
         if (!res.ok || !data.success) {
           setErrorMessage(data.error?.message || "Could not add vendor or contractor. Please check the form and try again.");
+          setSubmitting(false);
+          return;
+        }
+
+        const createdPartyId = data.data?.id;
+        const partyName = form.name;
+        const docsToUpload = [...pendingDocs];
+
+        // 1. Dismiss modal instantly and refresh vendor list in <0.3s!
+        setShowModal(false);
+        setSubmitting(false);
+        setPendingDocs([]);
+        loadParties();
+
+        // 2. Upload KYC documents in the background with non-blocking progress indicator
+        if (createdPartyId && docsToUpload.length > 0) {
+          startBackgroundUpload(createdPartyId, partyName, docsToUpload);
         } else {
-          const createdPartyId = data.data?.id;
-          if (createdPartyId && pendingDocs.length > 0) {
-            let completed = 0;
-            const total = pendingDocs.length;
-            setUploadProgressMsg(`Uploading ${total} KYC document(s) in parallel (0/${total})...`);
-            await Promise.allSettled(
-              pendingDocs.map(async (doc) => {
-                try {
-                  await uploadClientMedia(doc.file, {
-                    entityType: "PARTY",
-                    entityId: createdPartyId,
-                    category: doc.category,
-                    createAttachment: true,
-                  });
-                } catch (err: any) {
-                  console.error(`Failed to upload ${doc.label}:`, err);
-                } finally {
-                  completed++;
-                  setUploadProgressMsg(`Uploading ${total} KYC document(s) in parallel (${completed}/${total})...`);
-                }
-              })
-            );
-          }
-          setStatusMessage(
-            pendingDocs.length > 0
-              ? `Added "${form.name}" with ${pendingDocs.length} uploaded KYC / contract document(s)!`
-              : "Vendor or contractor added!"
-          );
-          setShowModal(false);
-          setPendingDocs([]);
-          loadParties();
+          setStatusMessage(`Vendor or contractor "${partyName}" added successfully!`);
         }
       }
     } catch {
@@ -1825,6 +1902,69 @@ export default function PartiesPage() {
             title={`Change History: ${auditParty.name}`}
             onClose={() => setAuditParty(null)}
           />
+        )}
+
+        {/* Floating Background Upload Indicator */}
+        {bgUpload && (
+          <aside
+            aria-live="polite"
+            className="fixed bottom-5 right-5 z-[90] max-w-sm w-[calc(100vw-2.5rem)] sm:w-96 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-4 shadow-2xl border border-slate-700/80 transition-all animate-in slide-in-from-bottom-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {bgUpload.status === "uploading" ? (
+                  <Loader2 className="w-5 h-5 text-amber-400 animate-spin shrink-0" />
+                ) : bgUpload.status === "done" ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-100 truncate">
+                    {bgUpload.status === "uploading"
+                      ? `Uploading ${bgUpload.total} document(s)...`
+                      : bgUpload.status === "done"
+                      ? `All ${bgUpload.total} documents uploaded`
+                      : `Upload completed with issues`}
+                  </p>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {bgUpload.partyName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBgUpload(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg shrink-0"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {bgUpload.status === "uploading" && (
+              <div className="mt-3 space-y-1.5">
+                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-amber-400 h-1.5 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.round(((bgUpload.completed + bgUpload.failed) / (bgUpload.total || 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400">
+                  <span>In background</span>
+                  <span>{bgUpload.completed + bgUpload.failed} of {bgUpload.total} done</span>
+                </div>
+              </div>
+            )}
+
+            {bgUpload.status === "error" && bgUpload.errorDetails && bgUpload.errorDetails.length > 0 && (
+              <p className="mt-2 text-[10px] text-rose-300">
+                Failed: {bgUpload.errorDetails.join(", ")}
+              </p>
+            )}
+          </aside>
         )}
       </div>
     </Shell>
