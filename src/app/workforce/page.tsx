@@ -286,18 +286,70 @@ export default function WorkforcePage() {
 
   const existingContractors = useMemo(() => {
     const set = new Set<string>();
-    set.add("ABC Labour Services Pvt. Ltd.");
-    set.add("Apex Civil Contractors");
-    set.add("Ramesh RCC & Masonry Works");
-    set.add("Sharma Electricals & Contractors");
-    parties.forEach((p) => {
-      if (p.name?.trim()) set.add(p.name.trim());
-    });
+    // 1. Add contractors from historical headcount records (prioritize active site contractors):
     records.forEach((r) => {
-      if (r.contractorName?.trim()) set.add(r.contractorName.trim());
+      const name = r.contractorName?.trim();
+      if (name && name !== "-" && name !== "Contractor Agency") {
+        set.add(name);
+      }
     });
+    // 2. Add all registered contractors from parties:
+    parties.forEach((p) => {
+      const name = p.name?.trim();
+      if (name && (p.partyType === "CONTRACTOR" || p.partyType === "BOTH")) {
+        set.add(name);
+      }
+    });
+    // 3. Add other parties if any:
+    parties.forEach((p) => {
+      const name = p.name?.trim();
+      if (name) set.add(name);
+    });
+    // 4. Add contractors from registered workers directory:
+    workers.forEach((w) => {
+      if (w.contractorId || w.workerType === "FOREMAN") {
+        if (w.name?.trim()) set.add(w.name.trim());
+      }
+    });
+    // 5. Default fallback construction trades if database has none
+    if (set.size === 0) {
+      set.add("Ramesh RCC & Masonry Works");
+      set.add("Apex Civil Contractors");
+      set.add("Sharma Electricals & Contractors");
+      set.add("ABC Labour Services Pvt. Ltd.");
+    }
     return Array.from(set);
-  }, [parties, records]);
+  }, [parties, records, workers]);
+
+  const getDefaultContractor = useCallback(() => {
+    const fromRecords = records.find(
+      (r) => r.contractorName?.trim() && r.contractorName.trim() !== "-" && r.contractorName.trim() !== "Contractor Agency"
+    )?.contractorName?.trim();
+    if (fromRecords) return fromRecords;
+
+    const fromPartiesContractor = parties.find(
+      (p) => (p.partyType === "CONTRACTOR" || p.partyType === "BOTH") && p.name?.trim()
+    )?.name?.trim();
+    if (fromPartiesContractor) return fromPartiesContractor;
+
+    const fromAnyParty = parties.find((p) => p.name?.trim())?.name?.trim();
+    if (fromAnyParty) return fromAnyParty;
+
+    if (existingContractors.length > 0) return existingContractors[0];
+
+    return "Ramesh RCC & Masonry Works";
+  }, [records, parties, existingContractors]);
+
+  // Auto-populate default contractor if contractorName is empty and contractors exist
+  useEffect(() => {
+    if (!contractorName && (records.length > 0 || parties.length > 0 || existingContractors.length > 0)) {
+      const defaultContractor = getDefaultContractor();
+      if (defaultContractor) {
+        setContractorName(defaultContractor);
+        fetchContractorRates(defaultContractor);
+      }
+    }
+  }, [records, parties, existingContractors, contractorName, getDefaultContractor, fetchContractorRates]);
 
   const selectedWorker = useMemo(() => {
     if (!contractorName) return null;
@@ -760,6 +812,12 @@ export default function WorkforcePage() {
         setContractorFemaleCount(0);
         setIsExtraWorkersRate(false);
       } else {
+        const cName =
+          existing.contractorName?.trim() && existing.contractorName.trim() !== "-" && existing.contractorName.trim() !== "Contractor Agency"
+            ? existing.contractorName.trim()
+            : getDefaultContractor();
+        setContractorName(cName);
+        fetchContractorRates(cName);
         setContractorSkilledCount(existing.artisanCount || 0);
         setContractorMaleCount(existing.laborerMale || 0);
         setContractorFemaleCount(existing.laborerFemale || 0);
@@ -788,9 +846,11 @@ export default function WorkforcePage() {
       setModalDate(selectedDate);
       setModalShift("GENERAL");
 
-      const defaultContractor = parties.find((p) => p.type === "SUBCONTRACTOR" || p.dailyWageRate)?.name || (parties.length > 0 ? parties[0].name : "ABC Labour Services Pvt. Ltd.");
+      const defaultContractor = getDefaultContractor();
       setContractorName(defaultContractor);
-      fetchContractorRates(defaultContractor);
+      if (defaultContractor) {
+        fetchContractorRates(defaultContractor);
+      }
 
       setContractorSkilledCount(0);
       setContractorMaleCount(0);
@@ -893,11 +953,16 @@ export default function WorkforcePage() {
 
     // Stage Contractor Entry
     if (contractorTotalWorkers > 0) {
+      if (!contractorName.trim()) {
+        setErrorMessage("Contractor / Labour Agency is MANDATORY when adding Contractor Workforce. Please select or enter a contractor.");
+        setIsContractorDropdownOpen(true);
+        return;
+      }
       newStaged.push({
         id: `staged-c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         source: "CONTRACTOR",
         contractorId: selectedContractorId || undefined,
-        contractorName: contractorName.trim() || "Contractor Agency",
+        contractorName: contractorName.trim(),
         skilledCount: contractorSkilledCount,
         skilledRate: contractorSkilledRate,
         skilledAmount: contractorSkilledAmount,
@@ -1021,11 +1086,16 @@ export default function WorkforcePage() {
           setErrorMessage("Please enter contractor worker counts before saving.");
           return;
         }
+        if (!contractorName.trim()) {
+          setErrorMessage("Contractor / Labour Agency is MANDATORY when adding Contractor Workforce. Please select or enter a contractor.");
+          setIsContractorDropdownOpen(true);
+          return;
+        }
         entriesToSubmit.push({
           id: editingRecordId,
           source: "CONTRACTOR",
           contractorId: selectedContractorId || undefined,
-          contractorName: contractorName.trim() || "Contractor Agency",
+          contractorName: contractorName.trim(),
           skilledCount: contractorSkilledCount,
           skilledRate: contractorSkilledRate,
           skilledAmount: contractorSkilledAmount,
@@ -1052,11 +1122,16 @@ export default function WorkforcePage() {
           return;
         }
         if (contractorTotalWorkers > 0) {
+          if (!contractorName.trim()) {
+            setErrorMessage("Contractor / Labour Agency is MANDATORY when adding Contractor Workforce. Please select or enter a contractor.");
+            setIsContractorDropdownOpen(true);
+            return;
+          }
           entriesToSubmit.push({
             id: `staged-c-${Date.now()}`,
             source: "CONTRACTOR",
             contractorId: selectedContractorId || undefined,
-            contractorName: contractorName.trim() || "Contractor Agency",
+            contractorName: contractorName.trim(),
             skilledCount: contractorSkilledCount,
             skilledRate: contractorSkilledRate,
             skilledAmount: contractorSkilledAmount,
@@ -1097,6 +1172,15 @@ export default function WorkforcePage() {
 
     if (entriesToSubmit.length === 0) {
       setErrorMessage("No entries to save.");
+      return;
+    }
+
+    const invalidContractorEntry = entriesToSubmit.find(
+      (e) => e.source === "CONTRACTOR" && (!e.contractorName || !e.contractorName.trim() || e.contractorName === "-" || e.contractorName === "Contractor Agency")
+    );
+    if (invalidContractorEntry) {
+      setErrorMessage("Contractor / Labour Agency is MANDATORY for all contractor workforce entries. Please provide a contractor name.");
+      setIsContractorDropdownOpen(true);
       return;
     }
 
@@ -2527,11 +2611,29 @@ export default function WorkforcePage() {
                 </div>
 
                 {/* 2. Contractor / Labour Agency Selection */}
-                <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 relative" ref={contractorDropdownRef}>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] uppercase font-bold text-slate-600 block">
-                      Contractor / Labour Agency (Optional):
-                    </label>
+                <div
+                  className={`p-3 rounded-xl border relative transition-colors ${
+                    contractorTotalWorkers > 0 && !contractorName.trim()
+                      ? "bg-rose-50/50 border-rose-300 ring-1 ring-rose-200"
+                      : "bg-slate-50/70 border-slate-200"
+                  }`}
+                  ref={contractorDropdownRef}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <label className="text-[10px] uppercase font-bold text-slate-700 block">
+                        Contractor / Labour Agency:
+                      </label>
+                      {contractorTotalWorkers > 0 ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black tracking-wide uppercase bg-rose-100 text-rose-700 border border-rose-300 animate-pulse">
+                          * MANDATORY
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-slate-500">
+                          (Optional if only logging Direct Workforce)
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       {hasContractorRates ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
@@ -2558,7 +2660,13 @@ export default function WorkforcePage() {
 
                   {/* Searchable Combobox Input */}
                   <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+                    <Search
+                      className={`w-3.5 h-3.5 absolute left-2.5 top-2.5 pointer-events-none ${
+                        contractorTotalWorkers > 0 && !contractorName.trim()
+                          ? "text-rose-400"
+                          : "text-slate-400"
+                      }`}
+                    />
                     <input
                       type="text"
                       placeholder="Search contractor or agency (or type custom)..."
@@ -2570,7 +2678,11 @@ export default function WorkforcePage() {
                         setIsContractorDropdownOpen(true);
                       }}
                       onFocus={() => setIsContractorDropdownOpen(true)}
-                      className="w-full pl-8 pr-14 bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      className={`w-full pl-8 pr-14 rounded-lg px-2.5 py-2 text-xs font-medium focus:outline-none transition ${
+                        contractorTotalWorkers > 0 && !contractorName.trim()
+                          ? "bg-white border-2 border-rose-500 ring-2 ring-rose-200 text-rose-950 placeholder-rose-300"
+                          : "bg-white border border-slate-300 text-slate-800 focus:ring-2 focus:ring-amber-500"
+                      }`}
                     />
                     <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5">
                       <button
@@ -2587,6 +2699,53 @@ export default function WorkforcePage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Mandatory Error Alert Banner */}
+                  {contractorTotalWorkers > 0 && !contractorName.trim() && (
+                    <div className="mt-2 p-2 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2 text-rose-700 text-xs">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <div className="font-semibold">
+                        Contractor / Labour Agency is <span className="underline font-black">MANDATORY</span> because you have entered {contractorTotalWorkers} contractor worker(s) below. Please select or enter a contractor name.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Select Contractor Pills */}
+                  {existingContractors.length > 0 && (
+                    <div className="mt-2.5 pt-2 border-t border-slate-200/80">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1">
+                          <Building2 className="w-3 h-3 text-amber-600" />
+                          <span>Quick Select Contractor ({existingContractors.length}):</span>
+                        </span>
+                        {contractorName && (
+                          <span className="text-[10px] text-slate-600 truncate max-w-[220px]">
+                            Selected: <strong className="text-slate-800 font-bold">{contractorName}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                        {existingContractors.map((c) => {
+                          const isSelected = contractorName.trim().toLowerCase() === c.trim().toLowerCase();
+                          return (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => handleSelectContractor(c)}
+                              className={`px-2.5 py-1 text-xs rounded-lg font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                                isSelected
+                                  ? "bg-amber-500 text-slate-950 font-black shadow-xs border border-amber-600 ring-1 ring-amber-400"
+                                  : "bg-white hover:bg-amber-50 text-slate-700 border border-slate-200 hover:border-amber-300"
+                              }`}
+                            >
+                              <span>{c}</span>
+                              {isSelected && <Check className="w-3 h-3 text-slate-950 stroke-[3]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Search Autocomplete Dropdown List */}
                   {isContractorDropdownOpen && (
@@ -3406,10 +3565,17 @@ export default function WorkforcePage() {
                 </div>
 
                 <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
-                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Ready to save</span>
-                  </span>
+                  {contractorTotalWorkers > 0 && !contractorName.trim() ? (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-bold text-xs border border-rose-300 animate-pulse">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Contractor Required</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Ready to save</span>
+                    </span>
+                  )}
 
                   <button
                     type="button"
@@ -3430,7 +3596,14 @@ export default function WorkforcePage() {
                   <button
                     type="button"
                     onClick={() => handleSaveAllHeadcounts()}
-                    disabled={submitting || isUploadingPhotos || (editingRecordId ? (contractorTotalWorkers === 0 && directTotalWorkers === 0) : (stagedEntries.length === 0 && contractorTotalWorkers === 0 && directTotalWorkers === 0))}
+                    disabled={
+                      submitting ||
+                      isUploadingPhotos ||
+                      (contractorTotalWorkers > 0 && !contractorName.trim()) ||
+                      (editingRecordId
+                        ? contractorTotalWorkers === 0 && directTotalWorkers === 0
+                        : stagedEntries.length === 0 && contractorTotalWorkers === 0 && directTotalWorkers === 0)
+                    }
                     className="flex items-center gap-1.5 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
                   >
                     {submitting || isUploadingPhotos ? (
