@@ -358,6 +358,12 @@ export default function TasksPage() {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTask) return;
+
+    if (!editReason || !editReason.trim()) {
+      setErrorMessage("Reason for change is mandatory. Please state why this task is being modified.");
+      return;
+    }
+
     setSubmitting(true);
     setErrorMessage(null);
 
@@ -371,7 +377,7 @@ export default function TasksPage() {
           priority: editPriority,
           assigneeUserId: editAssigneeUserId || null,
           dueAt: editDueAt ? new Date(editDueAt).toISOString() : null,
-          reason: editReason || undefined,
+          reason: editReason.trim(),
         }),
       });
 
@@ -1203,16 +1209,27 @@ export default function TasksPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Reason for Change (Optional)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      Reason for Change <span className="text-rose-600 font-extrabold">*</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Mandatory
+                    </span>
+                  </div>
                   <input
                     type="text"
+                    required
                     placeholder="e.g. Due date extension granted by structural consultant"
                     value={editReason}
                     onChange={(e) => setEditReason(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-amber-400 focus:bg-white rounded-lg p-2.5 text-sm outline-none transition"
                   />
+                  {!editReason.trim() && (
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      A brief reason is required for compliance and audit logging.
+                    </p>
+                  )}
                 </div>
 
               </form>

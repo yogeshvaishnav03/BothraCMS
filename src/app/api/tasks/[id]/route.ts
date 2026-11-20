@@ -84,6 +84,10 @@ export async function PATCH(
     const body = await req.json();
     const data = editTaskSchema.parse(body);
 
+    if (data.reason !== undefined && !data.reason.trim()) {
+      return jsonError("Reason for change is mandatory. Please state why this task is being modified.", "VALIDATION_ERROR", 400);
+    }
+
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title.trim();
     if (data.description !== undefined) updateData.description = data.description;
