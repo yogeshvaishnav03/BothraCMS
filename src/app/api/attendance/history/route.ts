@@ -158,13 +158,13 @@ export async function GET(req: NextRequest) {
     ]);
 
     const userByEmpCode = new Map(
-      orgUsers.map((u) => [`USR-${u.id.slice(-6).toUpperCase()}`, u])
+      orgUsers.filter((u) => u?.id).map((u) => [`USR-${u.id.slice(-6).toUpperCase()}`, u])
     );
     const userByName = new Map(
-      orgUsers.map((u) => [u.name.toLowerCase().trim(), u])
+      orgUsers.filter((u) => u?.name).map((u) => [(u.name || "").toLowerCase().trim(), u])
     );
     const userById = new Map(
-      orgUsers.map((u) => [u.id, u])
+      orgUsers.filter((u) => u?.id).map((u) => [u.id, u])
     );
 
     // Filter sessions to Staff Attendance only (Site labor / muster roll entries are tracked in /attendance/muster)
@@ -238,14 +238,14 @@ export async function GET(req: NextRequest) {
         (s.workforceMember?.name ? userByName.get(s.workforceMember.name.toLowerCase().trim()) : undefined) ||
         (s.createdBy ? userById.get(s.createdBy) : undefined);
       const employeeName =
-        linkedUser?.name || s.workforceMember?.name || s.creator?.name || "Staff Member";
+        (linkedUser?.name || s.workforceMember?.name || s.creator?.name || "Staff Member").trim() || "Staff Member";
       const employeeRole =
         linkedUser?.role ||
         (s.workforceMember?.workerType && !LABOR_TRADES.has(s.workforceMember.workerType.toUpperCase()) ? s.workforceMember.workerType : null) ||
         s.creator?.role ||
         "STAFF";
       const employeeCode =
-        s.workforceMember?.employeeCode || (s.creator ? `USR-${s.creator.id.slice(-6).toUpperCase()}` : "N/A");
+        s.workforceMember?.employeeCode || (s.creator?.id ? `USR-${s.creator.id.slice(-6).toUpperCase()}` : "N/A");
 
       return {
         id: s.id,

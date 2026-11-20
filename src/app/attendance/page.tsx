@@ -132,6 +132,110 @@ function getRoleBadge(role?: string) {
   }
 }
 
+function safeInitials(name?: string | null): string {
+  if (!name || typeof name !== "string") return "ST";
+  const trimmed = name.trim();
+  if (!trimmed) return "ST";
+  return trimmed.slice(0, 2).toUpperCase();
+}
+
+function safeDayName(dateStr?: string | null): string {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "—";
+  try {
+    return d.toLocaleDateString("en-US", { weekday: "short" });
+  } catch {
+    return "—";
+  }
+}
+
+function safeTime(iso?: string | null, fallback: string = "—"): string {
+  if (!iso) return fallback;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return fallback;
+  try {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return fallback;
+  }
+}
+
+function safeGps(lat?: number | string | null, lng?: number | string | null): string {
+  const nLat = Number(lat);
+  const nLng = Number(lng);
+  if (lat == null || isNaN(nLat)) return "";
+  const lngStr = lng != null && !isNaN(nLng) ? nLng.toFixed(4) : "—";
+  return `${nLat.toFixed(4)}, ${lngStr}`;
+}
+
+function safeIsoDateSlice(val?: string | null): string {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return "";
+  try {
+    return d.toISOString().slice(0, 16);
+  } catch {
+    return "";
+  }
+}
+
+function safeIsoToIso(val?: string | null): string | undefined {
+  if (!val) return undefined;
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return undefined;
+  try {
+    return d.toISOString();
+  } catch {
+    return undefined;
+  }
+}
+
+class AttendanceErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("AttendanceErrorBoundary caught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 bg-amber-50 border border-amber-200 rounded-2xl text-center space-y-3 my-6">
+          <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900">Attendance Data View</h3>
+          <p className="text-xs text-slate-600 max-w-md mx-auto">
+            Some attendance data was temporarily formatted unexpectedly. You can refresh or try another date filter.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            }}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition shadow-xs cursor-pointer"
+          >
+            Refresh Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function AttendancePage() {
   const { activeSiteId, setActiveSiteId } = useActiveSite();
   const { user: sessionUser, refreshUser, refreshSites } = useAppSession();
@@ -210,8 +314,10 @@ export default function AttendancePage() {
 
   // Live clock
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -396,12 +502,13 @@ export default function AttendancePage() {
   };
 
   const handleOpenCorrection = (session: any) => {
+    if (!session) return;
     setCorrectionSession(session);
     setCorrectionStatus(session.status || "PRESENT");
     const matchedShift = (session.notes?.match(/\[Shift:\s*(GENERAL|DAY|NIGHT)\]/i)?.[1]?.toUpperCase() as any) || "GENERAL";
     setCorrectionShift(matchedShift);
-    setCorrectionCheckIn(session.checkInAt ? new Date(session.checkInAt).toISOString().slice(0, 16) : "");
-    setCorrectionCheckOut(session.checkOutAt ? new Date(session.checkOutAt).toISOString().slice(0, 16) : "");
+    setCorrectionCheckIn(safeIsoDateSlice(session.checkInAt));
+    setCorrectionCheckOut(safeIsoDateSlice(session.checkOutAt));
     setCorrectionReason("");
   };
 
@@ -423,8 +530,8 @@ export default function AttendancePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: correctionStatus,
-          checkInAt: correctionCheckIn ? new Date(correctionCheckIn).toISOString() : undefined,
-          checkOutAt: correctionCheckOut ? new Date(correctionCheckOut).toISOString() : undefined,
+          checkInAt: safeIsoToIso(correctionCheckIn),
+          checkOutAt: safeIsoToIso(correctionCheckOut),
           shift: correctionShift,
           reason: correctionReason.trim(),
         }),
@@ -493,8 +600,8 @@ export default function AttendancePage() {
           workDate: alterDate,
           shift: alterShift,
           status: alterStatus,
-          checkInAt: alterCheckIn ? new Date(alterCheckIn).toISOString() : undefined,
-          checkOutAt: alterCheckOut ? new Date(alterCheckOut).toISOString() : undefined,
+          checkInAt: safeIsoToIso(alterCheckIn),
+          checkOutAt: safeIsoToIso(alterCheckOut),
           reason: alterReason.trim(),
         }),
       });
@@ -694,7 +801,7 @@ export default function AttendancePage() {
       } else if (selectedMonthTab === "CUSTOM_DATE") {
         if (selectedCustomDate && s.workDate !== selectedCustomDate) return false;
       } else if (selectedMonthTab !== "ALL") {
-        if (!s.workDate.startsWith(selectedMonthTab)) return false;
+        if (!s.workDate || !s.workDate.startsWith(selectedMonthTab)) return false;
       }
 
       // Site filter
@@ -717,12 +824,12 @@ export default function AttendancePage() {
       // Search filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const dateMatch = s.workDate.toLowerCase().includes(q);
-        const nameMatch = s.employeeName?.toLowerCase().includes(q) || false;
-        const roleMatch = s.employeeRole?.toLowerCase().includes(q) || false;
-        const codeMatch = s.employeeCode?.toLowerCase().includes(q) || false;
-        const siteMatch = s.site?.name?.toLowerCase().includes(q) || false;
-        const notesMatch = s.notes?.toLowerCase().includes(q) || false;
+        const dateMatch = (s.workDate || "").toLowerCase().includes(q);
+        const nameMatch = (s.employeeName || "").toLowerCase().includes(q);
+        const roleMatch = (s.employeeRole || "").toLowerCase().includes(q);
+        const codeMatch = (s.employeeCode || "").toLowerCase().includes(q);
+        const siteMatch = (s.site?.name || "").toLowerCase().includes(q);
+        const notesMatch = (s.notes || "").toLowerCase().includes(q);
         return dateMatch || nameMatch || roleMatch || codeMatch || siteMatch || notesMatch;
       }
 
@@ -737,7 +844,7 @@ export default function AttendancePage() {
       cols.push({
         key: "employee",
         label: "Staff Member & Role",
-        accessor: (s) => `${s.employeeName} (${s.employeeRole || ""})`,
+        accessor: (s) => `${s.employeeName || "Staff"} (${s.employeeRole || ""})`,
         type: "text",
       });
     }
@@ -777,7 +884,7 @@ export default function AttendancePage() {
       {
         key: "gpsVerified",
         label: "GPS Verification",
-        accessor: (s) => (s.gpsVerified ? "Verified" : "Unverified"),
+        accessor: (s) => (s.checkInLat != null ? "Verified" : "Unverified"),
         type: "text",
       }
     );
@@ -838,36 +945,31 @@ export default function AttendancePage() {
         ];
 
     const rows = filteredSessions.map((s) => {
-      const dateObj = new Date(s.workDate);
-      const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
-      const checkInTime = s.checkInAt
-        ? new Date(s.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : "";
-      const checkInGps = s.checkInLat ? `${s.checkInLat.toFixed(4)}, ${s.checkInLng?.toFixed(4)}` : "";
-      const checkOutTime = s.checkOutAt
-        ? new Date(s.checkOutAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : "";
-      const checkOutGps = s.checkOutLat ? `${s.checkOutLat.toFixed(4)}, ${s.checkOutLng?.toFixed(4)}` : "";
+      const dayName = safeDayName(s.workDate);
+      const checkInTime = safeTime(s.checkInAt, "");
+      const checkInGps = safeGps(s.checkInLat, s.checkInLng);
+      const checkOutTime = safeTime(s.checkOutAt, "");
+      const checkOutGps = safeGps(s.checkOutLat, s.checkOutLng);
 
       const commonFields = [
-        `"${s.workDate}"`,
+        `"${s.workDate || ""}"`,
         `"${dayName}"`,
         `"${s.checkOutAt ? "COMPLETED" : "IN PROGRESS"}"`,
         `"${checkInTime}"`,
         `"${checkInGps}"`,
         `"${checkOutTime}"`,
         `"${checkOutGps}"`,
-        `"${s.durationFormatted}"`,
-        `"${s.durationHours}"`,
+        `"${s.durationFormatted || ""}"`,
+        `"${s.durationHours || 0}"`,
         `"${s.site?.name || "Main Site"}"`,
         `"${s.notes || ""}"`,
       ];
 
       if (isAllStaffMode) {
         return [
-          `"${s.employeeName}"`,
-          `"${s.employeeRole}"`,
-          `"${s.employeeCode}"`,
+          `"${s.employeeName || ""}"`,
+          `"${s.employeeRole || ""}"`,
+          `"${s.employeeCode || ""}"`,
           ...commonFields,
         ].join(",");
       }
@@ -905,7 +1007,8 @@ export default function AttendancePage() {
 
   return (
     <Shell>
-      <div className="space-y-6">
+      <AttendanceErrorBoundary>
+        <div className="space-y-6">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
           <div>
@@ -985,7 +1088,7 @@ export default function AttendancePage() {
         </div>
 
         {/* REAL-TIME CHECKOUT REMINDER BANNER FOR ACTIVE UNCLOSED SHIFTS */}
-        {isShiftEndedForToday && (
+        {isShiftEndedForToday && todaySession && (
           <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-slate-950 p-4 sm:p-5 rounded-2xl shadow-lg border border-amber-300 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-start sm:items-center gap-3">
@@ -1003,15 +1106,8 @@ export default function AttendancePage() {
                   </div>
                   <p className="text-xs font-semibold text-slate-950/90 mt-1">
                     Your scheduled shift has concluded. You checked in at{" "}
-                    <strong>
-                      {todaySession
-                        ? new Date(todaySession.checkInAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "shift start"}
-                    </strong>{" "}
-                    ({todaySession?.durationFormatted} logged so far). Please tap Check Out Now to record your departure with GPS verification.
+                    <strong>{safeTime(todaySession.checkInAt, "shift start")}</strong>{" "}
+                    ({todaySession.durationFormatted || "0m"} logged so far). Please tap Check Out Now to record your departure with GPS verification.
                   </p>
                 </div>
               </div>
@@ -1083,20 +1179,24 @@ export default function AttendancePage() {
 
                 <div>
                   <div className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
-                    <span>
-                      {currentTime.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
+                    <span suppressHydrationWarning>
+                      {mounted
+                        ? currentTime.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : "—"}
                     </span>
-                    <span className="text-xs font-medium text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
-                      {currentTime.toLocaleDateString("en-US", {
-                        weekday: "long",
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                    <span suppressHydrationWarning className="text-xs font-medium text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+                      {mounted
+                        ? currentTime.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
                     </span>
                   </div>
                 </div>
@@ -1191,8 +1291,8 @@ export default function AttendancePage() {
                     </div>
                     <div className="text-[11px] text-emerald-800 mt-0.5">
                       Checked in at{" "}
-                      {new Date(todaySession!.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{" "}
-                      &bull; Duration: {todaySession!.durationFormatted} ({todaySession!.site?.name || "Main Site"})
+                      {safeTime(todaySession?.checkInAt)}{" "}
+                      &bull; Duration: {todaySession?.durationFormatted || "0m"} ({todaySession?.site?.name || "Main Site"})
                     </div>
                   </div>
                 </div>
@@ -1249,20 +1349,24 @@ export default function AttendancePage() {
 
                 <div>
                   <div className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
-                    <span>
-                      {currentTime.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
+                    <span suppressHydrationWarning>
+                      {mounted
+                        ? currentTime.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : "—"}
                     </span>
-                    <span className="text-xs font-medium text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
-                      {currentTime.toLocaleDateString("en-US", {
-                        weekday: "long",
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                    <span suppressHydrationWarning className="text-xs font-medium text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+                      {mounted
+                        ? currentTime.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—"}
                     </span>
                   </div>
                 </div>
@@ -1279,14 +1383,11 @@ export default function AttendancePage() {
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                       <span>
                         Checked in at{" "}
-                        {new Date(todaySession!.checkInAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {safeTime(todaySession?.checkInAt)}
                       </span>
                       <span className="text-slate-400">&bull;</span>
                       <span className="font-mono text-emerald-200">
-                        Duration: {todaySession!.durationFormatted}
+                        Duration: {todaySession?.durationFormatted || "0m"}
                       </span>
                     </div>
                   ) : (
@@ -1294,25 +1395,19 @@ export default function AttendancePage() {
                       <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
                       <span>
                         Shift Completed:{" "}
-                        {new Date(todaySession!.checkInAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}{" "}
+                        {safeTime(todaySession?.checkInAt)}{" "}
                         to{" "}
-                        {new Date(todaySession!.checkOutAt!).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}{" "}
-                        ({todaySession!.durationFormatted})
+                        {safeTime(todaySession?.checkOutAt)}{" "}
+                        ({todaySession?.durationFormatted || "0m"})
                       </span>
                     </div>
                   )}
 
-                  {todaySession?.checkInLat && (
+                  {todaySession?.checkInLat != null && !isNaN(Number(todaySession.checkInLat)) && (
                     <div className="flex items-center gap-1 text-[11px] text-slate-300 bg-slate-800/70 border border-slate-700/80 px-2.5 py-1 rounded-lg font-mono">
                       <MapPin className="w-3 h-3 text-amber-400" />
                       <span>
-                        GPS: {todaySession.checkInLat.toFixed(4)}, {todaySession.checkInLng?.toFixed(4)}
+                        GPS: {safeGps(todaySession.checkInLat, todaySession.checkInLng)}
                       </span>
                     </div>
                   )}
@@ -1649,8 +1744,7 @@ export default function AttendancePage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {excelAttendance.paginatedData.map((s) => {
-                    const dateObj = new Date(s.workDate);
-                    const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                    const dayName = safeDayName(s.workDate);
                     const isCompleted = Boolean(s.checkOutAt);
                     const roleBadge = getRoleBadge(s.employeeRole);
 
@@ -1666,11 +1760,11 @@ export default function AttendancePage() {
                           <td className="py-3 px-4 whitespace-nowrap">
                             <div className="flex items-center gap-2.5">
                               <div className="w-8 h-8 rounded-full bg-slate-900 text-amber-400 font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                                {s.employeeName.slice(0, 2).toUpperCase()}
+                                {safeInitials(s.employeeName)}
                               </div>
                               <div>
                                 <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                  <span>{s.employeeName}</span>
+                                  <span>{s.employeeName || "Staff Member"}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span
@@ -1679,7 +1773,7 @@ export default function AttendancePage() {
                                     {roleBadge.label}
                                   </span>
                                   <span className="text-[10px] font-mono text-slate-400">
-                                    {s.employeeCode}
+                                    {s.employeeCode || "—"}
                                   </span>
                                 </div>
                               </div>
@@ -1737,17 +1831,15 @@ export default function AttendancePage() {
                                 : "text-slate-400"
                             }`}
                           >
-                            {s.durationFormatted}
+                            {s.durationFormatted || "0m"}
                           </span>
                         </td>
 
                         <td className="py-3 px-4 whitespace-nowrap text-slate-500">
-                          {s.checkInLat ? (
+                          {s.checkInLat != null && !isNaN(Number(s.checkInLat)) ? (
                             <div className="inline-flex items-center gap-1 font-mono text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
                               <MapPin className="w-3 h-3 text-emerald-600" />
-                              <span>
-                                {s.checkInLat.toFixed(4)}, {s.checkInLng?.toFixed(4)}
-                              </span>
+                              <span>{safeGps(s.checkInLat, s.checkInLng)}</span>
                             </div>
                           ) : (
                             <span className="text-slate-400 italic">No GPS data</span>
@@ -1759,7 +1851,7 @@ export default function AttendancePage() {
                             <button
                               type="button"
                               onClick={() => handleOpenCorrection(s)}
-                              className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition"
+                              className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition cursor-pointer"
                               title="Correct time or shift status"
                               aria-label={`Correct attendance for ${s.employeeName || "staff"} on ${formatDate(s.workDate)}`}
                             >
@@ -1769,16 +1861,15 @@ export default function AttendancePage() {
                         )}
                       </tr>
                     );
-                  })}
-                </tbody>
+                    })}
+                  </tbody>
               </table>
             </div>
 
             {/* Mobile & Tablet Attendance Cards (< lg screens) */}
             <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
               {excelAttendance.paginatedData.map((s) => {
-                const dateObj = new Date(s.workDate);
-                const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+                const dayName = safeDayName(s.workDate);
                 const isCompleted = Boolean(s.checkOutAt);
                 const roleBadge = getRoleBadge(s.employeeRole);
 
@@ -1787,12 +1878,17 @@ export default function AttendancePage() {
                     {/* Top: Staff Name, Role and Shift Status */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="font-bold text-slate-900 text-sm">{s.employeeName}</div>
-                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-900 text-amber-400 font-black text-[10px] flex items-center justify-center shrink-0">
+                            {safeInitials(s.employeeName)}
+                          </div>
+                          <span className="truncate">{s.employeeName || "Staff Member"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className={`text-[9px] px-1.5 py-0.2 rounded-md border ${roleBadge.className}`}>
                             {roleBadge.label}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-400">{s.employeeCode}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{s.employeeCode || "—"}</span>
                         </div>
                       </div>
 
@@ -1825,9 +1921,9 @@ export default function AttendancePage() {
                       <div className="text-right">
                         <div className="text-[11px] text-slate-400 font-medium">Timing</div>
                         <div className="text-slate-700 font-mono text-[11px] mt-0.5">
-                          {s.checkInAt ? new Date(s.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                          {safeTime(s.checkInAt, "—")}
                           {" → "}
-                          {s.checkOutAt ? new Date(s.checkOutAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Active"}
+                          {s.checkOutAt ? safeTime(s.checkOutAt, "Active") : "Active"}
                         </div>
                       </div>
                     </div>
@@ -1835,7 +1931,7 @@ export default function AttendancePage() {
                     {/* Footer: GPS verification and Correct Action */}
                     <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1 text-[11px]">
-                        {s.checkInLat ? (
+                        {s.checkInLat != null && !isNaN(Number(s.checkInLat)) ? (
                           <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
                             <span className="text-emerald-600">✓</span> GPS Logged
                           </span>
@@ -1848,7 +1944,7 @@ export default function AttendancePage() {
                         <button
                           type="button"
                           onClick={() => handleOpenCorrection(s)}
-                          className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition"
+                          className="px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition cursor-pointer"
                         >
                           Correct
                         </button>
@@ -2396,6 +2492,7 @@ export default function AttendancePage() {
           </div>
         )}
       </div>
+      </AttendanceErrorBoundary>
     </Shell>
   );
 }
