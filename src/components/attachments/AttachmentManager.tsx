@@ -103,8 +103,11 @@ export default function AttachmentManager({
 
   const uploadSingleFile = async (rawFile: File, fileCategory: string) => {
     const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+    const isDoc = rawFile.type === "application/pdf" || /\.(pdf|dwg|dxf|docx?|xlsx?|txt|csv|zip)$/i.test(rawFile.name);
     const file = isVideo
       ? await compressVideoFile(rawFile)
+      : isDoc
+      ? rawFile
       : await compressImageFile(rawFile, {
           preset: presetForAttachmentCategory(fileCategory, entityType),
         });
@@ -423,15 +426,18 @@ export default function AttachmentManager({
               <option value="GENERAL">📎 General Document</option>
             </select>
 
-            <label className="relative inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs whitespace-nowrap rounded-lg cursor-pointer transition shadow-xs">
-              <Upload className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="sm:hidden">{uploading ? "Uploading..." : "Upload File"}</span>
-              <span className="hidden sm:inline">{uploading ? "Uploading..." : "Upload File (Photos, Videos, PDF)"}</span>
+            {/* Dedicated Mobile & Desktop PDF / Document Button */}
+            <label className="relative inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs whitespace-nowrap rounded-lg cursor-pointer transition shadow-xs col-span-2 sm:col-span-1">
+              <FileText className="w-3.5 h-3.5 text-rose-100 shrink-0" />
+              <span>{uploading ? "Uploading..." : "📄 PDF / Document"}</span>
               <input
                 type="file"
                 multiple
-                accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*,application/pdf"
-                onChange={handleFileUpload}
+                accept="application/pdf,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/zip,.dwg,.dxf"
+                onChange={(e) => {
+                  if (category === "PHOTO") setCategory("DRAWING");
+                  handleFileUpload(e);
+                }}
                 disabled={uploading}
                 className="sr-only"
               />
@@ -440,11 +446,26 @@ export default function AttachmentManager({
             {/* Mobile Camera Direct Button */}
             <label className="relative inline-flex sm:hidden items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs whitespace-nowrap rounded-lg cursor-pointer transition shadow-xs">
               <Camera className="w-3.5 h-3.5 shrink-0" />
-              <span>Camera / Video</span>
+              <span>Camera</span>
               <input
                 type="file"
                 accept="image/*,video/*"
                 capture="environment"
+                onChange={handleFileUpload}
+                disabled={uploading}
+                className="sr-only"
+              />
+            </label>
+
+            {/* Photos & Gallery Button */}
+            <label className="relative inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs whitespace-nowrap rounded-lg cursor-pointer transition shadow-xs">
+              <Upload className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="sm:hidden">{uploading ? "Uploading..." : "Gallery / Photos"}</span>
+              <span className="hidden sm:inline">{uploading ? "Uploading..." : "Upload Photos / All"}</span>
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*,video/mp4,video/webm,video/quicktime,video/*,application/pdf"
                 onChange={handleFileUpload}
                 disabled={uploading}
                 className="sr-only"

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { Camera, CloudOff, Loader2, X } from "lucide-react";
+import { Camera, CloudOff, FileText, Loader2, X } from "lucide-react";
 import { isNetworkError, isOffline, type QueuedPhoto } from "@/lib/offline-queue";
 import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
@@ -45,6 +45,7 @@ export function PhotoPicker({
   label?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,8 +60,11 @@ export function PhotoPicker({
     const added: PickedPhoto[] = [];
     for (const rawFile of picked) {
       const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
+      const isDoc = rawFile.type === "application/pdf" || /\.(pdf|dwg|dxf|docx?|xlsx?)$/i.test(rawFile.name);
       const file = isVideo
         ? await compressVideoFile(rawFile)
+        : isDoc
+        ? rawFile
         : await compressImageFile(rawFile, { preset: "photo" });
       if (isOffline()) {
         added.push({ url: URL.createObjectURL(file), name: file.name, file });
@@ -72,13 +76,13 @@ export function PhotoPicker({
           entityType,
           entityId,
           projectId,
-          category: "PHOTO",
+          category: isDoc ? "SPECIFICATION" : "PHOTO",
           createAttachment: true,
         });
         if (uploadResult?.url) {
           added.push({ url: uploadResult.url, name: uploadResult.fileName || file.name });
         } else {
-          setError(`Could not upload ${file.name}. Use JPG, PNG, WebP, or MP4/WebM video under 250 MB.`);
+          setError(`Could not upload ${file.name}. Use JPG, PNG, WebP, PDF, or MP4/WebM video under 250 MB.`);
         }
       } catch (e: any) {
         if (isNetworkError(e)) {
@@ -91,18 +95,30 @@ export function PhotoPicker({
     }
     if (added.length) onChange([...value, ...added]);
     if (inputRef.current) inputRef.current.value = "";
+    if (docInputRef.current) docInputRef.current.value = "";
   };
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         {value.map((p) => {
+          const isDoc =
+            /\.(pdf|dwg|dxf|docx?|xlsx?)(\?.*)?$/i.test(p.name || p.url) ||
+            p.file?.type === "application/pdf";
           const isVideo =
-            /\.(mp4|webm|mov|3gp|avi)(\?.*)?$/i.test(p.name || p.url) ||
-            p.file?.type?.startsWith("video/");
+            !isDoc &&
+            (/\.(mp4|webm|mov|3gp|avi)(\?.*)?$/i.test(p.name || p.url) ||
+              p.file?.type?.startsWith("video/"));
           return (
             <div key={p.url} className="relative h-16 w-16 overflow-hidden rounded-lg border border-slate-200 bg-slate-900 shadow-xs">
-              {isVideo ? (
+              {isDoc ? (
+                <div className="flex h-full w-full flex-col items-center justify-center bg-rose-50 p-1 text-center">
+                  <FileText className="h-5 w-5 text-rose-600 mb-0.5" />
+                  <span className="text-[9px] font-bold text-rose-800 uppercase truncate max-w-full leading-none">
+                    {p.name.endsWith(".pdf") ? "PDF" : "DOC"}
+                  </span>
+                </div>
+              ) : isVideo ? (
                 <video src={p.url} className="h-full w-full object-cover" muted preload="metadata" />
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
@@ -130,20 +146,39 @@ export function PhotoPicker({
           </div>
         ))}
         {value.length + uploading < max && (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="flex h-16 min-w-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 text-[11px] font-semibold text-slate-500 transition hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700"
-          >
-            <Camera className="h-4 w-4" />
-            {label}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="flex h-16 min-w-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-slate-300 px-3 text-[11px] font-semibold text-slate-500 transition hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700"
+            >
+              <Camera className="h-4 w-4" />
+              {label}
+            </button>
+            <button
+              type="button"
+              onClick={() => docInputRef.current?.click()}
+              className="flex h-16 min-w-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-rose-300 bg-rose-50/40 px-3 text-[11px] font-semibold text-rose-700 transition hover:border-rose-400 hover:bg-rose-50"
+              title="Add PDF or Document"
+            >
+              <FileText className="h-4 w-4 text-rose-600" />
+              Add PDF
+            </button>
+          </div>
         )}
       </div>
       <input
         ref={inputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime,video/*"
+        multiple
+        className="sr-only"
+        onChange={(e) => upload(e.target.files)}
+      />
+      <input
+        ref={docInputRef}
+        type="file"
+        accept="application/pdf,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain"
         multiple
         className="sr-only"
         onChange={(e) => upload(e.target.files)}
