@@ -36,7 +36,15 @@ import {
   BarChart3,
   TrendingUp,
   Loader2,
+  Camera,
+  UploadCloud,
+  Eye,
+  Download,
+  Image as ImageIcon,
+  FileText,
 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { uploadClientMedia } from "@/lib/upload-client";
 import { canUser } from "@/lib/permissions";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import { useActiveSite } from "@/hooks/useActiveSite";
@@ -79,6 +87,14 @@ interface HeadcountRecord {
   notes?: string;
   supervisorId: string;
   supervisorName: string;
+  attachments?: Array<{
+    id: string;
+    fileId: string;
+    fileName: string;
+    fileSize?: number;
+    mimeType?: string;
+    url: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -589,13 +605,31 @@ export default function WorkforcePage() {
   const [pendingDeleteWorker, setPendingDeleteWorker] = useState<{ id: string; name: string; employeeCode: string } | null>(null);
   const [showClearWorkersModal, setShowClearWorkersModal] = useState<boolean>(false);
 
+  // Editing and Photo Attachment states for Headcount
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [headcountPhotos, setHeadcountPhotos] = useState<File[]>([]);
+  const [headcountPhotoPreviews, setHeadcountPhotoPreviews] = useState<
+    Array<{ id: string; url: string; name: string; size: number }>
+  >([]);
+  const [existingAttachments, setExistingAttachments] = useState<
+    Array<{ id: string; fileId: string; fileName: string; fileSize?: number; mimeType?: string; url: string }>
+  >([]);
+  const [activePhotoLightbox, setActivePhotoLightbox] = useState<string | null>(null);
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState<boolean>(false);
+
   useEffect(() => {
-    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord || pendingDeleteWorker || showReportsModal || showClearWorkersModal)) return;
+    if (!(showUploadModal || showRegisterWorkerModal || pendingDeleteRecord || pendingDeleteWorker || showReportsModal || showClearWorkersModal || activePhotoLightbox)) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (activePhotoLightbox) {
+          setActivePhotoLightbox(null);
+          return;
+        }
         setShowUploadModal(false);
+        setEditingRecordId(null);
         setShowRegisterWorkerModal(false);
         setPendingDeleteRecord(null);
         setPendingDeleteWorker(null);
@@ -608,7 +642,7 @@ export default function WorkforcePage() {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord, pendingDeleteWorker, showReportsModal, showClearWorkersModal]);
+  }, [showUploadModal, showRegisterWorkerModal, pendingDeleteRecord, pendingDeleteWorker, showReportsModal, showClearWorkersModal, activePhotoLightbox]);
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -688,8 +722,15 @@ export default function WorkforcePage() {
   }, [activeSiteId]);
 
   const openUploadModal = (existing?: HeadcountRecord) => {
+    headcountPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+    setHeadcountPhotos([]);
+    setHeadcountPhotoPreviews([]);
+    setPhotoUploadError(null);
+
     if (existing) {
+      setEditingRecordId(existing.id);
       setModalSiteId(existing.siteId);
+      setModalProjectId(existing.projectId || "");
       setModalDate(existing.date);
       setModalShift(existing.shift);
       setArtisanCount(existing.artisanCount ?? existing.artisanTotal ?? 0);
@@ -697,6 +738,7 @@ export default function WorkforcePage() {
       setLaborerFemale(existing.laborerFemale || 0);
       setContractorName(existing.contractorName || "");
       setNotes(existing.notes || "");
+      setExistingAttachments(existing.attachments || []);
       setIsCustomContractor(false);
       setIsContractorDropdownOpen(false);
       setContractorSearchQuery("");
@@ -739,6 +781,8 @@ export default function WorkforcePage() {
       setStagedEntries([]);
       setEditingStagedId(null);
     } else {
+      setEditingRecordId(null);
+      setExistingAttachments([]);
       setModalSiteId(selectedSiteId || (sites.length > 0 ? sites[0].id : ""));
       setModalProjectId(selectedProjectId || "");
       setModalDate(selectedDate);
@@ -770,6 +814,65 @@ export default function WorkforcePage() {
       setEditingStagedId(null);
     }
     setShowUploadModal(true);
+  };
+
+  const handleHeadcountPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (picked.length === 0) return;
+    setPhotoUploadError(null);
+
+    const validFiles: File[] = [];
+    for (const file of picked) {
+      const isImg = file.type.startsWith("image/") || /\.(jpg|jpeg|png|webp|heic|heif|bmp)$/i.test(file.name);
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      if (!isImg && !isPdf) {
+        setPhotoUploadError(`File '${file.name}' is not supported. Please upload Images (JPG, PNG) or PDF.`);
+        continue;
+      }
+      if (file.size > 25 * 1024 * 1024) {
+        setPhotoUploadError(`File '${file.name}' exceeds the 25 MB size limit.`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) return;
+
+    setHeadcountPhotos((prev) => [...prev, ...validFiles]);
+    const newPreviews = validFiles.map((file) => ({
+      id: `${file.name}-${file.lastModified}-${Math.random()}`,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+    }));
+    setHeadcountPhotoPreviews((prev) => [...prev, ...newPreviews]);
+  };
+
+  const handleRemoveHeadcountPhoto = (index: number) => {
+    setHeadcountPhotos((prev) => prev.filter((_, i) => i !== index));
+    setHeadcountPhotoPreviews((prev) => {
+      if (prev[index]?.url) URL.revokeObjectURL(prev[index].url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleDeleteExistingAttachment = async (attachmentId: string) => {
+    try {
+      const res = await fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
+      if (res.ok) {
+        setExistingAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === editingRecordId
+              ? { ...r, attachments: (r.attachments || []).filter((a) => a.id !== attachmentId) }
+              : r
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Failed to delete attachment:", err);
+    }
   };
 
   const handleAddEntryToList = () => {
@@ -884,17 +987,42 @@ export default function WorkforcePage() {
       return;
     }
 
-    let entriesToSubmit: StagedHeadcountEntry[] = [...stagedEntries];
+    let entriesToSubmit: StagedHeadcountEntry[] = [];
 
-    // If staged entries is empty, auto-stage active values from form
-    if (entriesToSubmit.length === 0) {
-      if (contractorTotalWorkers === 0 && directTotalWorkers === 0) {
-        setErrorMessage("Please enter worker counts or add entries to the list before saving.");
-        return;
-      }
-      if (contractorTotalWorkers > 0) {
+    if (editingRecordId) {
+      // Direct update of the single existing headcount record
+      const existingRec = records.find((r) => r.id === editingRecordId);
+      const isDirect = existingRec?.source === "DIRECT" || (contractorTotalWorkers === 0 && directTotalWorkers > 0);
+
+      if (isDirect) {
+        if (directTotalWorkers === 0) {
+          setErrorMessage("Please enter direct worker counts before saving.");
+          return;
+        }
         entriesToSubmit.push({
-          id: `staged-c-${Date.now()}`,
+          id: editingRecordId,
+          source: "DIRECT",
+          contractorName: "-",
+          skilledCount: directSkilledCount,
+          skilledRate: directSkilledRate,
+          skilledAmount: directSkilledAmount,
+          maleCount: directMaleCount,
+          maleRate: directMaleRate,
+          maleAmount: directMaleAmount,
+          femaleCount: directFemaleCount,
+          femaleRate: directFemaleRate,
+          femaleAmount: directFemaleAmount,
+          totalWorkers: directTotalWorkers,
+          totalExpense: directTotalExpense,
+          notes: directNotes.trim() || "-",
+        });
+      } else {
+        if (contractorTotalWorkers === 0) {
+          setErrorMessage("Please enter contractor worker counts before saving.");
+          return;
+        }
+        entriesToSubmit.push({
+          id: editingRecordId,
           source: "CONTRACTOR",
           contractorId: selectedContractorId || undefined,
           contractorName: contractorName.trim() || "Contractor Agency",
@@ -914,24 +1042,56 @@ export default function WorkforcePage() {
           notes: notes.trim() || "-",
         });
       }
-      if (directTotalWorkers > 0) {
-        entriesToSubmit.push({
-          id: `staged-d-${Date.now()}`,
-          source: "DIRECT",
-          contractorName: "-",
-          skilledCount: directSkilledCount,
-          skilledRate: directSkilledRate,
-          skilledAmount: directSkilledAmount,
-          maleCount: directMaleCount,
-          maleRate: directMaleRate,
-          maleAmount: directMaleAmount,
-          femaleCount: directFemaleCount,
-          femaleRate: directFemaleRate,
-          femaleAmount: directFemaleAmount,
-          totalWorkers: directTotalWorkers,
-          totalExpense: directTotalExpense,
-          notes: directNotes.trim() || "-",
-        });
+    } else {
+      entriesToSubmit = [...stagedEntries];
+
+      // If staged entries is empty, auto-stage active values from form
+      if (entriesToSubmit.length === 0) {
+        if (contractorTotalWorkers === 0 && directTotalWorkers === 0) {
+          setErrorMessage("Please enter worker counts or add entries to the list before saving.");
+          return;
+        }
+        if (contractorTotalWorkers > 0) {
+          entriesToSubmit.push({
+            id: `staged-c-${Date.now()}`,
+            source: "CONTRACTOR",
+            contractorId: selectedContractorId || undefined,
+            contractorName: contractorName.trim() || "Contractor Agency",
+            skilledCount: contractorSkilledCount,
+            skilledRate: contractorSkilledRate,
+            skilledAmount: contractorSkilledAmount,
+            maleCount: contractorMaleCount,
+            maleRate: contractorMaleRate,
+            maleAmount: contractorMaleAmount,
+            femaleCount: contractorFemaleCount,
+            femaleRate: contractorFemaleRate,
+            femaleAmount: contractorFemaleAmount,
+            totalWorkers: contractorTotalWorkers,
+            totalExpense: contractorTotalExpense,
+            isOverridden: isExtraWorkersRate,
+            overrideReason: isExtraWorkersRate ? "Extra workers rate override" : undefined,
+            notes: notes.trim() || "-",
+          });
+        }
+        if (directTotalWorkers > 0) {
+          entriesToSubmit.push({
+            id: `staged-d-${Date.now()}`,
+            source: "DIRECT",
+            contractorName: "-",
+            skilledCount: directSkilledCount,
+            skilledRate: directSkilledRate,
+            skilledAmount: directSkilledAmount,
+            maleCount: directMaleCount,
+            maleRate: directMaleRate,
+            maleAmount: directMaleAmount,
+            femaleCount: directFemaleCount,
+            femaleRate: directFemaleRate,
+            femaleAmount: directFemaleAmount,
+            totalWorkers: directTotalWorkers,
+            totalExpense: directTotalExpense,
+            notes: directNotes.trim() || "-",
+          });
+        }
       }
     }
 
@@ -956,6 +1116,7 @@ export default function WorkforcePage() {
           }
 
           return {
+            id: entry.id && !entry.id.startsWith("staged-") ? entry.id : undefined,
             siteId: modalSiteId,
             projectId: modalProjectId || undefined,
             date: modalDate,
@@ -985,7 +1146,7 @@ export default function WorkforcePage() {
       };
 
       const res = await fetch("/api/workforce/headcount", {
-        method: "POST",
+        method: editingRecordId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -994,14 +1155,55 @@ export default function WorkforcePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to save headcount entries");
       } else {
+        let savedRecordId = editingRecordId;
+        if (!savedRecordId && data?.data) {
+          if (Array.isArray(data.data?.entries) && data.data.entries[0]?.id) {
+            savedRecordId = data.data.entries[0].id;
+          } else if (data.data?.id) {
+            savedRecordId = data.data.id;
+          }
+        }
+
+        // Upload any selected photos linked to this record
+        if (headcountPhotos.length > 0 && savedRecordId) {
+          setIsUploadingPhotos(true);
+          try {
+            for (const photo of headcountPhotos) {
+              await uploadClientMedia(photo, {
+                entityType: "WORKFORCE",
+                entityId: savedRecordId,
+                projectId: modalProjectId || undefined,
+                category: "SITE_PHOTO",
+              });
+            }
+          } catch (uploadErr) {
+            console.warn("Failed to upload headcount photos:", uploadErr);
+          } finally {
+            setIsUploadingPhotos(false);
+          }
+        }
+
         const siteName = sites.find((s) => s.id === modalSiteId)?.name || "Site";
         const totalWorkersCount = entriesToSubmit.reduce((s, e) => s + e.totalWorkers, 0);
         const totalExpenseAmt = entriesToSubmit.reduce((s, e) => s + e.totalExpense, 0);
-        setStatusMessage(
-          `Successfully saved ${entriesToSubmit.length} headcount entries (${totalWorkersCount} workers, ₹${totalExpenseAmt.toLocaleString("en-IN")}) for ${siteName} on ${formatDate(modalDate)}!`
-        );
+
+        if (editingRecordId) {
+          setStatusMessage(
+            `Successfully updated headcount record (${totalWorkersCount} workers, ₹${totalExpenseAmt.toLocaleString("en-IN")}) for ${siteName} on ${formatDate(modalDate)}!`
+          );
+        } else {
+          setStatusMessage(
+            `Successfully saved ${entriesToSubmit.length} headcount entries (${totalWorkersCount} workers, ₹${totalExpenseAmt.toLocaleString("en-IN")}) for ${siteName} on ${formatDate(modalDate)}!`
+          );
+        }
+
         setShowUploadModal(false);
+        setEditingRecordId(null);
         setStagedEntries([]);
+        headcountPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+        setHeadcountPhotos([]);
+        setHeadcountPhotoPreviews([]);
+        setExistingAttachments([]);
         await loadData();
       }
     } catch (err: any) {
@@ -1751,7 +1953,25 @@ export default function WorkforcePage() {
                                   Extra Workers
                                 </span>
                               )}
+                              {r.attachments && r.attachments.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(r.attachments![0].url)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition cursor-pointer"
+                                  title={`View ${r.attachments.length} attached muster roll photo(s)`}
+                                >
+                                  <Camera className="w-3 h-3 text-amber-700" />
+                                  <span>{r.attachments.length} {r.attachments.length === 1 ? "Photo" : "Photos"}</span>
+                                </button>
+                              )}
                             </div>
+                            {(!selectedSiteId || selectedSiteId === "ALL") && r.siteName && (
+                              <div className="mt-0.5">
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                  {r.siteName}
+                                </span>
+                              </div>
+                            )}
                             {r.notes && (
                               <div className="text-[10px] text-slate-500 break-words whitespace-normal mt-0.5">
                                 {r.notes.includes("[Project:") ? (
@@ -1897,7 +2117,25 @@ export default function WorkforcePage() {
                                   Extra Workers
                                 </span>
                               )}
+                              {r.attachments && r.attachments.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(r.attachments![0].url)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition cursor-pointer"
+                                  title={`View ${r.attachments.length} attached muster roll photo(s)`}
+                                >
+                                  <Camera className="w-3 h-3 text-amber-700" />
+                                  <span>{r.attachments.length} {r.attachments.length === 1 ? "Photo" : "Photos"}</span>
+                                </button>
+                              )}
                             </div>
+                            {(!selectedSiteId || selectedSiteId === "ALL") && r.siteName && (
+                              <div className="mt-0.5">
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                  {r.siteName}
+                                </span>
+                              </div>
+                            )}
                             <div className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-1.5 min-w-0">
                               <span className="font-semibold text-slate-700">{formatDate(r.date)}</span>
                               <span className="shrink-0">·</span>
@@ -2182,16 +2420,30 @@ export default function WorkforcePage() {
               <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-slate-100 shrink-0 bg-white">
                 <div>
                   <h3 className="font-black text-slate-900 text-base sm:text-lg flex items-center gap-2">
-                    <Users className="w-5 h-5 text-amber-500" />
-                    <span>Upload Site Worker Headcount</span>
+                    {editingRecordId ? (
+                      <Edit2 className="w-5 h-5 text-amber-500" />
+                    ) : (
+                      <Users className="w-5 h-5 text-amber-500" />
+                    )}
+                    <span>{editingRecordId ? "Edit Site Worker Headcount" : "Upload Site Worker Headcount"}</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Enter daily counts of skilled workers and general laborers for this site.
+                    {editingRecordId
+                      ? "Update worker counts, contractor rates, or site deployment details."
+                      : "Enter daily counts of skilled workers and general laborers for this site."}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowUploadModal(false)}
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setEditingRecordId(null);
+                    setExistingAttachments([]);
+                    headcountPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+                    setHeadcountPhotos([]);
+                    setHeadcountPhotoPreviews([]);
+                    setPhotoUploadError(null);
+                  }}
                   className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
                 >
                   <X className="w-5 h-5" />
@@ -2811,145 +3063,313 @@ export default function WorkforcePage() {
                 </div>
 
                 {/* 7. Added Headcount Entries Section */}
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-center justify-between">
-                    <div className="font-black text-slate-900 flex items-center gap-1.5 text-xs sm:text-sm">
-                      <Layers className="w-4 h-4 text-blue-600" />
-                      <span>Added Headcount Entries ({stagedEntries.length})</span>
+                {!editingRecordId && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-black text-slate-900 flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Layers className="w-4 h-4 text-blue-600" />
+                        <span>Added Headcount Entries ({stagedEntries.length})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddEntryToList}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Add Entry to List</span>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleAddEntryToList}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+ Add Entry to List</span>
-                    </button>
-                  </div>
 
-                  {/* Bulk Table */}
-                  <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
-                    <table className="w-full text-left text-xs min-w-[760px]">
-                      <thead className="bg-slate-100/90 text-slate-700 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200">
-                        <tr>
-                          <th className="py-2.5 px-2.5 text-center w-8">#</th>
-                          <th className="py-2.5 px-2.5">Source</th>
-                          <th className="py-2.5 px-3">Contractor</th>
-                          <th className="py-2.5 px-2 text-right">Skilled</th>
-                          <th className="py-2.5 px-2 text-right">Skilled Rate</th>
-                          <th className="py-2.5 px-2 text-right">Skilled Amt</th>
-                          <th className="py-2.5 px-2 text-right">Male</th>
-                          <th className="py-2.5 px-2 text-right">Male Rate</th>
-                          <th className="py-2.5 px-2 text-right">Male Amt</th>
-                          <th className="py-2.5 px-2 text-right">Female</th>
-                          <th className="py-2.5 px-2 text-right">Female Rate</th>
-                          <th className="py-2.5 px-2 text-right">Female Amt</th>
-                          <th className="py-2.5 px-2 text-right font-black">Total</th>
-                          <th className="py-2.5 px-3 text-right font-black">Amount</th>
-                          <th className="py-2.5 px-3">Notes</th>
-                          <th className="py-2.5 px-2 text-center w-16">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                        {stagedEntries.length === 0 ? (
+                    {/* Bulk Table */}
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+                      <table className="w-full text-left text-xs min-w-[760px]">
+                        <thead className="bg-slate-100/90 text-slate-700 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200">
                           <tr>
-                            <td colSpan={16} className="py-6 text-center text-slate-400 text-xs">
-                              No entries staged yet. Fill Contractor or Direct Workforce above and click &quot;+ Add Entry to List&quot;.
-                            </td>
+                            <th className="py-2.5 px-2.5 text-center w-8">#</th>
+                            <th className="py-2.5 px-2.5">Source</th>
+                            <th className="py-2.5 px-3">Contractor</th>
+                            <th className="py-2.5 px-2 text-right">Skilled</th>
+                            <th className="py-2.5 px-2 text-right">Skilled Rate</th>
+                            <th className="py-2.5 px-2 text-right">Skilled Amt</th>
+                            <th className="py-2.5 px-2 text-right">Male</th>
+                            <th className="py-2.5 px-2 text-right">Male Rate</th>
+                            <th className="py-2.5 px-2 text-right">Male Amt</th>
+                            <th className="py-2.5 px-2 text-right">Female</th>
+                            <th className="py-2.5 px-2 text-right">Female Rate</th>
+                            <th className="py-2.5 px-2 text-right">Female Amt</th>
+                            <th className="py-2.5 px-2 text-right font-black">Total</th>
+                            <th className="py-2.5 px-3 text-right font-black">Amount</th>
+                            <th className="py-2.5 px-3">Notes</th>
+                            <th className="py-2.5 px-2 text-center w-16">Actions</th>
                           </tr>
-                        ) : (
-                          stagedEntries.map((e, idx) => (
-                            <tr key={e.id} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="py-2.5 px-2.5 text-center font-mono text-slate-400">{idx + 1}</td>
-                              <td className="py-2.5 px-2.5 whitespace-nowrap">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                                    e.source === "CONTRACTOR"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : "bg-amber-100 text-amber-800"
-                                  }`}
-                                >
-                                  {e.source === "CONTRACTOR" ? "Contractor" : "Direct"}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 whitespace-nowrap font-semibold text-slate-900 max-w-[160px] truncate">
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <span className="truncate">{e.contractorName || "-"}</span>
-                                  {e.isOverridden && (
-                                    <span className="shrink-0 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold border border-amber-300">
-                                      Extra Workers
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-2 text-right font-mono">{e.skilledCount}</td>
-                              <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
-                                ₹{e.skilledRate.toLocaleString("en-IN")}
-                              </td>
-                              <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.skilledAmount.toLocaleString("en-IN")}</td>
-                              <td className="py-2.5 px-2 text-right font-mono">{e.maleCount}</td>
-                              <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
-                                ₹{e.maleRate.toLocaleString("en-IN")}
-                              </td>
-                              <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.maleAmount.toLocaleString("en-IN")}</td>
-                              <td className="py-2.5 px-2 text-right font-mono">{e.femaleCount}</td>
-                              <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
-                                ₹{e.femaleRate.toLocaleString("en-IN")}
-                              </td>
-                              <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.femaleAmount.toLocaleString("en-IN")}</td>
-                              <td className="py-2.5 px-2 text-right font-mono font-bold">{e.totalWorkers}</td>
-                              <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-600">
-                                ₹{e.totalExpense.toLocaleString("en-IN")}
-                              </td>
-                              <td className="py-2.5 px-3 text-slate-500 max-w-[120px] truncate">{e.notes || "-"}</td>
-                              <td className="py-2.5 px-2 text-center whitespace-nowrap">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditStagedEntry(e)}
-                                    title="Edit Entry"
-                                    className="p-1 text-slate-400 hover:text-amber-600 rounded transition cursor-pointer"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteStagedEntry(e.id)}
-                                    title="Delete Entry"
-                                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                          {stagedEntries.length === 0 ? (
+                            <tr>
+                              <td colSpan={16} className="py-6 text-center text-slate-400 text-xs">
+                                No entries staged yet. Fill Contractor or Direct Workforce above and click &quot;+ Add Entry to List&quot;.
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
+                          ) : (
+                            stagedEntries.map((e, idx) => (
+                              <tr key={e.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-2.5 px-2.5 text-center font-mono text-slate-400">{idx + 1}</td>
+                                <td className="py-2.5 px-2.5 whitespace-nowrap">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                      e.source === "CONTRACTOR"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-amber-100 text-amber-800"
+                                    }`}
+                                  >
+                                    {e.source === "CONTRACTOR" ? "Contractor" : "Direct"}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 whitespace-nowrap font-semibold text-slate-900 max-w-[160px] truncate">
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <span className="truncate">{e.contractorName || "-"}</span>
+                                    {e.isOverridden && (
+                                      <span className="shrink-0 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold border border-amber-300">
+                                        Extra Workers
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-2 text-right font-mono">{e.skilledCount}</td>
+                                <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
+                                  ₹{e.skilledRate.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.skilledAmount.toLocaleString("en-IN")}</td>
+                                <td className="py-2.5 px-2 text-right font-mono">{e.maleCount}</td>
+                                <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
+                                  ₹{e.maleRate.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.maleAmount.toLocaleString("en-IN")}</td>
+                                <td className="py-2.5 px-2 text-right font-mono">{e.femaleCount}</td>
+                                <td className={`py-2.5 px-2 text-right font-mono ${e.isOverridden ? "text-amber-800 font-bold bg-amber-50/70" : "text-slate-500"}`}>
+                                  ₹{e.femaleRate.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.femaleAmount.toLocaleString("en-IN")}</td>
+                                <td className="py-2.5 px-2 text-right font-mono font-bold">{e.totalWorkers}</td>
+                                <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-600">
+                                  ₹{e.totalExpense.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-500 max-w-[120px] truncate">{e.notes || "-"}</td>
+                                <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditStagedEntry(e)}
+                                      title="Edit Entry"
+                                      className="p-1 text-slate-400 hover:text-amber-600 rounded transition cursor-pointer"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteStagedEntry(e.id)}
+                                      title="Delete Entry"
+                                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
 
-                      {stagedEntries.length > 0 && (
-                        <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-black text-slate-900">
-                          <tr>
-                            <td colSpan={3} className="py-2.5 px-3 font-bold text-xs">Total</td>
-                            <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalSkilled}</td>
-                            <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
-                            <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalSkilledAmt.toLocaleString("en-IN")}</td>
-                            <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalMale}</td>
-                            <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
-                            <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalMaleAmt.toLocaleString("en-IN")}</td>
-                            <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalFemale}</td>
-                            <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
-                            <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalFemaleAmt.toLocaleString("en-IN")}</td>
-                            <td className="py-2.5 px-2 text-right font-mono text-xs">{tableTotals.totalWorkers}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700 text-xs font-black">
-                              ₹{tableTotals.totalExpense.toLocaleString("en-IN")}
-                            </td>
-                            <td colSpan={2} className="py-2.5 px-3 text-slate-400 text-center">-</td>
-                          </tr>
-                        </tfoot>
-                      )}
-                    </table>
+                        {stagedEntries.length > 0 && (
+                          <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-black text-slate-900">
+                            <tr>
+                              <td colSpan={3} className="py-2.5 px-3 font-bold text-xs">Total</td>
+                              <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalSkilled}</td>
+                              <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
+                              <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalSkilledAmt.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalMale}</td>
+                              <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
+                              <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalMaleAmt.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono">{tableTotals.totalFemale}</td>
+                              <td className="py-2.5 px-2 text-right text-slate-400 font-mono">-</td>
+                              <td className="py-2.5 px-2 text-right font-mono">₹{tableTotals.totalFemaleAmt.toLocaleString("en-IN")}</td>
+                              <td className="py-2.5 px-2 text-right font-mono text-xs">{tableTotals.totalWorkers}</td>
+                              <td className="py-2.5 px-3 text-right font-mono text-emerald-700 text-xs font-black">
+                                ₹{tableTotals.totalExpense.toLocaleString("en-IN")}
+                              </td>
+                              <td colSpan={2} className="py-2.5 px-3 text-slate-400 text-center">-</td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
                   </div>
+                )}
+
+                {/* 8. Muster Roll & Site Worker Photos (Image Upload Option) */}
+                <div className="bg-slate-50/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Camera className="w-4 h-4 text-amber-600" />
+                      <span>Site Muster Roll &amp; Worker Photos (Optional)</span>
+                    </label>
+                    {(headcountPhotos.length > 0 || existingAttachments.length > 0) && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                        {existingAttachments.length + headcountPhotos.length} file{existingAttachments.length + headcountPhotos.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Upload muster roll attendance sheet, daily site worker group photo, or contractor slip.
+                  </p>
+
+                  {photoUploadError && (
+                    <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                      <span>{photoUploadError}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    {/* Option 1: Live Camera Shutter */}
+                    <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition text-center group">
+                      <Camera className="w-4 h-4 text-amber-600 group-hover:scale-110 transition shrink-0" />
+                      <span className="text-xs font-bold text-amber-900">Click Photo / Camera</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleHeadcountPhotoSelect}
+                        className="sr-only"
+                      />
+                    </label>
+
+                    {/* Option 2: Choose / Upload Files or PDF */}
+                    <label className="relative flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-center group">
+                      <UploadCloud className="w-4 h-4 text-slate-600 group-hover:scale-110 transition shrink-0" />
+                      <span className="text-xs font-bold text-slate-700">Choose Photos / PDF</span>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        multiple
+                        onChange={handleHeadcountPhotoSelect}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Existing uploaded attachments (when editing) */}
+                  {existingAttachments.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Attached Documents ({existingAttachments.length}):
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {existingAttachments.map((att) => {
+                          const isPdf = att.fileName.toLowerCase().endsWith(".pdf") || att.mimeType?.includes("pdf");
+                          return (
+                            <div
+                              key={att.id}
+                              className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
+                            >
+                              {isPdf ? (
+                                <div
+                                  onClick={() => setActivePhotoLightbox(att.url)}
+                                  className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-white p-2 text-center cursor-pointer"
+                                >
+                                  <FileText className="w-6 h-6 text-amber-400 mb-1" />
+                                  <span className="text-[10px] truncate max-w-full font-medium">{att.fileName}</span>
+                                </div>
+                              ) : (
+                                <img
+                                  src={att.url}
+                                  alt={att.fileName}
+                                  onClick={() => setActivePhotoLightbox(att.url)}
+                                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition"
+                                />
+                              )}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(att.url)}
+                                  className="p-1.5 rounded-full bg-white/90 text-slate-900 hover:bg-white pointer-events-auto transition cursor-pointer"
+                                  title="View full size"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExistingAttachment(att.id)}
+                                  className="p-1.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 pointer-events-auto transition cursor-pointer"
+                                  title="Delete file"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New Photo / Document Previews to be uploaded */}
+                  {headcountPhotoPreviews.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        New Photos Ready to Upload ({headcountPhotoPreviews.length}):
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {headcountPhotoPreviews.map((preview, index) => {
+                          const isPdf = preview.name.toLowerCase().endsWith(".pdf");
+                          return (
+                            <div
+                              key={preview.id}
+                              className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 shadow-2xs"
+                            >
+                              {isPdf ? (
+                                <div
+                                  onClick={() => setActivePhotoLightbox(preview.url)}
+                                  className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-white p-2 text-center cursor-pointer"
+                                >
+                                  <FileText className="w-6 h-6 text-amber-400 mb-1" />
+                                  <span className="text-[10px] truncate max-w-full font-medium">{preview.name}</span>
+                                </div>
+                              ) : (
+                                <img
+                                  src={preview.url}
+                                  alt={preview.name}
+                                  onClick={() => setActivePhotoLightbox(preview.url)}
+                                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition"
+                                />
+                              )}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                                <button
+                                  type="button"
+                                  onClick={() => setActivePhotoLightbox(preview.url)}
+                                  className="p-1.5 rounded-full bg-white/90 text-slate-900 hover:bg-white pointer-events-auto transition cursor-pointer"
+                                  title="View full size"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveHeadcountPhoto(index)}
+                                  className="p-1.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 pointer-events-auto transition cursor-pointer"
+                                  title="Remove file"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <div className="absolute bottom-1 left-1 bg-black/60 text-[9px] text-white px-1.5 py-0.5 rounded backdrop-blur-xs font-mono">
+                                {(preview.size / 1024).toFixed(0)} KB
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Optional General Notes */}
@@ -2973,9 +3393,15 @@ export default function WorkforcePage() {
                   <Info className="w-4 h-4 text-blue-600 shrink-0" />
                   <div>
                     <span className="font-bold text-slate-900">
-                      {totalEntriesCount} {totalEntriesCount === 1 ? "Entry" : "Entries"} &bull; {displayTotalWorkers} Workers
+                      {editingRecordId
+                        ? `Editing 1 Record • ${displayTotalWorkers} Workers`
+                        : `${totalEntriesCount} ${totalEntriesCount === 1 ? "Entry" : "Entries"} • ${displayTotalWorkers} Workers`}
                     </span>
-                    <span className="text-[11px] text-slate-500 block">All entries will be saved together.</span>
+                    <span className="text-[11px] text-slate-500 block">
+                      {editingRecordId
+                        ? "Updates will be applied to this headcount entry."
+                        : "All entries will be saved together."}
+                    </span>
                   </div>
                 </div>
 
@@ -2987,7 +3413,15 @@ export default function WorkforcePage() {
 
                   <button
                     type="button"
-                    onClick={() => setShowUploadModal(false)}
+                    onClick={() => {
+                      setShowUploadModal(false);
+                      setEditingRecordId(null);
+                      setExistingAttachments([]);
+                      headcountPhotoPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+                      setHeadcountPhotos([]);
+                      setHeadcountPhotoPreviews([]);
+                      setPhotoUploadError(null);
+                    }}
                     className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200/70 rounded-xl text-xs font-bold transition cursor-pointer"
                   >
                     Cancel
@@ -2996,18 +3430,18 @@ export default function WorkforcePage() {
                   <button
                     type="button"
                     onClick={() => handleSaveAllHeadcounts()}
-                    disabled={submitting || (stagedEntries.length === 0 && contractorTotalWorkers === 0 && directTotalWorkers === 0)}
+                    disabled={submitting || isUploadingPhotos || (editingRecordId ? (contractorTotalWorkers === 0 && directTotalWorkers === 0) : (stagedEntries.length === 0 && contractorTotalWorkers === 0 && directTotalWorkers === 0))}
                     className="flex items-center gap-1.5 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
                   >
-                    {submitting ? (
+                    {submitting || isUploadingPhotos ? (
                       <>
                         <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
-                        <span>Saving All...</span>
+                        <span>{isUploadingPhotos ? "Uploading Photos..." : editingRecordId ? "Saving Changes..." : "Saving All..."}</span>
                       </>
                     ) : (
                       <>
                         <Save className="w-4 h-4 text-slate-950" />
-                        <span>Save All Headcounts ({totalEntriesCount || 1})</span>
+                        <span>{editingRecordId ? "Save Changes" : `Save All Headcounts (${totalEntriesCount || 1})`}</span>
                       </>
                     )}
                   </button>
@@ -3738,6 +4172,53 @@ export default function WorkforcePage() {
               </div>
             </div>
           </div>
+        )}
+        {/* Lightbox for Fullscreen Site Photo / Document Preview */}
+        {activePhotoLightbox && typeof document !== "undefined" && createPortal(
+          <div
+            className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+            onClick={() => setActivePhotoLightbox(null)}
+          >
+            <div
+              className="relative max-w-4xl max-h-[90dvh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                <a
+                  href={activePhotoLightbox}
+                  target="_blank"
+                  rel="noreferrer"
+                  download
+                  className="p-2 rounded-full bg-black/60 hover:bg-black/90 text-white transition cursor-pointer"
+                  title="Download / Open Full File"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setActivePhotoLightbox(null)}
+                  className="p-2 rounded-full bg-black/60 hover:bg-black/90 text-white transition cursor-pointer"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {activePhotoLightbox.toLowerCase().includes(".pdf") ? (
+                <iframe
+                  src={activePhotoLightbox}
+                  className="w-[85vw] max-w-4xl h-[75dvh] rounded-b-xl bg-white"
+                  title="Document Preview"
+                />
+              ) : (
+                <img
+                  src={activePhotoLightbox}
+                  alt="Headcount Photo Preview"
+                  className="max-h-[85dvh] w-auto object-contain mx-auto"
+                />
+              )}
+            </div>
+          </div>,
+          document.body
         )}
       </div>
     </Shell>

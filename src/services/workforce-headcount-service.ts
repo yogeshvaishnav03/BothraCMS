@@ -49,6 +49,14 @@ export interface WorkforceHeadcountRecord {
   notes?: string;
   supervisorId: string;
   supervisorName: string;
+  attachments?: Array<{
+    id: string;
+    fileId: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+    url: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -159,6 +167,7 @@ function normalizeDbRecord(r: any): WorkforceHeadcountRecord {
     notes: r.notes ?? undefined,
     supervisorId: r.supervisorId,
     supervisorName: r.supervisorName,
+    attachments: (r as any).attachments || [],
     createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
     updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
   };
@@ -191,7 +200,50 @@ export class WorkforceHeadcountService {
       });
 
       if (dbRecords.length > 0) {
-        return dbRecords.map(normalizeDbRecord);
+        const recordIds = dbRecords.map((r) => r.id);
+        const attachmentsMap = new Map<string, any[]>();
+        try {
+          const attachments = await prisma.attachment.findMany({
+            where: {
+              organizationId,
+              entityType: { in: ["WORKFORCE", "HEADCOUNT", "SITE_WORKFORCE"] },
+              entityId: { in: recordIds },
+              isArchived: false,
+            },
+            select: {
+              id: true,
+              fileId: true,
+              fileName: true,
+              fileSize: true,
+              mimeType: true,
+              entityId: true,
+            },
+            orderBy: { createdAt: "desc" },
+          });
+
+          for (const att of attachments) {
+            const list = attachmentsMap.get(att.entityId) || [];
+            list.push({
+              id: att.id,
+              fileId: att.fileId,
+              fileName: att.fileName,
+              fileSize: att.fileSize,
+              mimeType: att.mimeType,
+              url: `/api/uploads/${att.fileId}`,
+            });
+            attachmentsMap.set(att.entityId, list);
+          }
+        } catch (attErr) {
+          console.warn("Notice: Headcount attachment lookup skipped:", attErr);
+        }
+
+        return dbRecords.map((r) => {
+          const norm = normalizeDbRecord(r);
+          return {
+            ...norm,
+            attachments: attachmentsMap.get(r.id) || [],
+          };
+        });
       }
     } catch (err) {
       console.warn("Notice: WorkforceHeadcount table query fallback:", err);
@@ -423,12 +475,15 @@ export class WorkforceHeadcountService {
           saved = await tx.workforceHeadcount.update({
             where: { id: existing.id },
             data: {
+              siteId: input.siteId || existing.siteId,
               siteName,
-              projectId: input.projectId || existing.projectId,
+              projectId: input.projectId !== undefined ? input.projectId : existing.projectId,
               projectName: projectName || existing.projectName,
+              date: date || existing.date,
+              shift: shift || existing.shift,
               source,
-              contractorId: contractorId || existing.contractorId,
-              contractorName: contractorName || existing.contractorName,
+              contractorId: source === "DIRECT" ? null : (contractorId || existing.contractorId),
+              contractorName: source === "DIRECT" ? null : (contractorName || existing.contractorName),
               artisanCount,
               craftsmanCount,
               laborerMale,
@@ -444,8 +499,8 @@ export class WorkforceHeadcountService {
               totalExpense,
               rateUnit,
               isOverridden,
-              overrideReason,
-              notes: input.notes?.trim() ?? existing.notes,
+              overrideReason: isOverridden ? overrideReason : null,
+              notes: input.notes !== undefined ? input.notes?.trim() : existing.notes,
               supervisorId: user.userId,
               supervisorName: user.name || "Supervisor",
             },
