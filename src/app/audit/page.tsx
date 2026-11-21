@@ -31,6 +31,12 @@ import {
   Hash,
   Filter,
   Calendar,
+  Users,
+  MapPin,
+  Building2,
+  Briefcase,
+  DollarSign,
+  FileCheck,
 } from "lucide-react";
 import { istDateKey } from "@/lib/ist-date";
 
@@ -204,15 +210,251 @@ function formatFieldValue(
     }
   }
 
-  if (typeof val === "object") {
+  if (Array.isArray(val)) {
+    if (val.length === 0) return <span className="text-slate-400 italic">None</span>;
+    // Array of objects (e.g. added members, attachments, line items)
+    if (typeof val[0] === "object" && val[0] !== null) {
+      return (
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {val.map((item, idx) => {
+            const label =
+              item.name ||
+              item.title ||
+              item.originalName ||
+              item.fileName ||
+              (item.id && nameMap[item.id.toLowerCase()]?.name) ||
+              `Item #${idx + 1}`;
+            const sub = item.role || item.category || item.quantity;
+            return (
+              <span
+                key={idx}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs text-slate-800 shadow-2xs"
+              >
+                <span className="font-semibold">{String(label)}</span>
+                {sub && (
+                  <span className="text-[10px] uppercase font-mono px-1 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded font-semibold">
+                    {String(sub).replace(/_/g, " ")}
+                  </span>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      );
+    }
+    // Array of strings/numbers
     return (
-      <pre className="text-xs bg-slate-100 p-2 rounded text-slate-800 overflow-x-auto font-mono">
-        {JSON.stringify(val, null, 2)}
-      </pre>
+      <div className="flex flex-wrap gap-1 mt-0.5">
+        {val.map((item, idx) => (
+          <span
+            key={idx}
+            className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-xs font-medium border border-slate-200"
+          >
+            {String(item)}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (typeof val === "object" && val !== null) {
+    // Render clean key-value mini table, NEVER raw <pre>!
+    return (
+      <div className="mt-1 p-2 rounded-lg bg-white border border-slate-200 space-y-1 text-xs">
+        {Object.entries(val).map(([k, v]) => (
+          <div key={k} className="flex items-center justify-between gap-2 py-0.5 border-b border-slate-50 last:border-none">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{formatKeyLabel(k)}:</span>
+            <span className="font-semibold text-slate-800 text-right">{String(v)}</span>
+          </div>
+        ))}
+      </div>
     );
   }
 
   return <span className="font-medium text-slate-800 font-sans">{String(val)}</span>;
+}
+
+function normalizeAuditPayload(data: any): any[] {
+  if (!data) return [];
+  if (Array.isArray(data)) return data.filter((x) => x !== null && x !== undefined);
+  if (typeof data === "object") return [data];
+  return [{ value: data }];
+}
+
+function isWorkforceRecord(data: any): boolean {
+  if (!data || typeof data !== "object") return false;
+  return Boolean(
+    data.contractorName ||
+    data.artisanCount !== undefined ||
+    data.artisanTotal !== undefined ||
+    data.laborerMale !== undefined ||
+    data.grandTotal !== undefined ||
+    data.shift ||
+    data.source === "CONTRACTOR" ||
+    data.source === "DIRECT"
+  );
+}
+
+function WorkforceSummaryCard({ data, nameMap }: { data: Record<string, any>; nameMap: EntityNameMap }) {
+  const siteName =
+    data.siteName ||
+    (data.siteId && nameMap[data.siteId.toLowerCase()]?.name) ||
+    "Main Site";
+
+  const contractor =
+    data.contractorName ||
+    (data.source === "CONTRACTOR" ? "Contractor Workforce" : "Direct / Company Staff");
+
+  const dateFormatted = data.date ? formatDateTime(data.date).split(",")[0] || data.date : "Today";
+  const shift = data.shift ? `${data.shift.replace(/_/g, " ")} Shift` : "General Shift";
+  const supervisor =
+    data.supervisorName ||
+    (data.supervisorId && nameMap[data.supervisorId.toLowerCase()]?.name) ||
+    "Site Supervisor";
+
+  const artisans = Number(data.artisanCount ?? data.artisanTotal ?? data.skilledCount ?? 0);
+  const maleLabor = Number(data.laborerMale ?? data.maleCount ?? 0);
+  const femaleLabor = Number(data.laborerFemale ?? data.femaleCount ?? 0);
+  const craftsmen = Number(data.craftsmanCount ?? data.craftsmanTotal ?? 0);
+  const grandTotal = Number(data.grandTotal ?? (artisans + maleLabor + femaleLabor + craftsmen));
+  const totalExpense = Number(data.totalExpense ?? 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Site & Contractor Details */}
+      <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-2xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+          <div className="flex items-start gap-2.5">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-lg shrink-0 mt-0.5">
+              <MapPin className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-amber-800">Site Location</span>
+              <p className="font-bold text-slate-900 text-sm mt-0.5">{siteName}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-lg shrink-0 mt-0.5">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-amber-800">Contractor / Agency</span>
+              <p className="font-bold text-slate-900 text-sm mt-0.5">{contractor}</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-lg shrink-0 mt-0.5">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-amber-800">Date &amp; Shift</span>
+              <p className="font-semibold text-slate-800 text-xs mt-0.5">
+                {dateFormatted} &bull; <span className="text-amber-900 font-bold">{shift}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-lg shrink-0 mt-0.5">
+              <User className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-amber-800">Logged By Supervisor</span>
+              <p className="font-semibold text-slate-800 text-xs mt-0.5">{supervisor}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Headcount Stat Grid */}
+      <div>
+        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
+          <Users className="w-4 h-4 text-amber-600" />
+          <span>Worker Count Breakdown</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Artisans / Skilled</span>
+            <p className="text-xl font-black text-slate-900 mt-1">{artisans}</p>
+          </div>
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Male Laborers</span>
+            <p className="text-xl font-black text-slate-900 mt-1">{maleLabor}</p>
+          </div>
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Female Laborers</span>
+            <p className="text-xl font-black text-slate-900 mt-1">{femaleLabor}</p>
+          </div>
+          <div className="p-3.5 rounded-xl bg-amber-500 text-white text-center shadow-xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-100">Total Workers</span>
+            <p className="text-2xl font-black mt-0.5">{grandTotal}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Financial Overview */}
+      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+        <div>
+          <span className="text-[10px] uppercase font-bold text-slate-400">Total Wage Expense</span>
+          <p className="text-base font-bold text-emerald-700 mt-0.5">{formatCurrency(totalExpense)}</p>
+        </div>
+        <div className="text-right">
+          <span className="text-[10px] uppercase font-bold text-slate-400">Billing Rate Unit</span>
+          <p className="text-xs font-semibold text-slate-800 mt-0.5">Per {data.rateUnit || "Day"}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getDisplayableAttributes(obj: Record<string, any>): [string, any][] {
+  if (!obj || typeof obj !== "object") return [];
+
+  const hideKeys = new Set([
+    "createdAt",
+    "updatedAt",
+    "isOverridden",
+    "diskFileName",
+  ]);
+
+  if (obj.siteName) hideKeys.add("siteId");
+  if (obj.projectName) hideKeys.add("projectId");
+  if (obj.supervisorName) hideKeys.add("supervisorId");
+  if (obj.contractorName) hideKeys.add("contractorId");
+  if (obj.originalName || obj.fileName) hideKeys.add("fileId");
+  if (obj.taskTitle || obj.title) hideKeys.add("taskId");
+
+  return Object.entries(obj).filter(([k, v]) => {
+    if (hideKeys.has(k)) return false;
+    if (v === null || v === undefined) return false;
+    if (Array.isArray(v) && v.length === 0) return false;
+    if (typeof v === "string" && v.trim() === "") return false;
+    return true;
+  });
+}
+
+function formatDiffText(val: any, nameMap: EntityNameMap): string {
+  if (val === null || val === undefined || val === "") return "None";
+  if (typeof val === "boolean") return val ? "True" : "False";
+  if (typeof val === "number") return val.toLocaleString("en-IN");
+  if (typeof val === "string") {
+    const valLower = val.trim().toLowerCase();
+    if (nameMap[valLower]) return nameMap[valLower].name;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim())) {
+      return `Ref #${val.trim().slice(0, 8)}`;
+    }
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return (
+      val
+        .map((x) => (typeof x === "object" ? x.name || x.title || JSON.stringify(x) : String(x)))
+        .join(", ") || "None"
+    );
+  }
+  return JSON.stringify(val);
 }
 
 export default function AuditPage() {
@@ -624,8 +866,17 @@ export default function AuditPage() {
         {selectedEvent && (() => {
           const after = parseJsonSafe(selectedEvent.afterJson);
           const before = parseJsonSafe(selectedEvent.beforeJson);
-          const activeData = after || before || {};
-          const hasDiff = before && after && Object.keys(before).length > 0;
+
+          const afterRecords = normalizeAuditPayload(after);
+          const beforeRecords = normalizeAuditPayload(before);
+          const primaryRecords = afterRecords.length > 0 ? afterRecords : beforeRecords;
+
+          const isWorkforce =
+            selectedEvent.action.includes("WORKFORCE") ||
+            selectedEvent.entityType.includes("WORKFORCE") ||
+            primaryRecords.some((r) => isWorkforceRecord(r));
+
+          const hasDiff = Boolean(before && after && Object.keys(before).length > 0);
           const rawJsonString = JSON.stringify(
             after ? { after, before: before || undefined } : (before || {}),
             null,
@@ -728,7 +979,7 @@ export default function AuditPage() {
                     }`}
                   >
                     <Tag className="w-3.5 h-3.5" />
-                    <span>Summary ({Object.keys(activeData).length})</span>
+                    <span>Summary {primaryRecords.length > 1 ? `(${primaryRecords.length} Entries)` : ""}</span>
                   </button>
                   {hasDiff && (
                     <button
@@ -759,51 +1010,106 @@ export default function AuditPage() {
                 {/* Tab Contents */}
                 <div className="p-5 flex-1 overflow-y-auto">
                   {activeTab === "attributes" && (
-                    <div className="space-y-2">
-                      {Object.keys(activeData).length === 0 ? (
+                    <div className="space-y-4">
+                      {primaryRecords.length === 0 ? (
                         <div className="py-8 text-center text-slate-400 text-xs italic">
                           No extra details were recorded for this action.
                         </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          {Object.entries(activeData).map(([key, value]) => (
-                            <div
-                              key={key}
-                              className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-slate-300 transition-colors"
-                            >
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                                {formatKeyLabel(key)}
-                              </div>
-                              <div className="text-xs break-words">
-                                {formatFieldValue(key, value, nameMap, activeData)}
-                              </div>
+                      ) : isWorkforce ? (
+                        <div className="space-y-4">
+                          {primaryRecords.map((rec, index) => (
+                            <div key={index} className="space-y-2">
+                              {primaryRecords.length > 1 && (
+                                <div className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-100 flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                  <span>Workforce Entry {index + 1} of {primaryRecords.length}</span>
+                                </div>
+                              )}
+                              <WorkforceSummaryCard data={rec} nameMap={nameMap} />
                             </div>
                           ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {primaryRecords.map((rec, recIndex) => {
+                            const displayAttrs = getDisplayableAttributes(rec);
+                            return (
+                              <div key={recIndex} className="space-y-2">
+                                {primaryRecords.length > 1 && (
+                                  <div className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-100 flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                    <span>Entry {recIndex + 1} of {primaryRecords.length}</span>
+                                  </div>
+                                )}
+                                {displayAttrs.length === 0 ? (
+                                  <div className="py-4 text-center text-slate-400 text-xs italic">
+                                    Standard record update
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    {displayAttrs.map(([key, value]) => (
+                                      <div
+                                        key={key}
+                                        className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-slate-300 transition-colors"
+                                      >
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                                          {formatKeyLabel(key)}
+                                        </div>
+                                        <div className="text-xs break-words">
+                                          {formatFieldValue(key, value, nameMap, rec)}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
                   )}
 
-                  {activeTab === "diff" && hasDiff && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200">
-                        <div className="text-xs font-bold text-rose-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <span>Before Change</span>
+                  {activeTab === "diff" && hasDiff && (() => {
+                    const allKeys = Array.from(new Set([...Object.keys(before || {}), ...Object.keys(after || {})]));
+                    const changed = allKeys.filter((k) => JSON.stringify(before?.[k]) !== JSON.stringify(after?.[k]));
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                          <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Modified Fields Comparison ({changed.length})</span>
+                          </div>
+                          {changed.length === 0 ? (
+                            <div className="py-4 text-center text-slate-400 text-xs italic">No attribute changes detected</div>
+                          ) : (
+                            <div className="space-y-2">
+                              {changed.map((key) => (
+                                <div
+                                  key={key}
+                                  className="p-3 rounded-lg bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                                >
+                                  <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                                    {formatKeyLabel(key)}
+                                  </span>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="line-through text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200 font-medium">
+                                      {formatDiffText(before?.[key], nameMap)}
+                                    </span>
+                                    <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 font-bold">
+                                      {formatDiffText(after?.[key], nameMap)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <pre className="text-xs font-mono text-slate-800 bg-white p-3 rounded-lg border border-rose-100 overflow-x-auto">
-                          {JSON.stringify(before, null, 2)}
-                        </pre>
                       </div>
-                      <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200">
-                        <div className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <span>After Change</span>
-                        </div>
-                        <pre className="text-xs font-mono text-slate-800 bg-white p-3 rounded-lg border border-emerald-100 overflow-x-auto">
-                          {JSON.stringify(after, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {activeTab === "json" && (
                     <div className="relative">
