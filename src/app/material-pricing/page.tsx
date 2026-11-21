@@ -25,6 +25,27 @@ import {
   Layers,
 } from "lucide-react";
 
+export const COMMON_MATERIAL_UNITS = [
+  { code: "BAG", label: "BAG (Bags — 50kg Cement, Putty, Adhesives)" },
+  { code: "TON", label: "TON / MT (Metric Tonnes — TMT Steel, Rebar, Bulk)" },
+  { code: "KG", label: "KG (Kilograms — Binding Wire, Nails, Hardware)" },
+  { code: "QUINTAL", label: "QUINTAL (100 kg — Steel, Scaffolding)" },
+  { code: "CFT", label: "CFT (Cubic Feet — Sand, Aggregate, Stone, Timber)" },
+  { code: "CUM", label: "CUM / M³ (Cubic Meters — RMC Concrete, Earthwork)" },
+  { code: "BRASS", label: "BRASS (100 CFT — Quarry Sand, Rubble, Murrum)" },
+  { code: "TRUCK", label: "TRUCK / DUMPER (Full Dumper Loads — Soil, Gravel)" },
+  { code: "TROLLEY", label: "TROLLEY (Tractor Trolley Loads — Bricks, Rubble)" },
+  { code: "SQFT", label: "SQFT (Square Feet — Tiles, Granite, Marble, Glass)" },
+  { code: "SQM", label: "SQM (Square Meters — Flooring, Plaster, Paint)" },
+  { code: "RFT", label: "RFT (Running Feet — Pipes, Railings, Beading)" },
+  { code: "METER", label: "METER / RMT (Running Meters — Cables, Conduits)" },
+  { code: "NOS", label: "NOS / PCS (Pieces — Bricks, AAC Blocks, Doors)" },
+  { code: "BOX", label: "BOX / PKT (Boxes / Packets — Screws, Spacers, Fittings)" },
+  { code: "BUNDLE", label: "BUNDLE (Bundles — Plywood, Rebar Bundles)" },
+  { code: "LTR", label: "LTR (Litres — Paint, Primer, Admixtures, Fuel)" },
+  { code: "BARREL", label: "BARREL / DRUM (Drums — Bitumen, Waterproofing Liquid)" },
+];
+
 interface QuotationItem {
   id: string;
   materialId: string;
@@ -742,14 +763,76 @@ export default function MaterialPricingPage() {
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Unit of Measure *
                     </label>
-                    <input
-                      type="text"
+                    <select
+                      value={
+                        COMMON_MATERIAL_UNITS.some((u) => u.code === form.unitCode)
+                          ? form.unitCode
+                          : form.unitCode ? "CUSTOM" : ""
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "CUSTOM") {
+                          setForm((prev) => ({
+                            ...prev,
+                            unitCode: COMMON_MATERIAL_UNITS.some((u) => u.code === prev.unitCode) ? "" : prev.unitCode,
+                          }));
+                        } else {
+                          setForm((prev) => ({ ...prev, unitCode: val }));
+                        }
+                      }}
                       required
-                      placeholder="e.g. BAG, TON, KG, SQFT"
-                      value={form.unitCode}
-                      onChange={(e) => setForm({ ...form, unitCode: e.target.value.toUpperCase() })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 font-mono"
-                    />
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 font-medium"
+                    >
+                      <option value="">-- Choose Unit of Measure --</option>
+                      <optgroup label="Weight & Bulk">
+                        <option value="BAG">BAG (Bags — 50kg Cement, Putty, Adhesives)</option>
+                        <option value="TON">TON / MT (Metric Tonnes — TMT Steel, Rebar, Bulk)</option>
+                        <option value="KG">KG (Kilograms — Binding Wire, Nails, Hardware)</option>
+                        <option value="QUINTAL">QUINTAL (100 kg — Steel, Scaffolding)</option>
+                      </optgroup>
+                      <optgroup label="Volume & Bulk Loads">
+                        <option value="CFT">CFT (Cubic Feet — Sand, Aggregate, Stone, Timber)</option>
+                        <option value="CUM">CUM / M³ (Cubic Meters — RMC Concrete, Earthwork)</option>
+                        <option value="BRASS">BRASS (100 CFT — Quarry Sand, Rubble, Murrum)</option>
+                        <option value="TRUCK">TRUCK / DUMPER (Full Dumper Loads — Soil, Gravel)</option>
+                        <option value="TROLLEY">TROLLEY (Tractor Trolley Loads — Bricks, Rubble)</option>
+                      </optgroup>
+                      <optgroup label="Area & Flooring">
+                        <option value="SQFT">SQFT (Square Feet — Tiles, Granite, Marble, Glass)</option>
+                        <option value="SQM">SQM (Square Meters — Flooring, Plaster, Paint)</option>
+                      </optgroup>
+                      <optgroup label="Length & Linear">
+                        <option value="RFT">RFT (Running Feet — Pipes, Railings, Beading)</option>
+                        <option value="METER">METER / RMT (Running Meters — Cables, Conduits)</option>
+                      </optgroup>
+                      <optgroup label="Counts & Packages">
+                        <option value="NOS">NOS / PCS (Pieces — Bricks, AAC Blocks, Doors)</option>
+                        <option value="BOX">BOX / PKT (Boxes / Packets — Screws, Spacers, Fittings)</option>
+                        <option value="BUNDLE">BUNDLE (Bundles — Plywood, Rebar Bundles)</option>
+                      </optgroup>
+                      <optgroup label="Liquids & Chemicals">
+                        <option value="LTR">LTR (Litres — Paint, Primer, Admixtures, Fuel)</option>
+                        <option value="BARREL">BARREL / DRUM (Drums — Bitumen, Waterproofing Liquid)</option>
+                      </optgroup>
+                      <optgroup label="Other">
+                        <option value="CUSTOM">+ Other / Custom Unit...</option>
+                      </optgroup>
+                    </select>
+
+                    {/* Custom Unit Input if selected or non-standard */}
+                    {(!COMMON_MATERIAL_UNITS.some((u) => u.code === form.unitCode) || form.unitCode === "") && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Type custom unit (e.g. ROLL, DRUM, SET)"
+                          value={form.unitCode}
+                          onChange={(e) => setForm({ ...form, unitCode: e.target.value.toUpperCase() })}
+                          className="w-full px-3 py-1.5 text-xs rounded-lg border border-amber-300 bg-amber-50/50 text-slate-900 font-mono uppercase focus:ring-2 focus:ring-emerald-500"
+                          autoFocus
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 

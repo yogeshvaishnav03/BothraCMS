@@ -2145,13 +2145,36 @@ export default function MaterialsPage() {
                       onChange={(e) => setNewMatUnit(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                     >
-                      <option value="BAG">BAG (Bags)</option>
-                      <option value="KG">KG (Kilograms)</option>
-                      <option value="TONNE">TONNE (Metric Tonnes)</option>
-                      <option value="LITRE">LITRE (Litres)</option>
-                      <option value="METER">METER (Meters)</option>
-                      <option value="PIECE">PIECE (Pieces)</option>
-                      <option value="BOX">BOX (Boxes)</option>
+                      <optgroup label="Weight & Bulk">
+                        <option value="BAG">BAG (Bags — 50kg Cement, Putty, Adhesives)</option>
+                        <option value="TON">TON / MT (Metric Tonnes — TMT Steel, Rebar, Bulk)</option>
+                        <option value="KG">KG (Kilograms — Binding Wire, Nails, Hardware)</option>
+                        <option value="QUINTAL">QUINTAL (100 kg — Steel, Scaffolding)</option>
+                      </optgroup>
+                      <optgroup label="Volume & Bulk Loads">
+                        <option value="CFT">CFT (Cubic Feet — Sand, Aggregate, Stone, Timber)</option>
+                        <option value="CUM">CUM / M³ (Cubic Meters — RMC Concrete, Earthwork)</option>
+                        <option value="BRASS">BRASS (100 CFT — Quarry Sand, Rubble, Murrum)</option>
+                        <option value="TRUCK">TRUCK / DUMPER (Full Dumper Loads — Soil, Gravel)</option>
+                        <option value="TROLLEY">TROLLEY (Tractor Trolley Loads — Bricks, Rubble)</option>
+                      </optgroup>
+                      <optgroup label="Area & Flooring">
+                        <option value="SQFT">SQFT (Square Feet — Tiles, Granite, Marble, Glass)</option>
+                        <option value="SQM">SQM (Square Meters — Flooring, Plaster, Paint)</option>
+                      </optgroup>
+                      <optgroup label="Length & Linear">
+                        <option value="RFT">RFT (Running Feet — Pipes, Railings, Beading)</option>
+                        <option value="METER">METER / RMT (Running Meters — Cables, Conduits)</option>
+                      </optgroup>
+                      <optgroup label="Counts & Packages">
+                        <option value="NOS">NOS / PCS (Pieces — Bricks, AAC Blocks, Doors)</option>
+                        <option value="BOX">BOX / PKT (Boxes / Packets — Screws, Spacers, Fittings)</option>
+                        <option value="BUNDLE">BUNDLE (Bundles — Plywood, Rebar Bundles)</option>
+                      </optgroup>
+                      <optgroup label="Liquids & Chemicals">
+                        <option value="LTR">LTR (Litres — Paint, Primer, Admixtures, Fuel)</option>
+                        <option value="BARREL">BARREL / DRUM (Drums — Bitumen, Waterproofing Liquid)</option>
+                      </optgroup>
                     </select>
                   </div>
                 </div>
