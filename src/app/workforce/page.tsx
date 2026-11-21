@@ -321,91 +321,6 @@ export default function WorkforcePage() {
     return Array.from(set);
   }, [parties, records, workers]);
 
-  const getDefaultContractor = useCallback(() => {
-    const fromRecords = records.find(
-      (r) => r.contractorName?.trim() && r.contractorName.trim() !== "-" && r.contractorName.trim() !== "Contractor Agency"
-    )?.contractorName?.trim();
-    if (fromRecords) return fromRecords;
-
-    const fromPartiesContractor = parties.find(
-      (p) => (p.partyType === "CONTRACTOR" || p.partyType === "BOTH") && p.name?.trim()
-    )?.name?.trim();
-    if (fromPartiesContractor) return fromPartiesContractor;
-
-    const fromAnyParty = parties.find((p) => p.name?.trim())?.name?.trim();
-    if (fromAnyParty) return fromAnyParty;
-
-    if (existingContractors.length > 0) return existingContractors[0];
-
-    return "Ramesh RCC & Masonry Works";
-  }, [records, parties, existingContractors]);
-
-  // Auto-populate default contractor if contractorName is empty and contractors exist
-  useEffect(() => {
-    if (!contractorName && (records.length > 0 || parties.length > 0 || existingContractors.length > 0)) {
-      const defaultContractor = getDefaultContractor();
-      if (defaultContractor) {
-        setContractorName(defaultContractor);
-        fetchContractorRates(defaultContractor);
-      }
-    }
-  }, [records, parties, existingContractors, contractorName, getDefaultContractor, fetchContractorRates]);
-
-  const selectedWorker = useMemo(() => {
-    if (!contractorName) return null;
-    return workers.find(
-      (w) =>
-        contractorName.includes(w.employeeCode) ||
-        contractorName.toLowerCase() === w.name.toLowerCase() ||
-        contractorName === `${w.name} (${w.employeeCode})` ||
-        contractorName === `${w.name} (${w.employeeCode} - ${w.workerType})`
-    );
-  }, [contractorName, workers]);
-
-  // Searchable Contractor / Trade Worker Combobox state
-  const [isContractorDropdownOpen, setIsContractorDropdownOpen] = useState(false);
-  const [contractorSearchQuery, setContractorSearchQuery] = useState("");
-  const contractorDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close contractor dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: Event) => {
-      if (
-        contractorDropdownRef.current &&
-        !contractorDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsContractorDropdownOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", handleClickOutside);
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("pointerdown", handleClickOutside);
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  const filteredWorkersForContractor = useMemo(() => {
-    const q = contractorSearchQuery.trim().toLowerCase();
-    if (!q) return workers;
-    return workers.filter(
-      (w) =>
-        w.name.toLowerCase().includes(q) ||
-        w.employeeCode.toLowerCase().includes(q) ||
-        w.workerType.toLowerCase().includes(q) ||
-        (w.defaultSite?.name && w.defaultSite.name.toLowerCase().includes(q))
-    );
-  }, [workers, contractorSearchQuery]);
-
-  const filteredContractorsList = useMemo(() => {
-    const q = contractorSearchQuery.trim().toLowerCase();
-    if (!q) return existingContractors;
-    return existingContractors.filter((c) => c.toLowerCase().includes(q));
-  }, [existingContractors, contractorSearchQuery]);
-
-  const totalMatchingContractorOptions =
-    filteredWorkersForContractor.length + filteredContractorsList.length;
-
   const fetchContractorRates = useCallback(
     async (cNameOrId: string) => {
       const trimmed = cNameOrId.trim();
@@ -502,6 +417,91 @@ export default function WorkforcePage() {
     },
     [parties, workers]
   );
+
+  const getDefaultContractor = useCallback(() => {
+    const fromRecords = records.find(
+      (r) => r.contractorName?.trim() && r.contractorName.trim() !== "-" && r.contractorName.trim() !== "Contractor Agency"
+    )?.contractorName?.trim();
+    if (fromRecords) return fromRecords;
+
+    const fromPartiesContractor = parties.find(
+      (p) => (p.partyType === "CONTRACTOR" || p.partyType === "BOTH") && p.name?.trim()
+    )?.name?.trim();
+    if (fromPartiesContractor) return fromPartiesContractor;
+
+    const fromAnyParty = parties.find((p) => p.name?.trim())?.name?.trim();
+    if (fromAnyParty) return fromAnyParty;
+
+    if (existingContractors.length > 0) return existingContractors[0];
+
+    return "Ramesh RCC & Masonry Works";
+  }, [records, parties, existingContractors]);
+
+  // Auto-populate default contractor if contractorName is empty and contractors exist
+  useEffect(() => {
+    if (!contractorName && (records.length > 0 || parties.length > 0 || existingContractors.length > 0)) {
+      const defaultContractor = getDefaultContractor();
+      if (defaultContractor) {
+        setContractorName(defaultContractor);
+        fetchContractorRates(defaultContractor);
+      }
+    }
+  }, [records, parties, existingContractors, contractorName, getDefaultContractor, fetchContractorRates]);
+
+  const selectedWorker = useMemo(() => {
+    if (!contractorName) return null;
+    return workers.find(
+      (w) =>
+        contractorName.includes(w.employeeCode) ||
+        contractorName.toLowerCase() === w.name.toLowerCase() ||
+        contractorName === `${w.name} (${w.employeeCode})` ||
+        contractorName === `${w.name} (${w.employeeCode} - ${w.workerType})`
+    );
+  }, [contractorName, workers]);
+
+  // Searchable Contractor / Trade Worker Combobox state
+  const [isContractorDropdownOpen, setIsContractorDropdownOpen] = useState(false);
+  const [contractorSearchQuery, setContractorSearchQuery] = useState("");
+  const contractorDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close contractor dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: Event) => {
+      if (
+        contractorDropdownRef.current &&
+        !contractorDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsContractorDropdownOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const filteredWorkersForContractor = useMemo(() => {
+    const q = contractorSearchQuery.trim().toLowerCase();
+    if (!q) return workers;
+    return workers.filter(
+      (w) =>
+        w.name.toLowerCase().includes(q) ||
+        w.employeeCode.toLowerCase().includes(q) ||
+        w.workerType.toLowerCase().includes(q) ||
+        (w.defaultSite?.name && w.defaultSite.name.toLowerCase().includes(q))
+    );
+  }, [workers, contractorSearchQuery]);
+
+  const filteredContractorsList = useMemo(() => {
+    const q = contractorSearchQuery.trim().toLowerCase();
+    if (!q) return existingContractors;
+    return existingContractors.filter((c) => c.toLowerCase().includes(q));
+  }, [existingContractors, contractorSearchQuery]);
+
+  const totalMatchingContractorOptions =
+    filteredWorkersForContractor.length + filteredContractorsList.length;
 
   const handleToggleExtraWorkers = (checked: boolean) => {
     setIsExtraWorkersRate(checked);
