@@ -355,7 +355,7 @@ export default function AuditPage() {
       {
         key: "metadata",
         label: "Details",
-        accessor: (e) => (e.metadata ? JSON.stringify(e.metadata) : "—"),
+        accessor: (e) => e.entityDisplayName || "View Details",
         type: "text",
       },
     ],
@@ -366,232 +366,6 @@ export default function AuditPage() {
     data: filteredEvents,
     columns: auditColumns,
   });
-
-  const renderMetadataCell = (event: any) => {
-    const after = parseJsonSafe(event.afterJson);
-    const before = parseJsonSafe(event.beforeJson);
-    const data = after || before;
-
-    if (!data || Object.keys(data).length === 0) {
-      return <span className="text-slate-400 italic text-xs">No payload</span>;
-    }
-
-    const chips: React.ReactNode[] = [];
-
-    // Project Name
-    if (data.projectId) {
-      const projInfo = nameMap[data.projectId.toLowerCase()];
-      if (projInfo) {
-        chips.push(
-          <span
-            key="proj"
-            className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/80 px-2 py-0.5 rounded text-[11px] font-semibold"
-            title={`Project: ${projInfo.name}`}
-          >
-            Project: {projInfo.name}
-          </span>
-        );
-      }
-    }
-
-    // File name
-    const fName = data.originalName || data.fileName;
-    if (fName) {
-      chips.push(
-        <span
-          key="file"
-          className="inline-flex items-center gap-1 bg-blue-50 text-blue-900 border border-blue-200/80 px-2 py-0.5 rounded text-[11px] font-semibold max-w-[200px] truncate"
-          title={`File: ${fName}`}
-        >
-          File: {fName}
-        </span>
-      );
-    }
-
-    // Task Name
-    if (data.taskId) {
-      const taskInfo = nameMap[data.taskId.toLowerCase()];
-      if (taskInfo) {
-        chips.push(
-          <span
-            key="task"
-            className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-900 border border-cyan-200/80 px-2 py-0.5 rounded text-[11px] font-semibold"
-            title={`Task: ${taskInfo.name}`}
-          >
-            Task: {taskInfo.name}
-          </span>
-        );
-      }
-    }
-
-    // Site Name
-    if (data.siteId) {
-      const siteInfo = nameMap[data.siteId.toLowerCase()];
-      if (siteInfo) {
-        chips.push(
-          <span
-            key="site"
-            className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-900 border border-emerald-200/80 px-2 py-0.5 rounded text-[11px] font-semibold"
-            title={`Site: ${siteInfo.name}`}
-          >
-            Site: {siteInfo.name}
-          </span>
-        );
-      }
-    }
-
-    // Order Number
-    if (data.orderNumber) {
-      chips.push(
-        <span
-          key="order"
-          className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/80 px-2 py-0.5 rounded text-[11px] font-semibold font-mono"
-        >
-          PO: {data.orderNumber}
-        </span>
-      );
-    }
-
-    // Bill Number
-    if (data.billNumber) {
-      chips.push(
-        <span
-          key="bill"
-          className="inline-flex items-center gap-1 bg-blue-50 text-blue-900 border border-blue-200/80 px-2 py-0.5 rounded text-[11px] font-semibold font-mono"
-        >
-          Bill #{data.billNumber}
-        </span>
-      );
-    }
-
-    // Name (Project / Store / Item)
-    if (data.name && chips.length < 2) {
-      chips.push(
-        <span
-          key="name"
-          className="inline-flex items-center gap-1 bg-slate-100 text-slate-800 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-medium font-sans break-words whitespace-normal"
-          title={data.name}
-        >
-          {data.name}
-        </span>
-      );
-    }
-
-    // Party Name
-    if (data.partyName && chips.length < 2) {
-      chips.push(
-        <span
-          key="party"
-          className="inline-flex items-center gap-1 bg-purple-50 text-purple-900 border border-purple-200/80 px-2 py-0.5 rounded text-[11px] font-medium font-sans break-words whitespace-normal"
-          title={data.partyName}
-        >
-          {data.partyName}
-        </span>
-      );
-    }
-
-    // Amount / Total Amount
-    if (data.totalAmount !== undefined || data.amount !== undefined) {
-      const amt = data.totalAmount ?? data.amount;
-      chips.push(
-        <span
-          key="amt"
-          className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-900 border border-emerald-200/80 px-2 py-0.5 rounded text-[11px] font-bold font-mono"
-        >
-          {typeof amt === "number" ? formatCurrency(amt) : amt}
-        </span>
-      );
-    }
-
-    // Stock / Quantity
-    if (data.stock !== undefined) {
-      chips.push(
-        <span
-          key="stock"
-          className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/80 px-2 py-0.5 rounded text-[11px] font-semibold font-mono"
-        >
-          Stock: {data.stock}
-        </span>
-      );
-    } else if (data.quantityDelta !== undefined) {
-      chips.push(
-        <span
-          key="qty"
-          className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-900 border border-cyan-200/80 px-2 py-0.5 rounded text-[11px] font-semibold font-mono"
-        >
-          Qty: {data.quantityDelta > 0 ? `+${data.quantityDelta}` : data.quantityDelta} {data.unitCode || ""}
-        </span>
-      );
-    }
-
-    // Status
-    if (data.status && chips.length < 2) {
-      chips.push(
-        <span
-          key="status"
-          className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono uppercase"
-        >
-          {data.status}
-        </span>
-      );
-    }
-
-    // Fallback: take keys while filtering out internal/sensitive keys like diskFileName
-    if (chips.length === 0) {
-      const keys = Object.keys(data).filter(
-        (k) => !["diskFileName", "fileId", "folderId", "passwordHash"].includes(k)
-      ).slice(0, 2);
-      keys.forEach((k) => {
-        let valStr = String(data[k]);
-        if (typeof data[k] === "string" && nameMap[data[k].toLowerCase()]) {
-          valStr = nameMap[data[k].toLowerCase()].name;
-        } else if (typeof data[k] === "object") {
-          valStr = "...";
-        }
-        chips.push(
-          <span
-            key={k}
-            className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-mono break-all whitespace-normal"
-            title={`${formatKeyLabel(k)}: ${valStr}`}
-          >
-            {formatKeyLabel(k)}: {valStr}
-          </span>
-        );
-      });
-    }
-
-    return (
-      <div
-        onClick={() => {
-          setSelectedEvent(event);
-          setActiveTab("attributes");
-        }}
-        className="flex items-center justify-between gap-2 p-1 -m-1 rounded-lg hover:bg-slate-100/90 cursor-pointer group transition-colors"
-        title="Click to view full change details"
-      >
-        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-          {chips.slice(0, 2)}
-          {Object.keys(data).length > 2 && (
-            <span className="text-[10px] text-slate-400 font-medium font-sans whitespace-nowrap">
-              +{Object.keys(data).length - 2} more
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedEvent(event);
-            setActiveTab("attributes");
-          }}
-          className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 bg-white border border-slate-200 group-hover:border-amber-400 group-hover:text-amber-800 text-slate-600 rounded-md shadow-2xs shrink-0 transition-colors"
-        >
-          <Eye className="w-3.5 h-3.5 text-amber-600" />
-          <span>View</span>
-        </button>
-      </div>
-    );
-  };
 
   return (
     <Shell>
@@ -812,8 +586,19 @@ export default function AuditPage() {
                           <span className="text-slate-400 italic">Normal update</span>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 font-sans min-w-[240px]">
-                        {renderMetadataCell(e)}
+                      <td className="py-3.5 px-4 font-sans text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedEvent(e);
+                            setActiveTab("attributes");
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200 hover:border-amber-400 rounded-lg shadow-2xs transition-all cursor-pointer group"
+                          title="View change details"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-amber-600 group-hover:scale-110 transition-transform" />
+                          <span>View</span>
+                        </button>
                       </td>
                     </tr>
                   ))
