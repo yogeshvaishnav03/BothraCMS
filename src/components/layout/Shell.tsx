@@ -238,7 +238,6 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.siteWork",
       label: "Site Work",
       items: [
-        { key: "nav.sites", defaultLabel: "Sites Directory", href: "/sites", icon: Building2 },
         { key: "nav.projects", defaultLabel: "Projects", href: "/projects", icon: FolderKanban },
         { key: "nav.tasks", defaultLabel: "Tasks & Work", href: "/tasks", icon: CheckSquare },
         { key: "nav.measurementBook", defaultLabel: "Measurement Book", href: "/measurement-book", icon: BookOpen },
