@@ -1238,11 +1238,11 @@ export default function TasksPage() {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700 uppercase">
-                      Reason for Change <span className="text-rose-600 font-extrabold">*</span>
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      Reason for Change (Mandatory) <span className="text-rose-600 font-extrabold">*</span>
                     </label>
-                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Mandatory
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-300 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      Required
                     </span>
                   </div>
                   <input
@@ -1251,11 +1251,19 @@ export default function TasksPage() {
                     placeholder="e.g. Due date extension granted by structural consultant"
                     value={editReason}
                     onChange={(e) => setEditReason(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-amber-400 focus:bg-white rounded-lg p-2.5 text-sm outline-none transition"
+                    className={`w-full bg-slate-50 border rounded-lg p-2.5 text-sm outline-none transition ${
+                      !editReason.trim()
+                        ? "border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
+                        : "border-slate-200 focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-200"
+                    }`}
                   />
-                  {!editReason.trim() && (
+                  {!editReason.trim() ? (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                      <span>⚠️ Reason for change is mandatory. You must state why this task is being modified.</span>
+                    </p>
+                  ) : (
                     <p className="text-[11px] text-slate-400 mt-1">
-                      A brief reason is required for compliance and audit logging.
+                      Reason will be permanently recorded in the system audit log.
                     </p>
                   )}
                 </div>
@@ -1273,8 +1281,8 @@ export default function TasksPage() {
                 <button
                   type="submit"
                   form="edit-task-modal-form"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
+                  disabled={submitting || !editReason.trim()}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition cursor-pointer"
                 >
                   {submitting ? "Saving..." : "Save Changes"}
                 </button>

@@ -21,7 +21,9 @@ const editTaskSchema = z.object({
   dueAt: z.string().optional(),
   taskType: z.enum(["STANDARD", "PERSONAL", "REQUEST_OWNER", "REQUEST_MANAGER", "REQUEST_ARCHITECT"]).optional(),
   reminderAt: z.string().optional(),
-  reason: z.string().optional(),
+  reason: z
+    .string({ required_error: "Reason for change is mandatory" })
+    .min(2, "Reason for change is mandatory. Please state why this task is being modified."),
 });
 
 export async function GET(
@@ -95,7 +97,7 @@ export async function PATCH(
     const body = await req.json();
     const data = editTaskSchema.parse(body);
 
-    if (data.reason !== undefined && !data.reason.trim()) {
+    if (!data.reason || !data.reason.trim()) {
       return jsonError("Reason for change is mandatory. Please state why this task is being modified.", "VALIDATION_ERROR", 400);
     }
 
