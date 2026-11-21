@@ -9,9 +9,6 @@ const PUBLIC_PATHS = [
   "/login",
   "/api/auth/login",
   "/api/health",
-  // Buyer portal: a secret link per booking, read-only.
-  "/portal",
-  "/api/portal",
   // Scheduled jobs check their own secret (CRON_SECRET).
   "/api/cron",
   // Meta's WhatsApp webhook checks its own signature (app secret).
