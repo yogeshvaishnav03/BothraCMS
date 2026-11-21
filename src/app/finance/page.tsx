@@ -145,7 +145,6 @@ export default function FinancePage() {
   const [amountPreset, setAmountPreset] = useState<"ALL" | "UNDER_50K" | "50K_2L" | "OVER_2L" | "CUSTOM">("ALL");
 
   // Search & Filter state for Vendor Bills
-  const [billSearch, setBillSearch] = useState("");
   const [billStatus, setBillStatus] = useState("ALL");
   const [billFromDate, setBillFromDate] = useState(() => istDateKey());
   const [billToDate, setBillToDate] = useState(() => istDateKey());
@@ -1087,15 +1086,6 @@ export default function FinancePage() {
 
   const filteredBills = useMemo(() => {
     return siteScopedBills.filter((b) => {
-      if (billSearch.trim()) {
-        const q = billSearch.trim().toLowerCase();
-        const match =
-          (b.billNumber || "").toLowerCase().includes(q) ||
-          (b.party?.name || "").toLowerCase().includes(q) ||
-          formatDate(b.billDate).toLowerCase().includes(q) ||
-          ((Number(b.totalAmount) || 0) / 100).toString().includes(q);
-        if (!match) return false;
-      }
       if (billStatus === "PAID" && b.outstandingAmount > 0) return false;
       if (billStatus === "PENDING" && b.outstandingAmount === 0) return false;
 
@@ -1116,7 +1106,7 @@ export default function FinancePage() {
 
       return true;
     });
-  }, [siteScopedBills, billSearch, billStatus, billFromDate, billToDate]);
+  }, [siteScopedBills, billStatus, billFromDate, billToDate]);
 
   // Feature 18: Filter-based dynamic payment totals
   const filteredPaymentsStats = useMemo(() => {
@@ -2212,47 +2202,28 @@ export default function FinancePage() {
               </div>
             </div>
 
-            {/* Bills Search & Filter Toolbar */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={billSearch}
-                  onChange={(e) => setBillSearch(e.target.value)}
-                  placeholder="Search bills by bill #, vendor name, date, amount..."
-                  className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                />
-                {billSearch && (
-                  <button
-                    onClick={() => setBillSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                    title="Clear search"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+            {/* Bills Filter Toolbar */}
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-sm flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500">Bill Status:</span>
                 <select
                   value={billStatus}
                   onChange={(e) => setBillStatus(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                 >
                   <option value="ALL">All Bills</option>
                   <option value="PENDING">Unpaid Balance</option>
                   <option value="PAID">Paid in Full</option>
                 </select>
-                {(billSearch || billStatus !== "ALL") && (
+                {billStatus !== "ALL" && (
                   <button
                     onClick={() => {
-                      setBillSearch("");
                       setBillStatus("ALL");
                       if (typeof window !== "undefined") {
                         window.history.replaceState(null, "", "/finance?tab=bills");
                       }
                     }}
-                    className="px-2.5 py-2 text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition"
+                    className="px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition"
                   >
                     Reset
                   </button>

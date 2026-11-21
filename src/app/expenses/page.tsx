@@ -99,7 +99,6 @@ export default function ExpensesPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [search, setSearch] = useState("");
   const [expenseFromDate, setExpenseFromDate] = useState(() => istDateKey());
   const [expenseToDate, setExpenseToDate] = useState(() => istDateKey());
   const [datePreset, setDatePreset] = useState<"ALL" | "TODAY" | "THIS_MONTH" | "LAST_30" | "CUSTOM">("TODAY");
@@ -715,17 +714,6 @@ export default function ExpensesPage() {
 
   const filteredExpenses = useMemo(() => {
     let list = expenses;
-    if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      list = list.filter(
-        (e) =>
-          cleanExpenseTitle(e.title).toLowerCase().includes(q) ||
-          e.paidTo.toLowerCase().includes(q) ||
-          e.referenceNumber.toLowerCase().includes(q) ||
-          e.creator?.name?.toLowerCase().includes(q) ||
-          e.site?.name?.toLowerCase().includes(q)
-      );
-    }
     if (statusFilter !== "ALL") {
       list = list.filter((e) => e.status === statusFilter);
     }
@@ -742,7 +730,7 @@ export default function ExpensesPage() {
       });
     }
     return list;
-  }, [expenses, search, statusFilter, expenseFromDate, expenseToDate]);
+  }, [expenses, statusFilter, expenseFromDate, expenseToDate]);
 
   const expenseColumns: ExcelColumn<ExpenseItem>[] = useMemo(
     () => [
@@ -874,20 +862,9 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {/* Filter & Search Bar */}
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              placeholder="Search by item, shop name, reference #, or staff member..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-          </div>
-
-          <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0 overflow-x-auto max-w-full w-full sm:w-auto py-1 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Status Filter Bar */}
+        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-3 overflow-x-auto">
+          <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto max-w-full w-full py-1 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {(["ALL", "PENDING_APPROVAL", "POSTED", "REJECTED"] as const).map((st) => (
               <button
                 key={st}

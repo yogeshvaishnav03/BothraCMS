@@ -462,7 +462,6 @@ export default function AuditPage() {
   const [nameMap, setNameMap] = useState<EntityNameMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState(() => istDateKey());
   const [toDate, setToDate] = useState(() => istDateKey());
   const [datePreset, setDatePreset] = useState<"ALL" | "TODAY" | "THIS_MONTH" | "CUSTOM">("TODAY");
@@ -538,21 +537,6 @@ export default function AuditPage() {
 
   const filteredEvents = useMemo(() => {
     return auditEvents.filter((e) => {
-      const query = search.toLowerCase();
-      const displayName = e.entityDisplayName || nameMap[e.entityId?.toLowerCase()]?.name || "";
-      const matchesSearch =
-        !query ||
-        e.action.toLowerCase().includes(query) ||
-        (e.actor?.name && e.actor.name.toLowerCase().includes(query)) ||
-        (e.reason && e.reason.toLowerCase().includes(query)) ||
-        (e.entityType && e.entityType.toLowerCase().includes(query)) ||
-        displayName.toLowerCase().includes(query) ||
-        (e.entityId && e.entityId.toLowerCase().includes(query)) ||
-        (e.afterJson && e.afterJson.toLowerCase().includes(query)) ||
-        (e.beforeJson && e.beforeJson.toLowerCase().includes(query));
-
-      if (!matchesSearch) return false;
-
       // Date filtering in IST
       const eventDateKey = e.createdAt ? istDateKey(new Date(e.createdAt)) : "";
       if (fromDate && (!eventDateKey || eventDateKey < fromDate)) return false;
@@ -560,7 +544,7 @@ export default function AuditPage() {
 
       return true;
     });
-  }, [auditEvents, search, fromDate, toDate, nameMap]);
+  }, [auditEvents, fromDate, toDate]);
 
   const auditColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -619,19 +603,6 @@ export default function AuditPage() {
           </span>
         </PageHeader>
 
-        {/* Search */}
-        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              placeholder="Search activity log by action, user, reason, order #, or vendor name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-          </div>
-        </div>
 
         {/* Quick Date Presets Bar for Activity Log */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3">

@@ -144,7 +144,6 @@ export default function MaterialsPage() {
   const [materials, setMaterials] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
 
   // Role & Permission Checks
   const canAddMaterial = canUser(currentUser, "inventory:adjust");
@@ -686,12 +685,6 @@ export default function MaterialsPage() {
     }
   };
 
-  const filteredMaterials = materials.filter(
-    (m) =>
-      m.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.sku.toLowerCase().includes(search.toLowerCase())
-  );
-
   const materialColumns: ExcelColumn<any>[] = useMemo(
     () => [
       {
@@ -745,7 +738,7 @@ export default function MaterialsPage() {
   );
 
   const excelMaterials = useExcelTable({
-    data: filteredMaterials,
+    data: materials,
     columns: materialColumns,
   });
 
@@ -845,20 +838,6 @@ export default function MaterialsPage() {
         {statusMessage && <Alert tone="success">{statusMessage}</Alert>}
         {errorMessage && <Alert tone="error">{errorMessage}</Alert>}
 
-        {/* Filter bar */}
-        <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              placeholder="Search by material name or item code..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-          </div>
-        </div>
-
         {/* Materials Table & Cards */}
         {loading ? (
           <div className="space-y-3">
@@ -866,11 +845,11 @@ export default function MaterialsPage() {
               <div key={i} className="h-16 bg-slate-200/60 rounded-xl animate-pulse" />
             ))}
           </div>
-        ) : filteredMaterials.length === 0 ? (
+        ) : materials.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
             <Boxes className="w-10 h-10 text-slate-300 mx-auto mb-2" />
             <div className="text-sm font-bold text-slate-700">No materials found</div>
-            <div className="text-xs text-slate-400 mt-1">Try a different search word or clear filters.</div>
+            <div className="text-xs text-slate-400 mt-1">Add your first material to begin tracking site inventory.</div>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">

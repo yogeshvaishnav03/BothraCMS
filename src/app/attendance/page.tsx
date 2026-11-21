@@ -273,7 +273,6 @@ export default function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [siteFilter, setSiteFilter] = useState<string>("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
 
   // Attendance correction modal state
   const [correctionSession, setCorrectionSession] = useState<any>(null);
@@ -821,21 +820,9 @@ export default function AttendancePage() {
         if (statusFilter === "HALF_DAY" && s.status !== "HALF_DAY") return false;
       }
 
-      // Search filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const dateMatch = (s.workDate || "").toLowerCase().includes(q);
-        const nameMatch = (s.employeeName || "").toLowerCase().includes(q);
-        const roleMatch = (s.employeeRole || "").toLowerCase().includes(q);
-        const codeMatch = (s.employeeCode || "").toLowerCase().includes(q);
-        const siteMatch = (s.site?.name || "").toLowerCase().includes(q);
-        const notesMatch = (s.notes || "").toLowerCase().includes(q);
-        return dateMatch || nameMatch || roleMatch || codeMatch || siteMatch || notesMatch;
-      }
-
       return true;
     });
-  }, [sessions, selectedMonthTab, selectedCustomDate, siteFilter, roleFilter, statusFilter, searchQuery, LABOR_TRADES]);
+  }, [sessions, selectedMonthTab, selectedCustomDate, siteFilter, roleFilter, statusFilter, LABOR_TRADES]);
 
   const attendanceColumns: ExcelColumn<any>[] = useMemo(() => {
     const cols: ExcelColumn<any>[] = [];
@@ -1572,20 +1559,6 @@ export default function AttendancePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* Search Bar */}
-              <div className="relative min-w-[160px] sm:min-w-[200px]">
-                <input
-                  type="text"
-                  placeholder={
-                    activeTab === "all" && isPrivileged ? "Search staff, role, site..." : "Search date, site..."
-                  }
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
-                />
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
-              </div>
-
               {/* Role Filter (when viewing all staff) */}
               {activeTab === "all" && isPrivileged && availableRoles.length > 0 && (
                 <select

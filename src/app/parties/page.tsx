@@ -266,7 +266,6 @@ export default function PartiesPage() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"ALL" | "VENDOR" | "CONTRACTOR">("ALL");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
@@ -710,17 +709,13 @@ export default function PartiesPage() {
   );
 
   const filteredParties = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const list = parties.filter((p) => {
       if (typeFilter !== "ALL" && p.partyType !== typeFilter && p.partyType !== "BOTH") return false;
       if (categoryFilter && p.category !== categoryFilter) return false;
       if (cityFilter && p.city !== cityFilter) return false;
       if (onlyOutstanding && !((p.outstandingBalance || 0) > 0)) return false;
       if (onlyMissingBank && p.hasBankDetails) return false;
-      if (!q) return true;
-      return [p.name, p.taxIdentifier, p.panNumber, p.phone, p.whatsappNumber, p.city, p.category, p.contactPerson, p.bankIfsc, p.bankName, p.upiId, p.email]
-        .filter(Boolean)
-        .some((v: string) => String(v).toLowerCase().includes(q));
+      return true;
     });
     return list.sort((a, b) => {
       if (sortBy === "recent") {
@@ -732,28 +727,7 @@ export default function PartiesPage() {
       if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
       return a.name.localeCompare(b.name);
     });
-  }, [parties, search, typeFilter, categoryFilter, cityFilter, onlyOutstanding, onlyMissingBank, sortBy]);
-
-  const cardsPagination = useTablePagination(filteredParties);
-
-  const stats = useMemo(() => {
-    const vendors = parties.filter((p) => p.partyType === "VENDOR" || p.partyType === "BOTH").length;
-    const contractors = parties.filter((p) => p.partyType === "CONTRACTOR" || p.partyType === "BOTH").length;
-    const outstanding = parties.reduce((s, p) => s + Math.max(0, p.outstandingBalance || 0), 0);
-    const missingBank = parties.filter((p) => !p.hasBankDetails).length;
-    const totalDamages = parties.reduce((s, p) => s + (p.totalDamagesDeducted || 0), 0);
-    return { vendors, contractors, outstanding, missingBank, totalDamages };
-  }, [parties]);
-
-  const filtersActive = Boolean(search || categoryFilter || cityFilter || onlyOutstanding || onlyMissingBank || typeFilter !== "ALL");
-  const clearFilters = () => {
-    setSearch("");
-    setTypeFilter("ALL");
-    setCategoryFilter("");
-    setCityFilter("");
-    setOnlyOutstanding(false);
-    setOnlyMissingBank(false);
-  };
+  }, [parties, typeFilter, categoryFilter, cityFilter, onlyOutstanding, onlyMissingBank, sortBy]);
 
   const partyColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -781,6 +755,28 @@ export default function PartiesPage() {
   );
 
   const excelParties = useExcelTable({ data: filteredParties, columns: partyColumns });
+
+  const cardsPagination = useTablePagination(excelParties.filteredData);
+
+  const stats = useMemo(() => {
+    const vendors = parties.filter((p) => p.partyType === "VENDOR" || p.partyType === "BOTH").length;
+    const contractors = parties.filter((p) => p.partyType === "CONTRACTOR" || p.partyType === "BOTH").length;
+    const outstanding = parties.reduce((s, p) => s + Math.max(0, p.outstandingBalance || 0), 0);
+    const missingBank = parties.filter((p) => !p.hasBankDetails).length;
+    const totalDamages = parties.reduce((s, p) => s + (p.totalDamagesDeducted || 0), 0);
+    return { vendors, contractors, outstanding, missingBank, totalDamages };
+  }, [parties]);
+
+  const filtersActive = Boolean(excelParties.globalSearch || categoryFilter || cityFilter || onlyOutstanding || onlyMissingBank || typeFilter !== "ALL");
+  const clearFilters = () => {
+    excelParties.setGlobalSearch("");
+    excelParties.clearAllFilters();
+    setTypeFilter("ALL");
+    setCategoryFilter("");
+    setCityFilter("");
+    setOnlyOutstanding(false);
+    setOnlyMissingBank(false);
+  };
 
   const rowActions = (p: any) => (
     <>
@@ -882,18 +878,8 @@ export default function PartiesPage() {
 
         {/* Filters */}
         <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-          <div className="flex flex-col lg:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search name, GSTIN, PAN, phone, city, IFSC, UPI…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl"
-              />
-            </div>
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 shrink-0 self-start">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 shrink-0">
               {(
                 [
                   ["ALL", "All", null],
@@ -914,7 +900,7 @@ export default function PartiesPage() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 shrink-0 self-start" role="group" aria-label="View">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 shrink-0" role="group" aria-label="View">
               <button
                 onClick={() => changeView("cards")}
                 className={cn("p-1.5 rounded-lg transition", view === "cards" ? "bg-white shadow-sm text-slate-900" : "text-slate-500")}
@@ -1015,7 +1001,10 @@ export default function PartiesPage() {
           </div>
         ) : view === "cards" ? (
           <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger">
+            <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs">
+              <ExcelTableToolbar table={excelParties} columns={partyColumns} tableName="vendors & contractors" showSearch={true} showExport={true} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger">
             {cardsPagination.paginatedData.map((p) => {
               const style = TYPE_STYLE[p.partyType] || TYPE_STYLE.VENDOR;
               const due = p.outstandingBalance || 0;
