@@ -38,7 +38,10 @@ import {
   Sparkles,
   Loader2,
   AlertCircle,
+  Tag,
+  PackageCheck,
 } from "lucide-react";
+import MaterialProcurementNav from "@/components/materials/MaterialProcurementNav";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -811,6 +814,20 @@ export default function PartiesPage() {
           <ShieldAlert className="w-3.5 h-3.5" />
         </Link>
       )}
+      <Link
+        href={`/material-pricing?search=${encodeURIComponent(p.name)}`}
+        title="View Quotations & Pricing"
+        className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-amber-600 hover:bg-amber-50 hover:ring-amber-200 transition"
+      >
+        <Tag className="w-3.5 h-3.5" />
+      </Link>
+      <Link
+        href={`/material-requests?search=${encodeURIComponent(p.name)}`}
+        title="View Material Orders"
+        className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:ring-blue-200 transition"
+      >
+        <PackageCheck className="w-3.5 h-3.5" />
+      </Link>
       <button
         onClick={() => setAuditParty({ id: p.id, name: p.name })}
         title="Change History"
@@ -851,6 +868,8 @@ export default function PartiesPage() {
             </button>
           )}
         </PageHeader>
+
+        <MaterialProcurementNav activeTab="parties" />
 
         {statusMessage && <Alert tone="success" onDismiss={() => setStatusMessage(null)}>{statusMessage}</Alert>}
         {errorMessage && <Alert tone="error" onDismiss={() => setErrorMessage(null)}>{errorMessage}</Alert>}

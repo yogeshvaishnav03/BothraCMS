@@ -30,7 +30,10 @@ import {
   Sparkles,
   Filter,
   Building2,
+  Tag,
+  PackageCheck,
 } from "lucide-react";
+import MaterialProcurementNav from "@/components/materials/MaterialProcurementNav";
 import { canUser } from "@/lib/permissions";
 
 interface StandardMaterialPreset {
@@ -841,6 +844,9 @@ export default function MaterialsPage() {
           </div>
         </PageHeader>
 
+        {/* Interlinked Material & Procurement Hub Navigation */}
+        <MaterialProcurementNav activeTab="materials" />
+
         {/* Feedback alerts */}
         {statusMessage && <Alert tone="success">{statusMessage}</Alert>}
         {errorMessage && <Alert tone="error">{errorMessage}</Alert>}
@@ -1051,6 +1057,24 @@ export default function MaterialsPage() {
                                     <span>Order</span>
                                   </button>
                                 )}
+                                <Link
+                                  href={`/material-pricing?materialId=${m.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-amber-700 bg-slate-50 hover:bg-amber-50 px-2 py-1 rounded-md border border-slate-200 transition"
+                                  title="Compare Vendor Quotations & Rates"
+                                >
+                                  <Tag className="w-3 h-3 text-amber-600" />
+                                  <span>Rates</span>
+                                </Link>
+                                <Link
+                                  href={`/material-requests?search=${encodeURIComponent(m.name)}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-amber-700 bg-slate-50 hover:bg-amber-50 px-2 py-1 rounded-md border border-slate-200 transition"
+                                  title="View Order History for this Material"
+                                >
+                                  <PackageCheck className="w-3 h-3 text-amber-600" />
+                                  <span>Orders</span>
+                                </Link>
                                 <Link
                                   href={`/materials/${m.id}`}
                                   onClick={(e) => e.stopPropagation()}
@@ -1373,13 +1397,31 @@ export default function MaterialsPage() {
 
                       {/* Card Footer Actions */}
                       <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                        <Link
-                          href={`/materials/${m.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
-                        >
-                          <span>Full Stock History</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Link
+                            href={`/materials/${m.id}`}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline"
+                          >
+                            <span>History</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                          <Link
+                            href={`/material-pricing?materialId=${m.id}`}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-amber-700 bg-slate-50 hover:bg-amber-50 px-2 py-1 rounded-md border border-slate-200 transition"
+                            title="Compare Rates"
+                          >
+                            <Tag className="w-3 h-3 text-amber-600" />
+                            <span>Rates</span>
+                          </Link>
+                          <Link
+                            href={`/material-requests?search=${encodeURIComponent(m.name)}`}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-amber-700 bg-slate-50 hover:bg-amber-50 px-2 py-1 rounded-md border border-slate-200 transition"
+                            title="Orders"
+                          >
+                            <PackageCheck className="w-3 h-3 text-amber-600" />
+                            <span>Orders</span>
+                          </Link>
+                        </div>
 
                         <div className="flex items-center gap-2">
                           {canPlaceOrder && (

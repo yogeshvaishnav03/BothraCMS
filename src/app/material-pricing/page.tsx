@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { formatCurrency } from "@/lib/formatters";
+import MaterialProcurementNav from "@/components/materials/MaterialProcurementNav";
 import {
   Tag,
   Plus,
@@ -357,6 +359,9 @@ export default function MaterialPricingPage() {
           }
         />
 
+        {/* Interlinked Material & Procurement Hub Navigation */}
+        <MaterialProcurementNav activeTab="pricing" />
+
         {error && (
           <Alert variant="error" title="Notice" onClose={() => setError(null)}>
             {error}
@@ -639,7 +644,14 @@ export default function MaterialPricingPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-base">
-                        {item.materialName}
+                        <Link
+                          href={`/materials?search=${encodeURIComponent(item.materialName)}`}
+                          className="hover:text-amber-600 transition-colors inline-flex items-center gap-1 group"
+                          title="View material in Stock Register"
+                        >
+                          {item.materialName}
+                          <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
+                        </Link>
                       </h4>
                       <p className="text-xs text-slate-500">
                         {item.materialCategory} &bull; <span className="font-mono">{item.materialSku}</span>
@@ -656,9 +668,14 @@ export default function MaterialPricingPage() {
                   <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg flex items-center justify-between text-xs">
                     <div>
                       <span className="text-slate-500 block">Supplier</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      <Link
+                        href={`/parties?search=${encodeURIComponent(item.vendorName)}`}
+                        className="font-semibold text-slate-800 dark:text-slate-200 hover:text-amber-600 transition-colors inline-flex items-center gap-1 group"
+                        title="View vendor details"
+                      >
                         {item.vendorName}
-                      </span>
+                        <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
+                      </Link>
                     </div>
                     <div className="text-right">
                       <span className="text-slate-500 block">Landing Rate / {item.unitCode}</span>
