@@ -4,7 +4,14 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import React, { useEffect, useState, useMemo } from "react";
 import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Shell from "@/components/layout/Shell";
-import { formatDateTime, formatCurrency } from "@/lib/formatters";
+import { formatDateTime, formatCurrency, formatFileSize } from "@/lib/formatters";
+import {
+  formatAuditKeyLabel,
+  formatAuditEntityType,
+  formatAuditCategory,
+  formatAuditMimeType,
+  EntityNameMap,
+} from "@/lib/audit-resolver";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -41,14 +48,15 @@ function parseJsonSafe(jsonStr: string | null | undefined): Record<string, any> 
 }
 
 function formatKeyLabel(key: string): string {
-  return key
-    .replace(/([A-Z])/g, " $1")
-    .replace(/_/g, " ")
-    .replace(/^./, (str) => str.toUpperCase())
-    .trim();
+  return formatAuditKeyLabel(key);
 }
 
-function formatFieldValue(key: string, val: any): React.ReactNode {
+function formatFieldValue(
+  key: string,
+  val: any,
+  nameMap: EntityNameMap = {},
+  allData: Record<string, any> = {}
+): React.ReactNode {
   if (val === null || val === undefined) return <span className="text-slate-400 italic">Empty</span>;
   if (typeof val === "boolean") {
     return (
@@ -61,7 +69,62 @@ function formatFieldValue(key: string, val: any): React.ReactNode {
       </span>
     );
   }
+
   const lowerKey = key.toLowerCase();
+
+  // Disk File Name: Hide scary internal hashes, show clean security badge
+  if (key === "diskFileName" || lowerKey.includes("diskfile")) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/80">
+        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        <span>Stored Securely in Cloud Storage</span>
+      </div>
+    );
+  }
+
+  // File size / Byte length
+  if (
+    (typeof val === "number" || (typeof val === "string" && /^\d+$/.test(val))) &&
+    (lowerKey.includes("size") || lowerKey.includes("bytes"))
+  ) {
+    const num = typeof val === "number" ? val : parseInt(val, 10);
+    return (
+      <span className="font-semibold text-slate-900 font-mono text-xs">
+        {formatFileSize(num)}
+      </span>
+    );
+  }
+
+  // Document category
+  if (key === "category") {
+    return (
+      <span className="inline-flex items-center gap-1 font-semibold text-xs px-2.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200/80">
+        <Tag className="w-3 h-3 text-amber-600" />
+        <span>{formatAuditCategory(String(val))}</span>
+      </span>
+    );
+  }
+
+  // MIME type
+  if (key === "mimeType") {
+    return (
+      <span className="inline-flex items-center gap-1 font-medium text-xs px-2.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+        <FileText className="w-3 h-3 text-slate-500" />
+        <span>{formatAuditMimeType(String(val))}</span>
+      </span>
+    );
+  }
+
+  // Entity type
+  if (key === "entityType") {
+    return (
+      <span className="inline-flex items-center gap-1 font-bold text-xs px-2.5 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
+        <span>{formatAuditEntityType(String(val))}</span>
+      </span>
+    );
+  }
+
+  // Currency amounts
   if (
     typeof val === "number" &&
     (lowerKey.includes("amount") ||
@@ -72,6 +135,8 @@ function formatFieldValue(key: string, val: any): React.ReactNode {
   ) {
     return <span className="font-bold text-emerald-700 tabular-nums">{formatCurrency(val)}</span>;
   }
+
+  // Dates
   if (typeof val === "string" && (lowerKey.includes("at") || lowerKey.includes("date")) && val.includes("T")) {
     try {
       const d = new Date(val);
@@ -80,6 +145,65 @@ function formatFieldValue(key: string, val: any): React.ReactNode {
       }
     } catch {}
   }
+
+  // Check if val is a string UUID or known ID
+  if (typeof val === "string") {
+    const valTrimmed = val.trim();
+    const valLower = valTrimmed.toLowerCase();
+
+    // 1. Matched in nameMap
+    if (nameMap[valLower]) {
+      const resolved = nameMap[valLower];
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="font-bold text-slate-900 text-xs">{resolved.name}</span>
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <span className="px-1.5 py-0.2 bg-slate-200 text-slate-700 font-semibold rounded">
+              {resolved.type}
+            </span>
+            {resolved.code && <span className="font-mono text-slate-500">({resolved.code})</span>}
+            {resolved.subtext && <span className="text-slate-400">• {resolved.subtext}</span>}
+          </div>
+        </div>
+      );
+    }
+
+    // 2. UUID format
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(valTrimmed);
+    if (isUuid) {
+      if (key === "fileId" && (allData.originalName || allData.fileName)) {
+        return (
+          <span className="font-bold text-slate-900 text-xs">
+            {allData.originalName || allData.fileName}
+          </span>
+        );
+      }
+      if (key === "projectId" && allData.projectName) {
+        return <span className="font-bold text-slate-900 text-xs">{allData.projectName}</span>;
+      }
+      if (key === "taskId" && (allData.taskTitle || allData.title)) {
+        return <span className="font-bold text-slate-900 text-xs">{allData.taskTitle || allData.title}</span>;
+      }
+      if (key === "entityId") {
+        if (allData.originalName || allData.fileName) {
+          return <span className="font-bold text-slate-900 text-xs">{allData.originalName || allData.fileName}</span>;
+        }
+        if (allData.name) {
+          return <span className="font-bold text-slate-900 text-xs">{allData.name}</span>;
+        }
+        if (allData.title) {
+          return <span className="font-bold text-slate-900 text-xs">{allData.title}</span>;
+        }
+      }
+      // Clean reference badge instead of raw 36-char encrypted-looking string
+      return (
+        <span className="font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[11px]" title={val}>
+          Ref #{val.slice(0, 8)}
+        </span>
+      );
+    }
+  }
+
   if (typeof val === "object") {
     return (
       <pre className="text-xs bg-slate-100 p-2 rounded text-slate-800 overflow-x-auto font-mono">
@@ -87,11 +211,13 @@ function formatFieldValue(key: string, val: any): React.ReactNode {
       </pre>
     );
   }
+
   return <span className="font-medium text-slate-800 font-sans">{String(val)}</span>;
 }
 
 export default function AuditPage() {
   const [auditEvents, setAuditEvents] = useState<any[]>([]);
+  const [nameMap, setNameMap] = useState<EntityNameMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -135,8 +261,14 @@ export default function AuditPage() {
         return r.json();
       })
       .then((res) => {
-        if (res && res.success) setAuditEvents(res.data);
-        else if (res && res.error) setError(res.error);
+        if (res && res.success) {
+          const list = Array.isArray(res.data) ? res.data : (res.data?.events || []);
+          const names = res.data?.nameMap || {};
+          setAuditEvents(list);
+          setNameMap(names);
+        } else if (res && res.error) {
+          setError(res.error);
+        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -165,12 +297,14 @@ export default function AuditPage() {
   const filteredEvents = useMemo(() => {
     return auditEvents.filter((e) => {
       const query = search.toLowerCase();
+      const displayName = e.entityDisplayName || nameMap[e.entityId?.toLowerCase()]?.name || "";
       const matchesSearch =
         !query ||
         e.action.toLowerCase().includes(query) ||
         (e.actor?.name && e.actor.name.toLowerCase().includes(query)) ||
         (e.reason && e.reason.toLowerCase().includes(query)) ||
         (e.entityType && e.entityType.toLowerCase().includes(query)) ||
+        displayName.toLowerCase().includes(query) ||
         (e.entityId && e.entityId.toLowerCase().includes(query)) ||
         (e.afterJson && e.afterJson.toLowerCase().includes(query)) ||
         (e.beforeJson && e.beforeJson.toLowerCase().includes(query));
@@ -184,7 +318,7 @@ export default function AuditPage() {
 
       return true;
     });
-  }, [auditEvents, search, fromDate, toDate]);
+  }, [auditEvents, search, fromDate, toDate, nameMap]);
 
   const auditColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -209,7 +343,7 @@ export default function AuditPage() {
       {
         key: "entityType",
         label: "Record Type",
-        accessor: (e) => `${e.entityType} ${e.entityId || ""}`,
+        accessor: (e) => `${formatAuditEntityType(e.entityType)} ${e.entityDisplayName || nameMap[e.entityId?.toLowerCase()]?.name || ""}`,
         type: "text",
       },
       {
@@ -225,7 +359,7 @@ export default function AuditPage() {
         type: "text",
       },
     ],
-    []
+    [nameMap]
   );
 
   const excelAudit = useExcelTable({
@@ -243,6 +377,68 @@ export default function AuditPage() {
     }
 
     const chips: React.ReactNode[] = [];
+
+    // Project Name
+    if (data.projectId) {
+      const projInfo = nameMap[data.projectId.toLowerCase()];
+      if (projInfo) {
+        chips.push(
+          <span
+            key="proj"
+            className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/80 px-2 py-0.5 rounded text-[11px] font-semibold"
+            title={`Project: ${projInfo.name}`}
+          >
+            Project: {projInfo.name}
+          </span>
+        );
+      }
+    }
+
+    // File name
+    const fName = data.originalName || data.fileName;
+    if (fName) {
+      chips.push(
+        <span
+          key="file"
+          className="inline-flex items-center gap-1 bg-blue-50 text-blue-900 border border-blue-200/80 px-2 py-0.5 rounded text-[11px] font-semibold max-w-[200px] truncate"
+          title={`File: ${fName}`}
+        >
+          File: {fName}
+        </span>
+      );
+    }
+
+    // Task Name
+    if (data.taskId) {
+      const taskInfo = nameMap[data.taskId.toLowerCase()];
+      if (taskInfo) {
+        chips.push(
+          <span
+            key="task"
+            className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-900 border border-cyan-200/80 px-2 py-0.5 rounded text-[11px] font-semibold"
+            title={`Task: ${taskInfo.name}`}
+          >
+            Task: {taskInfo.name}
+          </span>
+        );
+      }
+    }
+
+    // Site Name
+    if (data.siteId) {
+      const siteInfo = nameMap[data.siteId.toLowerCase()];
+      if (siteInfo) {
+        chips.push(
+          <span
+            key="site"
+            className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-900 border border-emerald-200/80 px-2 py-0.5 rounded text-[11px] font-semibold"
+            title={`Site: ${siteInfo.name}`}
+          >
+            Site: {siteInfo.name}
+          </span>
+        );
+      }
+    }
 
     // Order Number
     if (data.orderNumber) {
@@ -269,7 +465,7 @@ export default function AuditPage() {
     }
 
     // Name (Project / Store / Item)
-    if (data.name) {
+    if (data.name && chips.length < 2) {
       chips.push(
         <span
           key="name"
@@ -282,7 +478,7 @@ export default function AuditPage() {
     }
 
     // Party Name
-    if (data.partyName) {
+    if (data.partyName && chips.length < 2) {
       chips.push(
         <span
           key="party"
@@ -340,18 +536,25 @@ export default function AuditPage() {
       );
     }
 
-    // Fallback: take first 1-2 keys if no specific primary fields matched
+    // Fallback: take keys while filtering out internal/sensitive keys like diskFileName
     if (chips.length === 0) {
-      const keys = Object.keys(data).slice(0, 2);
+      const keys = Object.keys(data).filter(
+        (k) => !["diskFileName", "fileId", "folderId", "passwordHash"].includes(k)
+      ).slice(0, 2);
       keys.forEach((k) => {
-        const val = typeof data[k] === "object" ? "..." : String(data[k]);
+        let valStr = String(data[k]);
+        if (typeof data[k] === "string" && nameMap[data[k].toLowerCase()]) {
+          valStr = nameMap[data[k].toLowerCase()].name;
+        } else if (typeof data[k] === "object") {
+          valStr = "...";
+        }
         chips.push(
           <span
             key={k}
             className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-mono break-all whitespace-normal"
-            title={`${k}: ${val}`}
+            title={`${formatKeyLabel(k)}: ${valStr}`}
           >
-            {k}: {val}
+            {formatKeyLabel(k)}: {valStr}
           </span>
         );
       });
@@ -590,9 +793,14 @@ export default function AuditPage() {
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-slate-600 font-sans">
-                        <div className="font-semibold text-slate-800">{e.entityType}</div>
-                        <div className="text-[10px] text-slate-400 font-mono break-all whitespace-normal" title={e.entityId}>
-                          {e.entityId}
+                        <div className="font-semibold text-slate-800">
+                          {formatAuditEntityType(e.entityType)}
+                        </div>
+                        <div
+                          className="text-[11px] text-amber-700 font-medium font-sans truncate max-w-[210px]"
+                          title={e.entityDisplayName || e.entityId}
+                        >
+                          {e.entityDisplayName || nameMap[e.entityId?.toLowerCase()]?.name || `Ref #${e.entityId?.slice(0, 8)}`}
                         </div>
                       </td>
                       <td className="py-3.5 px-4 font-sans text-xs text-slate-700 max-w-[220px] break-words">
@@ -696,9 +904,14 @@ export default function AuditPage() {
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
                     <div className="text-[10px] uppercase font-bold text-slate-400">Record Type</div>
-                    <div className="font-bold text-slate-900 mt-0.5">{selectedEvent.entityType}</div>
-                    <div className="text-[10px] text-slate-500 font-mono truncate" title={selectedEvent.entityId}>
-                      ID: {selectedEvent.entityId.slice(0, 14)}...
+                    <div className="font-bold text-slate-900 mt-0.5">
+                      {formatAuditEntityType(selectedEvent.entityType)}
+                    </div>
+                    <div
+                      className="text-[11px] text-amber-700 font-medium font-sans truncate"
+                      title={selectedEvent.entityDisplayName || selectedEvent.entityId}
+                    >
+                      {selectedEvent.entityDisplayName || nameMap[selectedEvent.entityId?.toLowerCase()]?.name || `Ref #${selectedEvent.entityId.slice(0, 8)}`}
                     </div>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/60 col-span-2 sm:col-span-1">
@@ -777,7 +990,7 @@ export default function AuditPage() {
                                 {formatKeyLabel(key)}
                               </div>
                               <div className="text-xs break-words">
-                                {formatFieldValue(key, value)}
+                                {formatFieldValue(key, value, nameMap, activeData)}
                               </div>
                             </div>
                           ))}

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { resolveAuditEntities } from "@/lib/audit-resolver";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     if (entityType) where.entityType = entityType.toUpperCase();
     if (entityId) where.entityId = entityId;
 
-    const auditEvents = await prisma.auditEvent.findMany({
+    const rawAuditEvents = await prisma.auditEvent.findMany({
       where,
       include: {
         actor: { select: { id: true, name: true, email: true, role: true } },
@@ -31,7 +32,12 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return jsonSuccess(auditEvents);
+    const { events, nameMap } = await resolveAuditEntities(user.organizationId, rawAuditEvents);
+
+    return jsonSuccess({
+      events,
+      nameMap,
+    });
   } catch (error) {
     return handleApiError(error);
   }

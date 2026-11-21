@@ -2,13 +2,21 @@
 
 import React, { useEffect, useState } from "react";
 import { History, X, Clock, User, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
-import { formatDate } from "@/lib/formatters";
+import { formatDate, formatFileSize } from "@/lib/formatters";
+import {
+  formatAuditKeyLabel,
+  formatAuditEntityType,
+  formatAuditCategory,
+  formatAuditMimeType,
+  EntityNameMap,
+} from "@/lib/audit-resolver";
 
 interface AuditEventItem {
   id: string;
   action: string;
   entityType: string;
   entityId: string;
+  entityDisplayName?: string;
   beforeJson?: string | null;
   afterJson?: string | null;
   reason?: string | null;
@@ -28,6 +36,31 @@ interface AuditHistoryModalProps {
   onClose: () => void;
 }
 
+function formatDiffValue(key: string, val: any, nameMap: EntityNameMap): string {
+  if (val === null || val === undefined || val === "") return "Not set";
+  const lowerKey = key.toLowerCase();
+  if (key === "diskFileName" || lowerKey.includes("diskfile")) {
+    return "Stored Securely in Cloud Storage";
+  }
+  if ((typeof val === "number" || (typeof val === "string" && /^\d+$/.test(val))) && (lowerKey.includes("size") || lowerKey.includes("bytes"))) {
+    return formatFileSize(typeof val === "number" ? val : parseInt(val, 10));
+  }
+  if (key === "category") return formatAuditCategory(String(val));
+  if (key === "mimeType") return formatAuditMimeType(String(val));
+  if (key === "entityType") return formatAuditEntityType(String(val));
+
+  if (typeof val === "string") {
+    const valLower = val.trim().toLowerCase();
+    if (nameMap[valLower]) {
+      return nameMap[valLower].name;
+    }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim())) {
+      return `Ref #${val.trim().slice(0, 8)}`;
+    }
+  }
+  return String(typeof val === "object" ? JSON.stringify(val) : val);
+}
+
 export default function AuditHistoryModal({
   entityType,
   entityId,
@@ -35,6 +68,7 @@ export default function AuditHistoryModal({
   onClose,
 }: AuditHistoryModalProps) {
   const [events, setEvents] = useState<AuditEventItem[]>([]);
+  const [nameMap, setNameMap] = useState<EntityNameMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +78,10 @@ export default function AuditHistoryModal({
       .then((r) => r.json())
       .then((res) => {
         if (res.success) {
-          setEvents(res.data || []);
+          const list = Array.isArray(res.data) ? res.data : (res.data?.events || []);
+          const names = res.data?.nameMap || {};
+          setEvents(list);
+          setNameMap(names);
         } else {
           setError(res.error?.message || "Could not load change history. Try closing and opening again.");
         }
@@ -69,6 +106,8 @@ export default function AuditHistoryModal({
     };
   }, [onClose]);
 
+  const targetEntityInfo = nameMap[entityId.toLowerCase()];
+
   return (
     <div
       className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
@@ -91,7 +130,15 @@ export default function AuditHistoryModal({
             <div>
               <h3 id="audit-modal-title" className="font-bold text-slate-900 text-base">{title}</h3>
               <p className="text-xs text-slate-500">
-                Permanent change history for {entityType.toLowerCase().replace(/_/g, " ")} (#{entityId.slice(0, 8)})
+                {targetEntityInfo ? (
+                  <span>
+                    Permanent history for <strong className="text-slate-800">{targetEntityInfo.name}</strong> ({targetEntityInfo.type})
+                  </span>
+                ) : (
+                  <span>
+                    Permanent change history for {formatAuditEntityType(entityType)} (#{entityId.slice(0, 8)})
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -135,7 +182,7 @@ export default function AuditHistoryModal({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="font-bold px-2 py-0.5 rounded text-[10px] bg-slate-900 text-white font-mono">
-                        {ev.action.replace("_", " ")}
+                        {ev.action.replace(/_/g, " ")}
                       </span>
                       <span className="text-slate-700 font-semibold flex items-center gap-1">
                         <User className="w-3.5 h-3.5 text-slate-400" />
@@ -163,12 +210,15 @@ export default function AuditHistoryModal({
                         const bVal = beforeObj[key];
                         const aVal = afterObj[key];
                         if (JSON.stringify(bVal) === JSON.stringify(aVal)) return null;
+                        const label = formatAuditKeyLabel(key);
+                        const bFormatted = formatDiffValue(key, bVal, nameMap);
+                        const aFormatted = formatDiffValue(key, aVal, nameMap);
                         return (
-                          <div key={key} className="flex items-center gap-1.5 p-1 bg-white rounded border border-slate-100">
-                            <span className="font-bold text-slate-600 capitalize">{key.replace(/([A-Z])/g, " $1").trim()}:</span>
-                            <span className="line-through text-rose-600">{bVal === null || bVal === undefined || bVal === "" ? "Not set" : String(typeof bVal === "object" ? JSON.stringify(bVal) : bVal)}</span>
+                          <div key={key} className="flex items-center gap-1.5 p-1 bg-white rounded border border-slate-100 flex-wrap">
+                            <span className="font-bold text-slate-700">{label}:</span>
+                            <span className="line-through text-rose-600">{bFormatted}</span>
                             <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="text-emerald-700 font-bold">{aVal === null || aVal === undefined || aVal === "" ? "Not set" : String(typeof aVal === "object" ? JSON.stringify(aVal) : aVal)}</span>
+                            <span className="text-emerald-700 font-bold">{aFormatted}</span>
                           </div>
                         );
                       })}
@@ -188,7 +238,7 @@ export default function AuditHistoryModal({
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg"
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer"
           >
             Close
           </button>
