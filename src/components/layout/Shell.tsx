@@ -254,13 +254,17 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.people",
       label: "People",
       items: [
-        {
-          key: "nav.workforce",
-          defaultLabel: "Workers",
-          href: "/workforce",
-          icon: Users,
-          keywords: ["workforce", "labor", "labour", "labourers", "masons", "contractors", "staff", "manpower", "employee"],
-        },
+        ...(user?.role !== "PROJECT_MANAGER"
+          ? [
+              {
+                key: "nav.workforce",
+                defaultLabel: "Workers",
+                href: "/workforce",
+                icon: Users,
+                keywords: ["workforce", "labor", "labour", "labourers", "masons", "contractors", "staff", "manpower", "employee"],
+              },
+            ]
+          : []),
         {
           key: "nav.attendance",
           defaultLabel: "Attendance",
@@ -302,34 +306,38 @@ export default function Shell({ children }: ShellProps) {
           icon: BookOpen,
           keywords: ["mb", "measurement", "civil", "boq", "quantity", "quantities", "dimensions", "measurements"],
         },
-        {
-          key: "nav.materials",
-          defaultLabel: "Materials & Stock",
-          href: "/materials",
-          icon: Boxes,
-          keywords: ["inventory", "stock", "items", "supplies", "store", "goods", "cement", "steel", "sand", "materials"],
-        },
-        {
-          key: "nav.materialStorage",
-          defaultLabel: "Material Storage",
-          href: "/material-storage",
-          icon: Warehouse,
-          keywords: ["godown", "warehouse", "storage", "bins", "shed", "stock location"],
-        },
-        {
-          key: "nav.materialPricing",
-          defaultLabel: "Material Pricing",
-          href: "/material-pricing",
-          icon: Tag,
-          keywords: ["rates", "prices", "price list", "quotation", "rate card", "costs", "pricing"],
-        },
-        {
-          key: "nav.materialRequests",
-          defaultLabel: "Material Order History",
-          href: "/material-requests",
-          icon: PackageCheck,
-          keywords: ["po", "purchase orders", "requests", "requisitions", "indents", "orders", "procurement", "history"],
-        },
+        ...(user?.role !== "PROJECT_MANAGER"
+          ? [
+              {
+                key: "nav.materials",
+                defaultLabel: "Materials & Stock",
+                href: "/materials",
+                icon: Boxes,
+                keywords: ["inventory", "stock", "items", "supplies", "store", "goods", "cement", "steel", "sand", "materials"],
+              },
+              {
+                key: "nav.materialStorage",
+                defaultLabel: "Material Storage",
+                href: "/material-storage",
+                icon: Warehouse,
+                keywords: ["godown", "warehouse", "storage", "bins", "shed", "stock location"],
+              },
+              {
+                key: "nav.materialPricing",
+                defaultLabel: "Material Pricing",
+                href: "/material-pricing",
+                icon: Tag,
+                keywords: ["rates", "prices", "price list", "quotation", "rate card", "costs", "pricing"],
+              },
+              {
+                key: "nav.materialRequests",
+                defaultLabel: "Material Order History",
+                href: "/material-requests",
+                icon: PackageCheck,
+                keywords: ["po", "purchase orders", "requests", "requisitions", "indents", "orders", "procurement", "history"],
+              },
+            ]
+          : []),
         {
           key: "nav.drawings",
           defaultLabel: "Drawings",
@@ -352,13 +360,17 @@ export default function Shell({ children }: ShellProps) {
               keywords: ["finance", "bills", "expenses", "vouchers", "invoices", "payments", "cash", "bank", "receipts", "billing"],
             }]
           : []),
-        {
-          key: "nav.parties",
-          defaultLabel: "Vendors & Contractors",
-          href: "/parties",
-          icon: Building2,
-          keywords: ["parties", "suppliers", "subcontractors", "agencies", "vendors", "contractors", "dealers"],
-        },
+        ...(user?.role !== "PROJECT_MANAGER"
+          ? [
+              {
+                key: "nav.parties",
+                defaultLabel: "Vendors & Contractors",
+                href: "/parties",
+                icon: Building2,
+                keywords: ["parties", "suppliers", "subcontractors", "agencies", "vendors", "contractors", "dealers"],
+              },
+            ]
+          : []),
         ...(canUser(user, "payroll:read")
           ? [{
               key: "nav.payroll",

@@ -89,7 +89,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeHi: "स्टॉक",
     keywords: ["materials", "cement", "steel", "sand", "grn", "stock", "truck", "saman", "dumper", "store"],
     requiredPermission: "inventory:read",
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "STOREKEEPER"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR", "STOREKEEPER"],
     siteScoped: true,
   },
   {
@@ -136,7 +136,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeHi: "मजदूर",
     keywords: ["worker", "labor", "workforce", "aadhaar", "mason", "mistri", "helper", "wage", "dihaadi"],
     requiredPermission: "attendance:read",
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR"],
     siteScoped: true,
   },
   {
@@ -152,7 +152,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeHi: "पार्टी",
     keywords: ["vendor", "contractor", "party", "supplier", "thekedar", "gstin", "phone", "firm"],
     requiredPermission: "finance:read",
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "ACCOUNTANT"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "ACCOUNTANT"],
   },
   {
     id: "chat",
