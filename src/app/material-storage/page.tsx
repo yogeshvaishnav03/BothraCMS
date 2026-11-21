@@ -9,7 +9,6 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatQuantity } from "@/lib/formatters";
-import MaterialProcurementNav from "@/components/materials/MaterialProcurementNav";
 import {
   Boxes,
   PackageMinus,
@@ -480,9 +479,6 @@ export default function MaterialStoragePage() {
             </div>
           }
         />
-
-        {/* Interlinked Material & Procurement Hub Navigation */}
-        <MaterialProcurementNav activeTab="storage" />
 
         {error && (
           <Alert variant="error" title="Storage Operation Notice" onClose={() => setError(null)}>
