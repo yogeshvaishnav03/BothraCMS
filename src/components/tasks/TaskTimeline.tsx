@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   ArrowRight,
   Camera,
   CheckCircle2,
@@ -14,7 +15,10 @@ import {
   MessageSquare,
   Pencil,
   PlusCircle,
+  Search,
   Send,
+  UserPlus,
+  Users,
   X,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/formatters";
@@ -166,14 +170,25 @@ function showValue(change: FieldChange, value: string | null): string {
   return value.length > 80 ? `${value.slice(0, 77)}...` : value;
 }
 
+interface TaskMember {
+  id: string;
+  name: string;
+  email?: string;
+  role: string;
+  jobTitle?: string | null;
+  isCurrentTaskAssignee?: boolean;
+}
+
 export default function TaskTimeline({
   task,
   canWrite,
+  employees = [],
   onClose,
   onChanged,
 }: {
   task: { id: string; title: string; status: string; projectId?: string | null };
   canWrite: boolean;
+  employees?: any[];
   onClose: () => void;
   onChanged?: () => void;
 }) {
@@ -188,6 +203,15 @@ export default function TaskTimeline({
     mimeType?: string;
   } | null>(null);
   const [currentStatus, setCurrentStatus] = useState(task.status);
+
+  // Members state
+  const [members, setMembers] = useState<TaskMember[]>([]);
+  const [availableEmployees, setAvailableEmployees] = useState<TaskMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [addingMemberId, setAddingMemberId] = useState<string | null>(null);
+  const [memberFeedback, setMemberFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [note, setNote] = useState("");
   const [nextStatus, setNextStatus] = useState<string>("");
@@ -210,9 +234,58 @@ export default function TaskTimeline({
     }
   }, [task.id]);
 
+  const loadMembers = useCallback(async () => {
+    setMembersLoading(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/members`);
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setMembers(json.data.members || []);
+        if (Array.isArray(json.data.availableEmployees)) {
+          setAvailableEmployees(json.data.availableEmployees);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load task members:", err);
+    } finally {
+      setMembersLoading(false);
+    }
+  }, [task.id]);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadMembers();
+  }, [load, loadMembers]);
+
+  const handleAddMember = async (userId: string) => {
+    if (addingMemberId) return;
+    setAddingMemberId(userId);
+    setMemberFeedback(null);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json?.error?.message || "Failed to add member to task");
+      }
+      setMemberFeedback({
+        type: "success",
+        text: json.data?.message || "Team member added to task successfully!",
+      });
+      await Promise.all([loadMembers(), load()]);
+      onChanged?.();
+      setTimeout(() => {
+        setMemberFeedback(null);
+      }, 4000);
+    } catch (err: any) {
+      setMemberFeedback({ type: "error", text: err.message || "Failed to add member" });
+    } finally {
+      setAddingMemberId(null);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -251,6 +324,22 @@ export default function TaskTimeline({
     }
   };
 
+  const poolEmployees = availableEmployees.length > 0 ? availableEmployees : (employees || []);
+  const assignedIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
+
+  const unassignedEmployees = useMemo(() => {
+    const q = memberSearchQuery.toLowerCase().trim();
+    return poolEmployees
+      .filter((emp: any) => emp.id && !assignedIds.has(emp.id))
+      .filter((emp: any) => {
+        if (!q) return true;
+        const name = (emp.name || "").toLowerCase();
+        const role = (emp.role || "").toLowerCase().replace(/_/g, " ");
+        const email = (emp.email || "").toLowerCase();
+        return name.includes(q) || role.includes(q) || email.includes(q);
+      });
+  }, [poolEmployees, assignedIds, memberSearchQuery]);
+
   const visible = useMemo(() => {
     const f = FILTERS.find((x) => x.id === filter);
     if (!f || f.id === "all") return entries;
@@ -259,7 +348,16 @@ export default function TaskTimeline({
   }, [entries, filter]);
 
   const photoCount = entries.reduce((n, e) => n + e.photos.length, 0);
-  const contributors = new Set(entries.map((e) => e.author?.id).filter(Boolean)).size;
+  const totalPeopleCount = useMemo(() => {
+    const ids = new Set<string>();
+    entries.forEach((e) => {
+      if (e.author?.id) ids.add(e.author.id);
+    });
+    members.forEach((m) => {
+      if (m.id) ids.add(m.id);
+    });
+    return Math.max(ids.size, members.length);
+  }, [entries, members]);
 
   return (
     <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/50 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
@@ -292,11 +390,163 @@ export default function TaskTimeline({
               {photoCount} {photoCount === 1 ? "file" : "files"}
             </span>
             <span>·</span>
-            <span>
-              {contributors} {contributors === 1 ? "person" : "people"}
+            <span className="inline-flex items-center gap-1 font-medium text-slate-700">
+              <Users className="h-3 w-3 text-amber-600" />
+              {totalPeopleCount} {totalPeopleCount === 1 ? "person" : "people"}
             </span>
           </div>
         </header>
+
+        {/* Assigned Team Members Bar & Add Member Option */}
+        <div className="border-b border-slate-200/80 bg-amber-50/40 px-5 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+              <Users className="h-3.5 w-3.5 text-amber-600" />
+              <span>Assigned Team Members ({members.length})</span>
+            </div>
+            {canWrite && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddMember((prev) => !prev);
+                  setMemberFeedback(null);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200/90 border border-amber-300/80 rounded-lg transition shadow-2xs cursor-pointer"
+              >
+                <UserPlus className="h-3.5 w-3.5 text-amber-700" />
+                <span>{showAddMember ? "Close" : "+ Add Member"}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Feedback toast / alert */}
+          {memberFeedback && (
+            <div
+              className={`mt-2.5 p-2 rounded-lg text-xs font-medium flex items-center justify-between animate-fade-in ${
+                memberFeedback.type === "success"
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  : "bg-rose-50 text-rose-800 border border-rose-200"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                {memberFeedback.type === "success" ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                )}
+                <span>{memberFeedback.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMemberFeedback(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs ml-2 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
+          {/* Member chips */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {membersLoading && members.length === 0 ? (
+              <span className="text-xs text-slate-400 flex items-center gap-1 py-0.5">
+                <Loader2 className="h-3 w-3 animate-spin text-amber-600" /> Loading members...
+              </span>
+            ) : members.length === 0 ? (
+              <span className="text-xs text-slate-400 italic py-0.5">No team members assigned yet</span>
+            ) : (
+              members.map((m) => (
+                <span
+                  key={m.id}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 shadow-2xs"
+                >
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[9px] font-bold text-white shrink-0">
+                    {initials(m.name)}
+                  </span>
+                  <span className="font-semibold text-slate-800">{m.name}</span>
+                  {m.role && (
+                    <span className="text-[9px] uppercase font-mono px-1 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded font-semibold">
+                      {m.role.replace(/_/g, " ")}
+                    </span>
+                  )}
+                </span>
+              ))
+            )}
+          </div>
+
+          {/* Add Member Dropdown Panel */}
+          {showAddMember && (
+            <div className="mt-2.5 rounded-xl border border-amber-300/80 bg-white p-3 shadow-lg ring-1 ring-black/5 animate-fade-in">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <UserPlus className="h-3.5 w-3.5 text-amber-600" /> Assign Another Team Member
+                </span>
+                <span className="text-[10px] text-slate-400">Click a member to add</span>
+              </div>
+
+              <div className="relative mb-2">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={memberSearchQuery}
+                  onChange={(e) => setMemberSearchQuery(e.target.value)}
+                  placeholder="Search by name, role, or email..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                  autoFocus
+                />
+              </div>
+
+              <div className="max-h-48 overflow-y-auto space-y-0.5 divide-y divide-slate-100">
+                {unassignedEmployees.length === 0 ? (
+                  <div className="text-center py-4 text-xs text-slate-500">
+                    {memberSearchQuery ? "No matching team members found." : "All available team members are already assigned to this task."}
+                  </div>
+                ) : (
+                  unassignedEmployees.map((emp: any) => {
+                    const isAdding = addingMemberId === emp.id;
+                    return (
+                      <button
+                        key={emp.id}
+                        type="button"
+                        disabled={Boolean(addingMemberId)}
+                        onClick={() => handleAddMember(emp.id)}
+                        className="w-full py-1.5 px-2 flex items-center justify-between rounded-lg hover:bg-amber-50 transition text-left group disabled:opacity-50 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white shrink-0 group-hover:bg-amber-600 transition-colors">
+                            {initials(emp.name)}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-800 truncate group-hover:text-amber-900">
+                              {emp.name}
+                            </p>
+                            {emp.email && (
+                              <p className="text-[10px] text-slate-400 truncate">{emp.email}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          {emp.role && (
+                            <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 bg-slate-100 group-hover:bg-amber-100 text-slate-600 group-hover:text-amber-800 rounded font-medium">
+                              {emp.role.replace(/_/g, " ")}
+                            </span>
+                          )}
+                          {isAdding ? (
+                            <Loader2 className="h-3.5 w-3.5 text-amber-600 animate-spin" />
+                          ) : (
+                            <span className="text-[11px] font-bold text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                              + Add
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="flex-1 overflow-y-auto">
           {canWrite && (

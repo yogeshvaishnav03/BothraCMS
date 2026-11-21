@@ -1530,6 +1530,7 @@ export default function TasksPage() {
           <TaskTimeline
             task={timelineTask}
             canWrite={canWriteTasks}
+            employees={employees}
             onClose={() => {
               setTimelineTask(null);
               if (window.location.search.includes("task=")) window.history.replaceState(null, "", "/tasks");
