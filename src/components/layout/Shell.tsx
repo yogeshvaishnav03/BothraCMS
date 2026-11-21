@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { PushToggle } from "@/components/layout/PushToggle";
 import { NotificationBanner } from "@/components/layout/NotificationBanner";
@@ -74,6 +74,7 @@ export default function Shell({ children }: ShellProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [logoutConfirmCount, setLogoutConfirmCount] = useState<number | null>(null);
+  const [menuSearch, setMenuSearch] = useState("");
 
   useEffect(() => {
     if (!(mobileMenuOpen || notificationsOpen || langDropdownOpen || logoutConfirmCount !== null)) return;
@@ -214,48 +215,168 @@ export default function Shell({ children }: ShellProps) {
     await performLogout();
   };
 
-  type NavItem = { key: string; defaultLabel: string; href: string; icon: typeof LayoutDashboard };
+  type NavItem = {
+    key: string;
+    defaultLabel: string;
+    href: string;
+    icon: typeof LayoutDashboard;
+    keywords?: string[];
+  };
   const navGroups: { key: string; label: string; items: NavItem[] }[] = [
     {
       key: "nav.group.overview",
       label: "Overview",
       items: [
-        { key: "nav.dashboard", defaultLabel: "Dashboard", href: "/", icon: LayoutDashboard },
-        { key: "nav.dayBook", defaultLabel: "Day Book", href: "/day-book", icon: CalendarDays },
-        { key: "nav.reports", defaultLabel: "Reports & Analytics", href: "/reports", icon: FileText },
+        {
+          key: "nav.dashboard",
+          defaultLabel: "Dashboard",
+          href: "/",
+          icon: LayoutDashboard,
+          keywords: ["overview", "stats", "kpi", "summary", "home", "metrics"],
+        },
+        {
+          key: "nav.dayBook",
+          defaultLabel: "Day Book",
+          href: "/day-book",
+          icon: CalendarDays,
+          keywords: ["daily", "journal", "diary", "log", "daily book", "activity", "activities", "today"],
+        },
+        {
+          key: "nav.reports",
+          defaultLabel: "Reports & Analytics",
+          href: "/reports",
+          icon: FileText,
+          keywords: ["analytics", "charts", "summary", "graphs", "export", "pdf", "status report"],
+        },
       ],
     },
     {
       key: "nav.group.people",
       label: "People",
       items: [
-        { key: "nav.workforce", defaultLabel: "Workers", href: "/workforce", icon: Users },
-        { key: "nav.attendance", defaultLabel: "Attendance", href: "/attendance", icon: Clock },
-        { key: "nav.chat", defaultLabel: "Messages", href: "/chat", icon: MessageSquare },
+        {
+          key: "nav.workforce",
+          defaultLabel: "Workers",
+          href: "/workforce",
+          icon: Users,
+          keywords: ["workforce", "labor", "labour", "labourers", "masons", "contractors", "staff", "manpower", "employee"],
+        },
+        {
+          key: "nav.attendance",
+          defaultLabel: "Attendance",
+          href: "/attendance",
+          icon: Clock,
+          keywords: ["muster", "present", "absent", "daily attendance", "biometric", "check in", "haazri", "hazari", "attendance sheet"],
+        },
+        {
+          key: "nav.chat",
+          defaultLabel: "Messages",
+          href: "/chat",
+          icon: MessageSquare,
+          keywords: ["chat", "discussion", "team chat", "conversations", "notices", "communication", "inbox"],
+        },
       ],
     },
     {
       key: "nav.group.siteWork",
       label: "Site Work",
       items: [
-        { key: "nav.projects", defaultLabel: "Projects", href: "/projects", icon: FolderKanban },
-        { key: "nav.tasks", defaultLabel: "Tasks & Work", href: "/tasks", icon: CheckSquare },
-        { key: "nav.measurementBook", defaultLabel: "Measurement Book", href: "/measurement-book", icon: BookOpen },
-        { key: "nav.materials", defaultLabel: "Materials & Stock", href: "/materials", icon: Boxes },
-        { key: "nav.materialStorage", defaultLabel: "Material Storage", href: "/material-storage", icon: Warehouse },
-        { key: "nav.materialPricing", defaultLabel: "Material Pricing", href: "/material-pricing", icon: Tag },
-        { key: "nav.materialRequests", defaultLabel: "Material Order History", href: "/material-requests", icon: PackageCheck },
-        { key: "nav.drawings", defaultLabel: "Drawings", href: "/drawings", icon: Layers },
+        {
+          key: "nav.projects",
+          defaultLabel: "Projects",
+          href: "/projects",
+          icon: FolderKanban,
+          keywords: ["sites", "directory", "locations", "building", "plots", "jobs", "site directory"],
+        },
+        {
+          key: "nav.tasks",
+          defaultLabel: "Tasks & Work",
+          href: "/tasks",
+          icon: CheckSquare,
+          keywords: ["tasks", "checklist", "todo", "progress", "milestones", "work items", "punch list"],
+        },
+        {
+          key: "nav.measurementBook",
+          defaultLabel: "Measurement Book",
+          href: "/measurement-book",
+          icon: BookOpen,
+          keywords: ["mb", "measurement", "civil", "boq", "quantity", "quantities", "dimensions", "measurements"],
+        },
+        {
+          key: "nav.materials",
+          defaultLabel: "Materials & Stock",
+          href: "/materials",
+          icon: Boxes,
+          keywords: ["inventory", "stock", "items", "supplies", "store", "goods", "cement", "steel", "sand", "materials"],
+        },
+        {
+          key: "nav.materialStorage",
+          defaultLabel: "Material Storage",
+          href: "/material-storage",
+          icon: Warehouse,
+          keywords: ["godown", "warehouse", "storage", "bins", "shed", "stock location"],
+        },
+        {
+          key: "nav.materialPricing",
+          defaultLabel: "Material Pricing",
+          href: "/material-pricing",
+          icon: Tag,
+          keywords: ["rates", "prices", "price list", "quotation", "rate card", "costs", "pricing"],
+        },
+        {
+          key: "nav.materialRequests",
+          defaultLabel: "Material Order History",
+          href: "/material-requests",
+          icon: PackageCheck,
+          keywords: ["po", "purchase orders", "requests", "requisitions", "indents", "orders", "procurement", "history"],
+        },
+        {
+          key: "nav.drawings",
+          defaultLabel: "Drawings",
+          href: "/drawings",
+          icon: Layers,
+          keywords: ["blueprints", "plans", "architectural", "structural", "cad", "pdf", "drawings", "maps"],
+        },
       ],
     },
     {
       key: "nav.group.money",
       label: "Money",
       items: [
-        ...(canUser(user, "finance:read") ? [{ key: "nav.finance", defaultLabel: "Payments & Bills", href: "/finance", icon: DollarSign }] : []),
-        { key: "nav.parties", defaultLabel: "Vendors & Contractors", href: "/parties", icon: Building2 },
-        ...(canUser(user, "payroll:read") ? [{ key: "nav.payroll", defaultLabel: "Payroll", href: "/payroll", icon: Wallet }] : []),
-        ...(canUser(user, "finance:read") ? [{ key: "nav.exports", defaultLabel: "Accounts Export", href: "/exports", icon: Landmark }] : []),
+        ...(canUser(user, "finance:read")
+          ? [{
+              key: "nav.finance",
+              defaultLabel: "Payments & Bills",
+              href: "/finance",
+              icon: DollarSign,
+              keywords: ["finance", "bills", "expenses", "vouchers", "invoices", "payments", "cash", "bank", "receipts", "billing"],
+            }]
+          : []),
+        {
+          key: "nav.parties",
+          defaultLabel: "Vendors & Contractors",
+          href: "/parties",
+          icon: Building2,
+          keywords: ["parties", "suppliers", "subcontractors", "agencies", "vendors", "contractors", "dealers"],
+        },
+        ...(canUser(user, "payroll:read")
+          ? [{
+              key: "nav.payroll",
+              defaultLabel: "Payroll",
+              href: "/payroll",
+              icon: Wallet,
+              keywords: ["salary", "wages", "payouts", "advances", "payslips", "salaries", "labor payment"],
+            }]
+          : []),
+        ...(canUser(user, "finance:read")
+          ? [{
+              key: "nav.exports",
+              defaultLabel: "Accounts Export",
+              href: "/exports",
+              icon: Landmark,
+              keywords: ["tally", "excel export", "csv", "accounting", "ledger", "bookkeeping", "export"],
+            }]
+          : []),
       ],
     },
     {
@@ -263,18 +384,64 @@ export default function Shell({ children }: ShellProps) {
       label: "Admin",
       items: [
         ...(user?.role === "SUPER_ADMIN" || user?.role === "ORG_ADMIN" || canUser(user, "users:manage")
-          ? [{ key: "nav.team", defaultLabel: "Team & Access", href: "/team", icon: UserCog }]
+          ? [{
+              key: "nav.team",
+              defaultLabel: "Team & Access",
+              href: "/team",
+              icon: UserCog,
+              keywords: ["users", "roles", "permissions", "staff", "employees", "members", "passwords", "access"],
+            }]
           : []),
         ...(canUser(user, "audit:read")
-          ? [{ key: "nav.audit", defaultLabel: "Activity Log", href: "/audit", icon: ShieldCheck }]
+          ? [{
+              key: "nav.audit",
+              defaultLabel: "Activity Log",
+              href: "/audit",
+              icon: ShieldCheck,
+              keywords: ["audit", "history", "logs", "security", "changes", "events", "track"],
+            }]
           : []),
-        { key: "nav.settings", defaultLabel: "Settings", href: "/settings", icon: Settings },
+        {
+          key: "nav.settings",
+          defaultLabel: "Settings",
+          href: "/settings",
+          icon: Settings,
+          keywords: ["preferences", "profile", "configuration", "theme", "account", "setup"],
+        },
         ...(user?.role === "SUPER_ADMIN"
-          ? [{ key: "nav.superAdmin", defaultLabel: "Super Admin", href: "/admin", icon: ShieldAlert }]
+          ? [{
+              key: "nav.superAdmin",
+              defaultLabel: "Super Admin",
+              href: "/admin",
+              icon: ShieldAlert,
+              keywords: ["admin", "system", "tenants", "organizations", "database", "backup", "super"],
+            }]
           : []),
       ],
     },
   ];
+
+  const filteredNavGroups = useMemo(() => {
+    const q = menuSearch.trim().toLowerCase();
+    if (!q) return navGroups;
+
+    return navGroups
+      .map((group) => {
+        const groupLabel = (t(group.key, group.label) || "").toLowerCase();
+        const matchesGroupLabel = groupLabel.includes(q);
+        const matchingItems = group.items.filter((item) => {
+          const itemLabel = (t(item.key, item.defaultLabel) || "").toLowerCase();
+          const defaultLabel = (item.defaultLabel || "").toLowerCase();
+          const matchesKeyword = item.keywords?.some((k) => k.toLowerCase().includes(q));
+          return matchesGroupLabel || itemLabel.includes(q) || defaultLabel.includes(q) || Boolean(matchesKeyword);
+        });
+        return {
+          ...group,
+          items: matchingItems,
+        };
+      })
+      .filter((group) => group.items.length > 0);
+  }, [navGroups, menuSearch, t]);
   const navItemsDef = navGroups.flatMap((g) => g.items);
   // The longest matching link wins, so /attendance/muster lights up Site Master, not Attendance.
   const currentNav = navItemsDef
@@ -410,15 +577,63 @@ export default function Shell({ children }: ShellProps) {
           )}
         </div>
 
+        {/* Menu Search */}
+        <div className="px-3 pb-2.5">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={menuSearch}
+              onChange={(e) => setMenuSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setMenuSearch("");
+              }}
+              placeholder={language === "hi" ? "मेनू खोजें..." : "Search menu..."}
+              className="w-full bg-white/[0.05] text-slate-100 text-xs pl-8 pr-7 py-2 rounded-xl border border-white/10 placeholder:text-slate-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition-all"
+            />
+            {menuSearch && (
+              <button
+                type="button"
+                onClick={() => setMenuSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded transition"
+                title={language === "hi" ? "खोज हटाएं" : "Clear search"}
+                aria-label="Clear menu search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
         <nav className="flex-1 px-3 pb-3 overflow-y-auto space-y-4 [scrollbar-color:rgb(255_255_255/0.15)_transparent]">
-          {navGroups.map((group) => (
-            <div key={group.key}>
-              <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-600">
-                {t(group.key, group.label)}
-              </div>
-              <div className="space-y-0.5">{group.items.map((item) => renderNavLink(item))}</div>
+          {filteredNavGroups.length === 0 ? (
+            <div className="px-3 py-6 text-center rounded-xl bg-white/[0.03] border border-white/5 my-2">
+              <Search className="w-5 h-5 text-slate-500 mx-auto mb-2 opacity-60" />
+              <p className="text-xs text-slate-300 font-medium">
+                {language === "hi" ? "कोई मेनू आइटम नहीं मिला" : "No menu items found"}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[180px] mx-auto">
+                &ldquo;{menuSearch}&rdquo;
+              </p>
+              <button
+                type="button"
+                onClick={() => setMenuSearch("")}
+                className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 transition-colors border border-amber-500/30"
+              >
+                <X className="w-3 h-3" />
+                <span>{language === "hi" ? "खोज हटाएं" : "Clear search"}</span>
+              </button>
             </div>
-          ))}
+          ) : (
+            filteredNavGroups.map((group) => (
+              <div key={group.key}>
+                <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-600">
+                  {t(group.key, group.label)}
+                </div>
+                <div className="space-y-0.5">{group.items.map((item) => renderNavLink(item))}</div>
+              </div>
+            ))
+          )}
         </nav>
 
         {!isAppInstalled && (
@@ -552,17 +767,70 @@ export default function Shell({ children }: ShellProps) {
                 {siteSelect}
               </div>
             )}
+            {/* Menu Search */}
+            <div className="py-2">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={menuSearch}
+                  onChange={(e) => setMenuSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setMenuSearch("");
+                  }}
+                  placeholder={language === "hi" ? "मेनू खोजें..." : "Search menu..."}
+                  className="w-full bg-white/[0.06] text-slate-100 text-xs pl-8 pr-7 py-2.5 rounded-xl border border-white/10 placeholder:text-slate-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition-all"
+                />
+                {menuSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setMenuSearch("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded transition"
+                    title={language === "hi" ? "खोज हटाएं" : "Clear search"}
+                    aria-label="Clear menu search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <nav className="py-3 space-y-4">
-              {navGroups.map((group) => (
-                <div key={group.key}>
-                  <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-500">
-                    {t(group.key, group.label)}
-                  </div>
-                  <div className="grid grid-cols-1 gap-0.5">
-                    {group.items.map((item) => renderNavLink(item, () => setMobileMenuOpen(false)))}
-                  </div>
+              {filteredNavGroups.length === 0 ? (
+                <div className="px-3 py-6 text-center rounded-xl bg-white/[0.03] border border-white/5 my-2">
+                  <Search className="w-5 h-5 text-slate-500 mx-auto mb-2 opacity-60" />
+                  <p className="text-xs text-slate-300 font-medium">
+                    {language === "hi" ? "कोई मेनू आइटम नहीं मिला" : "No menu items found"}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[200px] mx-auto">
+                    &ldquo;{menuSearch}&rdquo;
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setMenuSearch("")}
+                    className="mt-2.5 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 transition-colors border border-amber-500/30"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>{language === "hi" ? "खोज हटाएं" : "Clear search"}</span>
+                  </button>
                 </div>
-              ))}
+              ) : (
+                filteredNavGroups.map((group) => (
+                  <div key={group.key}>
+                    <div className="px-3 mb-1 text-[10px] uppercase tracking-[0.14em] font-semibold text-slate-500">
+                      {t(group.key, group.label)}
+                    </div>
+                    <div className="grid grid-cols-1 gap-0.5">
+                      {group.items.map((item) =>
+                        renderNavLink(item, () => {
+                          setMobileMenuOpen(false);
+                          setMenuSearch("");
+                        })
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </nav>
             <div className="pt-3 border-t border-white/10 space-y-2">
               {!isAppInstalled && (
