@@ -2097,8 +2097,11 @@ export default function DashboardPage() {
             {/* Overdue Tasks */}
             <div
               onClick={() => {
+                setActiveKpiModal("tasksOverdue");
                 setActiveSectionTab("TASKS");
                 setTaskFilterOverdueOnly(true);
+                setTaskViewFilter("ALL");
+                setCollapsedSections((prev) => ({ ...prev, tasks: false }));
               }}
               className="bg-white rounded-xl p-3 border border-slate-200 hover:border-rose-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
               title="Click to view Overdue Tasks"
@@ -2118,8 +2121,11 @@ export default function DashboardPage() {
             {/* Tasks Due Today */}
             <div
               onClick={() => {
+                setActiveKpiModal("tasksDueToday");
                 setActiveSectionTab("TASKS");
                 setTaskFilterOverdueOnly(false);
+                setTaskViewFilter("ALL");
+                setCollapsedSections((prev) => ({ ...prev, tasks: false }));
               }}
               className="bg-white rounded-xl p-3 border border-slate-200 hover:border-indigo-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
               title="Click to view Tasks due today"
@@ -2290,8 +2296,11 @@ export default function DashboardPage() {
             {/* Overdue Tasks */}
             <div
               onClick={() => {
+                setActiveKpiModal("tasksOverdue");
                 setActiveSectionTab("TASKS");
                 setTaskFilterOverdueOnly(true);
+                setTaskViewFilter("ALL");
+                setCollapsedSections((prev) => ({ ...prev, tasks: false }));
               }}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-rose-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
               title="Click to view Overdue Tasks in page"
@@ -2334,8 +2343,11 @@ export default function DashboardPage() {
             {/* Tasks Due Today */}
             <div
               onClick={() => {
+                setActiveKpiModal("tasksDueToday");
                 setActiveSectionTab("TASKS");
                 setTaskFilterOverdueOnly(false);
+                setTaskViewFilter("ALL");
+                setCollapsedSections((prev) => ({ ...prev, tasks: false }));
               }}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
               title="Click to view Tasks in page"
@@ -2701,7 +2713,7 @@ export default function DashboardPage() {
                     </button>
                   </div>
 
-                  {overdueTasksCount > 0 && (
+                  {(overdueTasksCount > 0 || taskFilterOverdueOnly) && (
                     <button
                       type="button"
                       onClick={() => setTaskFilterOverdueOnly(!taskFilterOverdueOnly)}
@@ -2713,7 +2725,7 @@ export default function DashboardPage() {
                       title="Click to toggle overdue tasks only"
                     >
                       <AlertTriangle className="w-3.5 h-3.5" />
-                      <span>{overdueTasksCount} Overdue</span>
+                      <span>{taskFilterOverdueOnly ? "✕ Clear Overdue Filter" : `${overdueTasksCount} Overdue`}</span>
                     </button>
                   )}
                   <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
@@ -2723,14 +2735,39 @@ export default function DashboardPage() {
               </div>
 
               {displayedPendingTasks.length === 0 ? (
-                <div className="text-center py-10 text-slate-400 text-xs">
-                  {taskFilterOverdueOnly
-                    ? "No overdue tasks found. All outstanding tasks are on schedule!"
-                    : dashboardFilterQuery
-                    ? `No tasks match "${dashboardFilterQuery}"`
-                    : taskViewFilter === "MINE"
-                    ? "No open tasks currently assigned to you."
-                    : "No pending tasks found. All caught up!"}
+                <div className="text-center py-10 text-slate-400 text-xs space-y-2">
+                  <p>
+                    {taskFilterOverdueOnly
+                      ? "No overdue tasks found in this view."
+                      : dashboardFilterQuery
+                      ? `No tasks match "${dashboardFilterQuery}"`
+                      : taskViewFilter === "MINE"
+                      ? "No open tasks currently assigned to you."
+                      : "No pending tasks found. All caught up!"}
+                  </p>
+                  {taskFilterOverdueOnly && (
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaskFilterOverdueOnly(false);
+                          setTaskViewFilter("ALL");
+                        }}
+                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold text-xs transition cursor-pointer"
+                      >
+                        Show All Tasks
+                      </button>
+                      {(kpi?.tasksOverdueCount || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveKpiModal("tasksOverdue")}
+                          className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-semibold text-xs border border-rose-200 transition cursor-pointer"
+                        >
+                          View {kpi.tasksOverdueCount} Overdue Tasks &rarr;
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
@@ -3164,7 +3201,7 @@ export default function DashboardPage() {
                   </button>
                 </div>
 
-                {overdueTasksCount > 0 && (
+                {(overdueTasksCount > 0 || taskFilterOverdueOnly) && (
                   <button
                     type="button"
                     onClick={() => setTaskFilterOverdueOnly(!taskFilterOverdueOnly)}
@@ -3176,7 +3213,7 @@ export default function DashboardPage() {
                     title="Click to toggle overdue tasks only"
                   >
                     <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>{overdueTasksCount} Overdue</span>
+                    <span>{taskFilterOverdueOnly ? "✕ Clear Overdue Filter" : `${overdueTasksCount} Overdue`}</span>
                   </button>
                 )}
                 <Link href="/tasks" className="text-xs font-semibold text-amber-600 hover:underline">
@@ -3196,14 +3233,39 @@ export default function DashboardPage() {
 
             {!collapsedSections.tasks && (
               displayedPendingTasks.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-xs">
-                  {taskFilterOverdueOnly
-                    ? "No overdue tasks found. All outstanding tasks are on schedule!"
-                    : dashboardFilterQuery
-                    ? `No tasks match "${dashboardFilterQuery}"`
-                    : taskViewFilter === "MINE"
-                    ? "No open tasks currently assigned to you."
-                    : "No pending tasks found. All caught up!"}
+                <div className="text-center py-8 text-slate-400 text-xs space-y-2">
+                  <p>
+                    {taskFilterOverdueOnly
+                      ? "No overdue tasks found in this view."
+                      : dashboardFilterQuery
+                      ? `No tasks match "${dashboardFilterQuery}"`
+                      : taskViewFilter === "MINE"
+                      ? "No open tasks currently assigned to you."
+                      : "No pending tasks found. All caught up!"}
+                  </p>
+                  {taskFilterOverdueOnly && (
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaskFilterOverdueOnly(false);
+                          setTaskViewFilter("ALL");
+                        }}
+                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold text-xs transition cursor-pointer"
+                      >
+                        Show All Tasks
+                      </button>
+                      {(kpi?.tasksOverdueCount || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveKpiModal("tasksOverdue")}
+                          className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-semibold text-xs border border-rose-200 transition cursor-pointer"
+                        >
+                          View {kpi.tasksOverdueCount} Overdue Tasks &rarr;
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">

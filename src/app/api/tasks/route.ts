@@ -53,12 +53,13 @@ export async function GET(req: NextRequest) {
 
     const conditions: any[] = [];
 
-    // CRITICAL USER VISIBILITY RULE:
-    // "Users should only see the tasks assigned to them and which they assign."
-    // Non-admins (regular staff/users) MUST only see tasks assigned to them or created by them.
-    if (!isOrgOwnerOrAdmin(user)) {
+    const accessibleProjectIds = await getUserAccessibleProjectIds(user);
+    if (accessibleProjectIds !== null) {
+      // Scoped users (Project Managers, Supervisors, Field Staff):
+      // Can access tasks in projects they manage or are assigned to, plus any tasks assigned to or created by them.
       conditions.push({
         OR: [
+          { projectId: { in: accessibleProjectIds } },
           { assigneeUserId: user.userId },
           { createdBy: user.userId },
         ],
@@ -67,19 +68,9 @@ export async function GET(req: NextRequest) {
         conditions.push({ projectId });
       }
     } else {
+      // Admins (Super Admin, Org Admin): Unrestricted org-wide access
       if (projectId) {
         conditions.push({ projectId });
-      } else {
-        const accessibleProjectIds = await getUserAccessibleProjectIds(user);
-        if (accessibleProjectIds !== null) {
-          conditions.push({
-            OR: [
-              { projectId: { in: accessibleProjectIds } },
-              { assigneeUserId: user.userId },
-              { createdBy: user.userId },
-            ],
-          });
-        }
       }
     }
 
