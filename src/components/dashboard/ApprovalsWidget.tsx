@@ -20,7 +20,7 @@ import { formatCurrency } from "@/lib/formatters";
 
 interface ApprovalItem {
   id: string;
-  type: "PAYMENT" | "EXPENSE" | "MATERIAL_REQUEST" | "MEASUREMENT_CHANGE";
+  type: "PAYMENT" | "EXPENSE" | "MATERIAL_REQUEST" | "MEASUREMENT_CHANGE" | "PURCHASE_ORDER";
   title: string;
   amountRupees: number;
   status: string;
@@ -30,9 +30,20 @@ interface ApprovalItem {
   requestedByRole: string;
   rejectionReason: string | null;
   date: string;
+  query?: string | null;
 }
 
-export default function ApprovalsWidget() {
+interface ApprovalsWidgetProps {
+  onActionComplete?: () => void;
+  className?: string;
+  showHeader?: boolean;
+}
+
+export default function ApprovalsWidget({
+  onActionComplete,
+  className = "",
+  showHeader = true,
+}: ApprovalsWidgetProps = {}) {
   const [loading, setLoading] = useState(true);
   const [isApprover, setIsApprover] = useState(false);
   const [items, setItems] = useState<ApprovalItem[]>([]);
@@ -77,7 +88,8 @@ export default function ApprovalsWidget() {
       if (res.ok) {
         setRejectingId(null);
         setRejectReason("");
-        fetchApprovals();
+        await fetchApprovals();
+        onActionComplete?.();
       }
     } catch (e) {
       console.error("Approval action failed:", e);
@@ -89,38 +101,40 @@ export default function ApprovalsWidget() {
   const pendingItems = items.filter((i) => i.status === "PENDING" || i.status === "PENDING_APPROVAL");
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
-            <ShieldCheck className="w-5 h-5" />
+    <div className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 ${className}`}>
+      {showHeader && (
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <span>{isApprover ? "Pending Approvals Queue" : "My Requests & Approval Status"}</span>
+                {pendingItems.length > 0 && (
+                  <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
+                    {pendingItems.length}
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {isApprover
+                  ? "Review and authorize expenditures, material orders, and change requests"
+                  : "Real-time verification status and audit feedback from leadership"}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <span>{isApprover ? "Pending Approvals Queue" : "My Requests & Approval Status"}</span>
-              {pendingItems.length > 0 && (
-                <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
-                  {pendingItems.length}
-                </span>
-              )}
-            </h3>
-            <p className="text-xs text-slate-500">
-              {isApprover
-                ? "Review and authorize expenditures, material orders, and change requests"
-                : "Real-time verification status and audit feedback from leadership"}
-            </p>
-          </div>
-        </div>
 
-        <button
-          onClick={fetchApprovals}
-          disabled={loading}
-          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          title="Refresh Queue"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-        </button>
-      </div>
+          <button
+            onClick={fetchApprovals}
+            disabled={loading}
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            title="Refresh Queue"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-8 text-center text-xs text-slate-400">Loading approval records...</div>
@@ -164,12 +178,14 @@ export default function ApprovalsWidget() {
                             ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
                             : item.type === "EXPENSE"
                             ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300"
+                            : item.type === "PURCHASE_ORDER"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
                             : item.type === "MATERIAL_REQUEST"
                             ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
                             : "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300"
                         }`}
                       >
-                        {item.type.replace("_", " ")}
+                        {item.type.replace(/_/g, " ")}
                       </span>
                       {item.amountRupees > 0 && (
                         <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
@@ -177,6 +193,13 @@ export default function ApprovalsWidget() {
                         </span>
                       )}
                     </div>
+
+                    {item.query && (
+                      <div className="text-xs bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-2 rounded-lg text-amber-900 dark:text-amber-200 mt-1 flex items-start gap-1.5">
+                        <span className="font-semibold shrink-0">Note / Reason:</span>
+                        <span className="truncate">{item.query}</span>
+                      </div>
+                    )}
 
                     <div className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
                       <span>{item.siteName} &bull; {item.projectName}</span>

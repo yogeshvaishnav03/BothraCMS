@@ -26,7 +26,9 @@ import {
   Wallet,
   GitCommitHorizontal,
   ExternalLink,
+  X,
 } from "lucide-react";
+import ApprovalsWidget from "@/components/dashboard/ApprovalsWidget";
 import { ContactActions } from "@/components/ui/ContactActions";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -218,6 +220,7 @@ function HeroStat({
   Icon,
   tone,
   href,
+  onClick,
 }: {
   label: string;
   value: number;
@@ -225,14 +228,12 @@ function HeroStat({
   sub?: string;
   Icon: LucideIcon;
   tone: string;
-  href: string;
+  href?: string;
+  onClick?: () => void;
 }) {
   const shown = useCountUp(value);
-  return (
-    <Link
-      href={href}
-      className="group relative rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] ring-1 ring-white/10 hover:ring-white/20 p-4 transition-colors min-w-0"
-    >
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-400 leading-tight">{label}</span>
         <span className={cn("hidden sm:flex w-8 h-8 rounded-xl items-center justify-center shrink-0", tone)}>
@@ -244,6 +245,27 @@ function HeroStat({
       </div>
       {sub && <div className="mt-0.5 text-xs text-slate-400 line-clamp-2">{sub}</div>}
       <ArrowUpRight className="absolute right-3 bottom-3 w-4 h-4 text-slate-400 lg:text-slate-500 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity" aria-hidden />
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="text-left w-full group relative rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] ring-1 ring-white/10 hover:ring-white/20 p-4 transition-colors min-w-0 cursor-pointer"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={href || "#"}
+      className="group relative rounded-2xl bg-white/[0.06] hover:bg-white/[0.1] ring-1 ring-white/10 hover:ring-white/20 p-4 transition-colors min-w-0"
+    >
+      {content}
     </Link>
   );
 }
@@ -276,6 +298,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [expandedTeamUsers, setExpandedTeamUsers] = useState<Record<string, boolean>>({});
   const [expandedUpdateId, setExpandedUpdateId] = useState<string | null>(null);
+  const [showApprovalsModal, setShowApprovalsModal] = useState(false);
   const isToday = date === todayIst();
 
   const toggleTeamUser = (userId: string) => {
@@ -328,7 +351,10 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   }, [data]);
 
   const s = data?.summary;
-  const approvalsCount = (data?.approvals.paymentsPendingCount || 0) + (data?.approvals.ordersPendingCount || 0);
+  const approvalsCount =
+    (data?.approvals.paymentsPendingCount || 0) +
+    (data?.approvals.ordersPendingCount || 0) +
+    (data?.approvals.materialRequestsPending || 0);
   const longDate = new Date(`${date}T00:00:00`).toLocaleDateString(hi ? "hi-IN" : "en-IN", {
     weekday: "long",
     day: "numeric",
@@ -463,7 +489,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             }
             Icon={BadgeCheck}
             tone="bg-emerald-500/15 text-emerald-300"
-            href="/finance"
+            onClick={() => setShowApprovalsModal(true)}
           />
         </div>
       </div>
@@ -527,6 +553,13 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
           href="/finance?tab=bills&status=pending"
         />
       </div>
+
+      {/* ── Pending Approvals & Requests Queue (Dashboard View) ── */}
+      {approvalsCount > 0 && (
+        <div id="command-center-approvals" className="animate-in fade-in duration-200">
+          <ApprovalsWidget onActionComplete={() => load()} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
         <div className="xl:col-span-2 space-y-4 min-w-0">
@@ -1018,6 +1051,43 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
           </div>
         </div>
       </div>
+
+      {/* ── Pending Approvals Modal ── */}
+      {showApprovalsModal && (
+        <div 
+          className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in"
+          onClick={() => setShowApprovalsModal(false)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
+              <div className="font-bold text-slate-900 dark:text-slate-100 text-lg flex items-center gap-2.5">
+                <span className="p-2 bg-amber-500/15 text-amber-600 rounded-xl">
+                  <BadgeCheck className="w-5 h-5" />
+                </span>
+                <span>{hi ? "मंज़ूरी के लिए लंबित अनुरोध" : "Pending Requests Waiting for Approval"}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApprovalsModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              <ApprovalsWidget
+                showHeader={false}
+                onActionComplete={() => {
+                  load();
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -7,7 +7,7 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 const approvalActionSchema = z.object({
-  entityType: z.enum(["PAYMENT", "EXPENSE", "MATERIAL_REQUEST", "MEASUREMENT_CHANGE"]),
+  entityType: z.enum(["PAYMENT", "EXPENSE", "MATERIAL_REQUEST", "MEASUREMENT_CHANGE", "PURCHASE_ORDER"]),
   entityId: z.string().min(1),
   action: z.enum(["APPROVE", "REJECT"]),
   reason: z.string().optional(),
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       paymentWhere.createdBy = user.userId;
     }
 
-    const [payments, materialRequests, measurementChanges] = await Promise.all([
+    const [payments, materialRequests, measurementChanges, purchaseOrders] = await Promise.all([
       prisma.payment.findMany({
         where: paymentWhere,
         include: {
@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
         },
         include: {
           project: { include: { site: true } },
+          requestedBy: { select: { id: true, name: true, role: true } },
           items: { include: { material: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -75,6 +76,22 @@ export async function GET(req: NextRequest) {
             take: 15,
           })
         : Promise.resolve([]),
+
+      // 4. Purchase Orders awaiting approval
+      prisma.purchaseOrder.findMany({
+        where: {
+          organizationId: user.organizationId,
+          ...(isSuperAdmin || isAccountant ? { status: "PENDING_APPROVAL" } : { createdBy: user.userId }),
+        },
+        include: {
+          material: true,
+          vendor: true,
+          site: true,
+          creator: { select: { id: true, name: true, role: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      }),
     ]);
 
     const formattedPayments = payments.map((p) => {
@@ -102,10 +119,25 @@ export async function GET(req: NextRequest) {
       status: mr.status,
       projectName: mr.project?.name || "General",
       siteName: mr.project?.site?.name || "Site",
-      requestedBy: "Worksite Team",
-      requestedByRole: "SITE_TEAM",
+      requestedBy: mr.requestedBy?.name || "Worksite Team",
+      requestedByRole: mr.requestedBy?.role || "SITE_TEAM",
       rejectionReason: mr.reviewNote || null,
       date: mr.createdAt.toISOString(),
+    }));
+
+    const formattedPurchaseOrders = purchaseOrders.map((po) => ({
+      id: po.id,
+      type: "PURCHASE_ORDER",
+      title: `Purchase Order #${po.orderNumber}: ${po.quantity} ${po.unitCode} ${po.material?.name || "Material"} from ${po.vendor?.name || "Vendor"}`,
+      amountRupees: (po.totalAmount || 0) / 100,
+      status: po.status,
+      projectName: po.site?.name || "General",
+      siteName: po.site?.name || "Site Store",
+      requestedBy: po.creator?.name || "Staff",
+      requestedByRole: po.creator?.role || "SITE_SUPERVISOR",
+      rejectionReason: po.rejectionReason || null,
+      date: po.createdAt.toISOString(),
+      query: po.approvalQuery || po.notes || null,
     }));
 
     const formattedMeasurementChanges = measurementChanges.map((mc: any) => ({
@@ -123,8 +155,9 @@ export async function GET(req: NextRequest) {
     }));
 
     return jsonSuccess({
-      isApprover: isSuperAdmin || isAccountant,
+      isApprover: isSuperAdmin || isAccountant || user.role === "PROJECT_MANAGER",
       items: [
+        ...formattedPurchaseOrders,
         ...formattedPayments,
         ...formattedMaterialRequests,
         ...formattedMeasurementChanges,
@@ -204,6 +237,62 @@ export async function POST(req: NextRequest) {
           reviewNote: data.reason || (data.action === "APPROVE" ? "Approved" : "Rejected"),
         },
       });
+    } else if (data.entityType === "PURCHASE_ORDER") {
+      const po = await prisma.purchaseOrder.findFirst({
+        where: { id: data.entityId, organizationId: user.organizationId },
+      });
+      if (!po) return jsonError("Purchase order not found or outside organization scope", 404);
+
+      const now = new Date();
+      if (data.action === "APPROVE") {
+        await prisma.purchaseOrder.update({
+          where: { id: data.entityId },
+          data: {
+            status: "APPROVED",
+            approvedBy: `${user.name} (${user.role})`,
+            approvedAt: now,
+            notes: data.reason
+              ? `${po.notes ? po.notes + "\n" : ""}[Approved by ${user.name}]: ${data.reason}`
+              : po.notes,
+            notificationSent: true,
+            notificationSentAt: now,
+          },
+        });
+
+        await prisma.auditEvent.create({
+          data: {
+            organizationId: user.organizationId,
+            actorUserId: user.userId,
+            action: "PURCHASE_ORDER_APPROVED",
+            entityType: "PURCHASE_ORDER",
+            entityId: po.id,
+            beforeJson: JSON.stringify({ status: po.status }),
+            afterJson: JSON.stringify({ status: "APPROVED", approvedBy: user.name }),
+          },
+        });
+      } else {
+        await prisma.purchaseOrder.update({
+          where: { id: data.entityId },
+          data: {
+            status: "REJECTED",
+            rejectionReason: data.reason || "Rejected by administrator",
+            approvedBy: `${user.name} (${user.role})`,
+            approvedAt: now,
+          },
+        });
+
+        await prisma.auditEvent.create({
+          data: {
+            organizationId: user.organizationId,
+            actorUserId: user.userId,
+            action: "PURCHASE_ORDER_REJECTED",
+            entityType: "PURCHASE_ORDER",
+            entityId: po.id,
+            beforeJson: JSON.stringify({ status: po.status }),
+            afterJson: JSON.stringify({ status: "REJECTED", rejectionReason: data.reason }),
+          },
+        });
+      }
     } else if (data.entityType === "MEASUREMENT_CHANGE") {
       const mc = await prisma.measurementChangeRequest.findFirst({
         where: { id: data.entityId, organizationId: user.organizationId },
