@@ -51,19 +51,25 @@ export default function ApprovalsWidget({
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [activeFilter, setActiveFilter] = useState<"ALL" | "PENDING" | "REJECTED">("ALL");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchApprovals = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const res = await fetch("/api/approvals");
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.success && json.data) {
-        setIsApprover(json.data.isApprover);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        setLoadError(json.error?.message || "Failed to load approval records.");
+        return;
+      }
+      if (json.data) {
+        setIsApprover(Boolean(json.data.isApprover));
         setItems(json.data.items || []);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn("Failed to load approvals widget:", e);
+      setLoadError(e.message || "Network error loading approvals");
     } finally {
       setLoading(false);
     }
@@ -198,6 +204,17 @@ export default function ApprovalsWidget({
 
       {loading ? (
         <div className="py-8 text-center text-xs text-slate-400">Loading approval records...</div>
+      ) : loadError ? (
+        <div className="py-6 px-4 text-center text-xs space-y-2">
+          <div className="text-rose-600 font-semibold">{loadError}</div>
+          <button
+            type="button"
+            onClick={fetchApprovals}
+            className="px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
       ) : items.length === 0 ? (
         <div className="py-8 text-center text-slate-400 text-xs">
           <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2 opacity-70" />

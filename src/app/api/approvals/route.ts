@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
         include: {
           project: { include: { site: true } },
           creator: { select: { id: true, name: true, role: true } },
-          party: { select: { id: true, name: true, type: true } },
+          party: { select: { id: true, name: true, partyType: true } },
         },
         orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
         take: 50,
