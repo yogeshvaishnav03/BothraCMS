@@ -593,7 +593,7 @@ export default function DashboardPage() {
       refreshUser().then((user) => ({ success: Boolean(user), data: { user } })),
 
       fetch(`/api/attachments?category=PHOTO&entityType=SITE_PHOTO&limit=12${siteId ? `&projectId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
-      fetch(`/api/users?${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/chat/employees?${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
     ])
       .then(([kpiRes, projRes, taskRes, attRes, wfRes, sitesRes, meRes, photoRes, usersRes]) => {
         if (usersRes?.success && usersRes?.data) {
