@@ -22,6 +22,7 @@ export interface SearchableSelectProps {
   className?: string;
   id?: string;
   name?: string;
+  allowCustom?: boolean;
 }
 
 export default function SearchableSelect({
@@ -35,6 +36,7 @@ export default function SearchableSelect({
   className = "",
   id,
   name,
+  allowCustom = false,
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,20 +48,48 @@ export default function SearchableSelect({
 
   // Find currently selected option
   const selectedOption = useMemo(() => {
-    return options.find((opt) => opt.value === value) || null;
-  }, [options, value]);
+    const match = options.find((opt) => opt.value === value);
+    if (match) return match;
+    if (value && allowCustom) {
+      return { value, label: value, badge: "Custom" };
+    }
+    return null;
+  }, [options, value, allowCustom]);
 
   // Filter options based on search query (case-insensitive multi-word match)
   const filteredOptions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return options;
+    let result = options;
+    if (q) {
+      const terms = q.split(/\s+/).filter(Boolean);
+      result = options.filter((opt) => {
+        const searchTarget = `${opt.label} ${opt.subLabel || ""} ${opt.badge || ""}`.toLowerCase();
+        return terms.every((term) => searchTarget.includes(term));
+      });
+    }
 
-    const terms = q.split(/\s+/).filter(Boolean);
-    return options.filter((opt) => {
-      const searchTarget = `${opt.label} ${opt.subLabel || ""} ${opt.badge || ""}`.toLowerCase();
-      return terms.every((term) => searchTarget.includes(term));
-    });
-  }, [options, searchQuery]);
+    if (allowCustom && searchQuery.trim()) {
+      const trimmedQuery = searchQuery.trim();
+      const exactExists = options.some(
+        (opt) =>
+          opt.label.toLowerCase() === trimmedQuery.toLowerCase() ||
+          opt.value.toLowerCase() === trimmedQuery.toLowerCase()
+      );
+      if (!exactExists) {
+        return [
+          {
+            value: trimmedQuery,
+            label: `Use "${trimmedQuery}"`,
+            badge: "Custom",
+            subLabel: "Press Enter to use this custom entry",
+          },
+          ...result,
+        ];
+      }
+    }
+
+    return result;
+  }, [options, searchQuery, allowCustom]);
 
   // Reset highlighted index when filtered options change
   useEffect(() => {
@@ -170,16 +200,37 @@ export default function SearchableSelect({
               <span className="truncate font-semibold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
                 {selectedOption.label}
               </span>
+              {selectedOption.badge && (
+                <span className="shrink-0 font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 rounded">
+                  {selectedOption.badge}
+                </span>
+              )}
             </div>
           ) : (
             <span className="text-slate-400 dark:text-slate-500 text-xs sm:text-sm">{placeholder}</span>
           )}
         </div>
-        <ChevronDown
-          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
-            isOpen ? "rotate-180 text-amber-600" : ""
-          }`}
-        />
+        <div className="flex items-center gap-1 shrink-0">
+          {value && !disabled && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange("");
+              }}
+              className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+              title="Clear selection"
+            >
+              <X className="w-3.5 h-3.5" />
+            </span>
+          )}
+          <ChevronDown
+            className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+              isOpen ? "rotate-180 text-amber-600" : ""
+            }`}
+          />
+        </div>
       </button>
 
       {/* Dropdown Menu */}
@@ -239,6 +290,15 @@ export default function SearchableSelect({
                 <div className="text-[11px] text-slate-400 dark:text-slate-500 max-w-xs mx-auto">
                   No options matched &ldquo;<span className="font-semibold text-slate-600 dark:text-slate-300">{searchQuery}</span>&rdquo;. Try searching with another keyword.
                 </div>
+                {allowCustom && searchQuery.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(searchQuery.trim())}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-xs"
+                  >
+                    Use &quot;{searchQuery.trim()}&quot; as custom entry
+                  </button>
+                )}
               </div>
             ) : (
               filteredOptions.map((opt, idx) => {
@@ -247,7 +307,7 @@ export default function SearchableSelect({
 
                 return (
                   <button
-                    key={opt.value}
+                    key={`${opt.value}-${idx}`}
                     type="button"
                     data-select-item
                     onClick={() => handleSelect(opt.value)}

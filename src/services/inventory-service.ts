@@ -31,6 +31,9 @@ export interface IssueGoodsInput {
   quantity: number;
   projectId?: string;
   taskId?: string;
+  contractorName?: string;
+  issuedToName?: string;
+  vendorPartyId?: string;
   attachmentIds?: string[];
   notes?: string;
   userId: string;
@@ -264,6 +267,8 @@ export class InventoryService {
           unitCode: material.unitCode,
           projectId: input.projectId ?? null,
           taskId: input.taskId ?? null,
+          issuedToName: input.issuedToName ?? input.contractorName ?? null,
+          vendorPartyId: input.vendorPartyId ?? null,
           notes: input.notes ?? null,
           createdBy: input.userId,
         },

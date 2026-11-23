@@ -342,7 +342,25 @@ export default function MaterialsPage() {
   const [referenceDoc, setReferenceDoc] = useState("");
   const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
+  const [contractorName, setContractorName] = useState("");
+  const [contractorPartyId, setContractorPartyId] = useState("");
   const [notes, setNotes] = useState("");
+
+  const contractorOptions = useMemo(() => {
+    const contractors = parties.filter(
+      (p) => p.partyType === "CONTRACTOR" || p.partyType === "BOTH"
+    );
+    const others = parties.filter(
+      (p) => p.partyType !== "CONTRACTOR" && p.partyType !== "BOTH"
+    );
+    const sorted = [...contractors, ...others];
+    return sorted.map((p) => ({
+      value: p.name,
+      label: p.name,
+      badge: p.partyType || "Contractor",
+      subLabel: p.phone ? `Phone: ${p.phone}${p.city ? ` • ${p.city}` : ""}` : (p.category || undefined),
+    }));
+  }, [parties]);
 
   // Goods Receipt File Upload states
   interface GoodsReceiptFile {
@@ -455,7 +473,7 @@ export default function MaterialsPage() {
     refreshUser().then((u) => {
       if (u) setCurrentUser(u);
     });
-    fetch("/api/parties?type=VENDOR")
+    fetch("/api/parties")
       .then((r) => r.json())
       .then((res) => {
         if (res.success) setParties(res.data || []);
@@ -698,7 +716,9 @@ export default function MaterialsPage() {
           materialId: selectedMaterialId,
           quantity: parseFloat(quantity),
           projectId: projectId || undefined,
-          taskId: taskId || undefined,
+          contractorName: contractorName.trim() || undefined,
+          issuedToName: contractorName.trim() || undefined,
+          vendorPartyId: contractorPartyId || undefined,
           notes: notes || undefined,
         }),
       });
@@ -710,6 +730,8 @@ export default function MaterialsPage() {
         setStatusMessage("Material provided to contractor and project consumption logged successfully!");
         setShowIssueModal(false);
         setQuantity("");
+        setContractorName("");
+        setContractorPartyId("");
         setNotes("");
         loadMaterials();
       }
@@ -1809,7 +1831,11 @@ export default function MaterialsPage() {
                   <span>Provide Material to Contractor / Project</span>
                 </div>
                 <button
-                  onClick={() => setShowIssueModal(false)}
+                  onClick={() => {
+                    setShowIssueModal(false);
+                    setContractorName("");
+                    setContractorPartyId("");
+                  }}
                   className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
                 >
                   <X className="w-5 h-5" />
@@ -1898,21 +1924,29 @@ export default function MaterialsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                      Target Task
+                      Provide to Contractor Name
                     </label>
                     <SearchableSelect
                       options={[
-                        { value: "", label: "None / Not linked to task" },
-                        ...tasks.map((t) => ({
-                          value: t.id,
-                          label: t.title,
-                          badge: t.status || undefined,
-                        })),
+                        { value: "", label: "General Site Issue / Direct Execution" },
+                        ...contractorOptions,
                       ]}
-                      value={taskId}
-                      onChange={setTaskId}
-                      placeholder="Select Task (Optional)"
-                      searchPlaceholder="Search task title..."
+                      value={contractorName}
+                      onChange={(val) => {
+                        setContractorName(val);
+                        const matched = parties.find(
+                          (p) => p.name.toLowerCase() === val.toLowerCase() || p.id === val
+                        );
+                        if (matched) {
+                          setContractorPartyId(matched.id);
+                          setContractorName(matched.name);
+                        } else {
+                          setContractorPartyId("");
+                        }
+                      }}
+                      allowCustom={true}
+                      placeholder="Select or enter contractor name..."
+                      searchPlaceholder="Search contractor or type custom name..."
                     />
                   </div>
                 </div>
@@ -1935,7 +1969,11 @@ export default function MaterialsPage() {
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowIssueModal(false)}
+                  onClick={() => {
+                    setShowIssueModal(false);
+                    setContractorName("");
+                    setContractorPartyId("");
+                  }}
                   className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
                 >
                   Cancel
