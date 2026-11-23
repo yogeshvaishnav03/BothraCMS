@@ -82,6 +82,7 @@ export class DashboardService {
       attendanceList,
       stockSummaries,
       paymentsToday,
+      rejectedPayments,
       postedBills,
     ] = await Promise.all([
       prisma.project.count({ where: activeProjectsWhere }),
@@ -170,6 +171,31 @@ export class DashboardService {
           })
         : Promise.resolve([]),
       hasFinanceAccess
+        ? prisma.payment.findMany({
+            where: {
+              organizationId,
+              status: "REJECTED",
+              isArchived: false,
+              ...(siteId ? { project: { siteId } } : {}),
+            },
+            select: {
+              id: true,
+              recipientName: true,
+              amount: true,
+              tdsAmount: true,
+              method: true,
+              referenceNumber: true,
+              payingAccount: true,
+              rejectionReason: true,
+              approvedBy: true,
+              paymentDate: true,
+              party: { select: { name: true } },
+            },
+            orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+            take: 10,
+          }).catch(() => [])
+        : Promise.resolve([]),
+      hasFinanceAccess
         ? prisma.bill.findMany({
             where: {
               organizationId,
@@ -252,6 +278,9 @@ export class DashboardService {
     let paymentsMadeTodayAmount: number | undefined = undefined;
     let totalOutstandingPayablesAmount: number | undefined = undefined;
     let paymentsTodayList: any[] | undefined = undefined;
+    let rejectedPaymentsList: any[] | undefined = undefined;
+    let rejectedPaymentsCount: number | undefined = undefined;
+    let rejectedPaymentsAmount: number | undefined = undefined;
     let outstandingBillsList: any[] | undefined = undefined;
 
     if (hasFinanceAccess) {
@@ -265,6 +294,22 @@ export class DashboardService {
         method: p.method,
         referenceNumber: p.referenceNumber,
         payingAccount: p.payingAccount,
+        paymentDate: p.paymentDate.toISOString(),
+      }));
+
+      rejectedPaymentsCount = (rejectedPayments || []).length;
+      rejectedPaymentsAmount = roundPaise(
+        (rejectedPayments || []).reduce((sum: number, p: any) => sum + bankAmount(p), 0)
+      );
+      rejectedPaymentsList = (rejectedPayments || []).map((p: any) => ({
+        id: p.id,
+        recipientName: p.recipientName || p.party?.name || "Payee",
+        amount: p.amount,
+        method: p.method,
+        referenceNumber: p.referenceNumber,
+        payingAccount: p.payingAccount,
+        rejectionReason: p.rejectionReason,
+        approvedBy: p.approvedBy,
         paymentDate: p.paymentDate.toISOString(),
       }));
 
@@ -348,6 +393,8 @@ export class DashboardService {
       lowStockItemsCount,
       paymentsMadeTodayAmount,
       totalOutstandingPayablesAmount,
+      rejectedPaymentsCount,
+      rejectedPaymentsAmount,
       activeProjects: activeProjectsList.map((p) => ({
         id: p.id,
         name: p.name,
@@ -383,6 +430,7 @@ export class DashboardService {
       })),
       lowStockItems: lowStockItemsList,
       paymentsMadeToday: paymentsTodayList,
+      rejectedPayments: rejectedPaymentsList,
       outstandingPayables: outstandingBillsList,
     };
   }

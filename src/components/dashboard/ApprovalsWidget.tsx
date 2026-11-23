@@ -50,6 +50,7 @@ export default function ApprovalsWidget({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [activeFilter, setActiveFilter] = useState<"ALL" | "PENDING" | "REJECTED">("ALL");
 
   const fetchApprovals = async () => {
     try {
@@ -99,6 +100,20 @@ export default function ApprovalsWidget({
   };
 
   const pendingItems = items.filter((i) => i.status === "PENDING" || i.status === "PENDING_APPROVAL");
+  const rejectedItems = items.filter((i) => i.status === "REJECTED");
+
+  const filteredItems = (
+    activeFilter === "PENDING"
+      ? pendingItems
+      : activeFilter === "REJECTED"
+      ? rejectedItems
+      : items
+  ).slice().sort((a, b) => {
+    const aPri = a.status === "REJECTED" ? 2 : a.status === "PENDING" || a.status === "PENDING_APPROVAL" ? 1 : 0;
+    const bPri = b.status === "REJECTED" ? 2 : b.status === "PENDING" || b.status === "PENDING_APPROVAL" ? 1 : 0;
+    if (aPri !== bPri) return bPri - aPri;
+    return new Date(b.date).getTime() - new Date(a.date).getTime();
+  });
 
   return (
     <div className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 ${className}`}>
@@ -109,18 +124,24 @@ export default function ApprovalsWidget({
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 flex-wrap">
                 <span>{isApprover ? "Pending Approvals Queue" : "My Requests & Approval Status"}</span>
                 {pendingItems.length > 0 && (
                   <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full">
-                    {pendingItems.length}
+                    {pendingItems.length} Pending
+                  </span>
+                )}
+                {rejectedItems.length > 0 && (
+                  <span className="text-xs bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <XCircle className="w-3.5 h-3.5" />
+                    {rejectedItems.length} Rejected
                   </span>
                 )}
               </h3>
               <p className="text-xs text-slate-500">
                 {isApprover
                   ? "Review and authorize expenditures, material orders, and change requests"
-                  : "Real-time verification status and audit feedback from leadership"}
+                  : "Real-time verification status, payment decisions, and audit feedback from leadership"}
               </p>
             </div>
           </div>
@@ -136,6 +157,45 @@ export default function ApprovalsWidget({
         </div>
       )}
 
+      {items.length > 0 && (
+        <div className="flex items-center gap-1.5 pb-1">
+          <button
+            type="button"
+            onClick={() => setActiveFilter("ALL")}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+              activeFilter === "ALL"
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-2xs"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+            }`}
+          >
+            All ({items.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveFilter("PENDING")}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+              activeFilter === "PENDING"
+                ? "bg-amber-600 text-white shadow-2xs"
+                : "bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300"
+            }`}
+          >
+            Pending ({pendingItems.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveFilter("REJECTED")}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${
+              activeFilter === "REJECTED"
+                ? "bg-rose-600 text-white shadow-2xs"
+                : "bg-rose-50 text-rose-800 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300"
+            }`}
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            <span>Rejected ({rejectedItems.length})</span>
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="py-8 text-center text-xs text-slate-400">Loading approval records...</div>
       ) : items.length === 0 ? (
@@ -145,12 +205,20 @@ export default function ApprovalsWidget({
           <p className="mt-0.5">
             {isApprover
               ? "No pending approvals currently awaiting authorization."
-              : "You have no active pending requests."}
+              : "You have no active pending or rejected requests."}
+          </p>
+        </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="py-8 text-center text-slate-400 text-xs">
+          <p>
+            {activeFilter === "REJECTED"
+              ? "No rejected payment requests or purchase orders."
+              : "No pending requests awaiting approval."}
           </p>
         </div>
       ) : (
         <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-          {items.map((item) => {
+          {filteredItems.map((item) => {
             const isPending = item.status === "PENDING" || item.status === "PENDING_APPROVAL";
             const isApproved = item.status === "POSTED" || item.status === "APPROVED";
             const isRejected = item.status === "REJECTED";

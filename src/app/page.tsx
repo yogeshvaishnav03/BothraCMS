@@ -1427,51 +1427,106 @@ export default function DashboardPage() {
       }
       case "paymentsMadeToday": {
         const list = kpi?.paymentsMadeToday || [];
+        const rejected = kpi?.rejectedPayments || [];
         return {
           icon: <DollarSign className="w-5 h-5 text-emerald-600" />,
           title: "Paid Today",
-          badge: `${formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)} Paid`,
+          badge: `${formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)} Paid${rejected.length ? ` · ${rejected.length} Rejected` : ""}`,
           badgeColor: "bg-emerald-100 text-emerald-800",
-          subtitle: "Bank, cash, and UPI payments made today",
+          subtitle: "Approved payments and rejected payment requests",
           actionUrl: "/finance",
           actionLabel: "Go to Finance & Payments",
-          emptyTitle: "No payments recorded today",
-          emptyDesc: "No payments have been recorded for today yet.",
-          content: list.length > 0 ? (
-            <div className="space-y-2.5 max-h-[60dvh] overflow-y-auto pr-1">
-              {list.map((p: any) => (
-                <div
-                  key={p.id}
-                  className="p-3.5 bg-slate-50 hover:bg-emerald-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-900 text-sm">{p.recipientName}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
-                        {p.method}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
-                      {p.referenceNumber && (
-                        <span>
-                          Ref: <strong className="text-slate-700">{p.referenceNumber}</strong>
-                        </span>
-                      )}
-                      {p.payingAccount && (
-                        <span>
-                          Account: <strong className="text-slate-700">{p.payingAccount}</strong>
-                        </span>
-                      )}
-                    </div>
+          emptyTitle: rejected.length > 0 ? "No approved payments today" : "No payments recorded today",
+          emptyDesc: rejected.length > 0 ? "Only rejected payment requests exist for this period." : "No payments have been recorded for today yet.",
+          content: (list.length > 0 || rejected.length > 0) ? (
+            <div className="space-y-4 max-h-[60dvh] overflow-y-auto pr-1">
+              {/* Rejected Payment Requests */}
+              {rejected.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+                    <XCircle className="w-4 h-4 text-rose-500" />
+                    <span>Rejected Payment Requests ({rejected.length})</span>
                   </div>
-                  <div className="text-left sm:text-right shrink-0">
-                    <div className="text-[11px] text-slate-500 font-medium">Paid</div>
-                    <div className="font-display text-sm font-extrabold text-emerald-700 tabular-nums whitespace-nowrap" title={formatCurrency(p.amount || 0)}>
-                      {formatCompactINR(p.amount || 0)}
+                  {rejected.map((p: any) => (
+                    <div
+                      key={p.id}
+                      className="p-3.5 bg-rose-50/50 hover:bg-rose-50 rounded-xl border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 text-sm">{p.recipientName}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 uppercase tracking-wider">
+                            REJECTED
+                          </span>
+                        </div>
+                        {p.rejectionReason && (
+                          <div className="text-xs text-rose-700 font-medium mt-1">
+                            Reason: {p.rejectionReason}
+                          </div>
+                        )}
+                        <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-3">
+                          {p.referenceNumber && (
+                            <span>Ref: <strong className="text-slate-700">{p.referenceNumber}</strong></span>
+                          )}
+                          {p.approvedBy && (
+                            <span>Declined by: <strong className="text-slate-700">{p.approvedBy}</strong></span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-left sm:text-right shrink-0">
+                        <div className="text-[11px] text-rose-500 font-medium">Requested</div>
+                        <div className="font-display text-sm font-extrabold text-rose-700 tabular-nums whitespace-nowrap" title={formatCurrency(p.amount || 0)}>
+                          {formatCompactINR(p.amount || 0)}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
+
+              {/* Approved Payments */}
+              {list.length > 0 && (
+                <div className="space-y-2">
+                  {rejected.length > 0 && (
+                    <div className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                      Approved Payments ({list.length})
+                    </div>
+                  )}
+                  {list.map((p: any) => (
+                    <div
+                      key={p.id}
+                      className="p-3.5 bg-slate-50 hover:bg-emerald-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 text-sm">{p.recipientName}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                            {p.method}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-3">
+                          {p.referenceNumber && (
+                            <span>
+                              Ref: <strong className="text-slate-700">{p.referenceNumber}</strong>
+                            </span>
+                          )}
+                          {p.payingAccount && (
+                            <span>
+                              Account: <strong className="text-slate-700">{p.payingAccount}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-left sm:text-right shrink-0">
+                        <div className="text-[11px] text-slate-500 font-medium">Paid</div>
+                        <div className="font-display text-sm font-extrabold text-emerald-700 tabular-nums whitespace-nowrap" title={formatCurrency(p.amount || 0)}>
+                          {formatCompactINR(p.amount || 0)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null,
         };
@@ -2247,8 +2302,13 @@ export default function DashboardPage() {
                 <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}>
                   {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
                 </div>
-                <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">
-                  Paid Out
+                <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5 flex items-center justify-between">
+                  <span>Paid Out</span>
+                  {Boolean(kpi?.rejectedPaymentsCount) && (
+                    <span className="text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-full">
+                      {kpi.rejectedPaymentsCount} rejected
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -2485,6 +2545,12 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                   <span>Approved payments today</span>
+                  {Boolean(kpi?.rejectedPaymentsCount) && (
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                      <XCircle className="w-3 h-3 text-rose-500" />
+                      {kpi.rejectedPaymentsCount} rejected
+                    </span>
+                  )}
                   <span className="text-emerald-700 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                     Details <ExternalLink className="w-3 h-3" />
                   </span>

@@ -71,7 +71,13 @@ interface Overview {
   };
   timeline: TimelineEntry[];
   timelineTotal: number;
-  approvals: { paymentsPendingCount: number; paymentsPendingAmount: number; ordersPendingCount: number; materialRequestsPending: number };
+  approvals: {
+    paymentsPendingCount: number;
+    paymentsPendingAmount: number;
+    paymentsRejectedCount?: number;
+    ordersPendingCount: number;
+    materialRequestsPending: number;
+  };
   attention?: { openSafety: number; drawingsWaiting: number; payrollDraft: number; equipmentDown: number; customerOverdue: number };
   projects: {
     projectId: string;
@@ -424,7 +430,8 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   const approvalsCount =
     (data?.approvals.paymentsPendingCount || 0) +
     (data?.approvals.ordersPendingCount || 0) +
-    (data?.approvals.materialRequestsPending || 0);
+    (data?.approvals.materialRequestsPending || 0) +
+    (data?.approvals.paymentsRejectedCount || 0);
   const longDate = new Date(`${date}T00:00:00`).toLocaleDateString(hi ? "hi-IN" : "en-IN", {
     weekday: "long",
     day: "numeric",
@@ -554,7 +561,9 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             format={formatCompactNumber}
             sub={
               data
-                ? `${formatCompactINR(data.approvals.paymentsPendingAmount)} ${hi ? "भुगतान" : "in payments"} · ${data.approvals.ordersPendingCount} ${hi ? "खरीद ऑर्डर" : "purchase orders"}`
+                ? `${formatCompactINR(data.approvals.paymentsPendingAmount)} ${hi ? "भुगतान" : "in payments"}${
+                    data.approvals.paymentsRejectedCount ? ` · ${data.approvals.paymentsRejectedCount} ${hi ? "अस्वीकृत" : "rejected"}` : ""
+                  } · ${data.approvals.ordersPendingCount} ${hi ? "खरीद ऑर्डर" : "purchase orders"}`
                 : undefined
             }
             Icon={BadgeCheck}

@@ -79,6 +79,7 @@ export class CommandCenterService {
     const [
       dayBook,
       pendingPayments,
+      rejectedPayments,
       pendingOrders,
       postedBills,
       trendPayments,
@@ -133,6 +134,10 @@ export class CommandCenterService {
       }),
       prisma.payment.findMany({
         where: { organizationId, status: "PENDING_APPROVAL", isArchived: false },
+        select: { amount: true },
+      }).catch(() => []),
+      prisma.payment.findMany({
+        where: { organizationId, status: "REJECTED", isArchived: false },
         select: { amount: true },
       }).catch(() => []),
       prisma.purchaseOrder.count({ where: { organizationId, status: "PENDING_APPROVAL" } }).catch(() => 0),
@@ -658,6 +663,7 @@ export class CommandCenterService {
       approvals: {
         paymentsPendingCount: (pendingPayments || []).length,
         paymentsPendingAmount: roundPaise((pendingPayments || []).reduce((s, p) => s + (p.amount || 0), 0)),
+        paymentsRejectedCount: (rejectedPayments || []).length,
         ordersPendingCount: pendingOrders || 0,
         materialRequestsPending: materialRequestsPending || 0,
       },

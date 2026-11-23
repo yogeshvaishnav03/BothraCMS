@@ -21,19 +21,26 @@ export async function GET(req: NextRequest) {
     const roleStr = user.role as string;
     const isSuperAdmin = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
     const isAccountant = user.role === "ACCOUNTANT";
-    const isSupervisorOrEngineer = roleStr === "SITE_ENGINEER" || user.role === "SITE_SUPERVISOR" || user.role === "PROJECT_MANAGER";
+    const isProjectManager = user.role === "PROJECT_MANAGER";
+    const isApprover = isSuperAdmin || isAccountant || isProjectManager;
 
-    // 1. Pending Payments / Expenses
+    // 1. Pending & Rejected Payments / Expenses
     const paymentWhere: any = {
       organizationId: user.organizationId,
       isArchived: false,
     };
 
-    if (isSuperAdmin || isAccountant) {
-      paymentWhere.status = "PENDING_APPROVAL";
+    if (isApprover) {
+      paymentWhere.OR = [
+        { status: "PENDING_APPROVAL" },
+        { status: "REJECTED" },
+        { createdBy: user.userId },
+      ];
     } else {
-      // For Engineer / Supervisor, fetch recent requests submitted by them (all statuses)
-      paymentWhere.createdBy = user.userId;
+      paymentWhere.OR = [
+        { createdBy: user.userId },
+        { status: "REJECTED" },
+      ];
     }
 
     const [payments, materialRequests, measurementChanges, purchaseOrders] = await Promise.all([
@@ -44,23 +51,25 @@ export async function GET(req: NextRequest) {
           creator: { select: { id: true, name: true, role: true } },
           party: { select: { id: true, name: true, type: true } },
         },
-        orderBy: { createdAt: "desc" },
-        take: 30,
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        take: 50,
       }),
 
       // 2. Material Requests
       prisma.materialRequest.findMany({
         where: {
           organizationId: user.organizationId,
-          ...(isSuperAdmin ? { status: "PENDING" } : { requestedById: user.userId }),
+          ...(isSuperAdmin
+            ? { OR: [{ status: "PENDING" }, { status: "REJECTED" }, { requestedById: user.userId }] }
+            : { OR: [{ requestedById: user.userId }, { status: "REJECTED" }] }),
         },
         include: {
           project: { include: { site: true } },
           requestedBy: { select: { id: true, name: true, role: true } },
           items: { include: { material: true } },
         },
-        orderBy: { createdAt: "desc" },
-        take: 20,
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        take: 30,
       }),
 
       // 3. Measurement Change Requests
@@ -78,11 +87,13 @@ export async function GET(req: NextRequest) {
           })
         : Promise.resolve([]),
 
-      // 4. Purchase Orders awaiting approval
+      // 4. Purchase Orders awaiting approval / rejected
       prisma.purchaseOrder.findMany({
         where: {
           organizationId: user.organizationId,
-          ...(isSuperAdmin || isAccountant ? { status: "PENDING_APPROVAL" } : { createdBy: user.userId }),
+          ...(isApprover
+            ? { OR: [{ status: "PENDING_APPROVAL" }, { status: "REJECTED" }, { createdBy: user.userId }] }
+            : { OR: [{ createdBy: user.userId }, { status: "REJECTED" }] }),
         },
         include: {
           material: true,
@@ -91,25 +102,29 @@ export async function GET(req: NextRequest) {
           site: true,
           creator: { select: { id: true, name: true, role: true } },
         },
-        orderBy: { createdAt: "desc" },
-        take: 30,
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        take: 40,
       }),
     ]);
 
     const formattedPayments = payments.map((p) => {
       const isOop = p.recipientType === "OUT_OF_POCKET";
+      const rejectionNote =
+        p.rejectionReason ||
+        (p.status === "REJECTED" ? `Declined${p.approvedBy ? ` by ${p.approvedBy}` : " by management"}` : null);
       return {
         id: p.id,
         type: isOop ? "EXPENSE" : "PAYMENT",
-        title: isOop ? `Cash Expense: ${p.notes || "Petty Cash"}` : `Payment to ${p.recipientName || p.party?.name || "Vendor"}`,
+        title: isOop ? `Cash Expense: ${p.notes || "Petty Cash"}` : `Payment Request: ${p.recipientName || p.party?.name || "Vendor"}`,
         amountRupees: (p.amount || 0) / 100,
         status: p.status,
         projectName: p.project?.name || "General",
         siteName: p.project?.site?.name || "Site",
         requestedBy: p.creator?.name || "Staff",
         requestedByRole: p.creator?.role || "USER",
-        rejectionReason: p.rejectionReason || null,
+        rejectionReason: rejectionNote,
         date: p.paymentDate ? p.paymentDate.toISOString() : p.createdAt.toISOString(),
+        query: p.approvalQuery || p.notes || null,
       };
     });
 
