@@ -15,6 +15,7 @@ import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
 import { istDateKey } from "@/lib/ist-date";
 import { uploadClientMedia } from "@/lib/upload-client";
+import { resolveDeliveryLocation } from "@/lib/order-notifications";
 import {
   Building2,
   CalendarClock,
@@ -1810,7 +1811,7 @@ export default function MaterialOrderHistoryPage() {
                     unitCode: poData.unitCode,
                     unitRate: poData.unitRate,
                     totalAmount: poData.totalAmount,
-                    deliveryLocation: poData.store ? `${poData.site?.name || "Site"} — ${poData.store.name}` : poData.site?.name || "Main Site Yard",
+                    deliveryLocation: resolveDeliveryLocation({ store: poData.store, site: poData.site }),
                     siteName: poData.site?.name,
                     expectedDeliveryDate: poData.expectedDeliveryDate ? new Date(poData.expectedDeliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : null,
                     approvedBy: poData.approvedBy,

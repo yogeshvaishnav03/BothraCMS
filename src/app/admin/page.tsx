@@ -948,7 +948,10 @@ export default function SuperAdminDashboardPage() {
                     <div>
                       <span className="text-slate-400 block text-[11px]">Delivery Location</span>
                       <span className="font-semibold text-slate-800">
-                        {approvedNotification.deliveryLocation || approvedNotification.siteName || approvedNotification.order?.site?.name || "Main Site"}
+                        {approvedNotification.deliveryLocation ||
+                          (approvedNotification.order?.site?.address
+                            ? `${approvedNotification.order.site.name}, ${approvedNotification.order.site.address}`
+                            : approvedNotification.siteName || approvedNotification.order?.site?.name || "Main Site")}
                       </span>
                     </div>
 

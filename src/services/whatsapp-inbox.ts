@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { GRAPH, indianMobile, MessagingError, messagingSettings, post, sendWhatsAppTemplate } from "@/lib/messaging";
 import { backupFileToDatabase, getStorageProvider } from "@/lib/storage";
 import { notifyPeople } from "@/lib/notify";
-import { formatNotificationMessage } from "@/lib/order-notifications";
+import { formatNotificationMessage, resolveDeliveryLocation } from "@/lib/order-notifications";
 
 /**
  * Two-way WhatsApp through the business number: orders and messages go out
@@ -288,8 +288,8 @@ export async function sendOrderToVendor(organizationId: string, orderId: string,
       vendor: { select: { id: true, name: true, phone: true, whatsappNumber: true } },
       material: { select: { name: true, sku: true } },
       organization: { select: { name: true } },
-      store: { select: { name: true } },
-      site: { select: { name: true } },
+      store: { select: { name: true, site: { select: { name: true, address: true } } } },
+      site: { select: { name: true, address: true } },
       creator: { select: { name: true } },
     },
   });
@@ -297,7 +297,10 @@ export async function sendOrderToVendor(organizationId: string, orderId: string,
   if (["PENDING_APPROVAL", "REJECTED", "CANCELLED"].includes(po.status)) throw new MessagingError("Only an approved order can be sent to the vendor", 409, "NOT_APPROVED");
   const to = indianMobile(po.vendor.whatsappNumber) || indianMobile(po.vendor.phone);
   if (!to) throw new MessagingError(`${po.vendor.name} has no mobile number for WhatsApp. Add it on the vendor's page.`);
-  const deliveryLocation = po.store ? `${po.site?.name || "Site"} — ${po.store.name}` : po.site?.name || null;
+  const deliveryLocation = resolveDeliveryLocation({
+    store: po.store,
+    site: po.site,
+  });
   const s = await messagingSettings(organizationId);
   if (s.testMode || replyWindowOpen(await lastIncomingAt(organizationId, to))) {
     const fullText = formatNotificationMessage({

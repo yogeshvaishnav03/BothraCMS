@@ -629,7 +629,9 @@ export default function PlaceOrderModal({
                     options={stores.map((s) => ({
                       value: s.id,
                       label: s.name,
-                      subLabel: s.site?.name ? `Site: ${s.site.name}` : undefined,
+                      subLabel: s.site?.name
+                        ? `Site: ${s.site.name}${s.site.address ? ` — ${s.site.address}` : ""}`
+                        : undefined,
                     }))}
                     value={selectedStoreId}
                     onChange={(sId) => setSelectedStoreId(sId)}

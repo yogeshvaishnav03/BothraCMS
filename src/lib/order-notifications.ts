@@ -16,6 +16,40 @@ export interface FormatNotificationParams {
   approvedByName?: string | null;
 }
 
+export function resolveDeliveryLocation(order: {
+  store?: { name: string; site?: { name: string; address?: string | null } | null } | null;
+  site?: { name: string; address?: string | null } | null;
+  project?: { name: string; site?: { name: string; address?: string | null } | null } | null;
+}): string {
+  const site = order.site || order.store?.site || order.project?.site;
+  const siteName = site?.name?.trim() || "Main Site";
+  const siteAddress = site?.address?.trim() || "";
+
+  let storePart = "";
+  if (order.store?.name) {
+    let cleanStoreName = order.store.name.trim();
+    // Clean up duplicated site prefix in store names (e.g. "PEVA NAGAR - Secondary Store" with site "PEVA NAGAR")
+    const prefixRegex = new RegExp(`^${siteName}\\s*[-—–:]\\s*`, "i");
+    if (prefixRegex.test(cleanStoreName)) {
+      cleanStoreName = cleanStoreName.replace(prefixRegex, "").trim();
+    }
+    if (cleanStoreName.toLowerCase() !== siteName.toLowerCase()) {
+      storePart = cleanStoreName;
+    }
+  }
+
+  let location = siteName;
+  if (storePart) {
+    location = `${siteName} — ${storePart}`;
+  }
+
+  if (siteAddress) {
+    location = `${location}, ${siteAddress}`;
+  }
+
+  return location;
+}
+
 export function formatNotificationMessage(data: FormatNotificationParams): string {
   const parts = [
     `🏗️ *PURCHASE ORDER: ${data.orderNumber}*`,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserContext } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { resolveDeliveryLocation } from "@/lib/order-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
         include: {
           material: true,
           vendor: true,
+          store: { include: { site: true } },
           site: true,
           creator: { select: { id: true, name: true, role: true } },
         },
@@ -125,20 +127,26 @@ export async function GET(req: NextRequest) {
       date: mr.createdAt.toISOString(),
     }));
 
-    const formattedPurchaseOrders = purchaseOrders.map((po) => ({
-      id: po.id,
-      type: "PURCHASE_ORDER",
-      title: `Purchase Order #${po.orderNumber}: ${po.quantity} ${po.unitCode} ${po.material?.name || "Material"} from ${po.vendor?.name || "Vendor"}`,
-      amountRupees: (po.totalAmount || 0) / 100,
-      status: po.status,
-      projectName: po.site?.name || "General",
-      siteName: po.site?.name || "Site Store",
-      requestedBy: po.creator?.name || "Staff",
-      requestedByRole: po.creator?.role || "SITE_SUPERVISOR",
-      rejectionReason: po.rejectionReason || null,
-      date: po.createdAt.toISOString(),
-      query: po.approvalQuery || po.notes || null,
-    }));
+    const formattedPurchaseOrders = purchaseOrders.map((po) => {
+      const deliveryLocation = resolveDeliveryLocation({
+        store: po.store,
+        site: po.site,
+      });
+      return {
+        id: po.id,
+        type: "PURCHASE_ORDER",
+        title: `Purchase Order #${po.orderNumber}: ${po.quantity} ${po.unitCode} ${po.material?.name || "Material"} from ${po.vendor?.name || "Vendor"}`,
+        amountRupees: (po.totalAmount || 0) / 100,
+        status: po.status,
+        projectName: po.site?.name || "General",
+        siteName: deliveryLocation || po.site?.name || "Site Store",
+        requestedBy: po.creator?.name || "Staff",
+        requestedByRole: po.creator?.role || "SITE_SUPERVISOR",
+        rejectionReason: po.rejectionReason || null,
+        date: po.createdAt.toISOString(),
+        query: po.approvalQuery || po.notes || null,
+      };
+    });
 
     const formattedMeasurementChanges = measurementChanges.map((mc: any) => ({
       id: mc.id,

@@ -7,6 +7,7 @@ import {
   formatNotificationMessage,
   buildWhatsAppUrl,
   buildMailtoUrl,
+  resolveDeliveryLocation,
 } from "@/lib/order-notifications";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         organization: true,
         material: true,
         vendor: true,
-        store: true,
+        store: { include: { site: true } },
         site: true,
         creator: true,
       },
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         organization: true,
         material: true,
         vendor: true,
-        store: true,
+        store: { include: { site: true } },
         site: true,
         creator: true,
       },
@@ -125,9 +126,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const orgName = updated.organization?.name || "Bothra Infrastructure";
-    const deliveryLocation = updated.store
-      ? `${updated.site?.name || "Site"} — ${updated.store.name}`
-      : updated.site?.name || "Main Site Yard";
+    const deliveryLocation = resolveDeliveryLocation({
+      store: updated.store,
+      site: updated.site,
+    });
 
     const expDateFormatted = updated.expectedDeliveryDate
       ? new Date(updated.expectedDeliveryDate).toLocaleDateString("en-IN", {

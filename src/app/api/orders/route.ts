@@ -10,6 +10,7 @@ import {
   formatNotificationMessage,
   buildWhatsAppUrl,
   buildMailtoUrl,
+  resolveDeliveryLocation,
 } from "@/lib/order-notifications";
 
 export const dynamic = "force-dynamic";
@@ -68,8 +69,8 @@ export async function GET(req: NextRequest) {
         organization: { select: { id: true, name: true } },
         material: { select: { id: true, name: true, sku: true, unitCode: true } },
         vendor: { select: { id: true, name: true, phone: true, whatsappNumber: true, whatsappGroupLink: true, email: true, address: true } },
-        store: { select: { id: true, name: true } },
-        site: { select: { id: true, name: true, code: true } },
+        store: { select: { id: true, name: true, site: { select: { id: true, name: true, code: true, address: true } } } },
+        site: { select: { id: true, name: true, code: true, address: true } },
         creator: { select: { id: true, name: true, email: true, role: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -78,9 +79,10 @@ export async function GET(req: NextRequest) {
 
     const enriched = orders.map((o) => {
       const orgName = o.organization?.name || user.organizationName || "Bothra Infrastructure";
-      const deliveryLocation = o.store
-        ? `${o.site?.name || "Site"} — ${o.store.name}`
-        : o.site?.name || "Main Site Yard";
+      const deliveryLocation = resolveDeliveryLocation({
+        store: o.store,
+        site: o.site,
+      });
       const expDateStr = o.expectedDeliveryDate
         ? new Date(o.expectedDeliveryDate).toLocaleDateString("en-IN", {
             day: "2-digit",
@@ -171,7 +173,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch Store and Site if specified
-    let storeName: string | null = null;
     let siteRecord: any = null;
 
     if (storeId) {
@@ -180,16 +181,19 @@ export async function POST(req: NextRequest) {
         include: { site: true },
       });
       if (store) {
-        storeName = `${store.site?.name || "Site"} — ${store.name}`;
         siteRecord = store.site;
       }
     } else if (siteId) {
       siteRecord = await prisma.site.findFirst({
         where: { id: siteId, organizationId: user.organizationId },
       });
-      if (siteRecord) {
-        storeName = `${siteRecord.name} (General Site)`;
-      }
+    }
+
+    if (!siteRecord) {
+      siteRecord = await prisma.site.findFirst({
+        where: { organizationId: user.organizationId, status: "ACTIVE" },
+        orderBy: { createdAt: "asc" },
+      });
     }
 
     // Fetch Organization name
@@ -247,8 +251,8 @@ export async function POST(req: NextRequest) {
       include: {
         material: { select: { id: true, name: true, sku: true, unitCode: true } },
         vendor: { select: { id: true, name: true, phone: true, whatsappNumber: true, whatsappGroupLink: true, email: true, address: true } },
-        store: { select: { id: true, name: true } },
-        site: { select: { id: true, name: true, code: true } },
+        store: { select: { id: true, name: true, site: { select: { id: true, name: true, code: true, address: true } } } },
+        site: { select: { id: true, name: true, code: true, address: true } },
         creator: { select: { id: true, name: true, email: true, role: true } },
       },
     });
@@ -305,6 +309,11 @@ export async function POST(req: NextRequest) {
       ? parsedExpDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
       : null;
 
+    const deliveryLocation = resolveDeliveryLocation({
+      store: purchaseOrder.store,
+      site: purchaseOrder.site || siteRecord,
+    });
+
     const notificationMessage = formatNotificationMessage({
       orderNumber,
       organizationName,
@@ -315,7 +324,7 @@ export async function POST(req: NextRequest) {
       unitCode,
       unitRate: unitRatePaise,
       totalAmount: totalAmountPaise,
-      deliveryLocation: storeName,
+      deliveryLocation,
       expectedDeliveryDate: expDateFormatted,
       notes,
       approvalQuery: orderQueryText,

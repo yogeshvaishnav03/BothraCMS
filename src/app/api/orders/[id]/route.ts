@@ -8,6 +8,7 @@ import {
   formatNotificationMessage,
   buildWhatsAppUrl,
   buildMailtoUrl,
+  resolveDeliveryLocation,
 } from "@/lib/order-notifications";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         organization: true,
         material: true,
         vendor: true,
-        store: true,
+        store: { include: { site: true } },
         site: true,
         creator: { select: { id: true, name: true, email: true, role: true } },
       },
@@ -48,9 +49,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!order) return jsonError("Order not found", "NOT_FOUND", 404);
 
     const orgName = order.organization?.name || user.organizationName || "Bothra Infrastructure";
-    const deliveryLocation = order.store
-      ? `${order.site?.name || "Site"} — ${order.store.name}`
-      : order.site?.name || "Main Site Yard";
+    const deliveryLocation = resolveDeliveryLocation({
+      store: order.store,
+      site: order.site,
+    });
 
     const expDateStr = order.expectedDeliveryDate
       ? new Date(order.expectedDeliveryDate).toLocaleDateString("en-IN", {
