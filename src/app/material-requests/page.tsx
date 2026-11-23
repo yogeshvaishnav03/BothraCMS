@@ -44,7 +44,9 @@ import {
   XCircle,
   Zap,
   Play,
+  Sparkles,
 } from "lucide-react";
+import { parseBillText } from "@/lib/bill-ocr";
 
 const STATUS: Record<string, { label: string; pill: string }> = {
   PENDING: { label: "Waiting for approval", pill: "bg-amber-50 text-amber-800 ring-amber-200" },
@@ -122,8 +124,90 @@ function ReceiveOrderModal({
   const [billPreview, setBillPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isScanningBill, setIsScanningBill] = useState(false);
+  const [scanStatus, setScanStatus] = useState<string | null>(null);
+  const [scanSuccessBanner, setScanSuccessBanner] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const scanBillImage = async (file: File) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    setIsScanningBill(true);
+    setScanStatus("Analyzing bill with AI...");
+    setScanSuccessBanner(null);
+
+    try {
+      let extracted: any = null;
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/inventory/scan-bill", { method: "POST", body: formData });
+        const json = await res.json();
+        if (res.ok && json.success && json.data && !json.useClientOcr) {
+          extracted = json.data;
+        }
+      } catch {}
+
+      if (!extracted || (!extracted.challanNumber && !extracted.quantity)) {
+        setScanStatus("Reading bill text via OCR engine...");
+        const loadTesseract = async (): Promise<any> => {
+          if ((window as any).Tesseract) return (window as any).Tesseract;
+          return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+            script.async = true;
+            script.onload = () => resolve((window as any).Tesseract);
+            script.onerror = () => reject(new Error("Could not load OCR engine."));
+            document.head.appendChild(script);
+          });
+        };
+
+        const Tesseract = await loadTesseract();
+        const worker = await Tesseract.createWorker("eng");
+        const ret = await worker.recognize(file);
+        await worker.terminate();
+
+        const ocrText = ret?.data?.text || "";
+        if (ocrText.trim()) {
+          extracted = parseBillText(ocrText, [], []);
+        }
+      }
+
+      if (extracted) {
+        const filled: string[] = [];
+        if (extracted.challanNumber) {
+          setBillNumber(extracted.challanNumber);
+          filled.push(`Invoice #${extracted.challanNumber}`);
+        }
+        if (extracted.quantity) {
+          handleQtyChange(String(extracted.quantity));
+          filled.push(`Qty: ${extracted.quantity}`);
+        }
+        if (extracted.unitRate) {
+          handleRateChange(String(extracted.unitRate));
+          filled.push(`Rate: ₹${extracted.unitRate}`);
+        }
+        if (extracted.totalAmount) {
+          setTotalAmount(String(extracted.totalAmount));
+        }
+        if (extracted.date) {
+          filled.push(`Date: ${extracted.date}`);
+        }
+        if (extracted.notes) {
+          setNotes((prev) => (prev ? `${prev} | ${extracted.notes}` : extracted.notes));
+        }
+        if (filled.length > 0) {
+          setScanSuccessBanner(`Auto-filled: ${filled.join(" • ")}`);
+        }
+      }
+    } catch (err) {
+      console.warn("Scan warning:", err);
+    } finally {
+      setIsScanningBill(false);
+      setScanStatus(null);
+    }
+  };
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -174,6 +258,10 @@ function ReceiveOrderModal({
       setBillPreview(url);
     } else {
       setBillPreview(null);
+    }
+
+    if (finalFile.type.startsWith("image/")) {
+      scanBillImage(finalFile);
     }
   };
 
@@ -400,6 +488,29 @@ function ReceiveOrderModal({
             <span className="text-[11px] text-slate-400 mt-1 block">
               This photo/video will be attached to the new Bill in <strong className="text-slate-600">Payments & Bills</strong>.
             </span>
+
+            {/* Scanning status banner */}
+            {isScanningBill && (
+              <div className="mt-2 p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/90 flex items-center gap-2 text-xs text-emerald-800 font-semibold animate-pulse">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
+                <span>{scanStatus || "Analyzing bill with AI & auto-fetching details..."}</span>
+              </div>
+            )}
+            {scanSuccessBanner && !isScanningBill && (
+              <div className="mt-2 p-2.5 rounded-xl border border-emerald-300 bg-emerald-100/90 text-emerald-950 text-xs flex items-center justify-between gap-2 animate-in fade-in">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-medium text-[11px] leading-tight break-words">{scanSuccessBanner}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setScanSuccessBanner(null)}
+                  className="text-emerald-700 hover:text-emerald-900 p-0.5 rounded cursor-pointer shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

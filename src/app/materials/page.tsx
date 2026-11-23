@@ -38,6 +38,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
+import { parseBillText, matchMaterial, matchVendor } from "@/lib/bill-ocr";
 
 interface StandardMaterialPreset {
   name: string;
@@ -373,6 +374,142 @@ export default function MaterialsPage() {
   const [receiveFiles, setReceiveFiles] = useState<GoodsReceiptFile[]>([]);
   const receiveFileInputRef = useRef<HTMLInputElement>(null);
   const receiveCameraInputRef = useRef<HTMLInputElement>(null);
+  const billScanInputRef = useRef<HTMLInputElement>(null);
+
+  // Bill Auto-Fetch / OCR Scanning states
+  const [isScanningBill, setIsScanningBill] = useState(false);
+  const [scanStatus, setScanStatus] = useState<string | null>(null);
+  const [scanProgress, setScanProgress] = useState<number | null>(null);
+  const [scanSuccessBanner, setScanSuccessBanner] = useState<{ message: string; details: any } | null>(null);
+  const [autoFetchOnUpload, setAutoFetchOnUpload] = useState(true);
+
+  const processBillImage = async (file: File) => {
+    if (!file) return;
+    setIsScanningBill(true);
+    setScanStatus("Analyzing bill with AI...");
+    setScanProgress(25);
+    setScanSuccessBanner(null);
+
+    try {
+      let extracted: any = null;
+
+      // 1. Try server-side Gemini Vision
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/inventory/scan-bill", {
+          method: "POST",
+          body: formData,
+        });
+        const json = await res.json();
+        if (res.ok && json.success && json.data && !json.useClientOcr) {
+          extracted = json.data;
+        }
+      } catch (srvErr) {
+        console.warn("Server AI scan attempt failed, using client fallback:", srvErr);
+      }
+
+      // 2. Client-side OCR fallback via Tesseract.js WebAssembly
+      if (!extracted || (!extracted.challanNumber && !extracted.quantity && !extracted.materialId)) {
+        setScanStatus("Reading bill text via OCR engine...");
+        setScanProgress(45);
+
+        const loadTesseract = async (): Promise<any> => {
+          if ((window as any).Tesseract) return (window as any).Tesseract;
+          return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+            script.async = true;
+            script.onload = () => resolve((window as any).Tesseract);
+            script.onerror = () => reject(new Error("Could not load OCR engine."));
+            document.head.appendChild(script);
+          });
+        };
+
+        const Tesseract = await loadTesseract();
+        setScanProgress(70);
+        setScanStatus("Extracting challan details & numbers...");
+
+        const worker = await Tesseract.createWorker("eng");
+        const ret = await worker.recognize(file);
+        await worker.terminate();
+
+        const ocrText = ret?.data?.text || "";
+        if (ocrText.trim()) {
+          extracted = parseBillText(ocrText, materials, parties);
+        }
+      }
+
+      setScanProgress(100);
+
+      // 3. Apply extracted values
+      if (extracted) {
+        const filled: string[] = [];
+
+        if (extracted.challanNumber) {
+          setReferenceDoc(extracted.challanNumber);
+          filled.push(`Challan #${extracted.challanNumber}`);
+        }
+        if (extracted.quantity) {
+          setQuantity(String(extracted.quantity));
+          filled.push(`Qty: ${extracted.quantity}`);
+        }
+        if (extracted.unitRate) {
+          setUnitRate(String(extracted.unitRate));
+          filled.push(`Rate: ₹${extracted.unitRate}`);
+        }
+        if (extracted.materialId) {
+          setSelectedMaterialId(extracted.materialId);
+          const foundM = materials.find((m) => m.id === extracted.materialId);
+          if (foundM) filled.push(`Material: ${foundM.name}`);
+        } else if (extracted.materialName) {
+          const matched = matchMaterial(extracted.materialName, materials);
+          if (matched) {
+            setSelectedMaterialId(matched.id);
+            filled.push(`Material: ${matched.name}`);
+          }
+        }
+
+        if (extracted.vendorId) {
+          setVendorPartyId(extracted.vendorId);
+          const foundV = parties.find((p) => p.id === extracted.vendorId);
+          if (foundV) filled.push(`Vendor: ${foundV.name}`);
+        } else if (extracted.vendorName) {
+          const matchedV = matchVendor(extracted.vendorName, parties);
+          if (matchedV) {
+            setVendorPartyId(matchedV.id);
+            filled.push(`Vendor: ${matchedV.name}`);
+          }
+        }
+
+        if (extracted.notes) {
+          setNotes((prev) => (prev ? `${prev} | ${extracted.notes}` : extracted.notes));
+        }
+
+        if (filled.length > 0) {
+          setScanSuccessBanner({
+            message: `Auto-filled: ${filled.join(" • ")}`,
+            details: extracted,
+          });
+        } else {
+          setScanSuccessBanner({
+            message: "Bill processed! Please review and fill any additional fields.",
+            details: extracted,
+          });
+        }
+      }
+    } catch (err: any) {
+      console.warn("Scan processing warning:", err);
+      setScanSuccessBanner({
+        message: "Could not auto-extract all fields. You can enter them manually.",
+        details: null,
+      });
+    } finally {
+      setIsScanningBill(false);
+      setScanStatus(null);
+      setScanProgress(null);
+    }
+  };
 
   const handleReceiveFilesSelected = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -389,6 +526,14 @@ export default function MaterialsPage() {
       });
     }
     setReceiveFiles((prev) => [...prev, ...newItems].slice(0, 5));
+
+    // Auto-fetch if enabled
+    if (autoFetchOnUpload && newItems.length > 0) {
+      const firstImage = newItems.find((item) => item.isImage)?.file;
+      if (firstImage) {
+        processBillImage(firstImage);
+      }
+    }
   };
 
   const handleRemoveReceiveFile = (index: number) => {
@@ -1545,6 +1690,98 @@ export default function MaterialsPage() {
               </div>
 
               <form id="receive-goods-modal-form" onSubmit={handleReceiveSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+                {/* Hidden dedicated scan input */}
+                <input
+                  ref={billScanInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleReceiveFilesSelected(e.target.files);
+                    }
+                    if (e.target) e.target.value = "";
+                  }}
+                />
+
+                {/* ── Auto-Fill from Bill / Challan Scan Card ── */}
+                <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50/70 rounded-xl border border-emerald-200/90 shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between gap-2.5 flex-wrap">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                          <span>Auto-Fill from Bill / Challan</span>
+                          <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Auto Fetch
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 truncate">
+                          Upload bill photo to automatically fetch Challan #, Material, Qty, Rate & Vendor
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isScanningBill}
+                      onClick={() => billScanInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-xs transition cursor-pointer shrink-0"
+                    >
+                      {isScanningBill ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Scanning...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>Scan Bill Photo</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Scanning progress animation / text */}
+                  {isScanningBill && (
+                    <div className="bg-white/95 p-2.5 rounded-lg border border-emerald-200 space-y-1.5 animate-pulse">
+                      <div className="flex items-center justify-between text-xs font-semibold text-emerald-800">
+                        <span className="flex items-center gap-1.5">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                          <span>{scanStatus || "Analyzing bill image with AI..."}</span>
+                        </span>
+                        {scanProgress !== null && <span className="font-mono">{scanProgress}%</span>}
+                      </div>
+                      <div className="w-full bg-emerald-100 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-emerald-600 h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${scanProgress !== null ? scanProgress : 70}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scan success banner */}
+                  {scanSuccessBanner && !isScanningBill && (
+                    <div className="bg-emerald-100/95 border border-emerald-300 text-emerald-950 px-3 py-2 rounded-lg text-xs flex items-center justify-between gap-2 animate-in fade-in">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="font-medium text-[11px] leading-tight break-words">{scanSuccessBanner.message}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setScanSuccessBanner(null)}
+                        className="text-emerald-700 hover:text-emerald-900 p-0.5 rounded cursor-pointer shrink-0"
+                        title="Dismiss"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Select Material
@@ -1749,6 +1986,19 @@ export default function MaterialsPage() {
                     </button>
                   </div>
 
+                  {/* Auto-fetch on upload toggle */}
+                  <div className="flex items-center gap-2 mt-2 pt-1 border-t border-slate-100">
+                    <label className="flex items-center gap-2 text-[11px] text-slate-600 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoFetchOnUpload}
+                        onChange={(e) => setAutoFetchOnUpload(e.target.checked)}
+                        className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
+                      />
+                      <span className="font-medium text-slate-700">Auto-fetch details from uploaded bill / challan</span>
+                    </label>
+                  </div>
+
                   {/* Previews */}
                   {receiveFiles.length > 0 && (
                     <div className="mt-2.5 space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
@@ -1756,7 +2006,7 @@ export default function MaterialsPage() {
                         {receiveFiles.map((item, idx) => (
                           <div
                             key={idx}
-                            className="flex items-center gap-2.5 p-2 bg-slate-50 border border-slate-200 rounded-xl relative group"
+                            className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl relative group"
                           >
                             {item.isImage && item.previewUrl ? (
                               <img
@@ -1777,6 +2027,18 @@ export default function MaterialsPage() {
                                 {(item.size / 1024).toFixed(0)} KB &bull; {item.isImage ? "Photo" : "Document"}
                               </p>
                             </div>
+                            {item.isImage && (
+                              <button
+                                type="button"
+                                disabled={isScanningBill}
+                                onClick={() => processBillImage(item.file)}
+                                className="px-2 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs"
+                                title="Re-scan this bill photo"
+                              >
+                                <Sparkles className="w-3 h-3 text-emerald-600" />
+                                <span>Scan</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleRemoveReceiveFile(idx)}
