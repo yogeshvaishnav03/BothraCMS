@@ -3,7 +3,7 @@
 import { Alert } from "@/components/ui/Alert";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ContactActions } from "@/components/ui/ContactActions";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useExcelTable, useTablePagination, ExcelColumnHeader, ExcelTableToolbar, ShowEntriesControl, TablePagination, ExcelColumn } from "@/components/ui/ExcelTable";
 import Link from "next/link";
 import Shell from "@/components/layout/Shell";
@@ -38,6 +38,7 @@ import {
   Sparkles,
   Loader2,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
@@ -287,12 +288,74 @@ export default function PartiesPage() {
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryText, setNewCategoryText] = useState("");
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close category dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsCategoryDropdownOpen(false);
+      }
+    };
+    if (isCategoryDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isCategoryDropdownOpen]);
+
+  const selectedCategories: string[] = useMemo(() => {
+    if (!form.category) return [];
+    return form.category
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+  }, [form.category]);
+
+  const toggleCategory = (cat: string) => {
+    const current = (form.category || "")
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const exists = current.some((c) => c.toLowerCase() === cat.toLowerCase());
+    let next: string[];
+    if (exists) {
+      next = current.filter((c) => c.toLowerCase() !== cat.toLowerCase());
+    } else {
+      next = [...current, cat];
+    }
+    setForm((f) => ({ ...f, category: next.join(", ") }));
+  };
+
+  const removeCategory = (catToRemove: string) => {
+    const current = (form.category || "")
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const next = current.filter((c) => c.toLowerCase() !== catToRemove.toLowerCase());
+    setForm((f) => ({ ...f, category: next.join(", ") }));
+  };
 
   const handleAddCategorySubmit = () => {
     const trimmed = newCategoryText.trim();
     if (!trimmed) return;
     setCustomCategories((prev) => Array.from(new Set([trimmed, ...prev])));
-    setForm((f) => ({ ...f, category: trimmed }));
+    const current = (form.category || "")
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (!current.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      current.push(trimmed);
+    }
+    setForm((f) => ({ ...f, category: current.join(", ") }));
     setIsAddingCategory(false);
     setNewCategoryText("");
   };
@@ -506,6 +569,8 @@ export default function PartiesPage() {
     setUploadProgressMsg(null);
     setIsAddingCategory(false);
     setNewCategoryText("");
+    setIsCategoryDropdownOpen(false);
+    setCategorySearch("");
     setForm({ ...EMPTY_FORM, partyType: typeFilter === "CONTRACTOR" ? "CONTRACTOR" : "VENDOR" });
     setShowModal(true);
   };
@@ -518,6 +583,8 @@ export default function PartiesPage() {
     setUploadProgressMsg(null);
     setIsAddingCategory(false);
     setNewCategoryText("");
+    setIsCategoryDropdownOpen(false);
+    setCategorySearch("");
     setForm({
       ...EMPTY_FORM,
       name: p.name,
@@ -700,9 +767,34 @@ export default function PartiesPage() {
   };
 
   const categories = useMemo(
-    () => Array.from(new Set(parties.map((p) => p.category).filter(Boolean))).sort() as string[],
+    () =>
+      Array.from(
+        new Set(
+          parties.flatMap((p) =>
+            p.category ? p.category.split(",").map((c: string) => c.trim()) : []
+          ).filter(Boolean)
+        )
+      ).sort() as string[],
     [parties]
   );
+
+  const allCategoryOptions = useMemo(() => {
+    return Array.from(
+      new Set([
+        ...customCategories,
+        ...CATEGORY_SUGGESTIONS,
+        ...categories,
+        ...selectedCategories,
+      ])
+    ).filter(Boolean);
+  }, [customCategories, categories, selectedCategories]);
+
+  const filteredCategories = useMemo(() => {
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return allCategoryOptions;
+    return allCategoryOptions.filter((cat) => cat.toLowerCase().includes(q));
+  }, [allCategoryOptions, categorySearch]);
+
   const cities = useMemo(
     () => Array.from(new Set(parties.map((p) => p.city).filter(Boolean))).sort() as string[],
     [parties]
@@ -711,7 +803,12 @@ export default function PartiesPage() {
   const filteredParties = useMemo(() => {
     const list = parties.filter((p) => {
       if (typeFilter !== "ALL" && p.partyType !== typeFilter && p.partyType !== "BOTH") return false;
-      if (categoryFilter && p.category !== categoryFilter) return false;
+      if (categoryFilter) {
+        const partyCats = (p.category || "")
+          .split(",")
+          .map((c: string) => c.trim().toLowerCase());
+        if (!partyCats.includes(categoryFilter.toLowerCase())) return false;
+      }
       if (cityFilter && p.city !== cityFilter) return false;
       if (onlyOutstanding && !((p.outstandingBalance || 0) > 0)) return false;
       if (onlyMissingBank && p.hasBankDetails) return false;
@@ -1020,7 +1117,22 @@ export default function PartiesPage() {
                       </Link>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1", style.chip)}>{style.label}</span>
-                        {p.category && <span className="text-[11px] text-slate-500">{p.category}</span>}
+                        {p.category && (
+                          <span className="flex flex-wrap items-center gap-1">
+                            {p.category
+                              .split(",")
+                              .map((c: string) => c.trim())
+                              .filter(Boolean)
+                              .map((cat: string) => (
+                                <span
+                                  key={cat}
+                                  className="text-[10px] font-medium bg-amber-500/10 text-amber-900 border border-amber-200/80 px-1.5 py-0.5 rounded"
+                                >
+                                  {cat}
+                                </span>
+                              ))}
+                          </span>
+                        )}
                         {p.city && (
                           <span className="text-[11px] text-slate-500 flex items-center gap-0.5">
                             <MapPin className="w-3 h-3" />
@@ -1198,7 +1310,26 @@ export default function PartiesPage() {
                           <td className="py-3 px-4">
                             <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1 whitespace-nowrap", style.chip)}>{style.label}</span>
                           </td>
-                          <td className="py-3 px-4 text-xs text-slate-600">{p.category || "—"}</td>
+                          <td className="py-3 px-4 text-xs text-slate-600">
+                            {p.category ? (
+                              <div className="flex flex-wrap gap-1 max-w-xs">
+                                {p.category
+                                  .split(",")
+                                  .map((c: string) => c.trim())
+                                  .filter(Boolean)
+                                  .map((cat: string) => (
+                                    <span
+                                      key={cat}
+                                      className="text-[10px] font-medium bg-amber-500/10 text-amber-900 border border-amber-200/80 px-1.5 py-0.5 rounded"
+                                    >
+                                      {cat}
+                                    </span>
+                                  ))}
+                              </div>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-xs text-slate-600">{p.city || "—"}</td>
                           <td className="py-3 px-4">
                             <ContactActions phone={p.phone} whatsappNumber={p.whatsappNumber} email={p.email} message={`Namaste ${p.contactPerson || p.name},`} />
@@ -1421,43 +1552,193 @@ export default function PartiesPage() {
                           </div>
                         </div>
                       ) : (
-                        <div>
-                          <input
-                            list="party-categories"
-                            placeholder="e.g. Cement, RCC work"
-                            value={form.category}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val.startsWith("+ Add new")) {
-                                setIsAddingCategory(true);
-                                setNewCategoryText("");
-                              } else {
-                                setForm((f) => ({ ...f, category: val }));
-                              }
-                            }}
-                            className={inputCls}
-                          />
-                          <datalist id="party-categories">
-                            <option value="+ Add new Category / trade..." />
-                            {Array.from(new Set([...customCategories, ...CATEGORY_SUGGESTIONS, ...categories])).map((c) => (
-                              <option key={c} value={c} />
-                            ))}
-                          </datalist>
-                          {form.category && (
-                            <div className="mt-1 flex items-center justify-between text-[11px]">
-                              <span className="text-slate-500">
-                                Selected: <strong className="text-slate-700">{form.category}</strong>
-                              </span>
+                        <div className="relative" ref={categoryDropdownRef}>
+                          {/* Trigger Button */}
+                          <button
+                            type="button"
+                            onClick={() => setIsCategoryDropdownOpen((prev) => !prev)}
+                            className={cn(
+                              inputCls,
+                              "w-full flex items-center justify-between text-left cursor-pointer transition",
+                              isCategoryDropdownOpen ? "border-amber-500 ring-2 ring-amber-500/20" : ""
+                            )}
+                          >
+                            <div className="flex-1 min-w-0 truncate">
+                              {selectedCategories.length === 0 ? (
+                                <span className="text-slate-400">Select categories / trades (multiple)...</span>
+                              ) : (
+                                <span className="font-semibold text-slate-800 flex items-center gap-1.5 truncate">
+                                  <span>{selectedCategories.join(", ")}</span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              {selectedCategories.length > 0 && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-900">
+                                  {selectedCategories.length}
+                                </span>
+                              )}
+                              <ChevronDown
+                                className={cn(
+                                  "w-4 h-4 text-slate-400 transition-transform duration-200",
+                                  isCategoryDropdownOpen ? "rotate-180 text-amber-600" : ""
+                                )}
+                              />
+                            </div>
+                          </button>
+
+                          {/* Selected tags badges */}
+                          {selectedCategories.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {selectedCategories.map((cat) => (
+                                <span
+                                  key={cat}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-950 border border-amber-300 shadow-2xs"
+                                >
+                                  <span>{cat}</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeCategory(cat);
+                                    }}
+                                    className="p-0.5 hover:bg-amber-500/30 rounded text-amber-800 hover:text-amber-950 transition cursor-pointer"
+                                    title={`Remove ${cat}`}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setIsAddingCategory(true);
-                                  setNewCategoryText("");
-                                }}
-                                className="text-amber-600 hover:text-amber-700 font-semibold cursor-pointer"
+                                onClick={() => setForm((f) => ({ ...f, category: "" }))}
+                                className="text-[11px] text-slate-400 hover:text-rose-600 underline self-center ml-1 cursor-pointer font-medium"
                               >
-                                + Add another
+                                Clear all
                               </button>
+                            </div>
+                          )}
+
+                          {/* Dropdown Menu with Checkboxes */}
+                          {isCategoryDropdownOpen && (
+                            <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                              {/* Search box inside dropdown */}
+                              <div className="p-2 border-b border-slate-100 bg-slate-50/80">
+                                <div className="relative flex items-center">
+                                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
+                                  <input
+                                    type="text"
+                                    value={categorySearch}
+                                    onChange={(e) => setCategorySearch(e.target.value)}
+                                    placeholder="Search categories (e.g. Cement, Steel)..."
+                                    className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                                    autoFocus
+                                  />
+                                  {categorySearch && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCategorySearch("")}
+                                      className="absolute right-2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex items-center justify-between px-1 pt-1.5 text-[11px] text-slate-500">
+                                  <span>Check all categories supplied:</span>
+                                  <span className="font-semibold text-amber-700">
+                                    {selectedCategories.length} selected
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Quick Add Custom Category if search query doesn't exist */}
+                              {categorySearch.trim() &&
+                                !allCategoryOptions.some(
+                                  (c) => c.toLowerCase() === categorySearch.trim().toLowerCase()
+                                ) && (
+                                  <div className="p-2 border-b border-amber-100 bg-amber-50/60">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const trimmed = categorySearch.trim();
+                                        setCustomCategories((prev) =>
+                                          Array.from(new Set([trimmed, ...prev]))
+                                        );
+                                        toggleCategory(trimmed);
+                                        setCategorySearch("");
+                                      }}
+                                      className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-semibold text-amber-900 hover:bg-amber-50 transition cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                      <span>
+                                        Add &amp; check &quot;<strong>{categorySearch.trim()}</strong>&quot;
+                                      </span>
+                                    </button>
+                                  </div>
+                                )}
+
+                              {/* Checkbox List */}
+                              <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-slate-50">
+                                {filteredCategories.length === 0 ? (
+                                  <div className="py-6 text-center text-xs text-slate-500">
+                                    No categories matched &quot;{categorySearch}&quot;
+                                  </div>
+                                ) : (
+                                  filteredCategories.map((cat) => {
+                                    const isChecked = selectedCategories.some(
+                                      (c) => c.toLowerCase() === cat.toLowerCase()
+                                    );
+                                    return (
+                                      <label
+                                        key={cat}
+                                        className={cn(
+                                          "flex items-center justify-between gap-3 px-3 py-2 rounded-lg cursor-pointer transition select-none text-xs",
+                                          isChecked
+                                            ? "bg-amber-50/80 text-amber-950 font-semibold"
+                                            : "hover:bg-slate-50 text-slate-700"
+                                        )}
+                                      >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => toggleCategory(cat)}
+                                            className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                                          />
+                                          <span className="truncate">{cat}</span>
+                                        </div>
+                                        {isChecked && (
+                                          <Check className="w-3.5 h-3.5 text-amber-600 shrink-0 stroke-[2.5]" />
+                                        )}
+                                      </label>
+                                    );
+                                  })
+                                )}
+                              </div>
+
+                              {/* Dropdown footer */}
+                              <div className="p-2 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsAddingCategory(true);
+                                    setIsCategoryDropdownOpen(false);
+                                    setNewCategoryText("");
+                                  }}
+                                  className="text-xs text-amber-600 hover:text-amber-700 font-semibold inline-flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>+ Add Custom</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsCategoryDropdownOpen(false)}
+                                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition cursor-pointer"
+                                >
+                                  Done
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
