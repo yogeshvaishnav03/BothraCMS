@@ -11,6 +11,7 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { formatCurrency, formatQuantity } from "@/lib/formatters";
+import { compressImageFile } from "@/lib/image-compression";
 import {
   Boxes,
   Plus,
@@ -30,6 +31,11 @@ import {
   Sparkles,
   Filter,
   Building2,
+  Camera,
+  Paperclip,
+  FileText,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 
@@ -338,6 +344,45 @@ export default function MaterialsPage() {
   const [taskId, setTaskId] = useState("");
   const [notes, setNotes] = useState("");
 
+  // Goods Receipt File Upload states
+  interface GoodsReceiptFile {
+    file: File;
+    previewUrl: string;
+    name: string;
+    size: number;
+    isImage: boolean;
+  }
+  const [receiveFiles, setReceiveFiles] = useState<GoodsReceiptFile[]>([]);
+  const receiveFileInputRef = useRef<HTMLInputElement>(null);
+  const receiveCameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleReceiveFilesSelected = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newItems: GoodsReceiptFile[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const isImg = f.type.startsWith("image/");
+      newItems.push({
+        file: f,
+        previewUrl: isImg ? URL.createObjectURL(f) : "",
+        name: f.name,
+        size: f.size,
+        isImage: isImg,
+      });
+    }
+    setReceiveFiles((prev) => [...prev, ...newItems].slice(0, 5));
+  };
+
+  const handleRemoveReceiveFile = (index: number) => {
+    setReceiveFiles((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl) {
+        try { URL.revokeObjectURL(target.previewUrl); } catch {}
+      }
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
   // Transfer Form states
   const [transferSourceStoreId, setTransferSourceStoreId] = useState("");
   const [transferTargetStoreId, setTransferTargetStoreId] = useState("");
@@ -555,6 +600,35 @@ export default function MaterialsPage() {
     }
 
     try {
+      // 1. Upload any attached delivery challan or goods photos to /api/attachments
+      const attachmentIds: string[] = [];
+      if (receiveFiles.length > 0) {
+        for (const item of receiveFiles) {
+          try {
+            const processedFile = item.isImage
+              ? await compressImageFile(item.file, { preset: "receipt" })
+              : item.file;
+            const formData = new FormData();
+            formData.append("file", processedFile, processedFile.name);
+            formData.append("category", "DELIVERY_CHALLAN");
+            formData.append("entityType", "STOCK_MOVEMENT");
+            if (projectId) formData.append("projectId", projectId);
+            formData.append("notes", `Challan / Goods receipt: ${referenceDoc || item.name}`);
+
+            const upRes = await fetch("/api/attachments", {
+              method: "POST",
+              body: formData,
+            });
+            const upJson = await upRes.json();
+            if (upRes.ok && upJson?.data?.id) {
+              attachmentIds.push(upJson.data.id);
+            }
+          } catch (uploadErr) {
+            console.warn("Failed to upload attached photo:", uploadErr);
+          }
+        }
+      }
+
       const res = await fetch("/api/inventory/receipts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -564,6 +638,7 @@ export default function MaterialsPage() {
           projectId: projectId || undefined,
           referenceDoc: referenceDoc || undefined,
           notes: notes || undefined,
+          attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
           items: [
             {
               materialId: selectedMaterialId,
@@ -578,12 +653,20 @@ export default function MaterialsPage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Could not record stock receipt. Please check the quantity and store.");
       } else {
-        setStatusMessage("Stock received and added to store balance!");
+        setStatusMessage(
+          attachmentIds.length > 0
+            ? `Stock received with ${attachmentIds.length} attached photo${attachmentIds.length > 1 ? "s" : ""} and added to store balance!`
+            : "Stock received and added to store balance!"
+        );
         setShowReceiveModal(false);
         setQuantity("");
         setUnitRate("");
         setReferenceDoc("");
         setNotes("");
+        receiveFiles.forEach((f) => {
+          if (f.previewUrl) try { URL.revokeObjectURL(f.previewUrl); } catch {}
+        });
+        setReceiveFiles([]);
         loadMaterials();
       }
     } catch {
@@ -1426,7 +1509,13 @@ export default function MaterialsPage() {
                   <span>Receive Goods into Site Store</span>
                 </div>
                 <button
-                  onClick={() => setShowReceiveModal(false)}
+                  onClick={() => {
+                    setShowReceiveModal(false);
+                    receiveFiles.forEach((f) => {
+                      if (f.previewUrl) try { URL.revokeObjectURL(f.previewUrl); } catch {}
+                    });
+                    setReceiveFiles([]);
+                  }}
                   className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
                 >
                   <X className="w-5 h-5" />
@@ -1582,12 +1671,117 @@ export default function MaterialsPage() {
                   />
                 </div>
 
+                {/* Upload Delivery Challan / Invoice / Goods Photos */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Delivery Challan / Bill / Goods Photo</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {receiveFiles.length > 0 ? `${receiveFiles.length} photo${receiveFiles.length > 1 ? "s" : ""} selected` : "Optional • Max 5"}
+                    </span>
+                  </div>
+
+                  {/* Hidden file inputs */}
+                  <input
+                    ref={receiveFileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleReceiveFilesSelected(e.target.files);
+                      if (e.target) e.target.value = "";
+                    }}
+                  />
+                  <input
+                    ref={receiveCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleReceiveFilesSelected(e.target.files);
+                      if (e.target) e.target.value = "";
+                    }}
+                  />
+
+                  {/* Action buttons */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => receiveCameraInputRef.current?.click()}
+                      className="flex items-center justify-center gap-2 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-200 text-xs font-bold transition shadow-2xs active:scale-[0.98] cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4 text-emerald-600" />
+                      <span>Take Photo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => receiveFileInputRef.current?.click()}
+                      className="flex items-center justify-center gap-2 py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200 text-xs font-bold transition shadow-2xs active:scale-[0.98] cursor-pointer"
+                    >
+                      <Paperclip className="w-4 h-4 text-slate-500" />
+                      <span>Upload File / PDF</span>
+                    </button>
+                  </div>
+
+                  {/* Previews */}
+                  {receiveFiles.length > 0 && (
+                    <div className="mt-2.5 space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {receiveFiles.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2.5 p-2 bg-slate-50 border border-slate-200 rounded-xl relative group"
+                          >
+                            {item.isImage && item.previewUrl ? (
+                              <img
+                                src={item.previewUrl}
+                                alt={item.name}
+                                className="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                                <FileText className="w-5 h-5 text-amber-600" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-slate-800 truncate" title={item.name}>
+                                {item.name}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                {(item.size / 1024).toFixed(0)} KB &bull; {item.isImage ? "Photo" : "Document"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveReceiveFile(idx)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0 cursor-pointer"
+                              title="Remove"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </form>
 
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowReceiveModal(false)}
+                  onClick={() => {
+                    setShowReceiveModal(false);
+                    receiveFiles.forEach((f) => {
+                      if (f.previewUrl) try { URL.revokeObjectURL(f.previewUrl); } catch {}
+                    });
+                    setReceiveFiles([]);
+                  }}
                   className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
                 >
                   Cancel
@@ -1598,7 +1792,7 @@ export default function MaterialsPage() {
                   disabled={actionLoading}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
                 >
-                  {actionLoading ? "Receiving..." : "Confirm Goods Receipt"}
+                  {actionLoading ? (receiveFiles.length > 0 ? "Uploading & Receiving..." : "Receiving...") : "Confirm Goods Receipt"}
                 </button>
               </div>
             </div>
