@@ -8,8 +8,8 @@ import { InventoryService } from "@/services/inventory-service";
 import { WorkforceHeadcountService } from "@/services/workforce-headcount-service";
 
 export class DashboardService {
-  static async getKpiMetrics(organizationId: string, siteId?: string, userContext?: UserContext) {
-    const todayStr = new Date().toISOString().split("T")[0];
+  static async getKpiMetrics(organizationId: string, siteId?: string, userContext?: UserContext, targetDate?: string) {
+    const todayStr = targetDate || new Date().toISOString().split("T")[0];
     const startOfToday = new Date(`${todayStr}T00:00:00.000Z`);
     const endOfToday = new Date(`${todayStr}T23:59:59.999Z`);
     const now = new Date();
@@ -220,30 +220,12 @@ export class DashboardService {
     ]);
 
     // Authoritative per-site workforce resolution from single headcount query:
-    // For each site, prefer today's record; if none submitted today, fallback to the site's most recent record.
-    const todayRecords = allRecentRecords.filter((r) => r.date === todayStr);
-    const todaySummaryGrandTotal = todayRecords.reduce(
-      (s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0) + (r.craftsmanCount ?? r.craftsmanTotal ?? 0) + (r.laborerTotal || 0),
-      0
-    );
-
-    const siteRecordsMap = new Map<string, any>();
-    for (const r of todayRecords) {
-      if (!siteRecordsMap.has(r.siteId)) {
-        siteRecordsMap.set(r.siteId, r);
-      }
-    }
-    for (const r of allRecentRecords) {
-      if (!siteRecordsMap.has(r.siteId)) {
-        siteRecordsMap.set(r.siteId, r);
-      }
-    }
-
-    const effectiveRecords = Array.from(siteRecordsMap.values());
-    const hasTodayData = todayRecords.length > 0 && effectiveRecords.every((r) => r.date === todayStr);
-    const isLatestFallback = effectiveRecords.some((r) => r.date !== todayStr);
+    const targetDateRecords = allRecentRecords.filter((r) => r.date === todayStr);
+    const hasDateData = targetDateRecords.length > 0;
+    const effectiveRecords = hasDateData ? targetDateRecords : allRecentRecords;
+    const isLatestFallback = !hasDateData && allRecentRecords.length > 0;
     const latestDate = allRecentRecords.length > 0 ? allRecentRecords[0].date : todayStr;
-    const activeDate = hasTodayData ? todayStr : effectiveRecords[0]?.date || latestDate;
+    const activeDate = hasDateData ? todayStr : (effectiveRecords[0]?.date || latestDate);
 
     const effectiveArtisans = effectiveRecords.reduce((s, r) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
     const effectiveCraftsmen = effectiveRecords.reduce((s, r) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
@@ -354,40 +336,61 @@ export class DashboardService {
         totalLaborerFemale: effectiveLaborerFemale,
         isLatestFallback,
         activeDate,
-        todayGrandTotal: todaySummaryGrandTotal,
+        todayGrandTotal: effectiveGrandTotal,
+        selectedDate: todayStr,
         records: (effectiveRecords || []).map((r) => ({
           id: r.id,
           siteId: r.siteId,
-          siteName: r.siteName,
+          siteName: r.siteName || r.site?.name || "Site",
           date: r.date,
-          shift: r.shift,
+          shift: r.shift || "GENERAL",
+          source: r.source || "CONTRACTOR",
+          contractorName: r.contractorName,
+          contractorId: r.contractorId,
           artisanCount: r.artisanCount ?? r.artisanTotal ?? 0,
           craftsmanCount: r.craftsmanCount ?? r.craftsmanTotal ?? 0,
-          laborerMale: r.laborerMale,
-          laborerFemale: r.laborerFemale,
-          laborerTotal: r.laborerTotal,
-          grandTotal: r.grandTotal,
-          contractorName: r.contractorName,
+          laborerMale: r.laborerMale || 0,
+          laborerFemale: r.laborerFemale || 0,
+          laborerTotal: r.laborerTotal || 0,
+          grandTotal: r.grandTotal || 0,
+          skilledRate: r.skilledRatePaise || r.skilledRate || 0,
+          maleRate: r.maleRatePaise || r.maleRate || 0,
+          femaleRate: r.femaleRatePaise || r.femaleRate || 0,
+          totalExpense: r.totalPaise || r.totalExpense || 0,
+          isOverridden: Boolean(r.isOverridden),
+          overrideReason: r.overrideReason,
           notes: r.notes,
-          supervisorName: r.supervisorName,
-          createdAt: r.createdAt,
+          supervisorName: r.supervisorName || "Supervisor",
+          attachments: r.attachments || [],
+          createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : undefined,
         })),
-        allRecentRecords: (allRecentRecords || []).slice(0, 15).map((r) => ({
+        allRecentRecords: (allRecentRecords || []).slice(0, 30).map((r) => ({
           id: r.id,
           siteId: r.siteId,
-          siteName: r.siteName,
+          siteName: r.siteName || r.site?.name || "Site",
           date: r.date,
-          shift: r.shift,
+          shift: r.shift || "GENERAL",
+          source: r.source || "CONTRACTOR",
+          contractorName: r.contractorName,
+          contractorId: r.contractorId,
           artisanCount: r.artisanCount ?? r.artisanTotal ?? 0,
           craftsmanCount: r.craftsmanCount ?? r.craftsmanTotal ?? 0,
-          laborerMale: r.laborerMale,
-          laborerFemale: r.laborerFemale,
-          laborerTotal: r.laborerTotal,
-          grandTotal: r.grandTotal,
-          contractorName: r.contractorName,
+          laborerMale: r.laborerMale || 0,
+          laborerFemale: r.laborerFemale || 0,
+          laborerTotal: r.laborerTotal || 0,
+          grandTotal: r.grandTotal || 0,
+          skilledRate: r.skilledRatePaise || r.skilledRate || 0,
+          maleRate: r.maleRatePaise || r.maleRate || 0,
+          femaleRate: r.femaleRatePaise || r.femaleRate || 0,
+          totalExpense: r.totalPaise || r.totalExpense || 0,
+          isOverridden: Boolean(r.isOverridden),
+          overrideReason: r.overrideReason,
           notes: r.notes,
-          supervisorName: r.supervisorName,
-          createdAt: r.createdAt,
+          supervisorName: r.supervisorName || "Supervisor",
+          attachments: r.attachments || [],
+          createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+          updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : undefined,
         })),
       },
       lowStockItemsCount,

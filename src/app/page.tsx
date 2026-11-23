@@ -48,6 +48,9 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  Edit2,
   Search,
   LayoutGrid,
   Play,
@@ -371,6 +374,8 @@ export default function DashboardPage() {
   const [sites, setSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSiteId, setActiveSiteId] = useState<string>("");
+  const [dashboardDate, setDashboardDate] = useState<string>(() => istDateKey());
+  const [dashboardHeadcountRecords, setDashboardHeadcountRecords] = useState<any[]>([]);
 
   // Quick Task Modal & Filter
   const [showQuickTaskModal, setShowQuickTaskModal] = useState(false);
@@ -426,11 +431,12 @@ export default function DashboardPage() {
   // 1. Site-by-site on-site workforce breakdown for 100% mathematical consistency (e.g. Chaupasni: 54, Skyline: 4 -> Total: 58)
   const siteOnSiteBreakdown = useMemo(() => {
     return sites.map((site) => {
-      const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+      const siteHeadcountList = (kpi?.workforceHeadcount?.records || []).filter(
         (r: any) => r.siteId === site.id || r.siteName?.toLowerCase() === site.name?.toLowerCase()
       );
+      const siteHeadcountSum = siteHeadcountList.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0);
       const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
-      const count = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
+      const count = siteHeadcountList.length > 0 ? siteHeadcountSum : siteWorkersPresent.length;
       return { siteId: site.id, siteName: site.name, count };
     });
   }, [sites, kpi]);
@@ -587,18 +593,43 @@ export default function DashboardPage() {
     setKpi(computed);
   };
 
-  const loadDashboard = (siteId?: string) => {
+  const handleDateChange = (newDate: string) => {
+    if (!newDate) return;
+    setDashboardDate(newDate);
+    loadDashboard(activeSiteId, newDate);
+  };
+
+  const handleDeleteHeadcountRecord = async (recordId: string) => {
+    if (!confirm("Are you sure you want to delete this headcount record?")) return;
+    try {
+      const res = await fetch(`/api/workforce/headcount?id=${recordId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setStatusMessage("Headcount record deleted successfully.");
+        loadDashboard(activeSiteId, dashboardDate);
+      } else {
+        setErrorMessage(data.error?.message || "Failed to delete headcount record.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to delete record.");
+    }
+  };
+
+  const loadDashboard = (siteId?: string, targetDate?: string) => {
     setLoading(true);
     const cb = `_t=${Date.now()}`;
-    const kpiUrl = siteId ? `/api/dashboard/kpi?siteId=${siteId}&${cb}` : `/api/dashboard/kpi?${cb}`;
+    const effectiveDate = targetDate || dashboardDate || istDateKey();
+    const kpiUrl = siteId ? `/api/dashboard/kpi?siteId=${siteId}&date=${effectiveDate}&${cb}` : `/api/dashboard/kpi?date=${effectiveDate}&${cb}`;
     const projUrl = siteId ? `/api/projects?siteId=${siteId}&${cb}` : `/api/projects?${cb}`;
-    const todayStr = istDateKey();
+    const headcountUrl = siteId ? `/api/workforce/headcount?siteId=${siteId}&date=${effectiveDate}&${cb}` : `/api/workforce/headcount?date=${effectiveDate}&${cb}`;
 
     Promise.all([
       fetch(kpiUrl, { cache: "no-store" }).then((r) => r.json()),
       fetch(projUrl, { cache: "no-store" }).then((r) => r.json()),
       fetch(`/api/tasks?${cb}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/attendance?workDate=${todayStr}${siteId ? `&siteId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/attendance?workDate=${effectiveDate}${siteId ? `&siteId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()),
 
       fetch(`/api/workforce${siteId ? `?siteId=${siteId}` : ""}${siteId ? `&${cb}` : `?${cb}`}`, { cache: "no-store" }).then((r) => r.json()),
       refreshSites().then((data) => ({ data })),
@@ -606,8 +637,16 @@ export default function DashboardPage() {
 
       fetch(`/api/attachments?category=PHOTO&entityType=SITE_PHOTO&limit=12${siteId ? `&projectId=${siteId}` : ""}&${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
       fetch(`/api/chat/employees?${cb}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      fetch(headcountUrl, { cache: "no-store" }).then((r) => r.json()).catch(() => ({ success: false })),
     ])
-      .then(([kpiRes, projRes, taskRes, attRes, wfRes, sitesRes, meRes, photoRes, usersRes]) => {
+      .then(([kpiRes, projRes, taskRes, attRes, wfRes, sitesRes, meRes, photoRes, usersRes, headcountRes]) => {
+        if (headcountRes?.success && Array.isArray(headcountRes.data)) {
+          setDashboardHeadcountRecords(headcountRes.data);
+        } else if (kpiRes?.data?.workforceHeadcount?.records) {
+          setDashboardHeadcountRecords(kpiRes.data.workforceHeadcount.records);
+        } else {
+          setDashboardHeadcountRecords([]);
+        }
         if (usersRes?.success && usersRes?.data) {
           const rawUsers = Array.isArray(usersRes.data?.employees)
             ? usersRes.data.employees
@@ -1010,166 +1049,349 @@ export default function DashboardPage() {
         };
       }
       case "workersPresentToday": {
-        const list = kpi?.workersPresentToday || [];
-        const headcount = kpi?.workforceHeadcount;
-        const headcountRecords =
-          (headcount?.records && headcount.records.length > 0)
-            ? headcount.records
-            : (headcount?.allRecentRecords || []);
-        const totalHeadcount = headcount?.grandTotal || 0;
-        const totalStaff = kpi?.staffAttendanceCount ?? list.length;
-        const displayTotal = totalHeadcount > 0 ? totalHeadcount : totalStaff;
-        const isLatestFallback = headcount?.isLatestFallback;
-        const activeDate = headcount?.activeDate;
+        const list = (todaySessions || []).filter((s) => !activeSiteId || s.siteId === activeSiteId);
+        const headcountRecords = (dashboardHeadcountRecords && dashboardHeadcountRecords.length > 0)
+          ? dashboardHeadcountRecords
+          : (kpi?.workforceHeadcount?.records || []);
 
-        const hasAnyData = totalHeadcount > 0 || list.length > 0 || headcountRecords.length > 0;
-        const badgeText = isLatestFallback
-          ? `${displayTotal} on Site (${activeDate ? formatDate(activeDate) : 'Latest'})`
-          : `${displayTotal} on Site Today`;
+        const filteredRecords = activeSiteId
+          ? headcountRecords.filter((r: any) => r.siteId === activeSiteId)
+          : headcountRecords;
+
+        const totalArtisans = filteredRecords.reduce((s: number, r: any) => s + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
+        const totalCraftsmen = filteredRecords.reduce((s: number, r: any) => s + (r.craftsmanCount ?? r.craftsmanTotal ?? 0), 0);
+        const totalLaborerMale = filteredRecords.reduce((s: number, r: any) => s + (r.laborerMale || 0), 0);
+        const totalLaborerFemale = filteredRecords.reduce((s: number, r: any) => s + (r.laborerFemale || 0), 0);
+        const totalLaborers = filteredRecords.reduce((s: number, r: any) => s + (r.laborerTotal || 0), 0);
+        const totalHeadcount = filteredRecords.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0);
+        const totalLabourExpense = filteredRecords.reduce((s: number, r: any) => s + (r.totalExpense || 0), 0);
+
+        const totalStaff = list.length;
+        const displayTotal = totalHeadcount > 0 ? totalHeadcount : totalStaff;
+        const isToday = dashboardDate === istDateKey();
 
         return {
           icon: <HardHat className="w-5 h-5 text-emerald-600" />,
           title: "Workers on Site",
-          badge: badgeText,
-          badgeColor: isLatestFallback ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-800",
-          subtitle: "Daily site worker counts (Skilled Workers & Laborers) plus checked-in staff",
-          actionUrl: "/workforce",
-          actionLabel: "Go to Workers",
-          emptyTitle: "No workers logged yet",
-          emptyDesc: "No site worker headcount or attendance sessions logged yet. Click below to enter site counts.",
-          content: hasAnyData ? (
-            <div className="space-y-4 max-h-[65dvh] overflow-y-auto pr-1">
-              {/* Fallback Notice Banner if showing previous day's count */}
-              {isLatestFallback && (
-                <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900 gap-2 shadow-2xs">
-                  <div className="space-y-0.5">
-                    <div className="font-bold flex items-center gap-1.5 text-amber-950">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>Showing latest logged count from {activeDate ? formatDate(activeDate) : "earlier"}</span>
-                    </div>
-                    <p className="text-[11px] text-amber-800">
-                      Today&apos;s site headcount has not been submitted yet.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleCopyHeadcountToToday(headcountRecords)}
-                    className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center gap-1"
-                  >
-                    <span>Copy to Today</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Top Trade Headcount Summary */}
-              {totalHeadcount > 0 && (
-                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-emerald-600" />
-                      <span>{isLatestFallback ? `Worker Headcount (${activeDate ? formatDate(activeDate) : 'Latest'})` : `Today's Total Worker Headcount`}</span>
-                    </span>
-                    <span className="text-xs font-mono font-black text-emerald-900 bg-emerald-200/80 px-2.5 py-0.5 rounded-full">
-                      {totalHeadcount} Workers
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs">
-                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Artisans</div>
-                      <div className="text-base font-black text-slate-900 mt-0.5">
-                        {headcount?.totalArtisan || 0}
-                      </div>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs">
-                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Craftsmen</div>
-                      <div className="text-base font-black text-slate-900 mt-0.5">
-                        {headcount?.totalCraftsman || 0}
-                      </div>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-lg border border-emerald-100 shadow-2xs">
-                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Laborers</div>
-                      <div className="text-base font-black text-slate-900 mt-0.5">
-                        {headcount?.totalLaborer || 0}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-medium">
-                        ({headcount?.totalLaborerMale || 0}M / {headcount?.totalLaborerFemale || 0}F)
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Site-by-Site Headcount Records */}
-              {headcountRecords.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Site Worker Headcount Records ({headcountRecords.length})</span>
-                  </div>
-                  {headcountRecords.map((r: any) => (
-                    <div
-                      key={r.id}
-                      className="p-3.5 bg-white hover:bg-slate-50/80 rounded-xl border border-slate-200 transition-colors shadow-2xs"
+          badge: `${displayTotal} on Site (${formatDate(dashboardDate)})`,
+          badgeColor: totalHeadcount > 0 ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700",
+          subtitle: `Workforce headcount breakdown and daily wage expense for ${formatDate(dashboardDate)}`,
+          actionUrl: `/workforce?date=${dashboardDate}${activeSiteId ? `&siteId=${activeSiteId}` : ""}`,
+          actionLabel: "+ Log Headcount",
+          content: (
+            <div className="space-y-4 max-h-[70dvh] overflow-y-auto pr-1">
+              {/* Top Navigation & Date Bar inside Modal */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* Date Navigator */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-bold text-slate-600 mr-1 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Select Date:</span>
+                  </span>
+                  <div className="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(dashboardDate);
+                        d.setDate(d.getDate() - 1);
+                        handleDateChange(d.toISOString().split("T")[0]);
+                      }}
+                      className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                      title="Previous Day"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 text-sm">{r.siteName}</span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold uppercase">
-                              {r.shift} Shift
-                            </span>
-                            {r.date && (
-                              <span className="text-[10px] font-mono text-slate-500 font-medium bg-slate-100 px-1.5 py-0.5 rounded">
-                                {formatDate(r.date)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span>
-                              Supervisor: <strong className="text-slate-700">{r.supervisorName}</strong>
-                            </span>
-                            {r.contractorName && (
-                              <span>
-                                Contractor: <strong className="text-slate-700">{r.contractorName}</strong>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-sm font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg tabular-nums">
-                            {r.grandTotal} Workers
-                          </span>
-                        </div>
-                      </div>
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      type="date"
+                      value={dashboardDate}
+                      onChange={(e) => handleDateChange(e.target.value)}
+                      className="px-2 py-0.5 bg-transparent text-xs font-bold text-slate-900 border-0 focus:ring-0 cursor-pointer"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(dashboardDate);
+                        d.setDate(d.getDate() + 1);
+                        handleDateChange(d.toISOString().split("T")[0]);
+                      }}
+                      className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                      title="Next Day"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {!isToday && (
+                    <button
+                      type="button"
+                      onClick={() => handleDateChange(istDateKey())}
+                      className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-black uppercase tracking-wider transition cursor-pointer"
+                      title="Jump to Today"
+                    >
+                      Today
+                    </button>
+                  )}
+                </div>
 
-                      <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-3 gap-2 text-[11px] text-slate-600">
-                        <div>
-                          Artisans: <strong className="text-slate-900">{r.artisanCount}</strong>
-                        </div>
-                        <div>
-                          Craftsmen: <strong className="text-slate-900">{r.craftsmanCount}</strong>
-                        </div>
-                        <div>
-                          Laborers: <strong className="text-slate-900">{r.laborerTotal}</strong>
-                          <span className="text-[10px] text-slate-400 ml-1">
-                            ({r.laborerMale}M / {r.laborerFemale}F)
-                          </span>
-                        </div>
-                      </div>
+                {/* Right side: Site filter info & Log Headcount button */}
+                <div className="flex items-center gap-2">
+                  {activeSiteId ? (
+                    <span className="text-xs font-bold px-2 py-1 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      📍 {sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold px-2 py-1 rounded-lg bg-slate-200 text-slate-700">
+                      🌐 All Active Sites
+                    </span>
+                  )}
+                  <Link
+                    href={`/workforce?date=${dashboardDate}${activeSiteId ? `&siteId=${activeSiteId}` : ""}`}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Log Headcount</span>
+                  </Link>
+                </div>
+              </div>
 
-                      {r.notes && (
-                        <div className="mt-2 text-[11px] text-slate-500 italic bg-slate-50 p-2 rounded-lg border border-slate-100">
-                          Note: {r.notes}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+              {/* KPI Summary Strip for the Date */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 shadow-2xs">
+                  <div className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">Total Workers</div>
+                  <div className="text-xl font-black text-emerald-950 mt-0.5 tabular-nums">
+                    {totalHeadcount}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 mt-0.5">On site on {formatDate(dashboardDate)}</div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Skilled / Artisans</div>
+                  <div className="text-xl font-black text-slate-900 mt-0.5 tabular-nums">
+                    {totalArtisans + totalCraftsmen}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    {totalArtisans} Artisans, {totalCraftsmen} Craftsmen
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-2xs">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Laborers</div>
+                  <div className="text-xl font-black text-slate-900 mt-0.5 tabular-nums">
+                    {totalLaborers}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    {totalLaborerMale} Male • {totalLaborerFemale} Female
+                  </div>
+                </div>
+
+                <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200 shadow-2xs">
+                  <div className="text-[10px] text-amber-900 font-bold uppercase tracking-wider">Labour Expense</div>
+                  <div className="text-xl font-black text-amber-950 mt-0.5 tabular-nums">
+                    ₹{Math.round(totalLabourExpense / 100).toLocaleString("en-IN")}
+                  </div>
+                  <div className="text-[10px] text-amber-800 mt-0.5">Daily Wages / Expense</div>
+                </div>
+              </div>
+
+              {/* Workers Table (exact layout of workforce page) */}
+              {filteredRecords.length > 0 ? (
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                  {/* Desktop Table View */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs min-w-[700px]">
+                      <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
+                        <tr>
+                          <th className="py-3 px-4">Contractor / Vendor</th>
+                          <th className="py-3 px-4">Date &amp; Shift</th>
+                          <th className="py-3 px-4">Total Workers</th>
+                          <th className="py-3 px-4 text-center">Applied Rates (Day)</th>
+                          <th className="py-3 px-4 text-right">Labour Expense</th>
+                          <th className="py-3 px-4">Logged By</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium bg-white">
+                        {filteredRecords.map((r: any) => (
+                          <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                            {/* Contractor / Vendor */}
+                            <td className="py-3 px-4 text-slate-700">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {r.contractorName ? (
+                                  <span className="font-semibold text-slate-800">{r.contractorName}</span>
+                                ) : (
+                                  <span className="text-slate-400 italic">Direct / Self</span>
+                                )}
+                                {r.isOverridden && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                    Extra Workers
+                                  </span>
+                                )}
+                                {r.attachments && r.attachments.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPhoto(r.attachments[0].url)}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition cursor-pointer"
+                                    title={`View ${r.attachments.length} muster roll photo(s)`}
+                                  >
+                                    <Camera className="w-3 h-3 text-amber-700" />
+                                    <span>{r.attachments.length} {r.attachments.length === 1 ? "Photo" : "Photos"}</span>
+                                  </button>
+                                )}
+                              </div>
+                              {r.siteName && (
+                                <div className="mt-0.5">
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                    {r.siteName}
+                                  </span>
+                                </div>
+                              )}
+                              {r.notes && (
+                                <div className="text-[10px] text-slate-500 break-words whitespace-normal mt-0.5">
+                                  {r.notes}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Date & Shift */}
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="font-bold text-slate-900">{formatDate(r.date)}</div>
+                              <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                                <span className="px-1.5 py-0.2 rounded bg-slate-100 font-bold text-slate-700 uppercase">
+                                  {r.shift || "GENERAL"} SHIFT
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Total Workforce */}
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
+                                {r.grandTotal} {r.grandTotal === 1 ? "Worker" : "Workers"}
+                              </span>
+                              <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                                <span>
+                                  Artisans: <strong className="text-slate-700">{r.artisanCount ?? r.artisanTotal ?? 0}</strong>
+                                </span>
+                                <span className="text-slate-300">&bull;</span>
+                                <span>
+                                  Laborers: <strong className="text-slate-700">{r.laborerTotal}</strong>{" "}
+                                  <span className="text-slate-500 font-medium">
+                                    (M: {r.laborerMale}, F: {r.laborerFemale})
+                                  </span>
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Applied Rates */}
+                            <td className="py-3 px-4 whitespace-nowrap text-center">
+                              <div className="font-mono text-slate-800 font-bold text-xs inline-flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                <span title="Skilled Worker Rate">₹{Math.round((r.skilledRate || 0) / 100)}</span>
+                                <span className="text-slate-300 font-normal">/</span>
+                                <span title="Male Labour Rate">₹{Math.round((r.maleRate || 0) / 100)}</span>
+                                <span className="text-slate-300 font-normal">/</span>
+                                <span title="Female Labour Rate">₹{Math.round((r.femaleRate || 0) / 100)}</span>
+                              </div>
+                              <div className="text-[9px] text-slate-400 mt-0.5">
+                                Skilled / Male / Female
+                              </div>
+                              {r.isOverridden ? (
+                                <div className="mt-1">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                    ⚡ Extra Workers Rate
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="mt-1">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-50 text-sky-700">
+                                    Rate Card
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Labour Expense */}
+                            <td className="py-3 px-4 whitespace-nowrap text-right">
+                              <div className="font-bold font-mono text-emerald-700">
+                                {r.totalExpense ? `₹${Math.round(r.totalExpense / 100).toLocaleString("en-IN")}` : "—"}
+                              </div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {r.isOverridden ? (
+                                  <span className="text-amber-700 font-bold">Extra Workers Rate</span>
+                                ) : r.source === "DIRECT" ? (
+                                  "Direct Labour"
+                                ) : r.contractorName ? (
+                                  "Contractor Rate"
+                                ) : (
+                                  "Direct Rate"
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Logged By */}
+                            <td className="py-3 px-4 whitespace-nowrap text-slate-600">
+                              <div className="font-semibold text-slate-800">{r.supervisorName || "Supervisor"}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                {r.createdAt ? new Date(r.updatedAt || r.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                              </div>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3 px-4 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Link
+                                  href={`/workforce?date=${r.date}&siteId=${r.siteId || ''}`}
+                                  className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                  title="Edit in Workforce"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteHeadcountRecord(r.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                  title="Delete Record"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <HardHat className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                  <div className="font-bold text-slate-800 text-sm">
+                    No worker headcount logged for {formatDate(dashboardDate)}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    There are no workforce headcount entries recorded for this date{activeSiteId ? " on this site" : ""}.
+                  </p>
+                  <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                    <Link
+                      href={`/workforce?date=${dashboardDate}${activeSiteId ? `&siteId=${activeSiteId}` : ""}`}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Log Headcount for {formatDate(dashboardDate)}</span>
+                    </Link>
+                    {kpi?.workforceHeadcount?.activeDate && kpi.workforceHeadcount.activeDate !== dashboardDate && (
+                      <button
+                        type="button"
+                        onClick={() => handleDateChange(kpi.workforceHeadcount.activeDate)}
+                        className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs rounded-lg transition cursor-pointer"
+                      >
+                        View {formatDate(kpi.workforceHeadcount.activeDate)} Records →
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* Checked-In Staff & Supervisors */}
+              {/* Checked-In Staff & Supervisors Section */}
               {list.length > 0 && (
-                <div className="space-y-2 pt-1">
+                <div className="space-y-2 pt-2 border-t border-slate-100">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -1182,26 +1404,24 @@ export default function DashboardPage() {
                       Attendance Page &rarr;
                     </Link>
                   </div>
-                  <div className="space-y-2">
-                    {list.map((w: any) => (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {list.map((s: any) => (
                       <div
-                        key={w.id}
-                        className="p-3 bg-slate-50 hover:bg-slate-100/60 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs"
+                        key={s.id}
+                        className="p-2.5 bg-slate-50 hover:bg-slate-100/60 rounded-xl border border-slate-200 flex items-center justify-between gap-2 text-xs"
                       >
                         <div>
-                          <span className="font-bold text-slate-900">{w.workerName}</span>
+                          <span className="font-bold text-slate-900">{s.workforceMember?.name || s.workerName || "Staff Member"}</span>
                           <div className="text-[11px] text-slate-500 mt-0.5">
-                            {w.trade} &bull; {w.siteName || "Main Site"}
+                            {s.workforceMember?.trade || s.trade || "Staff"} &bull; {s.site?.name || s.siteName || "Main Site"}
                           </div>
                         </div>
                         <div className="text-right">
                           <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase">
-                            {w.status}
+                            PRESENT
                           </span>
                           <div className="text-[10px] text-slate-400 mt-0.5">
-                            {w.checkInAt
-                              ? new Date(w.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                              : "Today"}
+                            {s.checkInAt ? new Date(s.checkInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today"}
                           </div>
                         </div>
                       </div>
@@ -1210,7 +1430,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-          ) : null,
+          ),
         };
       }
       case "lowStockItems": {
@@ -1701,6 +1921,54 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Dashboard Date Selector */}
+              <div className="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(dashboardDate);
+                    d.setDate(d.getDate() - 1);
+                    handleDateChange(d.toISOString().split("T")[0]);
+                  }}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                  title="Previous Day"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <div className="flex items-center gap-1 px-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <input
+                    type="date"
+                    value={dashboardDate}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 border-0 p-0 focus:ring-0 cursor-pointer"
+                    title="Filter Dashboard by Date"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(dashboardDate);
+                    d.setDate(d.getDate() + 1);
+                    handleDateChange(d.toISOString().split("T")[0]);
+                  }}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                  title="Next Day"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                {dashboardDate !== istDateKey() && (
+                  <button
+                    type="button"
+                    onClick={() => handleDateChange(istDateKey())}
+                    className="ml-1 px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+                    title="Jump to Today"
+                  >
+                    Today
+                  </button>
+                )}
+              </div>
+
               {/* Mode Toggle: Executive / Employee */}
               <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200 w-full sm:w-auto">
                 <button
@@ -2204,7 +2472,7 @@ export default function DashboardPage() {
 
             {/* Workforce on Site Today */}
             <div
-              onClick={() => setActiveSectionTab("SITES")}
+              onClick={() => setActiveKpiModal("workersPresentToday")}
               className="bg-white rounded-xl p-3 border border-slate-200 hover:border-emerald-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
               title={workerSubCategoryFull}
             >
@@ -2371,7 +2639,7 @@ export default function DashboardPage() {
 
             {/* Workforce on Site Today */}
             <div
-              onClick={() => setActiveSectionTab("SITES")}
+              onClick={() => setActiveKpiModal("workersPresentToday")}
               className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
               title="Click to view full Workers & Crew details"
             >
@@ -2621,11 +2889,12 @@ export default function DashboardPage() {
                 const siteProjs = projects.filter((p) => p.siteId === site?.id);
                 const totalSiteBudget = siteProjs.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
                 const siteWorkers = workers.filter((w) => w.defaultSiteId === site?.id);
-                const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+                const siteHeadcountList = (kpi?.workforceHeadcount?.records || []).filter(
                   (r: any) => r.siteId === site?.id || r.siteName?.toLowerCase() === site?.name?.toLowerCase()
                 );
+                const siteHeadcountSum = siteHeadcountList.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0);
                 const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site?.name);
-                const siteOnSiteCount = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
+                const siteOnSiteCount = siteHeadcountList.length > 0 ? siteHeadcountSum : siteWorkersPresent.length;
                 const directCrew = siteWorkers.length || site?._count?.workforceMembers || 0;
                 const externalGang = siteOnSiteCount > directCrew ? siteOnSiteCount - directCrew : 0;
 
@@ -2747,11 +3016,12 @@ export default function DashboardPage() {
                   {displayedSites.map((site) => {
                     const siteProjs = projects.filter((p) => p.siteId === site.id);
                     const siteWorkers = workers.filter((w) => w.defaultSiteId === site.id);
-                    const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+                    const siteHeadcountList = (kpi?.workforceHeadcount?.records || []).filter(
                       (r: any) => r.siteId === site.id || r.siteName?.toLowerCase() === site.name?.toLowerCase()
                     );
+                    const siteHeadcountSum = siteHeadcountList.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0);
                     const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
-                    const siteOnSiteCount = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
+                    const siteOnSiteCount = siteHeadcountList.length > 0 ? siteHeadcountSum : siteWorkersPresent.length;
                     const directCrew = siteWorkers.length || site._count?.workforceMembers || 0;
                     const externalGang = siteOnSiteCount > directCrew ? siteOnSiteCount - directCrew : 0;
 
@@ -3084,11 +3354,12 @@ export default function DashboardPage() {
                   const isSelected = activeSiteId === site.id;
                   const totalSiteBudget = siteProjs.reduce((sum, p) => sum + (p.budgetAmount || 0), 0);
                   const siteWorkers = workers.filter((w) => w.defaultSiteId === site.id);
-                  const siteHeadcount = (kpi?.workforceHeadcount?.records || []).find(
+                  const siteHeadcountList = (kpi?.workforceHeadcount?.records || []).filter(
                     (r: any) => r.siteId === site.id || r.siteName?.toLowerCase() === site.name?.toLowerCase()
                   );
+                  const siteHeadcountSum = siteHeadcountList.reduce((s: number, r: any) => s + (r.grandTotal || 0), 0);
                   const siteWorkersPresent = (kpi?.workersPresentToday || []).filter((w: any) => w.siteName === site.name);
-                  const siteOnSiteCount = siteHeadcount ? siteHeadcount.grandTotal : siteWorkersPresent.length;
+                  const siteOnSiteCount = siteHeadcountList.length > 0 ? siteHeadcountSum : siteWorkersPresent.length;
 
                   return (
                     <div
@@ -4054,7 +4325,9 @@ export default function DashboardPage() {
               onClick={() => setActiveKpiModal(null)}
             >
               <div
-                className="bg-white rounded-2xl max-w-xl w-full max-h-[85dvh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+                className={`bg-white rounded-2xl ${
+                  activeKpiModal === "workersPresentToday" ? "max-w-4xl lg:max-w-5xl" : "max-w-xl"
+                } w-full max-h-[88dvh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden`}
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Modal Header */}
