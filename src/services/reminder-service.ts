@@ -12,18 +12,38 @@ export class ReminderService {
   static async deliverDueReminders(organizationId?: string): Promise<number> {
     const now = new Date();
 
-    // Clean up stray reminderAt on completed/verified/cancelled/archived tasks
-    await prisma.task.updateMany({
+    // Clean up stray reminderAt and dismiss notifications on completed/verified/cancelled/archived tasks
+    const completedTasks = await prisma.task.findMany({
       where: {
-        reminderAt: { not: null },
         OR: [
           { status: { in: ["COMPLETED", "VERIFIED", "CANCELLED", "ARCHIVED"] } },
           { isArchived: true },
         ],
         ...(organizationId ? { organizationId } : {}),
       },
-      data: { reminderAt: null },
+      select: { id: true },
     });
+
+    if (completedTasks.length > 0) {
+      const completedIds = completedTasks.map((t) => t.id);
+      await Promise.all([
+        prisma.task.updateMany({
+          where: { id: { in: completedIds }, reminderAt: { not: null } },
+          data: { reminderAt: null },
+        }),
+        prisma.notification.updateMany({
+          where: {
+            OR: [
+              { entityType: "TASK", entityId: { in: completedIds } },
+              { entityId: { in: completedIds } },
+            ],
+            readAt: null,
+            ...(organizationId ? { organizationId } : {}),
+          },
+          data: { readAt: now },
+        }),
+      ]);
+    }
 
     const where: any = {
       reminderAt: { lte: now },
@@ -195,7 +215,7 @@ export class ReminderService {
   /**
    * When a task is completed, verified, cancelled or archived:
    * 1. Clear reminderAt on the task so recurring jobs never re-trigger
-   * 2. Mark any unread TASK_REMINDER notifications for this task as read / dismissed
+   * 2. Mark any unread task notifications (reminders, assignments, updates) for this task as read / dismissed
    */
   static async dismissTaskReminders(taskId: string, organizationId?: string): Promise<void> {
     const now = new Date();
@@ -206,9 +226,11 @@ export class ReminderService {
       }),
       prisma.notification.updateMany({
         where: {
-          entityType: "TASK",
-          entityId: taskId,
-          type: "TASK_REMINDER",
+          OR: [
+            { entityType: "TASK", entityId: taskId },
+            { entityId: taskId },
+            { href: { contains: taskId } },
+          ],
           readAt: null,
           ...(organizationId ? { organizationId } : {}),
         },

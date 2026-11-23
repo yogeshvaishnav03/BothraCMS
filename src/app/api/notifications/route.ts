@@ -280,51 +280,70 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 0. Filter out and dismiss stale reminders for completed, verified or archived tasks
-    const taskReminderTaskIds = Array.from(
+    // Helper to resolve the task ID associated with a notification
+    const getNotificationTaskId = (n: any): string | null => {
+      if (n.entityId && (n.entityType === "TASK" || n.type?.startsWith("TASK_") || n.type === "QUERY_ASSIGNED")) {
+        return n.entityId;
+      }
+      if (n.href && typeof n.href === "string") {
+        const match = n.href.match(/[?&]task=([a-zA-Z0-9_-]+)/);
+        if (match) return match[1];
+      }
+      return null;
+    };
+
+    // 0. Filter out and dismiss stale notifications & reminders for completed, verified or archived tasks
+    const taskRelatedTaskIds = Array.from(
       new Set(
         userNotifications
-          .filter((n) => n.type === "TASK_REMINDER" && n.entityId)
-          .map((n) => n.entityId as string)
+          .map(getNotificationTaskId)
+          .filter((id): id is string => Boolean(id))
       )
     );
 
     let completedOrInactiveTaskIds = new Set<string>();
-    if (taskReminderTaskIds.length > 0) {
+    if (taskRelatedTaskIds.length > 0) {
       const activeTasks = await prisma.task.findMany({
         where: {
-          id: { in: taskReminderTaskIds },
+          id: { in: taskRelatedTaskIds },
           status: { in: ["TODO", "IN_PROGRESS", "BLOCKED"] },
           isArchived: false,
         },
         select: { id: true },
       });
       const activeTaskIdSet = new Set(activeTasks.map((t) => t.id));
-      for (const tid of taskReminderTaskIds) {
+      for (const tid of taskRelatedTaskIds) {
         if (!activeTaskIdSet.has(tid)) {
           completedOrInactiveTaskIds.add(tid);
         }
       }
 
       if (completedOrInactiveTaskIds.size > 0) {
-        prisma.notification.updateMany({
-          where: {
-            organizationId: user.organizationId,
-            type: "TASK_REMINDER",
-            entityId: { in: Array.from(completedOrInactiveTaskIds) },
-            readAt: null,
-          },
-          data: { readAt: new Date() },
-        }).catch((err) => {
-          console.warn("[Notifications] Error auto-clearing completed task reminders:", err);
-        });
+        const inactiveIds = Array.from(completedOrInactiveTaskIds);
+        prisma.notification
+          .updateMany({
+            where: {
+              organizationId: user.organizationId,
+              OR: [
+                { entityType: "TASK", entityId: { in: inactiveIds } },
+                { entityId: { in: inactiveIds } },
+                ...inactiveIds.map((tid) => ({ href: { contains: tid } })),
+              ],
+              readAt: null,
+            },
+            data: { readAt: new Date() },
+          })
+          .catch((err) => {
+            console.warn("[Notifications] Error auto-clearing completed task notifications:", err);
+          });
       }
     }
 
-    // 1. In-App User Notifications (e.g. Task Reminders)
+    // 1. In-App User Notifications (e.g. Task Reminders, Updates, Assignments)
     for (const notif of userNotifications) {
-      // Do not surface reminders for completed, verified, or archived tasks
-      if (notif.type === "TASK_REMINDER" && notif.entityId && completedOrInactiveTaskIds.has(notif.entityId)) {
+      const notifTaskId = getNotificationTaskId(notif);
+      // Do not surface notifications for completed, verified, or archived tasks
+      if (notifTaskId && completedOrInactiveTaskIds.has(notifTaskId)) {
         continue;
       }
 

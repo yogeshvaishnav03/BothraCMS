@@ -337,6 +337,7 @@ export default function ProjectDetailsPage() {
       }
       setStatusMessage(`Task marked as ${newStatus.replace(/_/g, " ")}`);
       loadProject();
+      window.dispatchEvent(new CustomEvent("refreshNotifications"));
     } catch {
       setErrorMessage("Failed to update task status");
     }

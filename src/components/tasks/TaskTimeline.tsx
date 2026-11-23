@@ -317,6 +317,7 @@ export default function TaskTimeline({
       setNextStatus("");
       setPhotos([]);
       onChanged?.();
+      window.dispatchEvent(new CustomEvent("refreshNotifications"));
     } catch (e: any) {
       setError(e.message);
     } finally {

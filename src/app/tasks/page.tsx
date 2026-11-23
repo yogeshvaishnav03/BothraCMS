@@ -443,6 +443,7 @@ export default function TasksPage() {
         setStatusTask(null);
         setStatusNote("");
         loadData();
+        window.dispatchEvent(new CustomEvent("refreshNotifications"));
       }
     } catch {
       setErrorMessage("Network error while updating status. Check your connection and try again.");

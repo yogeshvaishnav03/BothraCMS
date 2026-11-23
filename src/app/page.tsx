@@ -790,6 +790,7 @@ export default function DashboardPage() {
 
       setStatusMessage(`Task "${title}" marked completed in database!`);
       loadDashboard(activeSiteId);
+      window.dispatchEvent(new CustomEvent("refreshNotifications"));
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to complete task"}`);
     } finally {
