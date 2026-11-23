@@ -1546,7 +1546,7 @@ export default function WorkforcePage() {
     }
   };
 
-  // Filter records for the selected site
+  // Filter records for the selected site and date
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
       if (selectedSiteId && r.siteId !== selectedSiteId) return false;
@@ -1561,6 +1561,7 @@ export default function WorkforcePage() {
           }
         }
       }
+      if (selectedDate && r.date !== selectedDate) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const dateMatch = r.date.toLowerCase().includes(q);
@@ -1571,16 +1572,16 @@ export default function WorkforcePage() {
       }
       return true;
     });
-  }, [records, selectedSiteId, selectedProjectId, projects, searchQuery]);
+  }, [records, selectedSiteId, selectedProjectId, selectedDate, projects, searchQuery]);
 
-  // Selected site summary for today (aggregating all entries for that site and date)
+  // Selected site summary for report date (aggregating all entries for that site/all sites and date)
   const selectedSiteTodayRecord = useMemo(() => {
-    if (!selectedSiteId) return null;
-    const matching = records.filter((r) => r.siteId === selectedSiteId && r.date === selectedDate);
+    if (!selectedDate) return null;
+    const matching = records.filter((r) => (!selectedSiteId || r.siteId === selectedSiteId) && r.date === selectedDate);
     if (matching.length === 0) return null;
     const artisanTotal = matching.reduce((sum, r) => sum + (r.artisanCount ?? r.artisanTotal ?? 0), 0);
     return {
-      siteId: selectedSiteId,
+      siteId: selectedSiteId || "ALL",
       date: selectedDate,
       grandTotal: matching.reduce((sum, r) => sum + (Number(r.grandTotal) || 0), 0),
       artisanCount: artisanTotal,
@@ -1613,8 +1614,8 @@ export default function WorkforcePage() {
       {
         key: "date",
         label: "Date & Shift",
-        accessor: (r) => `${formatDate(r.date)} ${r.shift} SHIFT`,
-        type: "text",
+        accessor: (r) => r.date,
+        type: "date",
       },
       {
         key: "grandTotal",
@@ -1828,15 +1829,38 @@ export default function WorkforcePage() {
 
             {/* Date Filter */}
             <div className="w-full sm:w-auto">
-              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                Report Date:
-              </label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full sm:w-auto bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-              />
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                  Report Date:
+                </label>
+                {selectedDate && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate("")}
+                    className="text-[10px] text-amber-600 hover:text-amber-800 font-bold hover:underline cursor-pointer"
+                    title="Clear date filter to view all historical dates"
+                  >
+                    (✕ All Dates)
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full sm:w-auto bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+                {!selectedDate && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(istDateKey())}
+                    className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[11px] font-bold transition whitespace-nowrap cursor-pointer"
+                  >
+                    Today
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Today's Site Status Tag */}
@@ -1899,7 +1923,11 @@ export default function WorkforcePage() {
                   <span className="text-xs font-normal text-slate-400 shrink-0">workers</span>
                 </div>
                 <div className="text-[11px] text-slate-400 mt-1">
-                  {selectedSiteTodayRecord ? "Logged on site today" : "Cumulative logged count"}
+                  {selectedDate
+                    ? selectedSiteTodayRecord
+                      ? `Logged for ${formatDate(selectedDate)}`
+                      : `No entries on ${formatDate(selectedDate)}`
+                    : "Cumulative logged count across all dates"}
                 </div>
               </div>
 

@@ -309,22 +309,46 @@ export function useExcelTable<T = any>({
             return !isNaN(num) && num <= range.max!;
           });
         }
-      } else if (col.type === "date") {
+      } else if (col.type === "date" || /date|time|at$|day/i.test(col.key)) {
         if (range.fromDate) {
           const fromTime = new Date(`${range.fromDate}T00:00:00`).getTime();
           result = result.filter((row) => {
-            const raw = getCellValue(row, col);
+            const raw = getCellValue(row, col) ?? (row as any)[col.key] ?? (row as any).date;
             if (!raw) return false;
-            const time = new Date(raw).getTime();
+            let time = NaN;
+            if (raw instanceof Date) {
+              time = raw.getTime();
+            } else if (typeof raw === "string") {
+              const isoMatch = raw.match(/\d{4}-\d{2}-\d{2}/);
+              if (isoMatch) {
+                time = new Date(`${isoMatch[0]}T00:00:00`).getTime();
+              } else {
+                time = new Date(raw).getTime();
+              }
+            } else if (typeof raw === "number") {
+              time = raw;
+            }
             return !isNaN(time) && time >= fromTime;
           });
         }
         if (range.toDate) {
           const toTime = new Date(`${range.toDate}T23:59:59.999`).getTime();
           result = result.filter((row) => {
-            const raw = getCellValue(row, col);
+            const raw = getCellValue(row, col) ?? (row as any)[col.key] ?? (row as any).date;
             if (!raw) return false;
-            const time = new Date(raw).getTime();
+            let time = NaN;
+            if (raw instanceof Date) {
+              time = raw.getTime();
+            } else if (typeof raw === "string") {
+              const isoMatch = raw.match(/\d{4}-\d{2}-\d{2}/);
+              if (isoMatch) {
+                time = new Date(`${isoMatch[0]}T23:59:59.999`).getTime();
+              } else {
+                time = new Date(raw).getTime();
+              }
+            } else if (typeof raw === "number") {
+              time = raw;
+            }
             return !isNaN(time) && time <= toTime;
           });
         }
@@ -359,8 +383,10 @@ export function useExcelTable<T = any>({
           let cmp = 0;
           if (col.type === "number" || col.type === "currency") {
             cmp = (Number(valA) || 0) - (Number(valB) || 0);
-          } else if (col.type === "date") {
-            cmp = new Date(valA).getTime() - new Date(valB).getTime();
+          } else if (col.type === "date" || /date|time|at$|day/i.test(col.key)) {
+            const timeA = new Date(valA).getTime() || 0;
+            const timeB = new Date(valB).getTime() || 0;
+            cmp = timeA - timeB;
           } else {
             cmp = String(valA).localeCompare(String(valB), undefined, {
               numeric: true,
