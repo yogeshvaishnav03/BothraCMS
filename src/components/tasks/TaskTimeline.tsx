@@ -360,7 +360,7 @@ export default function TaskTimeline({
   }, [entries, members]);
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/50 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/60 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
       <aside
         className="flex h-full w-full max-w-xl flex-col bg-white shadow-xl animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}

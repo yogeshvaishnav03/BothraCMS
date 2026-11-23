@@ -34,6 +34,7 @@ import {
   User,
 } from "lucide-react";
 import ApprovalsWidget from "@/components/dashboard/ApprovalsWidget";
+import TaskTimeline from "@/components/tasks/TaskTimeline";
 import { ContactActions } from "@/components/ui/ContactActions";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -322,6 +323,12 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   const [showApprovalsModal, setShowApprovalsModal] = useState(false);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [taskDueFilter, setTaskDueFilter] = useState<"ALL" | "OVERDUE">("ALL");
+  const [selectedTimelineTask, setSelectedTimelineTask] = useState<{
+    id: string;
+    title: string;
+    status: string;
+    projectId?: string | null;
+  } | null>(null);
   const isToday = date === todayIst();
 
   const filteredDueTasks = useMemo(() => {
@@ -721,16 +728,22 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             {filteredDueTasks.map((task) => (
               <div
                 key={task.id}
+                onClick={() => setSelectedTimelineTask({
+                  id: task.id,
+                  title: task.title,
+                  status: task.status,
+                  projectId: null,
+                })}
                 className={cn(
-                  "p-3.5 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3",
+                  "p-3.5 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer group shadow-2xs",
                   task.isOverdue
-                    ? "bg-rose-50/40 border-rose-200 hover:border-rose-300"
-                    : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                    ? "bg-rose-50/40 border-rose-200 hover:border-rose-300 hover:bg-rose-50/70"
+                    : "bg-slate-50/60 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70"
                 )}
               >
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-slate-900 text-sm">
+                    <span className="font-bold text-slate-900 text-sm group-hover:text-amber-700 transition-colors">
                       {task.title}
                     </span>
                     <span
@@ -779,7 +792,10 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                   <button
                     type="button"
                     disabled={completingTaskId === task.id}
-                    onClick={() => handleCompleteTask(task.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCompleteTask(task.id);
+                    }}
                     className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                     title={hi ? "कार्य पूर्ण के रूप में चिह्नित करें" : "Mark task as completed"}
                   >
@@ -790,13 +806,22 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                     )}
                     <span>{hi ? "पूरा करें" : "Mark Complete"}</span>
                   </button>
-                  <Link
-                    href={`/tasks?task=${task.id}`}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition inline-flex items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedTimelineTask({
+                        id: task.id,
+                        title: task.title,
+                        status: task.status,
+                        projectId: null,
+                      });
+                    }}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition inline-flex items-center gap-1 cursor-pointer"
                   >
                     <span>{hi ? "विवरण" : "Details"}</span>
                     <ExternalLink className="w-3 h-3" />
-                  </Link>
+                  </button>
                 </div>
               </div>
             ))}
@@ -991,7 +1016,16 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             <ul className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto pr-1">
               {data.taskFeed.map((f) => (
                 <li key={f.id}>
-                  <Link href={`/tasks?task=${f.taskId}`} className="flex gap-3 py-2.5 rounded-lg hover:bg-slate-50 px-1 -mx-1 transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTimelineTask({
+                      id: f.taskId,
+                      title: f.taskTitle,
+                      status: f.status || "TODO",
+                      projectId: null,
+                    })}
+                    className="w-full text-left flex gap-3 py-2.5 rounded-lg hover:bg-slate-50 px-1 -mx-1 transition-colors cursor-pointer"
+                  >
                     <span className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-800 to-slate-600 text-amber-300 text-[10px] font-bold flex items-center justify-center shrink-0">
                       {initials(f.actor)}
                     </span>
@@ -1019,7 +1053,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                       )}
                     </div>
                     <span className="text-[11px] text-slate-400 tabular-nums shrink-0">{timeOf(f.at)}</span>
-                  </Link>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -1330,6 +1364,17 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             </div>
           </div>
         </div>
+      )}
+      {/* ── Task Details / Timeline Sheet ── */}
+      {selectedTimelineTask && (
+        <TaskTimeline
+          task={selectedTimelineTask}
+          canWrite={true}
+          onClose={() => setSelectedTimelineTask(null)}
+          onChanged={() => {
+            load(true);
+          }}
+        />
       )}
     </section>
   );

@@ -56,6 +56,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import CommandCenter from "@/components/dashboard/CommandCenter";
 import ApprovalsWidget from "@/components/dashboard/ApprovalsWidget";
+import TaskTimeline from "@/components/tasks/TaskTimeline";
 import { canUser } from "@/lib/permissions";
 
 export default function DashboardPage() {
@@ -391,6 +392,12 @@ export default function DashboardPage() {
   const [submittingTask, setSubmittingTask] = useState(false);
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const [selectedTimelineTask, setSelectedTimelineTask] = useState<{
+    id: string;
+    title: string;
+    status: string;
+    projectId?: string | null;
+  } | null>(null);
 
   // Interactive Dashboard View & Section Navigation
   type DashboardSectionTab = "ALL" | "SITES" | "TASKS" | "PROJECTS" | "PHOTOS";
@@ -1230,11 +1237,17 @@ export default function DashboardPage() {
               {list.map((t: any) => (
                 <div
                   key={t.id}
-                  className="p-3.5 bg-slate-50 hover:bg-rose-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                  onClick={() => setSelectedTimelineTask({
+                    id: t.id,
+                    title: t.title,
+                    status: t.status || "TODO",
+                    projectId: t.projectId || null,
+                  })}
+                  className="p-3.5 bg-slate-50 hover:bg-rose-50/70 rounded-xl border border-slate-200 hover:border-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition cursor-pointer group shadow-2xs"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-900 text-sm">{t.title}</span>
+                      <span className="font-bold text-slate-900 text-sm group-hover:text-rose-700 transition-colors">{t.title}</span>
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                           normalizePriority(t.priority) === "CRITICAL"
@@ -1269,11 +1282,17 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
-                  <div className="text-left sm:text-right shrink-0">
-                    <div className="text-[11px] text-slate-500 font-medium">Target Due Date</div>
-                    <div className="text-sm font-bold text-rose-600">
-                      {t.dueAt ? formatDate(t.dueAt) : "Overdue"}
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1.5 shrink-0">
+                    <div className="text-left sm:text-right">
+                      <div className="text-[11px] text-slate-500 font-medium">Target Due Date</div>
+                      <div className="text-sm font-bold text-rose-600">
+                        {t.dueAt ? formatDate(t.dueAt) : "Overdue"}
+                      </div>
                     </div>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 group-hover:translate-x-0.5 transition-transform">
+                      <span>View Details</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
                   </div>
                 </div>
               ))}
@@ -1298,11 +1317,17 @@ export default function DashboardPage() {
               {list.map((t: any) => (
                 <div
                   key={t.id}
-                  className="p-3.5 bg-slate-50 hover:bg-indigo-50/40 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                  onClick={() => setSelectedTimelineTask({
+                    id: t.id,
+                    title: t.title,
+                    status: t.status || "TODO",
+                    projectId: t.projectId || null,
+                  })}
+                  className="p-3.5 bg-slate-50 hover:bg-indigo-50/70 rounded-xl border border-slate-200 hover:border-indigo-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition cursor-pointer group shadow-2xs"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-900 text-sm">{t.title}</span>
+                      <span className="font-bold text-slate-900 text-sm group-hover:text-indigo-700 transition-colors">{t.title}</span>
                       <span
                         className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                           normalizePriority(t.priority) === "CRITICAL"
@@ -1337,13 +1362,19 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
-                  <div className="text-left sm:text-right shrink-0">
-                    <div className="text-[11px] text-slate-500 font-medium">Due Schedule</div>
-                    <div className="text-sm font-bold text-indigo-700">
-                      {t.dueAt
-                        ? new Date(t.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                        : "Today"}
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1.5 shrink-0">
+                    <div className="text-left sm:text-right">
+                      <div className="text-[11px] text-slate-500 font-medium">Due Schedule</div>
+                      <div className="text-sm font-bold text-indigo-700">
+                        {t.dueAt
+                          ? new Date(t.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                          : "Today"}
+                      </div>
                     </div>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 group-hover:translate-x-0.5 transition-transform">
+                      <span>View Details</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
                   </div>
                 </div>
               ))}
@@ -1966,7 +1997,18 @@ export default function DashboardPage() {
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-slate-900 text-sm">{t.title}</span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTimelineTask({
+                                  id: t.id,
+                                  title: t.title,
+                                  status: t.status || "TODO",
+                                  projectId: t.projectId || t.project?.id || null,
+                                })}
+                                className="font-bold text-slate-900 text-sm hover:text-blue-600 hover:underline text-left cursor-pointer"
+                              >
+                                {t.title}
+                              </button>
                               <span
                                 className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                                   normalizePriority(t.priority) === "CRITICAL"
@@ -2013,12 +2055,18 @@ export default function DashboardPage() {
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 group-hover:text-white transition-colors" />
                               <span>Complete</span>
                             </button>
-                            <Link
-                              href="/tasks"
-                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition"
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTimelineTask({
+                                id: t.id,
+                                title: t.title,
+                                status: t.status || "TODO",
+                                projectId: t.projectId || t.project?.id || null,
+                              })}
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
                             >
                               Details
-                            </Link>
+                            </button>
                           </div>
                         </div>
                       );
@@ -2784,12 +2832,18 @@ export default function DashboardPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Link
-                              href={`/tasks?task=${t.id}`}
-                              className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 hover:underline"
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTimelineTask({
+                                id: t.id,
+                                title: t.title,
+                                status: t.status || "TODO",
+                                projectId: t.projectId || t.project?.id || null,
+                              })}
+                              className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 hover:underline text-left cursor-pointer"
                             >
                               {t.title}
-                            </Link>
+                            </button>
                             <span
                               className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                                 normalizePriority(t.priority) === "CRITICAL"
@@ -3282,12 +3336,18 @@ export default function DashboardPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Link
-                              href={`/tasks?task=${t.id}`}
-                              className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 hover:underline"
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTimelineTask({
+                                id: t.id,
+                                title: t.title,
+                                status: t.status || "TODO",
+                                projectId: t.projectId || t.project?.id || null,
+                              })}
+                              className="text-xs sm:text-sm font-bold text-slate-900 hover:text-blue-600 hover:underline text-left cursor-pointer"
                             >
                               {t.title}
-                            </Link>
+                            </button>
                             <span
                               className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
                                 normalizePriority(t.priority) === "CRITICAL"
@@ -3862,6 +3922,19 @@ export default function DashboardPage() {
             </div>
           );
         })()}
+
+        {/* Task Details & Timeline Drawer Modal */}
+        {selectedTimelineTask && (
+          <TaskTimeline
+            task={selectedTimelineTask}
+            canWrite={canUser(activeUser, "tasks:write") || isAdminUser || isProjectManager}
+            employees={employees}
+            onClose={() => setSelectedTimelineTask(null)}
+            onChanged={() => {
+              loadDashboard(activeSiteId);
+            }}
+          />
+        )}
 
         {/* Fullscreen Photo Lightbox Modal — viewable by Admin, Super Admin, and Supervisor */}
         {selectedPhoto && typeof document !== "undefined" && createPortal(
