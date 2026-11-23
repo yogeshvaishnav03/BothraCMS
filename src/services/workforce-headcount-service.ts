@@ -88,6 +88,7 @@ export interface SaveHeadcountInput {
   isOverridden?: boolean;
   overrideReason?: string;
   notes?: string;
+  isLegacyUpsert?: boolean;
   // Backward compatibility input fields
   artisanMale?: number;
   artisanFemale?: number;
@@ -308,7 +309,7 @@ export class WorkforceHeadcountService {
     input: SaveHeadcountInput,
     user: { userId: string; name: string; role: Role }
   ): Promise<WorkforceHeadcountRecord> {
-    const results = await this.saveBulkRecords(organizationId, [input], user);
+    const results = await this.saveBulkRecords(organizationId, [{ ...input, isLegacyUpsert: true }], user);
     return results[0];
   }
 
@@ -340,6 +341,7 @@ export class WorkforceHeadcountService {
 
     return await prisma.$transaction(async (tx) => {
       const savedRecords: WorkforceHeadcountRecord[] = [];
+      const processedBatchIds = new Set<string>();
       let totalAllWorkers = 0;
       let totalAllExpensePaise = 0;
       let mainSiteName = "Site";
@@ -436,16 +438,16 @@ export class WorkforceHeadcountService {
         const contractorId = input.contractorId?.trim() || null;
 
         // Find existing record:
-        // If an explicit ID is passed, match by ID;
-        // Otherwise, match by organizationId, siteId, date, shift, source, and contractorName
+        // 1. If an explicit real record ID is passed (not a staged temporary entry), match by ID.
         let existing: any = null;
-        if (input.id) {
+        if (input.id && !input.id.startsWith("staged-")) {
           existing = await tx.workforceHeadcount.findFirst({
             where: { id: input.id, organizationId },
           });
         }
 
-        if (!existing) {
+        // 2. Only for legacy single-record tests where isLegacyUpsert is passed and no ID was provided
+        if (!existing && input.isLegacyUpsert && entries.length === 1) {
           existing = await tx.workforceHeadcount.findFirst({
             where: {
               organizationId,
@@ -454,20 +456,21 @@ export class WorkforceHeadcountService {
               shift,
               source,
               contractorName: contractorName || null,
+              id: { notIn: Array.from(processedBatchIds) },
             },
           });
-        }
 
-        // If still not found and this is a single legacy submission (e.g. tests), find by site/date/shift
-        if (!existing && entries.length === 1 && !contractorName && source === "CONTRACTOR") {
-          existing = await tx.workforceHeadcount.findFirst({
-            where: {
-              organizationId,
-              siteId: input.siteId,
-              date,
-              shift,
-            },
-          });
+          if (!existing && !contractorName && source === "CONTRACTOR") {
+            existing = await tx.workforceHeadcount.findFirst({
+              where: {
+                organizationId,
+                siteId: input.siteId,
+                date,
+                shift,
+                id: { notIn: Array.from(processedBatchIds) },
+              },
+            });
+          }
         }
 
         let saved: any;
@@ -508,7 +511,9 @@ export class WorkforceHeadcountService {
         } else {
           saved = await tx.workforceHeadcount.create({
             data: {
-              id: input.id || `hc-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
+              id: (input.id && !input.id.startsWith("staged-"))
+                ? input.id
+                : `hc-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
               organizationId,
               siteId: input.siteId,
               siteName,
@@ -543,7 +548,9 @@ export class WorkforceHeadcountService {
           });
         }
 
+        processedBatchIds.add(saved.id);
         const normalized = normalizeDbRecord(saved);
+        processedBatchIds.add(normalized.id);
         savedRecords.push(normalized);
         totalAllWorkers += grandTotal;
         totalAllExpensePaise += totalExpense;

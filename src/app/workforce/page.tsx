@@ -1113,14 +1113,52 @@ export default function WorkforcePage() {
         });
       }
     } else {
-      entriesToSubmit = [...stagedEntries];
+      // 1. If currently editing a staged entry, update that entry in the list with current form values
+      if (editingStagedId) {
+        entriesToSubmit = stagedEntries.map((entry) => {
+          if (entry.id !== editingStagedId) return entry;
+          if (entry.source === "CONTRACTOR") {
+            return {
+              ...entry,
+              contractorId: selectedContractorId || undefined,
+              contractorName: contractorName.trim(),
+              skilledCount: contractorSkilledCount,
+              skilledRate: contractorSkilledRate,
+              skilledAmount: contractorSkilledAmount,
+              maleCount: contractorMaleCount,
+              maleRate: contractorMaleRate,
+              maleAmount: contractorMaleAmount,
+              femaleCount: contractorFemaleCount,
+              femaleRate: contractorFemaleRate,
+              femaleAmount: contractorFemaleAmount,
+              totalWorkers: contractorTotalWorkers,
+              totalExpense: contractorTotalExpense,
+              isOverridden: isExtraWorkersRate,
+              overrideReason: isExtraWorkersRate ? "Extra workers rate override" : undefined,
+              notes: notes.trim() || "-",
+            };
+          } else {
+            return {
+              ...entry,
+              skilledCount: directSkilledCount,
+              skilledRate: directSkilledRate,
+              skilledAmount: directSkilledAmount,
+              maleCount: directMaleCount,
+              maleRate: directMaleRate,
+              maleAmount: directMaleAmount,
+              femaleCount: directFemaleCount,
+              femaleRate: directFemaleRate,
+              femaleAmount: directFemaleAmount,
+              totalWorkers: directTotalWorkers,
+              totalExpense: directTotalExpense,
+              notes: directNotes.trim() || "-",
+            };
+          }
+        });
+      } else {
+        entriesToSubmit = [...stagedEntries];
 
-      // If staged entries is empty, auto-stage active values from form
-      if (entriesToSubmit.length === 0) {
-        if (contractorTotalWorkers === 0 && directTotalWorkers === 0) {
-          setErrorMessage("Please enter worker counts or add entries to the list before saving.");
-          return;
-        }
+        // If active form values are present, include them as well
         if (contractorTotalWorkers > 0) {
           if (!contractorName.trim()) {
             setErrorMessage("Contractor / Labour Agency is MANDATORY when adding Contractor Workforce. Please select or enter a contractor.");
@@ -1128,7 +1166,7 @@ export default function WorkforcePage() {
             return;
           }
           entriesToSubmit.push({
-            id: `staged-c-${Date.now()}`,
+            id: `staged-c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             source: "CONTRACTOR",
             contractorId: selectedContractorId || undefined,
             contractorName: contractorName.trim(),
@@ -1150,7 +1188,7 @@ export default function WorkforcePage() {
         }
         if (directTotalWorkers > 0) {
           entriesToSubmit.push({
-            id: `staged-d-${Date.now()}`,
+            id: `staged-d-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             source: "DIRECT",
             contractorName: "-",
             skilledCount: directSkilledCount,
