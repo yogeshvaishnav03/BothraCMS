@@ -3,6 +3,7 @@ import { bankAmount } from "@/lib/contractor-tds";
 import { roundPaise } from "@/lib/financial-math";
 import { UserContext } from "@/lib/auth";
 import { canReadFinance, getUserAccessibleProjectIds } from "@/lib/server-auth";
+import { hasPermission } from "@/lib/permissions";
 import { InventoryService } from "@/services/inventory-service";
 import { WorkforceHeadcountService } from "@/services/workforce-headcount-service";
 
@@ -13,7 +14,9 @@ export class DashboardService {
     const endOfToday = new Date(`${todayStr}T23:59:59.999Z`);
     const now = new Date();
 
-    const hasFinanceAccess = userContext ? canReadFinance(userContext) : true;
+    const isProjectManager = userContext?.role === "PROJECT_MANAGER";
+    const hasFinanceAccess = userContext ? (!isProjectManager && canReadFinance(userContext)) : true;
+    const hasInventoryAccess = userContext ? (!isProjectManager && hasPermission(userContext, "inventory:read")) : true;
     const accessibleProjectIds = userContext ? await getUserAccessibleProjectIds(userContext) : null;
 
     // 1. Active Projects filter
@@ -227,21 +230,23 @@ export class DashboardService {
     const totalWorkersPresentCount = workforceCount > 0 ? workforceCount : staffAttendanceCount;
 
     // Authoritative Low Stock Items
-    const lowStockItems = stockSummaries.filter((m) => m.isLowStock);
-    const lowStockItemsCount = lowStockItems.length;
-    const lowStockItemsList = lowStockItems.slice(0, 10).map((mat) => ({
-      id: mat.id,
-      name: mat.name,
-      code: mat.code,
-      category: mat.categoryName,
-      quantityOnHand: mat.availableStock,
-      actualStock: mat.availableStock,
-      minStockQty: mat.minStockQty,
-      reorderQty: mat.reorderQty,
-      unitCode: mat.unitCode,
-      alertReason: mat.alertReason,
-      alertSeverity: mat.alertSeverity,
-    }));
+    const lowStockItems = hasInventoryAccess ? stockSummaries.filter((m) => m.isLowStock) : [];
+    const lowStockItemsCount = hasInventoryAccess ? lowStockItems.length : undefined;
+    const lowStockItemsList = hasInventoryAccess
+      ? lowStockItems.slice(0, 10).map((mat) => ({
+          id: mat.id,
+          name: mat.name,
+          code: mat.code,
+          category: mat.categoryName,
+          quantityOnHand: mat.availableStock,
+          actualStock: mat.availableStock,
+          minStockQty: mat.minStockQty,
+          reorderQty: mat.reorderQty,
+          unitCode: mat.unitCode,
+          alertReason: mat.alertReason,
+          alertSeverity: mat.alertSeverity,
+        }))
+      : undefined;
 
     // Financial Metrics (only exposed when user has finance:read permission)
     let paymentsMadeTodayAmount: number | undefined = undefined;

@@ -56,6 +56,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import CommandCenter from "@/components/dashboard/CommandCenter";
 import ApprovalsWidget from "@/components/dashboard/ApprovalsWidget";
+import { canUser } from "@/lib/permissions";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
@@ -341,6 +342,9 @@ export default function DashboardPage() {
   const isSuperAdmin = activeUser?.role === "SUPER_ADMIN";
   const isAdminUser = activeUser?.role === "SUPER_ADMIN" || activeUser?.role === "ORG_ADMIN";
   const isSupervisor = activeUser?.role === "SITE_SUPERVISOR" || (activeUser?.role as string) === "SUPERVISOR";
+  const isProjectManager = activeUser?.role === "PROJECT_MANAGER";
+  const canViewFinance = !isProjectManager && (canUser(activeUser, "finance:read") || isAdminUser);
+  const canViewStock = !isProjectManager && (canUser(activeUser, "inventory:read") || isAdminUser);
   const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
 
   // Live Camera state for Site Supervisors
@@ -890,6 +894,8 @@ export default function DashboardPage() {
   }, [selectedPhoto, cameraModalOpen, activeKpiModal, showQuickTaskModal, pendingDeletePhoto]);
 
   const renderKpiModalContent = () => {
+    if (!canViewStock && activeKpiModal === "lowStockItems") return null;
+    if (!canViewFinance && (activeKpiModal === "paymentsMadeToday" || activeKpiModal === "outstandingPayables")) return null;
     switch (activeKpiModal) {
       case "activeProjects": {
         const list = kpi?.activeProjects || [];
@@ -1462,20 +1468,24 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <Link
-              href="/materials"
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
-            >
-              <PackagePlus className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Receive Goods</span>
-            </Link>
-            <Link
-              href="/material-storage"
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
-            >
-              <PackageMinus className="w-3.5 h-3.5 text-amber-400" />
-              <span>Provide to Contractor</span>
-            </Link>
+            {canViewStock && (
+              <>
+                <Link
+                  href="/materials"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+                >
+                  <PackagePlus className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Receive Goods</span>
+                </Link>
+                <Link
+                  href="/material-storage"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+                >
+                  <PackageMinus className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Provide to Contractor</span>
+                </Link>
+              </>
+            )}
             {!isSuperAdmin && activeUser && (
               !isUserCheckedIn ? (
                 <button
@@ -2021,13 +2031,13 @@ export default function DashboardPage() {
 
         {/* Real KPI Cards Strip (Executive Mode) */}
         {dashboardMode === "EXECUTIVE" && (loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-            {[...Array(7)].map((_, i) => (
+          <div className={`grid grid-cols-2 sm:grid-cols-4 ${canViewFinance || canViewStock ? "lg:grid-cols-7" : "lg:grid-cols-4"} gap-2.5`}>
+            {[...Array(canViewFinance || canViewStock ? 7 : 4)].map((_, i) => (
               <div key={i} className="h-16 rounded-xl bg-slate-200/60 animate-pulse" />
             ))}
           </div>
         ) : kpiDensity === "compact" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+          <div className={`grid grid-cols-2 sm:grid-cols-4 ${canViewFinance || canViewStock ? "lg:grid-cols-7" : "lg:grid-cols-4"} gap-2.5`}>
             {/* Active Projects */}
             <div
               onClick={() => setActiveSectionTab("PROJECTS")}
@@ -2065,22 +2075,24 @@ export default function DashboardPage() {
             </div>
 
             {/* Critical Materials */}
-            <div
-              onClick={() => setActiveKpiModal("lowStockItems")}
-              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
-              title="Click to view Low Stock Inventory details"
-            >
-              <div className="flex items-center justify-between text-slate-500 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider truncate">{t("kpi.criticalMaterials", "Low Stock")}</span>
-                <Boxes className={`w-3.5 h-3.5 shrink-0 ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-400"}`} />
+            {canViewStock && (
+              <div
+                onClick={() => setActiveKpiModal("lowStockItems")}
+                className="bg-white rounded-xl p-3 border border-slate-200 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+                title="Click to view Low Stock Inventory details"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider truncate">{t("kpi.criticalMaterials", "Low Stock")}</span>
+                  <Boxes className={`w-3.5 h-3.5 shrink-0 ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-400"}`} />
+                </div>
+                <div className={`font-display text-lg sm:text-xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-900"}`} title={String(kpi?.lowStockItemsCount ?? 0)}>
+                  {formatCompactNumber(kpi?.lowStockItemsCount ?? 0)}
+                </div>
+                <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                  Below reorder
+                </div>
               </div>
-              <div className={`font-display text-lg sm:text-xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${(kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-900"}`} title={String(kpi?.lowStockItemsCount ?? 0)}>
-                {formatCompactNumber(kpi?.lowStockItemsCount ?? 0)}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                Below reorder
-              </div>
-            </div>
+            )}
 
             {/* Overdue Tasks */}
             <div
@@ -2125,40 +2137,44 @@ export default function DashboardPage() {
             </div>
 
             {/* Paid Today */}
-            <div
-              onClick={() => setActiveKpiModal("paymentsMadeToday")}
-              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-emerald-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
-              title="Click to view payments made today"
-            >
-              <div className="flex items-center justify-between text-slate-500 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider truncate">Paid Today</span>
-                <DollarSign className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            {canViewFinance && (
+              <div
+                onClick={() => setActiveKpiModal("paymentsMadeToday")}
+                className="bg-white rounded-xl p-3 border border-slate-200 hover:border-emerald-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+                title="Click to view payments made today"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider truncate">Paid Today</span>
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                </div>
+                <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}>
+                  {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
+                </div>
+                <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">
+                  Paid Out
+                </div>
               </div>
-              <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}>
-                {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
-              </div>
-              <div className="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">
-                Paid Out
-              </div>
-            </div>
+            )}
 
             {/* Total Outstanding Payables */}
-            <div
-              onClick={() => setActiveKpiModal("outstandingPayables")}
-              className="bg-white rounded-xl p-3 border border-slate-200 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
-              title="Click to view payables breakdown"
-            >
-              <div className="flex items-center justify-between text-slate-500 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider truncate">Payables</span>
-                <TrendingDown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            {canViewFinance && (
+              <div
+                onClick={() => setActiveKpiModal("outstandingPayables")}
+                className="bg-white rounded-xl p-3 border border-slate-200 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+                title="Click to view payables breakdown"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider truncate">Payables</span>
+                  <TrendingDown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                </div>
+                <div className="font-display text-lg sm:text-xl font-extrabold text-amber-600 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}>
+                  {formatCompactINR(kpi?.totalOutstandingPayablesAmount ?? 0)}
+                </div>
+                <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                  Vendor & contractor
+                </div>
               </div>
-              <div className="font-display text-lg sm:text-xl font-extrabold text-amber-600 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}>
-                {formatCompactINR(kpi?.totalOutstandingPayablesAmount ?? 0)}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                Vendor & contractor
-              </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -2236,38 +2252,40 @@ export default function DashboardPage() {
             </div>
 
             {/* Low Stock Alerts */}
-            <div
-              onClick={() => setActiveKpiModal("lowStockItems")}
-              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
-              title="Click to view Low Stock Inventory details"
-            >
-              <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.criticalMaterials", "Low Stock Items")}</span>
+            {canViewStock && (
+              <div
+                onClick={() => setActiveKpiModal("lowStockItems")}
+                className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
+                title="Click to view Low Stock Inventory details"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider">{t("kpi.criticalMaterials", "Low Stock Items")}</span>
+                  <div
+                    className={`p-2 rounded-lg transition-colors ${
+                      (kpi?.lowStockItemsCount || 0) > 0
+                        ? "bg-amber-100 text-amber-700 group-hover:bg-amber-600 group-hover:text-white"
+                        : "bg-slate-50 text-slate-500 group-hover:bg-slate-200"
+                    }`}
+                  >
+                    <Boxes className="w-4 h-4" />
+                  </div>
+                </div>
                 <div
-                  className={`p-2 rounded-lg transition-colors ${
-                    (kpi?.lowStockItemsCount || 0) > 0
-                      ? "bg-amber-100 text-amber-700 group-hover:bg-amber-600 group-hover:text-white"
-                      : "bg-slate-50 text-slate-500 group-hover:bg-slate-200"
+                  className={`font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${
+                    (kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-900"
                   }`}
+                  title={String(kpi?.lowStockItemsCount ?? 0)}
                 >
-                  <Boxes className="w-4 h-4" />
+                  {formatCompactNumber(kpi?.lowStockItemsCount ?? 0)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                  <span>Items below reorder limit</span>
+                  <span className="text-amber-600 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                    Details <ExternalLink className="w-3 h-3" />
+                  </span>
                 </div>
               </div>
-              <div
-                className={`font-display text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight leading-tight truncate ${
-                  (kpi?.lowStockItemsCount || 0) > 0 ? "text-amber-600" : "text-slate-900"
-                }`}
-                title={String(kpi?.lowStockItemsCount ?? 0)}
-              >
-                {formatCompactNumber(kpi?.lowStockItemsCount ?? 0)}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                <span>Items below reorder limit</span>
-                <span className="text-amber-600 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                  Details <ExternalLink className="w-3 h-3" />
-                </span>
-              </div>
-            </div>
+            )}
 
             {/* Overdue Tasks */}
             <div
@@ -2347,50 +2365,54 @@ export default function DashboardPage() {
             </div>
 
             {/* Payments Today */}
-            <div
-              onClick={() => setActiveKpiModal("paymentsMadeToday")}
-              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
-              title="Click to view Payments Made Today details"
-            >
-              <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider">Paid Today</span>
-                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                  <DollarSign className="w-4 h-4" />
+            {canViewFinance && (
+              <div
+                onClick={() => setActiveKpiModal("paymentsMadeToday")}
+                className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer group select-none active:scale-[0.99]"
+                title="Click to view Payments Made Today details"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Paid Today</span>
+                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}>
+                  {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                  <span>Approved payments today</span>
+                  <span className="text-emerald-700 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                    Details <ExternalLink className="w-3 h-3" />
+                  </span>
                 </div>
               </div>
-              <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.paymentsMadeTodayAmount ?? 0)}>
-                {formatCompactINR(kpi?.paymentsMadeTodayAmount ?? 0)}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                <span>Approved payments today</span>
-                <span className="text-emerald-700 font-medium opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                  Details <ExternalLink className="w-3 h-3" />
-                </span>
-              </div>
-            </div>
+            )}
 
             {/* Total Outstanding Payables */}
-            <div
-              onClick={() => setActiveKpiModal("outstandingPayables")}
-              className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md transition-all col-span-2 cursor-pointer group select-none active:scale-[0.99]"
-              title="Click to view Outstanding Payables breakdown"
-            >
-              <div className="flex items-center justify-between text-slate-500 mb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider">Total Outstanding Payables</span>
-                <div className="p-2 rounded-lg bg-amber-50 text-amber-700 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                  <TrendingDown className="w-4 h-4" />
+            {canViewFinance && (
+              <div
+                onClick={() => setActiveKpiModal("outstandingPayables")}
+                className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md transition-all col-span-2 cursor-pointer group select-none active:scale-[0.99]"
+                title="Click to view Outstanding Payables breakdown"
+              >
+                <div className="flex items-center justify-between text-slate-500 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Total Outstanding Payables</span>
+                  <div className="p-2 rounded-lg bg-amber-50 text-amber-700 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}>
+                  {formatCompactINR(kpi?.totalOutstandingPayablesAmount ?? 0)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                  <span>Verified across vendor & contractor bills</span>
+                  <span className="text-amber-600 font-semibold group-hover:underline flex items-center gap-0.5">
+                    View Breakdown →
+                  </span>
                 </div>
               </div>
-              <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 tabular-nums tracking-tight leading-tight truncate" title={formatCurrency(kpi?.totalOutstandingPayablesAmount ?? 0)}>
-                {formatCompactINR(kpi?.totalOutstandingPayablesAmount ?? 0)}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                <span>Verified across vendor & contractor bills</span>
-                <span className="text-amber-600 font-semibold group-hover:underline flex items-center gap-0.5">
-                  View Breakdown →
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         ))}
 
