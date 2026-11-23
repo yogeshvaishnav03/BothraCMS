@@ -98,6 +98,7 @@ export default function TasksPage() {
   const [assigneeUserId, setAssigneeUserId] = useState("");
   const [assigneeUserIds, setAssigneeUserIds] = useState<string[]>([]);
   const [dueAt, setDueAt] = useState(() => istDateKey());
+  const [createModalSuccessNotice, setCreateModalSuccessNotice] = useState<string | null>(null);
 
   // Edit Task Modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -303,10 +304,12 @@ export default function TasksPage() {
     }
   };
 
-  const handleCreateTask = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateTask = async (e?: React.FormEvent, keepOpen = false) => {
+    if (e) e.preventDefault();
+    if (!title.trim() || submitting) return;
     setSubmitting(true);
     setErrorMessage(null);
+    setCreateModalSuccessNotice(null);
 
     try {
       const res = await fetch("/api/tasks", {
@@ -314,8 +317,8 @@ export default function TasksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId: projectId || (projects.length > 0 ? projects[0].id : "OTHER"),
-          title,
-          description: description || undefined,
+          title: title.trim(),
+          description: description ? description.trim() : undefined,
           priority,
           assigneeUserId: assigneeUserIds.length === 1 ? assigneeUserIds[0] : (assigneeUserId || undefined),
           assigneeUserIds: assigneeUserIds.length > 0 ? assigneeUserIds : undefined,
@@ -328,19 +331,26 @@ export default function TasksPage() {
         setErrorMessage(data.error?.message || "Could not create task. Please check the title and try again.");
       } else {
         const count = data.data?.count || (Array.isArray(data.data?.tasks) ? data.data.tasks.length : 1);
-        setStatusMessage(
-          count > 1
-            ? `Successfully created ${count} tasks assigned to selected employees!`
-            : "Task created and assigned successfully!"
-        );
-        setShowCreateModal(false);
-        setTitle("");
-        setDescription("");
-        setDueAt(istDateKey());
-        setAssigneeUserId("");
-        setAssigneeUserIds([]);
-        setPriority("DAILY");
-        setProjectId(projects.length > 0 ? projects[0].id : "OTHER");
+        const msg = count > 1
+          ? `Successfully created ${count} tasks assigned to selected employees!`
+          : "Task created and assigned successfully!";
+        setStatusMessage(msg);
+
+        if (keepOpen) {
+          setCreateModalSuccessNotice(`✓ ${msg} Project, assignees & date preserved for next task.`);
+          setTitle("");
+          setDescription("");
+        } else {
+          setShowCreateModal(false);
+          setTitle("");
+          setDescription("");
+          setDueAt(istDateKey());
+          setAssigneeUserId("");
+          setAssigneeUserIds([]);
+          setPriority("DAILY");
+          setProjectId(projects.length > 0 ? projects[0].id : "OTHER");
+        }
+
         if (data.data) {
           const incoming = Array.isArray(data.data?.tasks) ? data.data.tasks : [data.data];
           setTasks((prev) => [...incoming, ...prev.filter((t) => !incoming.some((inc: any) => inc.id === t.id))]);
@@ -989,7 +999,22 @@ export default function TasksPage() {
                 </button>
               </div>
 
-              <form id="create-task-modal-form" onSubmit={handleCreateTask} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+              <form id="create-task-modal-form" onSubmit={(e) => handleCreateTask(e, false)} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+                {createModalSuccessNotice && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900 font-semibold animate-in fade-in">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">{createModalSuccessNotice}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCreateModalSuccessNotice(null)}
+                      className="p-1 text-emerald-600 hover:text-emerald-800 rounded cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Target Project
@@ -1108,19 +1133,28 @@ export default function TasksPage() {
 
               </form>
 
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
+                  className="px-3.5 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
+                  disabled={submitting || !title.trim()}
+                  onClick={() => handleCreateTask(undefined, true)}
+                  className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition disabled:opacity-50 cursor-pointer shadow-2xs"
+                  title="Creates this task and keeps project, assignees, and date pre-filled for your next task"
+                >
+                  Create & Add Another
+                </button>
+                <button
                   type="submit"
                   form="create-task-modal-form"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
+                  disabled={submitting || !title.trim()}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition cursor-pointer"
                 >
                   {submitting
                     ? "Creating..."
