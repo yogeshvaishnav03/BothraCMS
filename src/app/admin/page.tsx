@@ -600,7 +600,7 @@ export default function SuperAdminDashboardPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            {currentUser?.role === "SUPER_ADMIN" && (
+            {(currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN" || currentUser?.role === "OWNER") && (
               <a
                 href="/api/admin/backup"
                 download

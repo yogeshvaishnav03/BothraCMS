@@ -29,6 +29,7 @@ import {
   ChevronRight,
   CreditCard,
   HardDrive,
+  Database,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -615,6 +616,27 @@ export default function SettingsPage() {
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </Link>
+              )}
+
+              {canManageSettings && (
+                <a
+                  href="/api/admin/backup"
+                  download
+                  className="flex items-center gap-3 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:border-emerald-300 transition"
+                  title="Download complete database backup snapshot (JSON)"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span>Database Backup & Snapshot</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">1-Click Download</span>
+                    </div>
+                    <div className="text-xs text-slate-500">Download a complete, SHA256-verified JSON backup of all tables, projects, materials, tasks, finances, and users.</div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </a>
               )}
 
               {canManageSettings && (
