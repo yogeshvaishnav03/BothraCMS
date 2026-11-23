@@ -27,12 +27,17 @@ import {
   GitCommitHorizontal,
   ExternalLink,
   X,
+  AlertTriangle,
+  CheckSquare,
+  Clock,
+  CheckCircle2,
+  User,
 } from "lucide-react";
 import ApprovalsWidget from "@/components/dashboard/ApprovalsWidget";
 import { ContactActions } from "@/components/ui/ContactActions";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { formatCompactINR, formatCompactNumber, formatCurrency, formatDateTime } from "@/lib/formatters";
+import { formatCompactINR, formatCompactNumber, formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
 
 type Kind = "PAYMENT" | "MONEY_IN" | "BILL" | "RECEIPT" | "ISSUE" | "ATTENDANCE" | "HEADCOUNT" | "SITE_REPORT";
@@ -121,6 +126,22 @@ interface Overview {
     withBlockers: number;
   };
   recentActivityDates: string[];
+  dueTasks?: {
+    id: string;
+    title: string;
+    description: string | null;
+    priority: string;
+    status: string;
+    dueAt: string | null;
+    isOverdue: boolean;
+    projectName: string;
+    assigneeName: string;
+    assigneeRole: string | null;
+    creatorName: string | null;
+    createdAt: string;
+  }[];
+  dueTasksCount?: number;
+  overdueTasksCount?: number;
 }
 
 const FEED_STATUS_TONE: Record<string, string> = {
@@ -299,7 +320,49 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   const [expandedTeamUsers, setExpandedTeamUsers] = useState<Record<string, boolean>>({});
   const [expandedUpdateId, setExpandedUpdateId] = useState<string | null>(null);
   const [showApprovalsModal, setShowApprovalsModal] = useState(false);
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const [taskDueFilter, setTaskDueFilter] = useState<"ALL" | "OVERDUE">("ALL");
   const isToday = date === todayIst();
+
+  const filteredDueTasks = useMemo(() => {
+    const list = data?.dueTasks || [];
+    if (taskDueFilter === "OVERDUE") {
+      return list.filter((t) => t.isOverdue);
+    }
+    return list;
+  }, [data?.dueTasks, taskDueFilter]);
+
+  const handleCompleteTask = async (taskId: string) => {
+    if (completingTaskId === taskId) return;
+    try {
+      setCompletingTaskId(taskId);
+      const res = await fetch(`/api/tasks/${taskId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "COMPLETED" }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || "Failed to mark task as completed");
+      }
+      setData((prev) => {
+        if (!prev) return prev;
+        const updatedList = (prev.dueTasks || []).filter((t) => t.id !== taskId);
+        const updatedOverdue = updatedList.filter((t) => t.isOverdue).length;
+        return {
+          ...prev,
+          dueTasks: updatedList,
+          dueTasksCount: updatedList.length,
+          overdueTasksCount: updatedOverdue,
+        };
+      });
+      load(true);
+    } catch (e: any) {
+      alert(e.message || "Failed to complete task");
+    } finally {
+      setCompletingTaskId(null);
+    }
+  };
 
   const toggleTeamUser = (userId: string) => {
     setExpandedTeamUsers((prev) => ({
@@ -522,21 +585,25 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
         </div>
       )}
 
-      {/* ── Secondary stats ──────────────────────────────────────────────── */}
+      {/* ── Secondary stats (Material receipts & issues removed; Due & Overdue tasks added) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
         <MiniStat
-          label={hi ? "सामग्री प्राप्त" : "Material receipts"}
-          value={s ? formatCompactNumber(s.receiptsCount) : "–"}
-          Icon={PackagePlus}
-          tone="bg-emerald-50 text-emerald-600 ring-emerald-100"
-          href="/materials"
+          label={hi ? "लंबित देय कार्य" : "Due tasks"}
+          value={data ? formatCompactNumber(data.dueTasksCount ?? 0) : "–"}
+          Icon={CheckSquare}
+          tone="bg-amber-50 text-amber-600 ring-amber-100"
+          href="#command-center-due-tasks"
         />
         <MiniStat
-          label={hi ? "सामग्री जारी" : "Material issues"}
-          value={s ? formatCompactNumber(s.issuesCount) : "–"}
-          Icon={PackageMinus}
-          tone="bg-amber-50 text-amber-600 ring-amber-100"
-          href="/materials"
+          label={hi ? "समय सीमा समाप्त" : "Overdue tasks"}
+          value={data ? formatCompactNumber(data.overdueTasksCount ?? 0) : "–"}
+          Icon={AlertTriangle}
+          tone={
+            (data?.overdueTasksCount || 0) > 0
+              ? "bg-rose-50 text-rose-600 ring-rose-200"
+              : "bg-emerald-50 text-emerald-600 ring-emerald-100"
+          }
+          href="/tasks?filter=overdue"
         />
         <MiniStat
           label={hi ? "साइट रिपोर्ट" : "Site reports filed"}
@@ -560,6 +627,182 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
           <ApprovalsWidget onActionComplete={() => load()} />
         </div>
       )}
+
+      {/* ── Due Tasks Awaiting Completion (Dashboard View) ── */}
+      <div id="command-center-due-tasks" className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0 space-y-4 animate-in fade-in duration-200">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-amber-500/15 text-amber-600">
+              <CheckSquare className="w-5 h-5" />
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+                <span>{hi ? "लंबित एवं देय कार्य" : "Due Tasks Awaiting Completion"}</span>
+                {data && (data.dueTasksCount || 0) > 0 && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                    {data.dueTasksCount} {hi ? "बाकी" : "pending"}
+                  </span>
+                )}
+                {data && (data.overdueTasksCount || 0) > 0 && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 flex items-center gap-1 animate-pulse">
+                    <AlertTriangle className="w-3 h-3" />
+                    {data.overdueTasksCount} {hi ? "अतिदेय" : "overdue"}
+                  </span>
+                )}
+              </h2>
+              <p className="text-xs text-slate-500">
+                {hi
+                  ? "ये कार्य पूरे होने तक डैशबोर्ड पर दिखते रहेंगे।"
+                  : "Tasks due for completion — remains on the dashboard until marked completed."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {data && (data.overdueTasksCount || 0) > 0 && (
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTaskDueFilter("ALL")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md font-semibold transition cursor-pointer",
+                    taskDueFilter === "ALL"
+                      ? "bg-white text-slate-900 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  {hi ? "सभी देय" : "All Due"} ({data.dueTasksCount || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaskDueFilter("OVERDUE")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md font-semibold transition flex items-center gap-1 cursor-pointer",
+                    taskDueFilter === "OVERDUE"
+                      ? "bg-rose-600 text-white shadow-2xs"
+                      : "text-rose-600 hover:text-rose-700"
+                  )}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>{hi ? "अतिदेय" : "Overdue"}</span>
+                  <span className="text-[10px] bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded-full font-bold">
+                    {data.overdueTasksCount}
+                  </span>
+                </button>
+              </div>
+            )}
+            <Link
+              href="/tasks"
+              className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-700 hover:underline shrink-0"
+            >
+              <span>{hi ? "टास्क बोर्ड खोलें" : "Open Task Board"}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* List of Due Tasks */}
+        {!data ? (
+          <div className="py-8 text-center text-xs text-slate-400">Loading due tasks...</div>
+        ) : filteredDueTasks.length === 0 ? (
+          <div className="py-8 text-center text-slate-400 text-xs">
+            <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+            <div className="font-semibold text-slate-700 text-sm">
+              {hi ? "शानदार! सभी कार्य पूरे हो चुके हैं" : "All Caught Up!"}
+            </div>
+            <p className="mt-0.5 text-slate-500">
+              {taskDueFilter === "OVERDUE"
+                ? (hi ? "वर्तमान में कोई अतिदेय कार्य नहीं है। सब कुछ समय पर है!" : "No overdue tasks found. Everything is on schedule!")
+                : (hi ? "वर्तमान में कोई लंबित या देय कार्य नहीं है।" : "No outstanding tasks pending completion.")}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+            {filteredDueTasks.map((task) => (
+              <div
+                key={task.id}
+                className={cn(
+                  "p-3.5 rounded-xl border transition flex flex-col sm:flex-row sm:items-center justify-between gap-3",
+                  task.isOverdue
+                    ? "bg-rose-50/40 border-rose-200 hover:border-rose-300"
+                    : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                )}
+              >
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-900 text-sm">
+                      {task.title}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border",
+                        task.priority === "CRITICAL"
+                          ? "bg-rose-100 text-rose-800 border-rose-300"
+                          : task.priority === "DAILY"
+                          ? "bg-purple-100 text-purple-800 border-purple-300"
+                          : task.priority === "HIGH"
+                          ? "bg-amber-100 text-amber-800 border-amber-300"
+                          : "bg-slate-100 text-slate-700 border-slate-300"
+                      )}
+                    >
+                      {task.priority}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                      {task.status.replace("_", " ")}
+                    </span>
+                    {task.isOverdue && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>OVERDUE</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500 flex items-center gap-3 flex-wrap">
+                    <span className="flex items-center gap-1">
+                      <span className="text-slate-400">Project:</span>
+                      <strong className="text-slate-700">{task.projectName}</strong>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      <strong className="text-slate-700">{task.assigneeName}</strong>
+                    </span>
+                    {task.dueAt && (
+                      <span className={cn("flex items-center gap-1 font-semibold", task.isOverdue ? "text-rose-600" : "text-slate-600")}>
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Due: {formatDate(task.dueAt)}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={completingTaskId === task.id}
+                    onClick={() => handleCompleteTask(task.id)}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                    title={hi ? "कार्य पूर्ण के रूप में चिह्नित करें" : "Mark task as completed"}
+                  >
+                    {completingTaskId === task.id ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>{hi ? "पूरा करें" : "Mark Complete"}</span>
+                  </button>
+                  <Link
+                    href={`/tasks?task=${task.id}`}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition inline-flex items-center gap-1"
+                  >
+                    <span>{hi ? "विवरण" : "Details"}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
         <div className="xl:col-span-2 space-y-4 min-w-0">

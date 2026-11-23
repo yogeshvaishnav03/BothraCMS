@@ -91,6 +91,7 @@ export class CommandCenterService {
       portfolioWithProgress,
       materialRequestsPending,
       attentionData,
+      dueTasksList,
     ] = await Promise.all([
       fetchDayBookData(organizationId, date, siteId).catch((err) => {
         console.warn("[COMMAND_CENTER] fetchDayBookData fallback:", err?.message || err);
@@ -212,6 +213,34 @@ export class CommandCenterService {
         equipmentDown: 0,
         customerOverdue: 0,
       })),
+      prisma.task.findMany({
+        where: {
+          organizationId,
+          isArchived: false,
+          status: { notIn: ["COMPLETED", "VERIFIED", "ARCHIVED"] },
+          ...(siteId ? { project: { siteId } } : {}),
+        },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          priority: true,
+          status: true,
+          dueAt: true,
+          createdAt: true,
+          project: { select: { id: true, name: true } },
+          assignee: { select: { id: true, name: true, role: true } },
+          creator: { select: { id: true, name: true } },
+        },
+        orderBy: [
+          { dueAt: "asc" },
+          { createdAt: "desc" },
+        ],
+        take: 50,
+      }).catch((err) => {
+        console.warn("[COMMAND_CENTER] dueTasks fallback:", err);
+        return [];
+      }),
     ]);
 
     // ── 1. Day Book as one timeline, newest first ──────────────────────────
@@ -571,6 +600,37 @@ export class CommandCenterService {
       .sort((a, b) => (a.at < b.at ? 1 : -1))
       .slice(0, 25);
 
+    const nowMs = Date.now();
+    const formattedDueTasks = (dueTasksList || [])
+      .map((t: any) => {
+        const isOverdue = t.dueAt ? new Date(t.dueAt).getTime() < nowMs : false;
+        return {
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          priority: t.priority,
+          status: t.status,
+          dueAt: t.dueAt ? (typeof t.dueAt === "string" ? t.dueAt : t.dueAt.toISOString()) : null,
+          isOverdue,
+          projectName: t.project?.name || "General Project",
+          assigneeName: t.assignee?.name || "Unassigned",
+          assigneeRole: t.assignee?.role || null,
+          creatorName: t.creator?.name || null,
+          createdAt: t.createdAt ? (typeof t.createdAt === "string" ? t.createdAt : t.createdAt.toISOString()) : new Date().toISOString(),
+        };
+      })
+      .sort((a: any, b: any) => {
+        if (a.isOverdue && !b.isOverdue) return -1;
+        if (!a.isOverdue && b.isOverdue) return 1;
+        if (a.dueAt && b.dueAt) return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+        if (a.dueAt && !b.dueAt) return -1;
+        if (!a.dueAt && b.dueAt) return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+    const dueTasksCount = formattedDueTasks.length;
+    const overdueTasksCount = formattedDueTasks.filter((t: any) => t.isOverdue).length;
+
     return {
       date,
       summary: dayBook?.summary || {
@@ -629,6 +689,9 @@ export class CommandCenterService {
           .map((s: any) => ({ userId: s.user?.id, name: s.user?.name, phone: s.user?.phone })),
       },
       recentActivityDates: dayBook?.recentActivityDates || [],
+      dueTasks: formattedDueTasks,
+      dueTasksCount,
+      overdueTasksCount,
     };
   }
 }

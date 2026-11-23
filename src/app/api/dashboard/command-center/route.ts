@@ -87,6 +87,9 @@ export async function GET(req: NextRequest) {
           missing: [],
         },
         recentActivityDates: [],
+        dueTasks: [],
+        dueTasksCount: 0,
+        overdueTasksCount: 0,
       });
     }
   } catch (error) {
