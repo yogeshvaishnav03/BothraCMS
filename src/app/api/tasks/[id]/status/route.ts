@@ -5,6 +5,8 @@ import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyTaskUpdate, statusLabel } from "@/lib/task-notifications";
+import { ReminderService } from "@/services/reminder-service";
+import { calculateInitialReminder } from "@/lib/task-reminder";
 
 export const dynamic = "force-dynamic";
 
@@ -40,12 +42,22 @@ export async function PATCH(
     const oldStatus = task.status;
     const updateData: any = { status };
 
-    if (status === "COMPLETED" && oldStatus !== "COMPLETED") {
-      updateData.completedAt = new Date();
-      updateData.completedById = user.userId;
+    if (status === "COMPLETED") {
+      if (oldStatus !== "COMPLETED") {
+        updateData.completedAt = new Date();
+        updateData.completedById = user.userId;
+      }
+      updateData.reminderAt = null;
     } else if (status === "VERIFIED") {
       updateData.verifiedAt = new Date();
       updateData.verifiedById = user.userId;
+      updateData.reminderAt = null;
+    } else if (
+      ["TODO", "IN_PROGRESS", "BLOCKED"].includes(status) &&
+      (oldStatus === "COMPLETED" || oldStatus === "VERIFIED")
+    ) {
+      updateData.reminderAt = calculateInitialReminder(task.priority);
+      updateData.reminderDeliveredAt = null;
     }
 
     const [updatedTask] = await prisma.$transaction([
@@ -69,6 +81,10 @@ export async function PATCH(
         },
       }),
     ]);
+
+    if (status === "COMPLETED" || status === "VERIFIED") {
+      await ReminderService.dismissTaskReminders(task.id, user.organizationId);
+    }
 
     if (oldStatus !== status) {
       await notifyTaskUpdate({

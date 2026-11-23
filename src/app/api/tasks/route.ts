@@ -12,6 +12,7 @@ import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyPeople } from "@/lib/notify";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
 import { calculateInitialReminder, normalizePriority } from "@/lib/task-reminder";
+import { ReminderService } from "@/services/reminder-service";
 
 export const dynamic = "force-dynamic";
 
@@ -333,8 +334,11 @@ export async function DELETE(req: NextRequest) {
         archivedAt: new Date(),
         archivedById: user.userId,
         archiveReason: "Task archived by authorized user",
+        reminderAt: null,
       },
     });
+
+    await ReminderService.dismissTaskReminders(task.id, user.organizationId);
 
     await prisma.auditEvent.create({
       data: {

@@ -108,8 +108,10 @@ export async function PATCH(
       const normPriority = normalizePriority(data.priority);
       updateData.priority = normPriority;
       if (data.reminderAt === undefined && normPriority !== task.priority) {
-        updateData.reminderAt = calculateInitialReminder(normPriority);
-        updateData.reminderDeliveredAt = null;
+        if (!["COMPLETED", "VERIFIED", "ARCHIVED"].includes(task.status)) {
+          updateData.reminderAt = calculateInitialReminder(normPriority);
+          updateData.reminderDeliveredAt = null;
+        }
       }
     }
     if (data.assigneeUserId !== undefined) {

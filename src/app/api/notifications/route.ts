@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
           type: { not: "OPERATIONAL_ALERT" },
         },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: 40,
       }),
       isAdminRole
         ? prisma.purchaseOrder.findMany({
@@ -280,8 +280,54 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 0. Filter out and dismiss stale reminders for completed, verified or archived tasks
+    const taskReminderTaskIds = Array.from(
+      new Set(
+        userNotifications
+          .filter((n) => n.type === "TASK_REMINDER" && n.entityId)
+          .map((n) => n.entityId as string)
+      )
+    );
+
+    let completedOrInactiveTaskIds = new Set<string>();
+    if (taskReminderTaskIds.length > 0) {
+      const activeTasks = await prisma.task.findMany({
+        where: {
+          id: { in: taskReminderTaskIds },
+          status: { in: ["TODO", "IN_PROGRESS", "BLOCKED"] },
+          isArchived: false,
+        },
+        select: { id: true },
+      });
+      const activeTaskIdSet = new Set(activeTasks.map((t) => t.id));
+      for (const tid of taskReminderTaskIds) {
+        if (!activeTaskIdSet.has(tid)) {
+          completedOrInactiveTaskIds.add(tid);
+        }
+      }
+
+      if (completedOrInactiveTaskIds.size > 0) {
+        prisma.notification.updateMany({
+          where: {
+            organizationId: user.organizationId,
+            type: "TASK_REMINDER",
+            entityId: { in: Array.from(completedOrInactiveTaskIds) },
+            readAt: null,
+          },
+          data: { readAt: new Date() },
+        }).catch((err) => {
+          console.warn("[Notifications] Error auto-clearing completed task reminders:", err);
+        });
+      }
+    }
+
     // 1. In-App User Notifications (e.g. Task Reminders)
     for (const notif of userNotifications) {
+      // Do not surface reminders for completed, verified, or archived tasks
+      if (notif.type === "TASK_REMINDER" && notif.entityId && completedOrInactiveTaskIds.has(notif.entityId)) {
+        continue;
+      }
+
       const isRead =
         !!notif.readAt ||
         readEntityIdSet.has(notif.id) ||

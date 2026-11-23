@@ -1,6 +1,8 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { notifyTaskUpdate, statusLabel } from "@/lib/task-notifications";
+import { ReminderService } from "@/services/reminder-service";
+import { calculateInitialReminder } from "@/lib/task-reminder";
 
 /**
  * Task history in the style of a commit log: every change to a task becomes
@@ -367,9 +369,17 @@ export class TaskTimelineService {
       if (params.status === "COMPLETED") {
         data.completedAt = now;
         data.completedById = params.userId;
+        data.reminderAt = null;
       } else if (params.status === "VERIFIED") {
         data.verifiedAt = now;
         data.verifiedById = params.userId;
+        data.reminderAt = null;
+      } else if (
+        ["TODO", "IN_PROGRESS", "BLOCKED"].includes(params.status!) &&
+        (task.status === "COMPLETED" || task.status === "VERIFIED")
+      ) {
+        data.reminderAt = calculateInitialReminder((task as any).priority);
+        data.reminderDeliveredAt = null;
       }
       ops.push(prisma.task.update({ where: { id: task.id }, data }));
       ops.push(
@@ -392,6 +402,10 @@ export class TaskTimelineService {
       })
     );
     await prisma.$transaction(ops);
+
+    if (params.status === "COMPLETED" || params.status === "VERIFIED") {
+      await ReminderService.dismissTaskReminders(task.id, params.organizationId);
+    }
 
     const photoText = params.photoUrls.length ? ` (${params.photoUrls.length} photo${params.photoUrls.length > 1 ? "s" : ""})` : "";
     await notifyTaskUpdate({

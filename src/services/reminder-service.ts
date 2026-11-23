@@ -12,6 +12,19 @@ export class ReminderService {
   static async deliverDueReminders(organizationId?: string): Promise<number> {
     const now = new Date();
 
+    // Clean up stray reminderAt on completed/verified/cancelled/archived tasks
+    await prisma.task.updateMany({
+      where: {
+        reminderAt: { not: null },
+        OR: [
+          { status: { in: ["COMPLETED", "VERIFIED", "CANCELLED", "ARCHIVED"] } },
+          { isArchived: true },
+        ],
+        ...(organizationId ? { organizationId } : {}),
+      },
+      data: { reminderAt: null },
+    });
+
     const where: any = {
       reminderAt: { lte: now },
       OR: [
@@ -58,6 +71,11 @@ export class ReminderService {
           freshTask.isArchived ||
           ["COMPLETED", "VERIFIED", "CANCELLED", "ARCHIVED"].includes(freshTask.status)
         ) {
+          // Clear reminderAt to permanently stop reminders for inactive/completed tasks
+          await tx.task.update({
+            where: { id: task.id },
+            data: { reminderAt: null },
+          });
           return;
         }
 
@@ -172,5 +190,30 @@ export class ReminderService {
       data: { readAt: new Date() },
     });
     return res.count;
+  }
+
+  /**
+   * When a task is completed, verified, cancelled or archived:
+   * 1. Clear reminderAt on the task so recurring jobs never re-trigger
+   * 2. Mark any unread TASK_REMINDER notifications for this task as read / dismissed
+   */
+  static async dismissTaskReminders(taskId: string, organizationId?: string): Promise<void> {
+    const now = new Date();
+    await Promise.all([
+      prisma.task.updateMany({
+        where: { id: taskId, ...(organizationId ? { organizationId } : {}) },
+        data: { reminderAt: null },
+      }),
+      prisma.notification.updateMany({
+        where: {
+          entityType: "TASK",
+          entityId: taskId,
+          type: "TASK_REMINDER",
+          readAt: null,
+          ...(organizationId ? { organizationId } : {}),
+        },
+        data: { readAt: now },
+      }),
+    ]);
   }
 }
