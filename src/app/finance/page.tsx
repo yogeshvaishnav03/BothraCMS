@@ -1454,14 +1454,7 @@ export default function FinancePage() {
         {/* Header */}
         <PageHeader icon={DollarSign} title="Payments & Bills" subtitle="Record vendor & contractor bills, track unpaid balances, and manage payments in one place.">
 
-          <div className="w-full sm:w-auto grid grid-cols-2 sm:flex sm:items-center gap-2">
-            <a
-              href="/payroll/tds-return?kind=contractors"
-              className="order-4 sm:order-1 col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
-            >
-              <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
-              <span>TDS Return (26Q)</span>
-            </a>
+          <div className="w-full sm:w-auto grid grid-cols-1 sm:flex sm:items-center gap-2">
             {canWriteFinance && (
               <button
                 type="button"
@@ -1470,7 +1463,7 @@ export default function FinancePage() {
                   setShowExpenseModal(true);
                   setReceiptError(null);
                 }}
-                className="order-1 sm:order-2 inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all cursor-pointer"
               >
                 <Receipt className="w-4 h-4 shrink-0" />
                 <span>Add Cash Expense</span>
@@ -1483,7 +1476,7 @@ export default function FinancePage() {
                   if (parties.length > 0) setBillPartyId(parties[0].id);
                   setShowBillModal(true);
                 }}
-                className="order-2 sm:order-3 inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all cursor-pointer"
               >
                 <FileSpreadsheet className="w-4 h-4 shrink-0" />
                 <span>Record Bill</span>
@@ -1503,7 +1496,7 @@ export default function FinancePage() {
                   }
                   setShowPaymentModal(true);
                 }}
-                className="order-3 sm:order-4 inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all cursor-pointer"
               >
                 <CreditCard className="w-4 h-4 shrink-0" />
                 <span>Record Payment</span>

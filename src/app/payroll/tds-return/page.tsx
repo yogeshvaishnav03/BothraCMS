@@ -112,9 +112,7 @@ const REMARK: Record<string, string> = {
 };
 
 export default function TdsReturnPage() {
-  const [kind, setKind] = useState<Kind>(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("kind") === "contractors" ? "contractors" : "salary",
-  );
+  const [kind, setKind] = useState<Kind>("salary");
   const [{ fy, quarter }, setPeriod] = useState(currentQuarter);
   const [doc, setDoc] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -163,30 +161,8 @@ export default function TdsReturnPage() {
         </PageHeader>
 
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-relaxed text-slate-600 shadow-xs">
-          <strong className="text-slate-900">How this quarterly TDS helper works:</strong> Form <strong>24Q</strong> covers salary TDS for staff; Form <strong>26Q</strong> covers TDS deducted from contractors, professionals, rent, and high-value suppliers. Each quarter shows monthly tax deposits (<strong>Challans</strong>), payee totals, and downloadable Form 16/16A drafts.
+          <strong className="text-slate-900">How this quarterly TDS helper works:</strong> Form <strong>24Q</strong> covers salary TDS for staff. Each quarter shows monthly tax deposits (<strong>Challans</strong>), employee salary totals, and downloadable Form 16 drafts.
         </div>
-
-        <Tabs<Kind>
-          value={kind}
-          onChange={(v) => {
-            setKind(v);
-            try {
-              window.history.replaceState(null, "", v === "contractors" ? "?kind=contractors" : window.location.pathname);
-            } catch {}
-          }}
-          tabs={[
-            { id: "salary", label: "Salary (24Q)" },
-            {
-              id: "contractors",
-              label: (
-                <>
-                  <span className="sm:hidden">Contractors (26Q)</span>
-                  <span className="hidden sm:inline">Contractors, fees &amp; rent (26Q)</span>
-                </>
-              ),
-            },
-          ]}
-        />
 
         {error && <Alert tone="error">{error}</Alert>}
         {loading && !doc ? (

@@ -37,8 +37,8 @@ export default function Form16APage() {
   return (
     <div className="min-h-screen bg-slate-100 py-8 print:bg-white print:py-0">
       <div className="mx-auto mb-4 flex max-w-3xl flex-wrap items-center justify-between gap-2 px-4 print:hidden">
-        <Link href="/payroll/tds-return?kind=contractors" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900">
-          <ArrowLeft className="h-4 w-4" /> TDS return (26Q)
+        <Link href="/finance" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900">
+          <ArrowLeft className="h-4 w-4" /> Back to Payments &amp; Bills
         </Link>
         <div className="flex items-center gap-2">
           {wa && (
