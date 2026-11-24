@@ -33,6 +33,7 @@ import {
   RotateCcw,
   X,
   Trash2,
+  Tag,
 } from "lucide-react";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
@@ -400,6 +401,16 @@ export default function PartyStatementPage() {
                 <ShoppingCart className="w-4 h-4" />
                 <span>New Purchase Order</span>
               </button>
+            )}
+            {isVendor && (
+              <Link
+                href={`/material-pricing?vendor=${party.id}&view=vendor`}
+                className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl text-xs shadow-sm transition whitespace-nowrap"
+                title="Materials this vendor sells and their rates compared with other vendors"
+              >
+                <Tag className="w-4 h-4 text-emerald-600" />
+                <span>Material Price List</span>
+              </Link>
             )}
             <button
               onClick={() => setShowAuditModal(true)}
