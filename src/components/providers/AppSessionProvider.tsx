@@ -22,6 +22,7 @@ export interface AlertToastState {
   message: string;
   href: string;
   severity?: string;
+  createdAt?: string;
 }
 
 interface AppSessionContextValue {
@@ -293,6 +294,7 @@ export function AppSessionProvider({ children }: { children: React.ReactNode }) 
                 message: latest.message,
                 href: latest.href || "/",
                 severity: latest.severity,
+                createdAt: latest.createdAt,
               });
               playAlertChime();
 

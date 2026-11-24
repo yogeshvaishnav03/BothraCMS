@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   BookOpen,
+  Calendar,
   CalendarDays,
   Globe,
   Check,
@@ -56,8 +57,45 @@ import { triggerAppInstall } from "@/components/pwa/AndroidInstallPrompt";
 import { useIsAppInstalled } from "@/components/pwa/useIsAppInstalled";
 import { detectDevicePlatform, type DevicePlatform } from "@/lib/device-platform";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
+import { formatDateTime } from "@/lib/formatters";
+import { istDateKey } from "@/lib/ist-date";
 
 let hasClearedDevSwThisLoad = false;
+
+function formatAlertDate(dateInput: Date | string | null | undefined): string {
+  if (!dateInput) return "";
+  const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return "";
+
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+
+  const timeStr = d.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const todayKey = istDateKey(now);
+  const notifKey = istDateKey(d);
+
+  if (todayKey === notifKey) {
+    return `Today, ${timeStr}`;
+  }
+
+  const yest = new Date(now.getTime() - 24 * 3600 * 1000);
+  const yestKey = istDateKey(yest);
+  if (yestKey === notifKey) {
+    return `Yesterday, ${timeStr}`;
+  }
+
+  return formatDateTime(d);
+}
 
 interface ShellProps {
   children: React.ReactNode;
@@ -72,6 +110,8 @@ export default function Shell({ children }: ShellProps) {
   const { language, setLanguage, t, languages } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationDatePreset, setNotificationDatePreset] = useState<"ALL" | "TODAY" | "YESTERDAY" | "THIS_WEEK" | "CUSTOM">("ALL");
+  const [notificationCustomDate, setNotificationCustomDate] = useState<string>("");
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [logoutConfirmCount, setLogoutConfirmCount] = useState<number | null>(null);
   const [menuSearch, setMenuSearch] = useState("");
@@ -151,6 +191,33 @@ export default function Shell({ children }: ShellProps) {
   const handleMarkAllAsRead = async () => {
     await markAllNotificationsRead();
   };
+
+  const filteredNotifications = useMemo(() => {
+    if (notificationDatePreset === "ALL") return notifications;
+    const nowDate = new Date();
+    const todayStr = istDateKey(nowDate);
+    const yestDate = new Date(nowDate.getTime() - 24 * 3600 * 1000);
+    const yesterdayStr = istDateKey(yestDate);
+
+    return notifications.filter((n) => {
+      if (!n.createdAt) return false;
+      const d = new Date(n.createdAt);
+      if (isNaN(d.getTime())) return false;
+      const notifDateStr = istDateKey(d);
+
+      if (notificationDatePreset === "TODAY") return notifDateStr === todayStr;
+      if (notificationDatePreset === "YESTERDAY") return notifDateStr === yesterdayStr;
+      if (notificationDatePreset === "THIS_WEEK") {
+        const weekAgo = new Date(nowDate.getTime() - 7 * 24 * 3600 * 1000);
+        return d >= weekAgo && d <= nowDate;
+      }
+      if (notificationDatePreset === "CUSTOM") {
+        if (!notificationCustomDate) return true;
+        return notifDateStr === notificationCustomDate;
+      }
+      return true;
+    });
+  }, [notifications, notificationDatePreset, notificationCustomDate]);
 
   useEffect(() => {
     setDevicePlatform(detectDevicePlatform());
@@ -1030,13 +1097,133 @@ export default function Shell({ children }: ShellProps) {
               </div>
             </div>
             <PushToggle />
+
+            {/* Date filter bar */}
+            <div className="px-3 py-2 bg-slate-50 border-y border-slate-200/80 space-y-1.5 shrink-0">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Filter by Date:</span>
+                </span>
+                {notificationDatePreset !== "ALL" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotificationDatePreset("ALL");
+                      setNotificationCustomDate("");
+                    }}
+                    className="text-[10px] font-bold text-amber-600 hover:text-amber-700 underline"
+                  >
+                    Clear Filter ({filteredNotifications.length}/{notifications.length})
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotificationDatePreset("ALL");
+                    setNotificationCustomDate("");
+                  }}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
+                    notificationDatePreset === "ALL"
+                      ? "bg-slate-900 text-amber-400 shadow-xs"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  All ({notifications.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotificationDatePreset("TODAY")}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
+                    notificationDatePreset === "TODAY"
+                      ? "bg-slate-900 text-amber-400 shadow-xs"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotificationDatePreset("YESTERDAY")}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
+                    notificationDatePreset === "YESTERDAY"
+                      ? "bg-slate-900 text-amber-400 shadow-xs"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  Yesterday
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotificationDatePreset("THIS_WEEK")}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
+                    notificationDatePreset === "THIS_WEEK"
+                      ? "bg-slate-900 text-amber-400 shadow-xs"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  Last 7 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNotificationDatePreset("CUSTOM")}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
+                    notificationDatePreset === "CUSTOM"
+                      ? "bg-slate-900 text-amber-400 shadow-xs"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  Pick Date
+                </button>
+              </div>
+              {notificationDatePreset === "CUSTOM" && (
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <input
+                    type="date"
+                    value={notificationCustomDate}
+                    onChange={(e) => setNotificationCustomDate(e.target.value)}
+                    className="w-full text-xs px-2 py-1 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-sans"
+                  />
+                  {notificationCustomDate && (
+                    <button
+                      type="button"
+                      onClick={() => setNotificationCustomDate("")}
+                      className="text-slate-400 hover:text-slate-600 p-1"
+                      title="Clear custom date"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex-1 min-h-0 max-h-[60dvh] overflow-y-auto divide-y divide-slate-100 p-2">
-              {notifications.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-xs">
-                  {t("nav.noAlerts", "No new alerts. Approvals, low-stock notices, and updates appear here.")}
+              {filteredNotifications.length === 0 ? (
+                <div className="text-center py-8 px-4 text-slate-400 text-xs flex flex-col items-center gap-2">
+                  <Calendar className="w-8 h-8 text-slate-300" />
+                  {notifications.length === 0 ? (
+                    <span>{t("nav.noAlerts", "No new alerts. Approvals, low-stock notices, and updates appear here.")}</span>
+                  ) : (
+                    <>
+                      <span>No alerts found for this date.</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotificationDatePreset("ALL");
+                          setNotificationCustomDate("");
+                        }}
+                        className="text-xs font-bold text-amber-600 hover:text-amber-700 underline"
+                      >
+                        Show All Alerts ({notifications.length})
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
-                notifications.map((n) => (
+                filteredNotifications.map((n) => (
                   <div
                     key={n.id}
                     onClick={() => handleMarkAsRead(n.id, n.href)}
@@ -1046,13 +1233,13 @@ export default function Shell({ children }: ShellProps) {
                         : "bg-white hover:bg-amber-50/40 ring-1 ring-amber-100/80 shadow-2xs"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                         {!n.isRead && (
                           <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" title="Unread" />
                         )}
                         <span
-                          className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase ${
+                          className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase shrink-0 ${
                             n.type === "CHAT_MESSAGE"
                               ? "bg-purple-100 text-purple-800 border border-purple-200"
                               : n.severity === "CRITICAL"
@@ -1064,8 +1251,17 @@ export default function Shell({ children }: ShellProps) {
                         >
                           {n.type === "CHAT_MESSAGE" ? "MESSAGE" : n.type.replace(/_/g, " ")}
                         </span>
+                        {n.createdAt && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 font-mono"
+                            title={formatDateTime(n.createdAt)}
+                          >
+                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{formatAlertDate(n.createdAt)}</span>
+                          </span>
+                        )}
                       </div>
-                      <span className="text-[10px] text-amber-600 font-semibold group-hover:underline">
+                      <span className="text-[10px] text-amber-600 font-semibold group-hover:underline shrink-0 ml-1">
                         View &rarr;
                       </span>
                     </div>
@@ -1242,8 +1438,17 @@ export default function Shell({ children }: ShellProps) {
                 <Bell className="w-5 h-5 animate-pulse" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
-                  <span>{alertToast.title}</span>
+                <div className="text-xs font-bold text-white flex items-center justify-between gap-1.5">
+                  <span className="truncate">{alertToast.title}</span>
+                  {alertToast.createdAt && (
+                    <span
+                      className="text-[10px] font-normal text-amber-300 ml-auto shrink-0 flex items-center gap-1 bg-slate-800/80 px-1.5 py-0.5 rounded font-mono"
+                      title={formatDateTime(alertToast.createdAt)}
+                    >
+                      <Clock className="w-2.5 h-2.5 text-amber-400" />
+                      <span>{formatAlertDate(alertToast.createdAt)}</span>
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">
                   {alertToast.message}
