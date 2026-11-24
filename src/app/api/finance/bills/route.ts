@@ -14,6 +14,7 @@ const createBillSchema = z.object({
   billNumber: z.string().min(1),
   billDate: z.string(),
   dueDate: z.string().optional(),
+  status: z.enum(["POSTED", "CHALLAN", "DRAFT"]).optional(),
   costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
   notes: z.string().optional(),
   attachmentFileId: z.string().optional(),
@@ -32,7 +33,7 @@ const createBillSchema = z.object({
       materialId: z.string().min(1).optional(),
       quantity: z.number().optional(),
       unitRate: z.number().optional(),
-      lineTotal: z.number().positive(),
+      lineTotal: z.number().min(0),
       gstRate: z.number().min(0).max(28).nullable().optional(),
     })
   ).min(1),
@@ -46,15 +47,21 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const partyId = searchParams.get("partyId");
     const projectId = searchParams.get("projectId");
+    const statusParam = searchParams.get("status");
     const includeArchived = searchParams.get("includeArchived") === "true";
 
     if (projectId) {
       await requireProjectAccess(user, projectId, "finance:read");
     }
 
-    const where: any = { organizationId: user.organizationId, status: "POSTED" };
+    const where: any = { organizationId: user.organizationId };
     if (!includeArchived) {
       where.isArchived = false;
+    }
+    if (statusParam) {
+      where.status = statusParam;
+    } else {
+      where.status = { in: ["POSTED", "CHALLAN"] };
     }
     if (partyId) where.partyId = partyId;
     if (projectId) where.projectId = projectId;
@@ -106,6 +113,7 @@ export async function POST(req: NextRequest) {
       billDate: new Date(data.billDate),
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       costHead: data.costHead,
+      status: data.status,
       notes: data.notes,
       gst: data.gst,
       lines: data.lines,

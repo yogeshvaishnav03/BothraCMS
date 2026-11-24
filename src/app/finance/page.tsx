@@ -41,6 +41,7 @@ import {
   Camera,
   Upload,
   Play,
+  Truck,
 } from "lucide-react";
 import AttachmentManager from "@/components/attachments/AttachmentManager";
 import { FileUpload } from "@/components/ui/FileUpload";
@@ -128,6 +129,35 @@ export default function FinancePage() {
   const [billLines, setBillLines] = useState<
     Array<{ description: string; materialId: string; quantity: string; unitRate: string; lineTotal: string; gstRate?: string }>
   >([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
+
+  // Tab within Record Bill modal: "BILL" | "CHALLAN"
+  const [billModalTab, setBillModalTab] = useState<"BILL" | "CHALLAN">("BILL");
+
+  // Challan Form State
+  const [challanPartyId, setChallanPartyId] = useState("");
+  const [challanProjectId, setChallanProjectId] = useState("");
+  const [challanNumber, setChallanNumber] = useState("");
+  const [challanDate, setChallanDate] = useState(() => istDateKey());
+  const [challanLines, setChallanLines] = useState<
+    Array<{ description: string; materialId: string; quantity: string; unit: string }>
+  >([{ description: "", materialId: "", quantity: "", unit: "BAG" }]);
+  const [challanNotes, setChallanNotes] = useState("");
+  const [challanFile, setChallanFile] = useState<{ url: string; name: string; fileId?: string } | null>(null);
+
+  // Generate Bill Modal state (convert Challan to Bill)
+  const [generateBillTarget, setGenerateBillTarget] = useState<any | null>(null);
+  const [genInvoiceNumber, setGenInvoiceNumber] = useState("");
+  const [genBillDate, setGenBillDate] = useState(() => istDateKey());
+  const [genDueDate, setGenDueDate] = useState("");
+  const [genGstRate, setGenGstRate] = useState("18");
+  const [genTaxType, setGenTaxType] = useState<"AUTO" | "LOCAL" | "IGST">("AUTO");
+  const [genItc, setGenItc] = useState(true);
+  const [genRcm, setGenRcm] = useState(false);
+  const [genLines, setGenLines] = useState<
+    Array<{ id?: string; description: string; materialId?: string; quantity: number; unitRate: string; lineTotal: string; gstRate?: string }>
+  >([]);
+  const [genNotes, setGenNotes] = useState("");
+  const [generatingBill, setGeneratingBill] = useState(false);
 
   // Reversal Modal state
   const [showReverseModal, setShowReverseModal] = useState(false);
@@ -667,6 +697,228 @@ export default function FinancePage() {
     }
   };
 
+  const addChallanLine = () => {
+    setChallanLines((prev) => [...prev, { description: "", materialId: "", quantity: "", unit: "BAG" }]);
+  };
+
+  const removeChallanLine = (index: number) => {
+    setChallanLines((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  };
+
+  const updateChallanLine = (index: number, field: string, value: any) => {
+    setChallanLines((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const updated = { ...line, [field]: value };
+        if (field === "materialId" && value) {
+          const mat = materials.find((m) => m.id === value);
+          if (mat) {
+            updated.description = mat.name;
+            if (mat.unitCode) updated.unit = mat.unitCode;
+          }
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleChallanSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!challanPartyId) {
+      setErrorMessage("Please select a vendor or contractor for the delivery challan.");
+      return;
+    }
+    if (!challanNumber.trim()) {
+      setErrorMessage("Please enter a challan number.");
+      return;
+    }
+    if (!challanDate) {
+      setErrorMessage("Please select the challan date.");
+      return;
+    }
+
+    const validLines = challanLines
+      .map((l) => ({
+        description: l.description.trim() || "Delivered Material",
+        materialId: l.materialId || undefined,
+        quantity: parseFloat(l.quantity) || 0,
+        unit: l.unit.trim(),
+      }))
+      .filter((l) => l.description.length > 0 && l.quantity > 0);
+
+    if (validLines.length === 0) {
+      setErrorMessage("Please add at least one material with a quantity greater than 0.");
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    const finalChallanNotes = [
+      challanNotes.trim(),
+      challanFile ? `[Attached Challan Document: ${challanFile.name} | ${challanFile.url}]` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    try {
+      const res = await fetch("/api/finance/bills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partyId: challanPartyId,
+          projectId: challanProjectId || undefined,
+          billNumber: challanNumber.trim(),
+          billDate: new Date(challanDate).toISOString(),
+          status: "CHALLAN",
+          notes: finalChallanNotes || undefined,
+          attachmentFileId: challanFile?.fileId || undefined,
+          lines: validLines.map((l) => ({
+            description: `${l.description}${l.unit ? ` (${l.unit})` : ""}`,
+            materialId: l.materialId,
+            quantity: l.quantity,
+            unitRate: 0,
+            lineTotal: 0,
+          })),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Could not save challan. Please check details and try again.");
+      } else {
+        setStatusMessage(`Delivery Challan #${challanNumber.trim()} recorded successfully!`);
+        setShowBillModal(false);
+        setChallanPartyId("");
+        setChallanProjectId("");
+        setChallanNumber("");
+        setChallanDate(istDateKey());
+        setChallanNotes("");
+        setChallanFile(null);
+        setChallanLines([{ description: "", materialId: "", quantity: "", unit: "BAG" }]);
+        loadData();
+      }
+    } catch {
+      setErrorMessage("Connection error while saving challan. Check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openGenerateBillModal = (bill: any) => {
+    setGenerateBillTarget(bill);
+    setGenInvoiceNumber(bill.billNumber ? `INV-${bill.billNumber}` : "");
+    setGenBillDate(istDateKey());
+    setGenDueDate("");
+    setGenGstRate("18");
+    setGenTaxType("AUTO");
+    setGenItc(true);
+    setGenRcm(false);
+    setGenNotes("");
+    const initialLines = (bill.lines || []).map((l: any) => ({
+      id: l.id,
+      description: l.description,
+      materialId: l.materialId,
+      quantity: l.quantity && l.quantity > 0 ? l.quantity : 1,
+      unitRate: "",
+      lineTotal: "",
+      gstRate: "",
+    }));
+    setGenLines(
+      initialLines.length > 0
+        ? initialLines
+        : [{ description: "Delivered Items", quantity: 1, unitRate: "", lineTotal: "" }]
+    );
+  };
+
+  const updateGenLine = (index: number, field: string, value: any) => {
+    setGenLines((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const updated = { ...line, [field]: value };
+        if (field === "unitRate" || field === "quantity") {
+          const qty = field === "quantity" ? parseFloat(value) || 0 : line.quantity;
+          const rate = field === "unitRate" ? parseFloat(value) || 0 : parseFloat(line.unitRate) || 0;
+          if (qty > 0 && rate > 0) {
+            updated.lineTotal = (qty * rate).toFixed(2);
+          }
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleGenerateBillSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!generateBillTarget) return;
+
+    if (!genInvoiceNumber.trim()) {
+      setErrorMessage("Please enter an invoice / bill number.");
+      return;
+    }
+
+    const parsedLines = genLines.map((l) => {
+      const qty = Number(l.quantity) || 1;
+      const ratePaise = Math.round((parseFloat(l.unitRate) || 0) * 100);
+      const totalPaise = Math.round((parseFloat(l.lineTotal) || 0) * 100);
+      return {
+        description: l.description,
+        materialId: l.materialId || undefined,
+        quantity: qty,
+        unitRate: ratePaise,
+        lineTotal: totalPaise > 0 ? totalPaise : Math.round(qty * ratePaise),
+        gstRate: genGstRate !== "" && l.gstRate ? Number(l.gstRate) : undefined,
+      };
+    });
+
+    if (parsedLines.some((l) => l.unitRate <= 0 || l.lineTotal <= 0)) {
+      setErrorMessage("Please enter a valid rate greater than 0 for all material items.");
+      return;
+    }
+
+    setGeneratingBill(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const res = await fetch(`/api/finance/bills/${generateBillTarget.id}/generate-bill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          billNumber: genInvoiceNumber.trim(),
+          billDate: new Date(genBillDate).toISOString(),
+          dueDate: genDueDate ? new Date(genDueDate).toISOString() : undefined,
+          notes: genNotes.trim() || undefined,
+          gst:
+            genGstRate === ""
+              ? undefined
+              : {
+                  rate: Number(genGstRate),
+                  interState: genTaxType === "AUTO" ? null : genTaxType === "IGST",
+                  itcEligible: genItc,
+                  reverseCharge: genRcm,
+                },
+          lines: parsedLines,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Could not generate bill from challan.");
+      } else {
+        const totalAmountRupees = ((data.data?.bill?.totalAmount || 0) / 100).toFixed(2);
+        setStatusMessage(`Bill #${genInvoiceNumber.trim()} generated successfully for ₹${totalAmountRupees}!`);
+        setGenerateBillTarget(null);
+        loadData();
+      }
+    } catch {
+      setErrorMessage("Connection error while generating bill. Check your network connection.");
+    } finally {
+      setGeneratingBill(false);
+    }
+  };
+
   const handleClearExpensePhoto = () => {
     setReceiptFile(null);
     setReceiptPreview(null);
@@ -838,7 +1090,9 @@ export default function FinancePage() {
     });
   }, [payments, selectedSiteId, selectedProjectId, projects]);
 
-  const totalBilledAll = siteScopedBills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
+  const totalBilledAll = siteScopedBills
+    .filter((b: any) => b.status !== "CHALLAN")
+    .reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
   const posted = siteScopedPayments.filter((p: any) => p.status === "POSTED");
   // Out of the bank; TDS held back from contractors is counted when it is deposited.
   const totalPaidAll = posted.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
@@ -846,7 +1100,7 @@ export default function FinancePage() {
   const totalOutstandingAll = totalBilledAll - posted.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
   const partyBills = siteScopedBills.filter(
-    (b) => b.partyId === selectedPartyId && b.outstandingAmount > 0
+    (b) => b.partyId === selectedPartyId && b.status !== "CHALLAN" && b.outstandingAmount > 0
   );
 
   // Distinct Paying Accounts extracted from existing payments
@@ -1246,8 +1500,13 @@ export default function FinancePage() {
 
   const filteredBills = useMemo(() => {
     return siteScopedBills.filter((b) => {
-      if (billStatus === "PAID" && b.outstandingAmount > 0) return false;
-      if (billStatus === "PENDING" && b.outstandingAmount === 0) return false;
+      if (billStatus === "CHALLAN") {
+        if (b.status !== "CHALLAN") return false;
+      } else if (billStatus === "PAID") {
+        if (b.status === "CHALLAN" || b.outstandingAmount > 0) return false;
+      } else if (billStatus === "PENDING") {
+        if (b.status === "CHALLAN" || b.outstandingAmount === 0) return false;
+      }
 
       // Date range filtering for bills
       let bDateYMD = "";
@@ -1287,12 +1546,18 @@ export default function FinancePage() {
   const filteredBillsStats = useMemo(() => {
     let totalPaise = 0;
     let outstandingPaise = 0;
+    let challanCount = 0;
     filteredBills.forEach((b) => {
-      totalPaise += b.totalAmount || 0;
-      outstandingPaise += b.outstandingAmount || 0;
+      if (b.status === "CHALLAN") {
+        challanCount++;
+      } else {
+        totalPaise += b.totalAmount || 0;
+        outstandingPaise += b.outstandingAmount || 0;
+      }
     });
     return {
       count: filteredBills.length,
+      challanCount,
       totalPaise,
       outstandingPaise,
     };
@@ -1413,7 +1678,7 @@ export default function FinancePage() {
       {
         key: "status",
         label: "Status",
-        accessor: (b) => (b.outstandingAmount === 0 ? "PAID" : "PENDING"),
+        accessor: (b) => (b.status === "CHALLAN" ? "CHALLAN" : b.outstandingAmount === 0 ? "PAID" : "PENDING"),
         type: "text",
         align: "center",
       },
@@ -2380,9 +2645,10 @@ export default function FinancePage() {
                   onChange={(e) => setBillStatus(e.target.value)}
                   className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                 >
-                  <option value="ALL">All Bills</option>
+                  <option value="ALL">All Records (Bills & Challans)</option>
                   <option value="PENDING">Unpaid Balance</option>
                   <option value="PAID">Paid in Full</option>
+                  <option value="CHALLAN">Delivery Challans</option>
                 </select>
                 {billStatus !== "ALL" && (
                   <button
@@ -2429,7 +2695,14 @@ export default function FinancePage() {
                     {excelBills.paginatedData.map((b) => (
                       <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-slate-900" title={b.billNumber}>
-                          {formatShortBillNumber(b.billNumber)}
+                          <div className="flex items-center gap-1.5">
+                            <span>{formatShortBillNumber(b.billNumber)}</span>
+                            {b.status === "CHALLAN" && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                                DC
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 font-semibold text-slate-800">
                           <Link href={`/parties/${b.partyId}`} className="hover:text-amber-600 hover:underline">
@@ -2438,18 +2711,30 @@ export default function FinancePage() {
                         </td>
                         <td className="py-3 px-4 text-xs text-slate-600">{formatDate(b.billDate)}</td>
                         <td className="py-3 px-4 text-right font-medium text-slate-900 tabular-nums">
-                          {formatCurrency(b.totalAmount)}
+                          {b.status === "CHALLAN" ? (
+                            <span className="text-xs text-slate-400 italic">No rate (Challan)</span>
+                          ) : (
+                            formatCurrency(b.totalAmount)
+                          )}
                         </td>
                         <td className="py-3 px-4 text-right font-medium text-emerald-600 tabular-nums">
-                          {formatCurrency(b.paidAmount)}
+                          {b.status === "CHALLAN" ? "—" : formatCurrency(b.paidAmount)}
                         </td>
                         <td className="py-3 px-4 text-right font-black tabular-nums">
-                          <span className={b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}>
-                            {formatCurrency(b.outstandingAmount)}
-                          </span>
+                          {b.status === "CHALLAN" ? (
+                            <span className="text-slate-400">—</span>
+                          ) : (
+                            <span className={b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}>
+                              {formatCurrency(b.outstandingAmount)}
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          {b.outstandingAmount === 0 ? (
+                          {b.status === "CHALLAN" ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                              CHALLAN
+                            </span>
+                          ) : b.outstandingAmount === 0 ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
                               PAID
                             </span>
@@ -2460,21 +2745,33 @@ export default function FinancePage() {
                           )}
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
-                          <button
-                            onClick={() =>
-                              setAttachmentTarget({
-                                type: "BILL",
-                                id: b.id,
-                                title: `Bill #${formatShortBillNumber(b.billNumber)} Invoices & Challans`,
-                                categoryDefault: "INVOICE",
-                              })
-                            }
-                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                            title="Upload or view invoice / challan photograph"
-                          >
-                            <Paperclip className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Attach</span>
-                          </button>
+                          <div className="inline-flex items-center gap-1.5">
+                            {b.status === "CHALLAN" && canWriteFinance && (
+                              <button
+                                onClick={() => openGenerateBillModal(b)}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-2xs cursor-pointer"
+                                title="Enter rates and generate official bill"
+                              >
+                                <Receipt className="w-3.5 h-3.5" />
+                                <span>Generate Bill</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() =>
+                                setAttachmentTarget({
+                                  type: "BILL",
+                                  id: b.id,
+                                  title: `${b.status === "CHALLAN" ? "Challan" : "Bill"} #${formatShortBillNumber(b.billNumber)} Invoices & Challans`,
+                                  categoryDefault: "INVOICE",
+                                })
+                              }
+                              className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                              title="Upload or view invoice / challan photograph"
+                            >
+                              <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Attach</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2527,7 +2824,11 @@ export default function FinancePage() {
 
                         {/* Status Badge */}
                         <div className="shrink-0">
-                          {b.outstandingAmount === 0 ? (
+                          {b.status === "CHALLAN" ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                              CHALLAN
+                            </span>
+                          ) : b.outstandingAmount === 0 ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
                               PAID
                             </span>
@@ -2539,43 +2840,75 @@ export default function FinancePage() {
                         </div>
                       </div>
 
-                      {/* Middle: Pending Balance & Total Bill Amount (Paid Amount column hidden) */}
-                      <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
-                        <div>
-                          <div className="text-[11px] text-slate-400 font-medium">Unpaid Balance</div>
-                          <div className={`font-display text-base font-extrabold tabular-nums truncate ${b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}`} title={formatCurrency(b.outstandingAmount)}>
-                            {formatCompactINR(b.outstandingAmount)}
+                      {/* Middle: Delivery Challan materials OR Pending Balance & Total Bill Amount */}
+                      {b.status === "CHALLAN" ? (
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                          <div className="text-[11px] text-indigo-700 font-semibold mb-1">Delivered Materials (Rate Pending):</div>
+                          <div className="bg-indigo-50/50 p-2 rounded-lg border border-indigo-100 space-y-1">
+                            {b.lines && b.lines.length > 0 ? (
+                              b.lines.map((l: any, i: number) => (
+                                <div key={i} className="text-slate-800 font-medium truncate">
+                                  • {l.quantity ? `${l.quantity} × ` : ""}{l.description}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-slate-500 italic">No material lines listed</div>
+                            )}
                           </div>
                         </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                          <div>
+                            <div className="text-[11px] text-slate-400 font-medium">Unpaid Balance</div>
+                            <div className={`font-display text-base font-extrabold tabular-nums truncate ${b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}`} title={formatCurrency(b.outstandingAmount)}>
+                              {formatCompactINR(b.outstandingAmount)}
+                            </div>
+                          </div>
 
-                        <div className="text-right">
-                          <div className="text-[11px] text-slate-400 font-medium">Total Bill</div>
-                          <div className="font-display text-sm font-extrabold text-slate-700 tabular-nums truncate" title={formatCurrency(b.totalAmount)}>
-                            {formatCompactINR(b.totalAmount)}
+                          <div className="text-right">
+                            <div className="text-[11px] text-slate-400 font-medium">Total Bill</div>
+                            <div className="font-display text-sm font-extrabold text-slate-700 tabular-nums truncate" title={formatCurrency(b.totalAmount)}>
+                              {formatCompactINR(b.totalAmount)}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
 
-                      {/* Footer Actions: Attach Invoices / Challans */}
+                      {/* Footer Actions: Attach Invoices / Challans & Generate Bill */}
                       <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[11px] text-slate-400">
-                          {b.outstandingAmount === 0 ? "Paid in Full" : "Balance Due"}
+                          {b.status === "CHALLAN"
+                            ? "Delivery Challan"
+                            : b.outstandingAmount === 0
+                            ? "Paid in Full"
+                            : "Balance Due"}
                         </span>
 
-                        <button
-                          onClick={() =>
-                            setAttachmentTarget({
-                              type: "BILL",
-                              id: b.id,
-                              title: `Bill #${b.billNumber} Invoices & Challans`,
-                              categoryDefault: "INVOICE",
-                            })
-                          }
-                          className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 whitespace-nowrap shrink-0 transition cursor-pointer"
-                        >
-                          <Paperclip className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                          <span>Attach Invoice / Challan</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {b.status === "CHALLAN" && canWriteFinance && (
+                            <button
+                              onClick={() => openGenerateBillModal(b)}
+                              className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-xs cursor-pointer"
+                            >
+                              <Receipt className="w-3.5 h-3.5" />
+                              <span>Generate Bill</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() =>
+                              setAttachmentTarget({
+                                type: "BILL",
+                                id: b.id,
+                                title: `${b.status === "CHALLAN" ? "Challan" : "Bill"} #${b.billNumber} Invoices & Challans`,
+                                categoryDefault: "INVOICE",
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 whitespace-nowrap shrink-0 transition cursor-pointer"
+                          >
+                            <Paperclip className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>Attach</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -3061,21 +3394,60 @@ export default function FinancePage() {
             <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
               <div className="flex items-start sm:items-center justify-between gap-2 p-4 sm:p-5 pb-3.5 sm:pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-bold text-slate-900 text-base sm:text-lg flex items-center gap-2 min-w-0">
-                  <Receipt className="w-5 h-5 text-amber-500 shrink-0" />
-                  <span className="truncate">Record Vendor / Contractor Bill</span>
+                  {billModalTab === "CHALLAN" ? (
+                    <>
+                      <Truck className="w-5 h-5 text-indigo-600 shrink-0" />
+                      <span className="truncate">Record Delivery Challan</span>
+                    </>
+                  ) : (
+                    <>
+                      <Receipt className="w-5 h-5 text-amber-500 shrink-0" />
+                      <span className="truncate">Record Vendor / Contractor Bill</span>
+                    </>
+                  )}
                 </div>
                 <button
                   onClick={() => {
                     setShowBillModal(false);
                     setBillFile(null);
+                    setChallanFile(null);
                   }}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0"
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form id="create-bill-modal-form" onSubmit={handleBillSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              {/* Tabs: Bill / Invoice vs Delivery Challan */}
+              <div className="flex border-b border-slate-200 bg-slate-50 px-4 sm:px-6 pt-2.5 gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setBillModalTab("BILL")}
+                  className={`pb-2.5 px-3.5 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                    billModalTab === "BILL"
+                      ? "border-amber-500 text-amber-900 bg-white rounded-t-lg shadow-2xs"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Receipt className="w-4 h-4 text-amber-500" />
+                  <span>Bill / Invoice</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBillModalTab("CHALLAN")}
+                  className={`pb-2.5 px-3.5 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                    billModalTab === "CHALLAN"
+                      ? "border-indigo-600 text-indigo-900 bg-white rounded-t-lg shadow-2xs"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Truck className="w-4 h-4 text-indigo-600" />
+                  <span>Delivery Challan</span>
+                </button>
+              </div>
+
+              {billModalTab === "BILL" ? (
+                <form id="create-bill-modal-form" onSubmit={handleBillSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -3387,30 +3759,457 @@ export default function FinancePage() {
                 </div>
 
               </form>
+            ) : (
+              <form id="create-challan-modal-form" onSubmit={handleChallanSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Vendor / Contractor *
+                    </label>
+                    <select
+                      value={challanPartyId}
+                      onChange={(e) => setChallanPartyId(e.target.value)}
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    >
+                      <option value="">Select Vendor / Contractor</option>
+                      {parties.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.partyType})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Project / Site (Optional)
+                    </label>
+                    <SearchableSelect
+                      options={[
+                        { value: "", label: "Select Project" },
+                        ...projects.map((p) => ({
+                          value: p.id,
+                          label: p.name,
+                          badge: p.code || undefined,
+                        })),
+                      ]}
+                      value={challanProjectId}
+                      onChange={setChallanProjectId}
+                      placeholder="Select Project"
+                      searchPlaceholder="Search project name or code..."
+                    />
+                  </div>
+                </div>
 
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowBillModal(false);
-                    setBillFile(null);
-                  }}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition"
-                >
-                  Cancel
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Challan No. *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. DC-2026-0042 / CH-981"
+                      value={challanNumber}
+                      onChange={(e) => setChallanNumber(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Challan Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={challanDate}
+                      onChange={(e) => setChallanDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    />
+                  </div>
+                </div>
+
+                {/* Material & Quantity Received */}
+                <div className="border border-indigo-200/80 rounded-xl p-3 bg-indigo-50/20 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Materials & Quantity Received</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={addChallanLine}
+                      className="text-xs font-bold text-indigo-700 hover:text-indigo-600 bg-indigo-100 hover:bg-indigo-200/70 px-2.5 py-1 rounded-lg flex items-center gap-1 whitespace-nowrap shrink-0 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 shrink-0" />
+                      <span>Add Material</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5 sm:max-h-60 sm:overflow-y-auto">
+                    {challanLines.map((line, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-2 shadow-2xs"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                          <div className="sm:col-span-6">
+                            <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                              Material Name / Description *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. PPC Cement / 12mm TMT Steel"
+                              value={line.description}
+                              onChange={(e) => updateChallanLine(idx, "description", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
+                            />
+                          </div>
+                          <div className="sm:col-span-5">
+                            <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                              Link to Catalog (Optional)
+                            </label>
+                            <select
+                              value={line.materialId}
+                              onChange={(e) => updateChallanLine(idx, "materialId", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs"
+                            >
+                              <option value="">Select Catalog Material</option>
+                              {materials.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.name} ({m.sku})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="hidden sm:flex sm:col-span-1 justify-end items-end pb-1">
+                            {challanLines.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeChallanLine(idx)}
+                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded cursor-pointer"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                              Quantity Received *
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0.01"
+                              required
+                              placeholder="e.g. 100"
+                              value={line.quantity}
+                              onChange={(e) => updateChallanLine(idx, "quantity", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-900"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                              Unit of Measurement
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="BAG / KG / TON / SQFT / NOS"
+                              value={line.unit}
+                              onChange={(e) => updateChallanLine(idx, "unit", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-medium uppercase"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Notes / Vehicle / Driver Details (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Vehicle RJ-14-1234, driver Ram Lal, verified on site"
+                    value={challanNotes}
+                    onChange={(e) => setChallanNotes(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+
+                {/* Photo / Challan Document Upload */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Delivery Challan Photo / Document (Optional)
+                  </label>
+                  <FileUpload
+                    value={challanFile}
+                    onChange={setChallanFile}
+                    entityType="BILL"
+                    projectId={challanProjectId || undefined}
+                    category="INVOICE"
+                    label="Upload Signed Delivery Challan Photo or PDF"
+                  />
+                </div>
+              </form>
+            )}
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBillModal(false);
+                  setBillFile(null);
+                  setChallanFile(null);
+                }}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              {billModalTab === "BILL" ? (
                 <button
                   type="submit"
                   form="create-bill-modal-form"
                   disabled={submitting}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition cursor-pointer"
                 >
                   {submitting ? "Saving Bill..." : "Save Bill"}
                 </button>
-              </div>
+              ) : (
+                <button
+                  type="submit"
+                  form="create-challan-modal-form"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>{submitting ? "Saving Challan..." : "Save Delivery Challan"}</span>
+                </button>
+              )}
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Modal: Generate Bill from Challan */}
+      {generateBillTarget && canWriteFinance && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="flex items-start sm:items-center justify-between gap-2 p-4 sm:p-5 pb-3.5 sm:pb-4 border-b border-slate-100 shrink-0 bg-white">
+              <div className="min-w-0">
+                <div className="font-bold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-amber-500 shrink-0" />
+                  <span>Generate Bill from Challan #{generateBillTarget.billNumber}</span>
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5 truncate">
+                  Vendor: <strong className="text-slate-700">{generateBillTarget.party?.name || "Vendor"}</strong>
+                  {generateBillTarget.project && (
+                    <span> • Project: <strong className="text-slate-700">{generateBillTarget.project.name}</strong></span>
+                  )}
+                  <span> • Delivered on {formatDate(generateBillTarget.billDate)}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setGenerateBillTarget(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form id="generate-bill-form" onSubmit={handleGenerateBillSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Bill / Invoice # *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. INV-2026-089"
+                    value={genInvoiceNumber}
+                    onChange={(e) => setGenInvoiceNumber(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Bill Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={genBillDate}
+                    onChange={(e) => setGenBillDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Due Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={genDueDate}
+                    onChange={(e) => setGenDueDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Line Items with Rate Inputs */}
+              <div className="border border-amber-200 rounded-xl p-3 bg-amber-50/30 space-y-3">
+                <div className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center justify-between">
+                  <span>Material Rates & Totals</span>
+                  <span className="text-[11px] font-normal text-amber-700 normal-case">Enter the agreed unit rate (₹) per item</span>
+                </div>
+
+                <div className="space-y-2.5 sm:max-h-60 sm:overflow-y-auto">
+                  {genLines.map((line, idx) => (
+                    <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-xs text-slate-800 truncate" title={line.description}>
+                          {line.description}
+                        </span>
+                        <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded shrink-0">
+                          Qty: {line.quantity}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                            Unit Rate (₹) *
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0.01"
+                            required
+                            placeholder="e.g. 350.00"
+                            value={line.unitRate}
+                            onChange={(e) => updateGenLine(idx, "unitRate", e.target.value)}
+                            className="w-full bg-amber-50/50 border border-amber-300 rounded-lg p-2 text-xs font-mono font-bold text-slate-900 focus:bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                            Line Total (₹)
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            required
+                            placeholder="0.00"
+                            value={line.lineTotal}
+                            onChange={(e) => updateGenLine(idx, "lineTotal", e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* GST Calculation Section */}
+                {(() => {
+                  const taxable = genLines.reduce((sum, l) => sum + (parseFloat(l.lineTotal) || 0), 0);
+                  const rate = genGstRate === "" ? 0 : Number(genGstRate);
+                  const tax = Math.round((taxable * rate) / 100 * 100) / 100;
+                  const grandTotal = genRcm ? taxable : taxable + tax;
+                  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  return (
+                    <div className="pt-2 border-t border-amber-200 space-y-2 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label className="block">
+                          <span className="block font-semibold text-slate-700 mb-1">GST on this bill</span>
+                          <select
+                            value={genGstRate}
+                            onChange={(e) => setGenGstRate(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                          >
+                            <option value="">No GST / Composition</option>
+                            {[0, 5, 12, 18, 28].map((r) => (
+                              <option key={r} value={r}>
+                                {r}% GST
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {genGstRate !== "" && (
+                          <label className="block">
+                            <span className="block font-semibold text-slate-700 mb-1">Tax Type</span>
+                            <select
+                              value={genTaxType}
+                              onChange={(e) => setGenTaxType(e.target.value as "AUTO" | "LOCAL" | "IGST")}
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                            >
+                              <option value="AUTO">Detect automatically from GSTIN</option>
+                              <option value="LOCAL">Same State: CGST + SGST</option>
+                              <option value="IGST">Other State: IGST</option>
+                            </select>
+                          </label>
+                        )}
+                      </div>
+
+                      {genGstRate !== "" && (
+                        <div className="flex items-center justify-between text-slate-600 pt-1">
+                          <span>Subtotal Taxable: ₹{fmt(taxable)}</span>
+                          <span>+ GST ({rate}%): ₹{fmt(tax)}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-1 border-t border-amber-200/60">
+                        <span className="font-bold text-slate-800">Calculated Grand Total:</span>
+                        <span className="font-black font-mono text-base text-amber-700">₹{fmt(grandTotal)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Notes / Remarks (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rate finalized as per contract"
+                  value={genNotes}
+                  onChange={(e) => setGenNotes(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                />
+              </div>
+            </form>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setGenerateBillTarget(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="generate-bill-form"
+                disabled={generatingBill}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Receipt className="w-4 h-4" />
+                <span>{generatingBill ? "Generating Bill..." : "Generate & Post Bill"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
         {/* Attachment Modal (Priority 3) */}
         {attachmentTarget && (

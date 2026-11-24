@@ -44,12 +44,40 @@ export interface CreateBillInput {
   lines: BillLineInput[];
   notes?: string;
   costHead?: string | null;
+  status?: string;
   /**
    * GST on top of the lines. Supplier in another state → IGST, else CGST + SGST.
    * `rate` applies to lines without their own rate. Under reverse charge the
    * supplier is paid the lines only and we pay the GST to the government.
    */
   gst?: { rate?: number | null; interState?: boolean | null; itcEligible?: boolean; reverseCharge?: boolean } | null;
+  userId: string;
+  role: Role;
+  permissions?: Permission[];
+}
+
+export interface GenerateBillFromChallanInput {
+  organizationId: string;
+  billId: string;
+  billNumber?: string;
+  billDate?: Date;
+  dueDate?: Date;
+  costHead?: string | null;
+  notes?: string;
+  gst?: {
+    rate?: number | null;
+    interState?: boolean | null;
+    itcEligible?: boolean;
+    reverseCharge?: boolean;
+  } | null;
+  lines: Array<{
+    description: string;
+    materialId?: string | null;
+    quantity: number;
+    unitRate: number; // in paise
+    lineTotal: number; // in paise
+    gstRate?: number | null;
+  }>;
   userId: string;
   role: Role;
   permissions?: Permission[];
@@ -425,7 +453,7 @@ export class FinanceService {
           totalAmount: calculatedTotal,
           ...gstFields,
           costHead: input.costHead ?? null,
-          status: "POSTED",
+          status: input.status || "POSTED",
           notes: input.notes ?? null,
           createdBy: input.userId,
           lines: {
@@ -446,7 +474,7 @@ export class FinanceService {
         data: {
           organizationId: input.organizationId,
           actorUserId: input.userId,
-          action: "BILL_CREATED",
+          action: input.status === "CHALLAN" ? "DELIVERY_CHALLAN_CREATED" : "BILL_CREATED",
           entityType: "BILL",
           entityId: bill.id,
           afterJson: JSON.stringify({
@@ -454,11 +482,161 @@ export class FinanceService {
             totalAmount: bill.totalAmount,
             gstRate: bill.gstRate,
             partyId: bill.partyId,
+            status: bill.status,
           }),
         },
       });
 
       return bill;
+    });
+  }
+
+  /**
+   * Convert an existing Delivery Challan record into an official posted Bill by setting rates & taxes.
+   */
+  static async generateBillFromChallan(input: GenerateBillFromChallanInput) {
+    assertPermission({ role: input.role, permissions: input.permissions }, "finance:write");
+
+    if (!input.lines || input.lines.length === 0) {
+      throw new Error("Bill must contain at least one line item");
+    }
+
+    const existingBill = await prisma.bill.findFirst({
+      where: { id: input.billId, organizationId: input.organizationId },
+      include: {
+        party: true,
+        lines: true,
+      },
+    });
+
+    if (!existingBill) {
+      throw new Error("NotFound: Challan not found or outside organization scope");
+    }
+
+    if (existingBill.status !== "CHALLAN") {
+      throw new Error(`This record is already an active bill (status: ${existingBill.status})`);
+    }
+
+    // Check duplicate bill number for party if changed
+    const targetBillNumber = input.billNumber ? input.billNumber.trim() : existingBill.billNumber;
+    if (targetBillNumber !== existingBill.billNumber) {
+      const existingWithSameNumber = await prisma.bill.findUnique({
+        where: {
+          organizationId_partyId_billNumber: {
+            organizationId: input.organizationId,
+            partyId: existingBill.partyId,
+            billNumber: targetBillNumber,
+          },
+        },
+      });
+      if (existingWithSameNumber) {
+        throw new Error(`Bill #${targetBillNumber} already exists for this vendor`);
+      }
+    }
+
+    // Verify materials belong to organization
+    for (const line of input.lines) {
+      if (line.materialId) {
+        const material = await prisma.material.findFirst({
+          where: { id: line.materialId, organizationId: input.organizationId },
+        });
+        if (!material) {
+          throw new Error(`NotFound: Material ${line.materialId} not found or outside organization scope`);
+        }
+      }
+    }
+
+    const linesTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
+    let gstFields: Record<string, unknown> = {};
+    let calculatedTotal = linesTotal;
+    let lineTax: { gstRate: number | null; taxAmount: number }[] = input.lines.map(() => ({ gstRate: null, taxAmount: 0 }));
+
+    if (input.gst) {
+      const rates = input.lines.map((l) => l.gstRate ?? input.gst!.rate ?? null);
+      if (rates.some((r) => r === null)) throw new Error("Give a GST rate for the bill or for every line");
+      if (rates.some((r) => !BILL_GST_RATES.includes(r as number))) throw new Error("GST rate must be 0, 5, 12, 18 or 28%");
+      let interState = input.gst.interState;
+      if (interState === undefined || interState === null) {
+        const ours = gstStateCode((await companyProfile(input.organizationId)).gstin);
+        const theirs = gstStateCode(existingBill.party.taxIdentifier);
+        interState = !!ours && !!theirs && ours !== theirs;
+      }
+      const split = { cgst: 0, sgst: 0, igst: 0, tax: 0 };
+      lineTax = input.lines.map((l, i) => {
+        const t = billGst(l.lineTotal || 0, rates[i] as number, interState as boolean);
+        split.cgst += t.cgst;
+        split.sgst += t.sgst;
+        split.igst += t.igst;
+        split.tax += t.tax;
+        return { gstRate: rates[i], taxAmount: t.tax };
+      });
+      const reverseCharge = !!input.gst.reverseCharge;
+      calculatedTotal = reverseCharge ? linesTotal : roundPaise(linesTotal + split.tax);
+      gstFields = {
+        gstRate: Math.max(...(rates as number[])),
+        taxableAmount: linesTotal,
+        cgst: split.cgst,
+        sgst: split.sgst,
+        igst: split.igst,
+        itcEligible: input.gst.itcEligible ?? true,
+        reverseCharge,
+      };
+    }
+
+    return await prisma.$transaction(async (tx: any) => {
+      await tx.billLine.deleteMany({ where: { billId: existingBill.id } });
+
+      const conversionStamp = `[Converted from Challan #${existingBill.billNumber} on ${new Date().toLocaleDateString("en-IN")}]`;
+      const combinedNotes = [existingBill.notes, input.notes, conversionStamp].filter(Boolean).join(" ");
+
+      const updatedBill = await tx.bill.update({
+        where: { id: existingBill.id },
+        data: {
+          billNumber: targetBillNumber,
+          billDate: input.billDate || existingBill.billDate,
+          dueDate: input.dueDate !== undefined ? input.dueDate : existingBill.dueDate,
+          totalAmount: calculatedTotal,
+          ...gstFields,
+          costHead: input.costHead !== undefined ? input.costHead : existingBill.costHead,
+          status: "POSTED",
+          notes: combinedNotes,
+          postedAt: new Date(),
+          lines: {
+            create: input.lines.map((l, i) => ({
+              description: l.description,
+              materialId: l.materialId ?? null,
+              quantity: l.quantity,
+              unitRate: l.unitRate,
+              lineTotal: l.lineTotal,
+              ...lineTax[i],
+            })),
+          },
+        },
+        include: { lines: true, party: true, project: true },
+      });
+
+      await tx.auditEvent.create({
+        data: {
+          organizationId: input.organizationId,
+          actorUserId: input.userId,
+          action: "CHALLAN_GENERATED_BILL",
+          entityType: "BILL",
+          entityId: updatedBill.id,
+          reason: `Generated bill #${updatedBill.billNumber} from delivery challan #${existingBill.billNumber}`,
+          beforeJson: JSON.stringify({
+            billNumber: existingBill.billNumber,
+            status: existingBill.status,
+            totalAmount: existingBill.totalAmount,
+          }),
+          afterJson: JSON.stringify({
+            billNumber: updatedBill.billNumber,
+            status: updatedBill.status,
+            totalAmount: updatedBill.totalAmount,
+          }),
+        },
+      });
+
+      return updatedBill;
     });
   }
 
