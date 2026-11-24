@@ -53,6 +53,72 @@ import { compressVideoFile } from "@/lib/video-compression";
 import { uploadClientMedia } from "@/lib/upload-client";
 import { useActiveSite } from "@/hooks/useActiveSite";
 
+const CHALLAN_UNIT_GROUPS = [
+  {
+    category: "Site & Bulk Deliveries",
+    options: [
+      { code: "BAG", label: "BAG — Bags (Cement, Putty, Adhesive)" },
+      { code: "TONNE", label: "TONNE — Metric Tonne / MT (Steel, Rebar, Bulk)" },
+      { code: "KG", label: "KG — Kilograms (Binding Wire, Hardware, Nails)" },
+      { code: "CFT", label: "CFT — Cubic Feet (Sand, Stone, Timber, Marble)" },
+      { code: "CUM", label: "CUM — Cubic Meter (RMC Concrete, Bulk Soil)" },
+      { code: "BRASS", label: "BRASS — Brass / 100 CFT (Sand, Aggregate)" },
+      { code: "TRUCK", label: "TRUCK — Dumper Truck Load (Gitti, Sand, Murrum)" },
+      { code: "TROLLEY", label: "TROLLEY — Tractor Trolley Load (Bricks, Sand)" },
+      { code: "TRIP", label: "TRIP — Trip / Carriage Load" },
+      { code: "LOAD", label: "LOAD — General Vehicle Load" },
+    ],
+  },
+  {
+    category: "Counts & Packaging",
+    options: [
+      { code: "PIECE", label: "PIECE / PCS — Pieces (Bricks, Blocks, Sanitary)" },
+      { code: "NOS", label: "NOS — Numbers / Units (Electrical, Plumbing)" },
+      { code: "BOX", label: "BOX — Boxes (Tiles, Screws, Fasteners)" },
+      { code: "BUNDLE", label: "BUNDLE — Bundles (Steel Rods, Pipes, Timber)" },
+      { code: "SHEET", label: "SHEET — Sheets (Plywood, Laminate, ACP, Glass)" },
+      { code: "ROLL", label: "ROLL — Rolls (Mesh, Tarpaulin, Membrane)" },
+      { code: "PACKET", label: "PACKET — Packets (Fasteners, Fittings)" },
+      { code: "SET", label: "SET — Sets (Hardware, Lock Sets, Accessories)" },
+      { code: "PAIR", label: "PAIR — Pairs (Safety Gloves, Boots)" },
+    ],
+  },
+  {
+    category: "Liquids, Paints & Chemicals",
+    options: [
+      { code: "DRUM", label: "DRUM — Drums (Paint, Admixture, Chemical, Tar)" },
+      { code: "BUCKET", label: "BUCKET — Buckets (Texture, Primer, Putty)" },
+      { code: "CAN", label: "CAN — Cans (Oil, Solvent, Additive)" },
+      { code: "LITRE", label: "LITRE / LTR — Litres (Diesel, Curing Compound)" },
+    ],
+  },
+  {
+    category: "Area & Linear Length",
+    options: [
+      { code: "SQFT", label: "SQFT — Square Feet (Tiles, Granite, Marble, Glass)" },
+      { code: "SQM", label: "SQM — Square Meter (Flooring, Plaster, Pavers)" },
+      { code: "RFT", label: "RFT — Running Feet (Pipes, Skirting, Railing)" },
+      { code: "RMT", label: "RMT — Running Meter (Cables, Conduits, Drainage)" },
+      { code: "METER", label: "METER — Linear Meters" },
+      { code: "FEET", label: "FEET — Linear Feet" },
+      { code: "INCH", label: "INCH — Linear Inches" },
+    ],
+  },
+  {
+    category: "Bulk Weight & Contracts",
+    options: [
+      { code: "QUINTAL", label: "QUINTAL — 100 Kilograms" },
+      { code: "LOT", label: "LOT — Lump Sum / Job Lot" },
+      { code: "CUSTOM", label: "➕ Custom Unit (Type your own)..." },
+    ],
+  },
+];
+
+const POPULAR_CHALLAN_UNITS = ["BAG", "TONNE", "KG", "CFT", "SQFT", "PIECE", "BOX", "TRUCK", "TRIP", "NOS"];
+const CHALLAN_ALL_CODES = new Set(
+  CHALLAN_UNIT_GROUPS.flatMap((g) => g.options.map((o) => o.code)).filter((c) => c !== "CUSTOM")
+);
+
 export default function FinancePage() {
   const { activeSiteId, setActiveSiteId } = useActiveSite();
   const { refreshUser, refreshSites } = useAppSession();
@@ -139,8 +205,8 @@ export default function FinancePage() {
   const [challanNumber, setChallanNumber] = useState("");
   const [challanDate, setChallanDate] = useState(() => istDateKey());
   const [challanLines, setChallanLines] = useState<
-    Array<{ description: string; materialId: string; quantity: string; unit: string }>
-  >([{ description: "", materialId: "", quantity: "", unit: "BAG" }]);
+    Array<{ description: string; materialId: string; quantity: string; unit: string; isCustomUnit?: boolean }>
+  >([{ description: "", materialId: "", quantity: "", unit: "BAG", isCustomUnit: false }]);
   const [challanNotes, setChallanNotes] = useState("");
   const [challanFile, setChallanFile] = useState<{ url: string; name: string; fileId?: string } | null>(null);
 
@@ -698,7 +764,7 @@ export default function FinancePage() {
   };
 
   const addChallanLine = () => {
-    setChallanLines((prev) => [...prev, { description: "", materialId: "", quantity: "", unit: "BAG" }]);
+    setChallanLines((prev) => [...prev, { description: "", materialId: "", quantity: "", unit: "BAG", isCustomUnit: false }]);
   };
 
   const removeChallanLine = (index: number) => {
@@ -714,7 +780,10 @@ export default function FinancePage() {
           const mat = materials.find((m) => m.id === value);
           if (mat) {
             updated.description = mat.name;
-            if (mat.unitCode) updated.unit = mat.unitCode;
+            if (mat.unitCode) {
+              updated.unit = mat.unitCode;
+              updated.isCustomUnit = !CHALLAN_ALL_CODES.has(mat.unitCode);
+            }
           }
         }
         return updated;
@@ -3897,8 +3966,8 @@ export default function FinancePage() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                          <div className="sm:col-span-4">
                             <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
                               Quantity Received *
                             </label>
@@ -3913,17 +3982,84 @@ export default function FinancePage() {
                               className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono font-bold text-slate-900"
                             />
                           </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                              Unit of Measurement
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="BAG / KG / TON / SQFT / NOS"
-                              value={line.unit}
-                              onChange={(e) => updateChallanLine(idx, "unit", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-medium uppercase"
-                            />
+                          <div className="sm:col-span-8">
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-[11px] font-semibold text-slate-500 uppercase">
+                                Unit of Measurement *
+                              </label>
+                              {line.isCustomUnit && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateChallanLine(idx, "isCustomUnit", false);
+                                    updateChallanLine(idx, "unit", "BAG");
+                                  }}
+                                  className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer"
+                                >
+                                  Standard list
+                                </button>
+                              )}
+                            </div>
+                            {line.isCustomUnit ? (
+                              <input
+                                type="text"
+                                required
+                                placeholder="Type custom unit (e.g. Coil, Sack, Pail...)"
+                                value={line.unit}
+                                onChange={(e) => updateChallanLine(idx, "unit", e.target.value)}
+                                className="w-full bg-indigo-50/40 border border-indigo-300 rounded-lg p-2 text-xs font-bold text-slate-900 uppercase focus:bg-white"
+                                autoFocus
+                              />
+                            ) : (
+                              <select
+                                value={CHALLAN_ALL_CODES.has(line.unit) ? line.unit : (line.unit ? "CUSTOM" : "BAG")}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === "CUSTOM") {
+                                    updateChallanLine(idx, "isCustomUnit", true);
+                                    updateChallanLine(idx, "unit", "");
+                                  } else {
+                                    updateChallanLine(idx, "unit", val);
+                                  }
+                                }}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-800 focus:bg-white cursor-pointer"
+                              >
+                                {CHALLAN_UNIT_GROUPS.map((grp) => (
+                                  <optgroup key={grp.category} label={grp.category}>
+                                    {grp.options.map((opt) => (
+                                      <option key={opt.code} value={opt.code}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                ))}
+                              </select>
+                            )}
+
+                            {/* Quick selection pills */}
+                            <div className="flex items-center flex-wrap gap-1 mt-1.5">
+                              <span className="text-[10px] text-slate-400 font-medium mr-0.5">Quick:</span>
+                              {POPULAR_CHALLAN_UNITS.map((u) => {
+                                const isSelected = !line.isCustomUnit && line.unit === u;
+                                return (
+                                  <button
+                                    key={u}
+                                    type="button"
+                                    onClick={() => {
+                                      updateChallanLine(idx, "isCustomUnit", false);
+                                      updateChallanLine(idx, "unit", u);
+                                    }}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold transition cursor-pointer ${
+                                      isSelected
+                                        ? "bg-indigo-600 text-white shadow-2xs"
+                                        : "bg-slate-100 hover:bg-indigo-100 text-slate-600 hover:text-indigo-700 border border-slate-200/60"
+                                    }`}
+                                  >
+                                    {u}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       </div>
