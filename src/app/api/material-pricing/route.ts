@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserContext, requirePermission } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
+import { rankQuotations, computeLandingPaise } from "@/lib/material-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,24 @@ const createQuotationSchema = z.object({
   quotationDate: z.string().min(1, "Quotation date is required"),
   validUntil: z.string().optional(),
   notes: z.string().optional(),
+  attachmentIds: z.array(z.string()).optional(),
+});
+
+// One material, several vendors' rates in one save.
+const vendorRateSchema = z.object({
+  vendorPartyId: z.string().min(1, "Vendor/Supplier is required"),
+  baseRate: z.number().positive("Base rate must be greater than 0"),
+  taxRatePercent: z.number().min(0).default(18),
+  additionalCharges: z.number().min(0).default(0),
+  notes: z.string().optional(),
+});
+
+const bulkQuotationSchema = z.object({
+  materialId: z.string().min(1, "Material is required"),
+  unitCode: z.string().min(1, "Unit of measure is required"),
+  quotationDate: z.string().min(1, "Quotation date is required"),
+  validUntil: z.string().optional(),
+  rates: z.array(vendorRateSchema).min(1, "Add at least one vendor rate").max(50),
   attachmentIds: z.array(z.string()).optional(),
 });
 
@@ -71,18 +90,12 @@ export async function GET(req: NextRequest) {
       orderBy: [{ quotationDate: "desc" }, { createdAt: "desc" }],
     });
 
-    // Determine the lowest total rate per material
-    const minRatePerMaterial = new Map<string, number>();
-    for (const q of quotations) {
-      const currentMin = minRatePerMaterial.get(q.materialId);
-      if (currentMin === undefined || q.totalRatePaise < currentMin) {
-        minRatePerMaterial.set(q.materialId, q.totalRatePaise);
-      }
-    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const rankings = rankQuotations(quotations as any[], todayStr);
 
     const data = quotations
       .map((q: any) => {
-        const isLowest = minRatePerMaterial.get(q.materialId) === q.totalRatePaise;
+        const r = rankings.get(q.id)!;
         const baseRate = q.ratePaise / 100;
         const taxAmount = q.taxAmountPaise / 100;
         const additionalCharges = q.additionalPaise / 100;
@@ -105,10 +118,17 @@ export async function GET(req: NextRequest) {
           taxAmount,
           additionalCharges,
           totalLandingRate,
-          isLowestPrice: isLowest,
+          isLowestPrice: r.rank === 1,
+          rank: r.rank,
+          rankedVendorCount: r.rankedVendorCount,
+          isCurrent: r.isCurrent,
+          isExpired: r.isExpired,
+          diffFromL1: r.diffFromL1Paise === null ? null : r.diffFromL1Paise / 100,
+          diffFromL1Percent: r.diffFromL1Percent,
           quotationDate: q.quotationDate,
           validUntil: q.validUntil,
           notes: q.notes || "",
+          createdAt: q.createdAt,
           createdBy: q.creator?.name || "Staff",
           attachments: q.attachments || [],
         };
@@ -145,43 +165,79 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const parsed = createQuotationSchema.parse(body);
 
-    const baseRatePaise = Math.round(parsed.baseRate * 100);
-    const taxAmountPaise = Math.round((baseRatePaise * parsed.taxRatePercent) / 100);
-    const additionalPaise = Math.round(parsed.additionalCharges * 100);
-    const totalRatePaise = baseRatePaise + taxAmountPaise + additionalPaise;
-
-    const quotation = await prisma.materialQuotation.create({
-      data: {
-        organizationId: user.organizationId,
-        materialId: parsed.materialId,
-        vendorPartyId: parsed.vendorPartyId,
-        unitCode: parsed.unitCode,
-        ratePaise: baseRatePaise,
-        taxRatePercent: parsed.taxRatePercent,
-        taxAmountPaise,
-        additionalPaise,
-        totalRatePaise,
-        quotationDate: parsed.quotationDate,
-        validUntil: parsed.validUntil || null,
-        notes: parsed.notes || null,
-        createdBy: user.userId,
-        ...(parsed.attachmentIds && parsed.attachmentIds.length > 0
-          ? {
-              attachments: {
-                connect: parsed.attachmentIds.map((id) => ({ id })),
+    // Accept either a single quote or { materialId, unitCode, rates: [...] }
+    const bulk = Array.isArray(body?.rates)
+      ? bulkQuotationSchema.parse(body)
+      : (() => {
+          const one = createQuotationSchema.parse(body);
+          return {
+            materialId: one.materialId,
+            unitCode: one.unitCode,
+            quotationDate: one.quotationDate,
+            validUntil: one.validUntil,
+            attachmentIds: one.attachmentIds,
+            rates: [
+              {
+                vendorPartyId: one.vendorPartyId,
+                baseRate: one.baseRate,
+                taxRatePercent: one.taxRatePercent,
+                additionalCharges: one.additionalCharges,
+                notes: one.notes,
               },
-            }
-          : {}),
-      },
-      include: {
-        material: true,
-        vendor: true,
-      },
-    });
+            ],
+          };
+        })();
 
-    return jsonSuccess(quotation, 201);
+    const vendorIds = Array.from(new Set(bulk.rates.map((r) => r.vendorPartyId)));
+    if (vendorIds.length !== bulk.rates.length) {
+      return jsonError("Each vendor can appear only once per save", "VALIDATION_ERROR", 400);
+    }
+
+    // Material and vendors must belong to this organisation
+    const [material, vendors] = await Promise.all([
+      prisma.material.findFirst({
+        where: { id: bulk.materialId, organizationId: user.organizationId },
+        select: { id: true },
+      }),
+      prisma.party.findMany({
+        where: { id: { in: vendorIds }, organizationId: user.organizationId },
+        select: { id: true },
+      }),
+    ]);
+    if (!material) return jsonError("Material not found", "NOT_FOUND", 404);
+    if (vendors.length !== vendorIds.length) return jsonError("Vendor not found", "NOT_FOUND", 404);
+
+    const unitCode = bulk.unitCode.trim().toUpperCase();
+
+    const created = await prisma.$transaction(
+      bulk.rates.map((r, idx) => {
+        const paise = computeLandingPaise(r.baseRate, r.taxRatePercent, r.additionalCharges);
+        return prisma.materialQuotation.create({
+          data: {
+            organizationId: user.organizationId,
+            materialId: bulk.materialId,
+            vendorPartyId: r.vendorPartyId,
+            unitCode,
+            ratePaise: paise.ratePaise,
+            taxRatePercent: r.taxRatePercent,
+            taxAmountPaise: paise.taxAmountPaise,
+            additionalPaise: paise.additionalPaise,
+            totalRatePaise: paise.totalRatePaise,
+            quotationDate: bulk.quotationDate,
+            validUntil: bulk.validUntil || null,
+            notes: r.notes || null,
+            createdBy: user.userId,
+            // Attachments link to the first quote only (a file has one owner row)
+            ...(idx === 0 && bulk.attachmentIds && bulk.attachmentIds.length > 0
+              ? { attachments: { connect: bulk.attachmentIds.map((id) => ({ id })) } }
+              : {}),
+          },
+        });
+      })
+    );
+
+    return jsonSuccess(created.length === 1 ? created[0] : created, 201);
   } catch (error) {
     return handleApiError(error);
   }
@@ -206,7 +262,7 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get("id");
 
     if (!id) {
-      return jsonError("Quotation ID is required", 400);
+      return jsonError("Quotation ID is required", "BAD_REQUEST", 400);
     }
 
     const quotation = await prisma.materialQuotation.findFirst({
@@ -214,7 +270,7 @@ export async function DELETE(req: NextRequest) {
     });
 
     if (!quotation) {
-      return jsonError("Quotation not found", 404);
+      return jsonError("Quotation not found", "NOT_FOUND", 404);
     }
 
     await prisma.materialQuotation.update({
