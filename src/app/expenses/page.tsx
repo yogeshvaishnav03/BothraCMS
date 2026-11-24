@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
@@ -86,11 +85,6 @@ function cleanExpenseTitle(title?: string | null): string {
 }
 
 export default function ExpensesPage() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace("/finance");
-  }, [router]);
-
   const { activeSiteId } = useActiveSite();
   const { refreshUser, refreshSites } = useAppSession();
   const [currentUser, setCurrentUser] = useState<any>(null);

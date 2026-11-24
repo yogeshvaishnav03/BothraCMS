@@ -45,6 +45,21 @@ interface QuickActionItem {
 
 const QUICK_ACTIONS: QuickActionItem[] = [
   {
+    id: "out-of-pocket-expense",
+    titleEn: "Add Cash Expense",
+    titleHi: "नकद खर्चा दर्ज करें (Cash Expense)",
+    descEn: "Submit a cash expense claim with a receipt photo",
+    descHi: "साइट पर किए गए नकद खर्च की एंट्री (रसीद अनिवार्य)",
+    href: "/expenses",
+    icon: Receipt,
+    colorClass: "bg-amber-500 text-slate-950",
+    badgeEn: "Receipt Needed",
+    badgeHi: "रसीद अनिवार्य",
+    keywords: ["expense", "cash expense", "out of pocket", "supervisor", "claim", "reimbursement", "bill", "receipt", "kharcha", "photo"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "ACCOUNTANT", "STOREKEEPER"],
+    siteScoped: true,
+  },
+  {
     id: "day-book",
     titleEn: "Record Day Book Entry",
     titleHi: "दैनिक खर्च / रोकड़ दर्ज करें",

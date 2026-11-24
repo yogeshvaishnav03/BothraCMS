@@ -299,7 +299,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     "nav.measurementBook": "माप पुस्तिका (MB)",
     "nav.parties": "विक्रेता व ठेकेदार",
     "nav.finance": "वित्त और बिल",
-    "nav.expenses": "आउट-ऑफ़-पॉकेट खर्चे",
+    "nav.expenses": "नकद खर्च (Cash Expenses)",
     "nav.workforce": "श्रमिक (Workers)",
     "nav.attendance": "उपस्थिति (हाजिरी)",
     "nav.muster": "मस्टर रोल (हाज़िरी)",

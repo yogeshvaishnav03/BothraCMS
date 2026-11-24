@@ -351,6 +351,15 @@ export default function Shell({ children }: ShellProps) {
       key: "nav.group.money",
       label: "Money",
       items: [
+        ...((user?.role && ["SITE_SUPERVISOR", "PROJECT_MANAGER", "ACCOUNTANT", "ORG_ADMIN", "SUPER_ADMIN", "STOREKEEPER"].includes(user.role)) || canUser(user, "finance:write") || canUser(user, "tasks:write")
+          ? [{
+              key: "nav.expenses",
+              defaultLabel: "Cash Expenses",
+              href: "/expenses",
+              icon: Receipt,
+              keywords: ["cash expenses", "out of pocket", "petty cash", "supervisor expense", "claims", "receipts", "kharcha", "cash", "expense"],
+            }]
+          : []),
         ...(canUser(user, "finance:read")
           ? [{
               key: "nav.finance",
