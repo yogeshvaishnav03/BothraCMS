@@ -193,19 +193,27 @@ interface MaterialRequestLineItem {
 }
 
 const COMMON_UNITS = [
-  "NOS",
   "BAG",
+  "TONNE",
   "KG",
-  "SHEET",
-  "PCS",
-  "SQFT",
-  "BUNDLE",
-  "LTR",
-  "TRUCK",
+  "CFT",
+  "CUM",
   "BRASS",
-  "MTR",
-  "TON",
+  "NOS",
+  "PIECE",
   "BOX",
+  "BUNDLE",
+  "SHEET",
+  "SQFT",
+  "SQM",
+  "RFT",
+  "METER",
+  "LITRE",
+  "DRUM",
+  "BUCKET",
+  "TRUCK",
+  "TROLLEY",
+  "TRIP",
   "PACKET",
 ];
 
@@ -247,15 +255,15 @@ function TaskMaterialRequestModal({
       const validProjs = Array.isArray(projs) ? projs : [];
       setProjects(validProjs);
       setMaterials(Array.isArray(mats) ? mats : []);
-      if (!projectId && validProjs.length > 0) {
-        setProjectId(validProjs[0].id);
+      if (validProjs.length > 0) {
+        setProjectId((prev) => prev || initialProjectId || validProjs[0].id);
       }
       setLoadingInitial(false);
     });
     return () => {
       active = false;
     };
-  }, [projectId]);
+  }, [initialProjectId]);
 
   const updateItem = (index: number, patch: Partial<MaterialRequestLineItem>) => {
     setItems((prev) =>
@@ -618,20 +626,6 @@ function TaskMaterialRequestModal({
           </button>
         </div>
       </form>
-      {showMaterialModal && (
-        <TaskMaterialRequestModal
-          taskId={task.id}
-          taskTitle={task.title}
-          initialProjectId={taskProjectId}
-          onClose={() => setShowMaterialModal(false)}
-          onSuccess={(msg) => {
-            setMemberFeedback({ type: "success", text: msg });
-            load();
-            onChanged?.();
-            setTimeout(() => setMemberFeedback(null), 5000);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -1383,9 +1377,9 @@ export default function TaskTimeline({
       )}
       {showMaterialModal && (
         <TaskMaterialRequestModal
-          taskId={task.id}
-          taskTitle={task.title}
-          initialProjectId={taskProjectId}
+          taskId={task?.id || ""}
+          taskTitle={task?.title || "Task"}
+          initialProjectId={taskProjectId || task?.projectId || null}
           onClose={() => setShowMaterialModal(false)}
           onSuccess={(msg) => {
             setMemberFeedback({ type: "success", text: msg });
