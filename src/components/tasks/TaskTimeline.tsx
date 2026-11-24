@@ -217,7 +217,7 @@ const COMMON_UNITS = [
   "PACKET",
 ];
 
-function TaskMaterialRequestModal({
+export function TaskMaterialRequestModal({
   taskId,
   taskTitle,
   initialProjectId,
@@ -668,7 +668,6 @@ export default function TaskTimeline({
   const [nextStatus, setNextStatus] = useState<string>("");
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [posting, setPosting] = useState(false);
-  const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [taskProjectId, setTaskProjectId] = useState<string | null>(task.projectId || null);
 
   const load = useCallback(async () => {
@@ -860,28 +859,17 @@ export default function TaskTimeline({
               <span>Assigned Team Members ({members.length})</span>
             </div>
             {canWrite && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowMaterialModal(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition shadow-2xs cursor-pointer"
-                  title="Request material required for this work"
-                >
-                  <PackagePlus className="h-3.5 w-3.5 text-slate-950" />
-                  <span>Request Material</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddMember((prev) => !prev);
-                    setMemberFeedback(null);
-                  }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200/90 border border-amber-300/80 rounded-lg transition shadow-2xs cursor-pointer"
-                >
-                  <UserPlus className="h-3.5 w-3.5 text-amber-700" />
-                  <span>{showAddMember ? "Close" : "+ Add Member"}</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddMember((prev) => !prev);
+                  setMemberFeedback(null);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200/90 border border-amber-300/80 rounded-lg transition shadow-2xs cursor-pointer"
+              >
+                <UserPlus className="h-3.5 w-3.5 text-amber-700" />
+                <span>{showAddMember ? "Close" : "+ Add Member"}</span>
+              </button>
             )}
           </div>
 
@@ -1043,15 +1031,6 @@ export default function TaskTimeline({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <PhotoPicker value={photos} onChange={setPhotos} entityType="TASK" entityId={task.id} projectId={taskProjectId} />
-                <button
-                  type="button"
-                  onClick={() => setShowMaterialModal(true)}
-                  className="flex h-16 min-w-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-amber-400 bg-amber-50/70 hover:bg-amber-100/90 px-3 text-[11px] font-bold text-amber-900 transition shadow-2xs cursor-pointer"
-                  title="Add required material for this work"
-                >
-                  <PackagePlus className="h-4 w-4 text-amber-700" />
-                  <span className="text-center leading-tight">Request Material</span>
-                </button>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[11px] text-slate-400">Admins and the person who assigned this task are notified.</p>
@@ -1374,20 +1353,6 @@ export default function TaskTimeline({
             </div>
           </div>
         </div>
-      )}
-      {showMaterialModal && (
-        <TaskMaterialRequestModal
-          taskId={task?.id || ""}
-          taskTitle={task?.title || "Task"}
-          initialProjectId={taskProjectId || task?.projectId || null}
-          onClose={() => setShowMaterialModal(false)}
-          onSuccess={(msg) => {
-            setMemberFeedback({ type: "success", text: msg });
-            load();
-            onChanged?.();
-            setTimeout(() => setMemberFeedback(null), 5000);
-          }}
-        />
       )}
     </div>
   );

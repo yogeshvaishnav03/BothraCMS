@@ -433,7 +433,7 @@ export default function DashboardPage() {
   const [materialRequestNotice, setMaterialRequestNotice] = useState<string | null>(null);
 
   const resetQuickMaterialForm = () => {
-    setQuickMaterialProjectId(projects[0]?.id || "");
+    setQuickMaterialProjectId(activeSiteId || projects[0]?.id || "");
     setQuickMaterialUrgent(false);
     setQuickMaterialNeededBy("");
     setQuickMaterialNotes("");
@@ -2221,6 +2221,18 @@ export default function DashboardPage() {
             )}
             <button
               type="button"
+              onClick={() => {
+                resetQuickMaterialForm();
+                setShowQuickMaterialModal(true);
+              }}
+              className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
+              title="Raise a site material requisition"
+            >
+              <PackagePlus className="w-3.5 h-3.5 text-slate-950" />
+              <span>Request Material</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setShowQuickTaskModal(true)}
               className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
               title="Create a new site task and assign to project team"
@@ -2274,6 +2286,20 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Header Request Material Quick Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  resetQuickMaterialForm();
+                  setShowQuickMaterialModal(true);
+                }}
+                className="px-3 py-1.5 bg-gradient-brand hover:brightness-105 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs border border-amber-400/50 cursor-pointer whitespace-nowrap"
+                title="Raise a site material requisition"
+              >
+                <PackagePlus className="w-3.5 h-3.5 text-slate-950" />
+                <span>Request Material</span>
+              </button>
+
               {/* Dashboard Date Selector */}
               <div className="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-2xs">
                 <button
