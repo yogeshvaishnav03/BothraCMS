@@ -55,7 +55,17 @@ const requestInclude = {
 /** Who can approve requests and turn them into orders. */
 export async function canManageRequest(user: UserContext, projectId: string): Promise<boolean> {
   if (isOrgOwnerOrAdmin(user)) return true;
-  if (user.role !== "PROJECT_MANAGER" && user.role !== "STOREKEEPER") return false;
+  if (user.role === "PROJECT_MANAGER") {
+    if (user.assignedSiteIds && user.assignedSiteIds.length > 0) {
+      const proj = await prisma.project.findFirst({
+        where: { id: projectId, organizationId: user.organizationId },
+        select: { siteId: true },
+      });
+      if (proj?.siteId && !user.assignedSiteIds.includes(proj.siteId)) return false;
+    }
+    return true;
+  }
+  if (user.role !== "STOREKEEPER") return false;
   return userHasProjectAccess(user, projectId);
 }
 
@@ -95,7 +105,7 @@ export class MaterialRequestService {
       select: { id: true, name: true, managerUserId: true },
     });
     if (!project) throw new MaterialRequestError("Project not found", 404, "NOT_FOUND");
-    if (!(await userHasProjectAccess(user, project.id))) {
+    if (user.role !== "PROJECT_MANAGER" && !(await userHasProjectAccess(user, project.id))) {
       throw new MaterialRequestError("You are not on this project's team.", 403, "PROJECT_ACCESS_DENIED");
     }
     if (input.items.length === 0) throw new MaterialRequestError("Add at least one material.");
@@ -159,9 +169,14 @@ export class MaterialRequestService {
   }
 
   static async list(user: UserContext, filters: { status?: string | null; projectId?: string | null }) {
+    const isManagerOrAdmin = isOrgOwnerOrAdmin(user) || user.role === "PROJECT_MANAGER";
     const accessible = await getUserAccessibleProjectIds(user);
     const where: any = { organizationId: user.organizationId };
-    if (accessible) where.OR = [{ projectId: { in: accessible } }, { requestedById: user.userId }];
+    if (!isManagerOrAdmin && accessible) {
+      where.OR = [{ projectId: { in: accessible } }, { requestedById: user.userId }];
+    } else if (user.assignedSiteIds && user.assignedSiteIds.length > 0) {
+      where.project = { siteId: { in: user.assignedSiteIds } };
+    }
     if (filters.projectId) where.projectId = filters.projectId;
     if (filters.status) where.status = { in: filters.status.split(",") };
 

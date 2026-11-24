@@ -440,31 +440,27 @@ export default function Shell({ children }: ShellProps) {
           icon: PackagePlus,
           keywords: ["requests", "materials", "requisitions", "indents", "orders", "procurement", "requested material"],
         },
-        ...(user?.role !== "PROJECT_MANAGER"
-          ? [
-              {
-                key: "nav.materials",
-                defaultLabel: "Materials & Stock",
-                href: "/materials",
-                icon: Boxes,
-                keywords: ["inventory", "stock", "items", "supplies", "store", "goods", "cement", "steel", "sand", "materials"],
-              },
-              {
-                key: "nav.materialStorage",
-                defaultLabel: "Material Storage",
-                href: "/material-storage",
-                icon: Warehouse,
-                keywords: ["godown", "warehouse", "storage", "bins", "shed", "stock location"],
-              },
-              {
-                key: "nav.materialPricing",
-                defaultLabel: "Material Pricing",
-                href: "/material-pricing",
-                icon: Tag,
-                keywords: ["rates", "prices", "price list", "quotation", "rate card", "costs", "pricing"],
-              },
-            ]
-          : []),
+        {
+          key: "nav.materials",
+          defaultLabel: "Materials & Stock",
+          href: "/materials",
+          icon: Boxes,
+          keywords: ["inventory", "stock", "items", "supplies", "store", "goods", "cement", "steel", "sand", "materials"],
+        },
+        {
+          key: "nav.materialStorage",
+          defaultLabel: "Material Storage",
+          href: "/material-storage",
+          icon: Warehouse,
+          keywords: ["godown", "warehouse", "storage", "bins", "shed", "stock location"],
+        },
+        {
+          key: "nav.materialPricing",
+          defaultLabel: "Material Pricing",
+          href: "/material-pricing",
+          icon: Tag,
+          keywords: ["rates", "prices", "price list", "quotation", "rate card", "costs", "pricing"],
+        },
         {
           key: "nav.drawings",
           defaultLabel: "Drawings",

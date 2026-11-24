@@ -16,7 +16,7 @@ export class DashboardService {
 
     const isProjectManager = userContext?.role === "PROJECT_MANAGER";
     const hasFinanceAccess = userContext ? (!isProjectManager && canReadFinance(userContext)) : true;
-    const hasInventoryAccess = userContext ? (!isProjectManager && hasPermission(userContext, "inventory:read")) : true;
+    const hasInventoryAccess = userContext ? (hasPermission(userContext, "inventory:read") || isProjectManager) : true;
     const accessibleProjectIds = userContext ? await getUserAccessibleProjectIds(userContext) : null;
 
     // 1. Active Projects filter

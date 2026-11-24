@@ -351,7 +351,7 @@ export default function DashboardPage() {
   const isSupervisor = activeUser?.role === "SITE_SUPERVISOR" || (activeUser?.role as string) === "SUPERVISOR";
   const isProjectManager = activeUser?.role === "PROJECT_MANAGER";
   const canViewFinance = !isProjectManager && (canUser(activeUser, "finance:read") || isAdminUser);
-  const canViewStock = !isProjectManager && (canUser(activeUser, "inventory:read") || isAdminUser);
+  const canViewStock = canUser(activeUser, "inventory:read") || isAdminUser || isProjectManager;
   const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
 
   // Live Camera state for Site Supervisors

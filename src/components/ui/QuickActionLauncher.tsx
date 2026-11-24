@@ -22,6 +22,7 @@ import {
   Zap,
   ArrowRight,
   Receipt,
+  PackagePlus,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { canUser, Permission } from "@/lib/permissions";
@@ -77,6 +78,22 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     siteScoped: true,
   },
   {
+    id: "material-requests",
+    titleEn: "Request Material",
+    titleHi: "सामग्री मांग दर्ज करें (Material Indent)",
+    descEn: "Raise a material requisition or track site indents & POs",
+    descHi: "साइट काम के लिए सामग्री मांगें या अप्रूवल ट्रैक करें",
+    href: "/material-requests",
+    icon: PackagePlus,
+    colorClass: "bg-amber-400 text-slate-950",
+    badgeEn: "Request",
+    badgeHi: "मांग",
+    keywords: ["material", "request", "requisition", "indent", "order", "cement", "steel", "supplies"],
+    requiredPermission: "projects:read",
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "STOREKEEPER"],
+    siteScoped: true,
+  },
+  {
     id: "materials",
     titleEn: "Receive Materials",
     titleHi: "सामान / माल प्राप्ति दर्ज करें",
@@ -89,7 +106,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeHi: "स्टॉक",
     keywords: ["materials", "cement", "steel", "sand", "grn", "stock", "truck", "saman", "dumper", "store"],
     requiredPermission: "inventory:read",
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "SITE_SUPERVISOR", "STOREKEEPER"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "STOREKEEPER"],
     siteScoped: true,
   },
   {
