@@ -13,16 +13,22 @@ import {
   History,
   Loader2,
   MessageSquare,
+  PackagePlus,
   Pencil,
+  Plus,
   PlusCircle,
   Search,
   Send,
+  Trash2,
   UserPlus,
   Users,
   X,
+  AlertTriangle,
+  Calendar,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/formatters";
 import { PhotoPicker, PickedPhoto } from "@/components/ui/PhotoPicker";
+import { submitOrQueue } from "@/lib/offline-queue";
 
 interface FieldChange {
   field: string;
@@ -179,6 +185,457 @@ interface TaskMember {
   isCurrentTaskAssignee?: boolean;
 }
 
+interface MaterialRequestLineItem {
+  materialId: string;
+  description: string;
+  quantity: string;
+  unitCode: string;
+}
+
+const COMMON_UNITS = [
+  "NOS",
+  "BAG",
+  "KG",
+  "SHEET",
+  "PCS",
+  "SQFT",
+  "BUNDLE",
+  "LTR",
+  "TRUCK",
+  "BRASS",
+  "MTR",
+  "TON",
+  "BOX",
+  "PACKET",
+];
+
+function TaskMaterialRequestModal({
+  taskId,
+  taskTitle,
+  initialProjectId,
+  onClose,
+  onSuccess,
+}: {
+  taskId: string;
+  taskTitle: string;
+  initialProjectId?: string | null;
+  onClose: () => void;
+  onSuccess: (message: string) => void;
+}) {
+  const [projects, setProjects] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [projectId, setProjectId] = useState<string>(initialProjectId || "");
+  const [neededBy, setNeededBy] = useState<string>("");
+  const [urgent, setUrgent] = useState(false);
+  const [notes, setNotes] = useState<string>("");
+  const [items, setItems] = useState<MaterialRequestLineItem[]>([
+    { materialId: "", description: "", quantity: "", unitCode: "NOS" },
+  ]);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch("/api/projects").then((r) => r.json()).catch(() => ({ success: false })),
+      fetch("/api/materials").then((r) => r.json()).catch(() => ({ success: false })),
+    ]).then(([projRes, matRes]) => {
+      if (!active) return;
+      const projs = projRes?.data?.projects || projRes?.data || [];
+      const mats = matRes?.data?.materials || matRes?.data || [];
+      const validProjs = Array.isArray(projs) ? projs : [];
+      setProjects(validProjs);
+      setMaterials(Array.isArray(mats) ? mats : []);
+      if (!projectId && validProjs.length > 0) {
+        setProjectId(validProjs[0].id);
+      }
+      setLoadingInitial(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [projectId]);
+
+  const updateItem = (index: number, patch: Partial<MaterialRequestLineItem>) => {
+    setItems((prev) =>
+      prev.map((it, idx) => {
+        if (idx !== index) return it;
+        const updated = { ...it, ...patch };
+        if (patch.materialId !== undefined) {
+          if (patch.materialId && patch.materialId !== "OTHER") {
+            const selectedMat = materials.find((m) => m.id === patch.materialId);
+            if (selectedMat) {
+              updated.description = selectedMat.name;
+              updated.unitCode = selectedMat.unitCode || "NOS";
+            }
+          } else if (patch.materialId === "OTHER") {
+            updated.description = "";
+          }
+        }
+        return updated;
+      })
+    );
+  };
+
+  const addItem = () => {
+    setItems((prev) => [
+      ...prev,
+      { materialId: "", description: "", quantity: "", unitCode: "NOS" },
+    ]);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length <= 1) return;
+    setItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const validItems = items.filter((it) => {
+      const hasName = (it.materialId && it.materialId !== "OTHER") || it.description.trim().length > 0;
+      const qty = parseFloat(it.quantity);
+      return hasName && !isNaN(qty) && qty > 0;
+    });
+
+    if (validItems.length === 0) {
+      setError("Please add at least one material with a quantity greater than 0.");
+      return;
+    }
+
+    if (!projectId) {
+      setError("Please select the project for this material request.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payloadItems = validItems.map((it) => ({
+        materialId: it.materialId && it.materialId !== "OTHER" ? it.materialId : null,
+        description: it.materialId === "OTHER" || !it.materialId ? it.description.trim() : null,
+        quantity: parseFloat(it.quantity),
+        unitCode: (it.unitCode || "NOS").trim().toUpperCase(),
+      }));
+
+      const res = await submitOrQueue<any>({
+        label: `Material request for "${taskTitle}"`,
+        url: "/api/material-requests",
+        body: {
+          projectId,
+          neededBy: neededBy || null,
+          priority: urgent ? "URGENT" : "NORMAL",
+          notes: `[Task: ${taskTitle}] ${notes || ""}`.trim(),
+          items: payloadItems,
+        },
+      });
+
+      // Post update to task timeline so everyone sees it in task history
+      const summary = validItems
+        .map((it) => {
+          const matName =
+            it.materialId && it.materialId !== "OTHER"
+              ? materials.find((m) => m.id === it.materialId)?.name || it.description
+              : it.description;
+          return `${it.quantity} ${it.unitCode || "NOS"} ${matName}`;
+        })
+        .join(", ");
+
+      const reqNum = res && "data" in res && (res.data as any)?.requestNumber ? ` (${(res.data as any).requestNumber})` : "";
+
+      await fetch(`/api/tasks/${taskId}/updates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          note: `📦 Material Request Posted${reqNum} [${urgent ? "URGENT" : "Normal"}]:\n• ${summary.replace(/, /g, "\n• ")}${notes ? `\n\nNotes: ${notes}` : ""}`,
+        }),
+      }).catch((err) => console.error("Failed to post timeline update:", err));
+
+      window.dispatchEvent(new CustomEvent("refreshNotifications"));
+      onSuccess(`Material request${reqNum} posted successfully for this task!`);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || "Failed to post material request. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto"
+      onClick={onClose}
+    >
+      <form
+        onSubmit={handleSubmit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[92dvh] animate-scale-in"
+      >
+        {/* Header */}
+        <div className="p-4 bg-gradient-chrome text-white flex items-center justify-between rounded-t-2xl">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-sm">
+              <PackagePlus className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold leading-tight">Request Material for Work</h3>
+              <p className="text-[11px] text-slate-300 truncate max-w-xs">{taskTitle}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 overflow-y-auto space-y-3.5 flex-1 text-xs">
+          {error && (
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Project & Needed By Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                Project / Site *
+              </label>
+              {projects.length > 0 ? (
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                  required
+                >
+                  <option value="">Select project...</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.code ? `(${p.code})` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-xs text-slate-500 py-1.5">
+                  {loadingInitial ? "Loading projects..." : "Current Project"}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                Needed by date (optional)
+              </label>
+              <input
+                type="date"
+                value={neededBy}
+                onChange={(e) => setNeededBy(e.target.value)}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-sans"
+              />
+            </div>
+          </div>
+
+          {/* Priority radio */}
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-700">Urgency:</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setUrgent(false)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  !urgent
+                    ? "bg-slate-900 text-amber-400 shadow-xs"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                onClick={() => setUrgent(true)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                  urgent
+                    ? "bg-rose-600 text-white shadow-xs"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600"
+                }`}
+              >
+                <AlertTriangle className="w-3 h-3" />
+                <span>Urgent (Site Blocking)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Materials List */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                Required Material(s) *
+              </span>
+              <button
+                type="button"
+                onClick={addItem}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Another Material</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {items.map((it, idx) => {
+                const isCustom = it.materialId === "OTHER" || !it.materialId;
+                return (
+                  <div
+                    key={idx}
+                    className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <select
+                          value={it.materialId}
+                          onChange={(e) => updateItem(idx, { materialId: e.target.value })}
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                        >
+                          <option value="">Select from catalogue or custom...</option>
+                          {materials.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name} ({m.unitCode || "NOS"})
+                            </option>
+                          ))}
+                          <option value="OTHER">Custom material (type name below)</option>
+                        </select>
+                      </div>
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeItem(idx)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition shrink-0 cursor-pointer"
+                          title="Remove item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {isCustom && (
+                      <input
+                        type="text"
+                        value={it.description}
+                        onChange={(e) => updateItem(idx, { description: e.target.value })}
+                        placeholder="e.g. Laminate sheet, 12mm binding wire, 2x1 timber..."
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50/40 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        required
+                      />
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-600 block mb-0.5">
+                          Quantity *
+                        </span>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="any"
+                          value={it.quantity}
+                          onChange={(e) => updateItem(idx, { quantity: e.target.value })}
+                          placeholder="e.g. 10"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-semibold text-slate-600 block mb-0.5">
+                          Unit
+                        </span>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            list={`units-list-${idx}`}
+                            value={it.unitCode}
+                            onChange={(e) => updateItem(idx, { unitCode: e.target.value.toUpperCase() })}
+                            placeholder="Unit (NOS, BAG, KG)"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 uppercase focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                          />
+                          <datalist id={`units-list-${idx}`}>
+                            {COMMON_UNITS.map((u) => (
+                              <option key={u} value={u} />
+                            ))}
+                          </datalist>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Notes / Work purpose */}
+          <div>
+            <label className="text-[11px] font-bold text-slate-700 block mb-1">
+              Work Notes / Reason for requirement
+            </label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. Carpenters need for 2nd floor shuttering work at Tilak Nagar site"
+              className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2 rounded-b-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="px-4 py-2 bg-gradient-brand text-slate-950 text-xs font-bold rounded-lg shadow-sm hover:opacity-95 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+          >
+            {submitting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <PackagePlus className="w-3.5 h-3.5" />
+            )}
+            <span>Post Material Request</span>
+          </button>
+        </div>
+      </form>
+      {showMaterialModal && (
+        <TaskMaterialRequestModal
+          taskId={task.id}
+          taskTitle={task.title}
+          initialProjectId={taskProjectId}
+          onClose={() => setShowMaterialModal(false)}
+          onSuccess={(msg) => {
+            setMemberFeedback({ type: "success", text: msg });
+            load();
+            onChanged?.();
+            setTimeout(() => setMemberFeedback(null), 5000);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function TaskTimeline({
   task,
   canWrite,
@@ -217,6 +674,8 @@ export default function TaskTimeline({
   const [nextStatus, setNextStatus] = useState<string>("");
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [posting, setPosting] = useState(false);
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
+  const [taskProjectId, setTaskProjectId] = useState<string | null>(task.projectId || null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -227,6 +686,7 @@ export default function TaskTimeline({
       if (!res.ok || !json.success) throw new Error(json?.error?.message || "Could not load history");
       setEntries(json.data.entries || []);
       if (json.data.task?.status) setCurrentStatus(json.data.task.status);
+      if (json.data.task?.projectId) setTaskProjectId(json.data.task.projectId);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -406,17 +866,28 @@ export default function TaskTimeline({
               <span>Assigned Team Members ({members.length})</span>
             </div>
             {canWrite && (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddMember((prev) => !prev);
-                  setMemberFeedback(null);
-                }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200/90 border border-amber-300/80 rounded-lg transition shadow-2xs cursor-pointer"
-              >
-                <UserPlus className="h-3.5 w-3.5 text-amber-700" />
-                <span>{showAddMember ? "Close" : "+ Add Member"}</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowMaterialModal(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition shadow-2xs cursor-pointer"
+                  title="Request material required for this work"
+                >
+                  <PackagePlus className="h-3.5 w-3.5 text-slate-950" />
+                  <span>Request Material</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddMember((prev) => !prev);
+                    setMemberFeedback(null);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200/90 border border-amber-300/80 rounded-lg transition shadow-2xs cursor-pointer"
+                >
+                  <UserPlus className="h-3.5 w-3.5 text-amber-700" />
+                  <span>{showAddMember ? "Close" : "+ Add Member"}</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -576,7 +1047,18 @@ export default function TaskTimeline({
                   </button>
                 ))}
               </div>
-              <PhotoPicker value={photos} onChange={setPhotos} entityType="TASK" entityId={task.id} projectId={task.projectId} />
+              <div className="flex flex-wrap items-center gap-2">
+                <PhotoPicker value={photos} onChange={setPhotos} entityType="TASK" entityId={task.id} projectId={taskProjectId} />
+                <button
+                  type="button"
+                  onClick={() => setShowMaterialModal(true)}
+                  className="flex h-16 min-w-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-amber-400 bg-amber-50/70 hover:bg-amber-100/90 px-3 text-[11px] font-bold text-amber-900 transition shadow-2xs cursor-pointer"
+                  title="Add required material for this work"
+                >
+                  <PackagePlus className="h-4 w-4 text-amber-700" />
+                  <span className="text-center leading-tight">Request Material</span>
+                </button>
+              </div>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[11px] text-slate-400">Admins and the person who assigned this task are notified.</p>
                 <button
@@ -898,6 +1380,20 @@ export default function TaskTimeline({
             </div>
           </div>
         </div>
+      )}
+      {showMaterialModal && (
+        <TaskMaterialRequestModal
+          taskId={task.id}
+          taskTitle={task.title}
+          initialProjectId={taskProjectId}
+          onClose={() => setShowMaterialModal(false)}
+          onSuccess={(msg) => {
+            setMemberFeedback({ type: "success", text: msg });
+            load();
+            onChanged?.();
+            setTimeout(() => setMemberFeedback(null), 5000);
+          }}
+        />
       )}
     </div>
   );
