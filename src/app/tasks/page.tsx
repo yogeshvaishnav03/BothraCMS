@@ -990,7 +990,7 @@ export default function TasksPage() {
               <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-amber-500" />
-                  <span>Create / Assign Site Task</span>
+                  <span>Create Site Task</span>
                 </div>
                 <button
                   onClick={() => setShowCreateModal(false)}

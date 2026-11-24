@@ -2235,10 +2235,10 @@ export default function DashboardPage() {
               type="button"
               onClick={() => setShowQuickTaskModal(true)}
               className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
-              title="Create a new site task and assign to project team"
+              title="Create a new site task"
             >
               <PlusCircle className="w-3.5 h-3.5 shrink-0" />
-              <span>Create / Assign Site Task</span>
+              <span>Create Site Task</span>
             </button>
           </div>
         </div>
@@ -4467,7 +4467,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
                 <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-amber-500" />
-                  <span>Create / Assign Site Task</span>
+                  <span>Create Site Task</span>
                 </div>
                 <button
                   onClick={() => {
