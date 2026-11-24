@@ -1972,17 +1972,6 @@ export default function PartiesPage() {
                       />
                       <p className="mt-1 text-[11px] text-slate-400">Maximum percentage of contract or bill value that can be deducted.</p>
                     </div>
-                    <div>
-                      <label className={labelCls}>Rating</label>
-                      <select value={form.rating} onChange={setField("rating")} className={inputCls}>
-                        <option value="">Not rated</option>
-                        {[5, 4, 3, 2, 1].map((r) => (
-                          <option key={r} value={r}>
-                            {"★".repeat(r)} ({r})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
                 </section>
 
