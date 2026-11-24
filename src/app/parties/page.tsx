@@ -39,6 +39,7 @@ import {
   Loader2,
   AlertCircle,
   ChevronDown,
+  Percent,
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
@@ -47,6 +48,30 @@ import { cn } from "@/lib/cn";
 import { uploadClientMedia } from "@/lib/upload-client";
 
 type PartyType = "VENDOR" | "CONTRACTOR" | "BOTH";
+
+export function parsePartyGst(notes: string | null | undefined): { gstRate: string; cgstRate: string; sgstRate: string } {
+  if (!notes) return { gstRate: "18", cgstRate: "9", sgstRate: "9" };
+  try {
+    const parsed = JSON.parse(notes);
+    if (typeof parsed === "object" && parsed !== null) {
+      const g = parsed.gstRate !== undefined ? String(parsed.gstRate) : "18";
+      const c = parsed.cgstRate !== undefined ? String(parsed.cgstRate) : String((parseFloat(g) || 0) / 2 || 9);
+      const s = parsed.sgstRate !== undefined ? String(parsed.sgstRate) : String((parseFloat(g) || 0) / 2 || 9);
+      return { gstRate: g, cgstRate: c, sgstRate: s };
+    }
+  } catch {
+    const gMatch = notes.match(/GST:\s*(\d+(?:\.\d+)?)%/i);
+    const cMatch = notes.match(/CGST:\s*(\d+(?:\.\d+)?)%/i);
+    const sMatch = notes.match(/SGST:\s*(\d+(?:\.\d+)?)%/i);
+    if (gMatch || cMatch || sMatch) {
+      const g = gMatch ? gMatch[1] : "18";
+      const c = cMatch ? cMatch[1] : String((parseFloat(g) || 0) / 2 || 9);
+      const s = sMatch ? sMatch[1] : String((parseFloat(g) || 0) / 2 || 9);
+      return { gstRate: g, cgstRate: c, sgstRate: s };
+    }
+  }
+  return { gstRate: "18", cgstRate: "9", sgstRate: "9" };
+}
 
 const EMPTY_FORM = {
   name: "",
@@ -62,7 +87,9 @@ const EMPTY_FORM = {
   rating: "",
   taxIdentifier: "",
   panNumber: "",
-  tdsSection: "",
+  gstRate: "18",
+  cgstRate: "9",
+  sgstRate: "9",
   contractValueRupees: "",
   liquidatedDamagesTerms: "",
   liquidatedDamagesPercent: "",
@@ -283,6 +310,41 @@ export default function PartiesPage() {
   const isEditing = Boolean(editingPartyId);
   const setField = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleGstRateChange = (rateVal: string) => {
+    const num = parseFloat(rateVal) || 0;
+    const half = (num / 2).toString();
+    setForm((prev) => ({
+      ...prev,
+      gstRate: rateVal,
+      cgstRate: rateVal ? half : "",
+      sgstRate: rateVal ? half : "",
+    }));
+  };
+
+  const handleCgstRateChange = (cgstVal: string) => {
+    setForm((prev) => {
+      const c = parseFloat(cgstVal) || 0;
+      const s = parseFloat(prev.sgstRate) || 0;
+      return {
+        ...prev,
+        cgstRate: cgstVal,
+        gstRate: (c + s).toString(),
+      };
+    });
+  };
+
+  const handleSgstRateChange = (sgstVal: string) => {
+    setForm((prev) => {
+      const s = parseFloat(sgstVal) || 0;
+      const c = parseFloat(prev.cgstRate) || 0;
+      return {
+        ...prev,
+        sgstRate: sgstVal,
+        gstRate: (c + s).toString(),
+      };
+    });
+  };
 
   // Custom Category / Trade management
   const [customCategories, setCustomCategories] = useState<string[]>([]);
@@ -600,7 +662,9 @@ export default function PartiesPage() {
       rating: p.rating ? String(p.rating) : "",
       taxIdentifier: p.taxIdentifier || "",
       panNumber: p.panNumber || "",
-      tdsSection: p.tdsSection || "",
+      gstRate: parsePartyGst(p.notes).gstRate,
+      cgstRate: parsePartyGst(p.notes).cgstRate,
+      sgstRate: parsePartyGst(p.notes).sgstRate,
       contractValueRupees: p.contractValue ? paiseToRupees(p.contractValue).toString() : "",
       liquidatedDamagesTerms: p.liquidatedDamagesTerms || "",
       liquidatedDamagesPercent: p.liquidatedDamagesPercent ? String(p.liquidatedDamagesPercent) : "",
@@ -668,6 +732,12 @@ export default function PartiesPage() {
         ? rupeesToPaise(parseFloat(form.contractValueRupees))
         : 0;
 
+    const gstPayload = {
+      gstRate: form.gstRate ? parseFloat(form.gstRate) : 0,
+      cgstRate: form.cgstRate ? parseFloat(form.cgstRate) : 0,
+      sgstRate: form.sgstRate ? parseFloat(form.sgstRate) : 0,
+    };
+
     const payload: Record<string, unknown> = {
       name: form.name,
       partyType: form.partyType,
@@ -685,7 +755,8 @@ export default function PartiesPage() {
       category: form.category,
       rating: form.rating ? Number(form.rating) : null,
       panNumber: form.panNumber,
-      tdsSection: form.tdsSection,
+      tdsSection: "NONE",
+      notes: JSON.stringify(gstPayload),
       bankAccountName: form.bankAccountName,
       bankIfsc: form.bankIfsc,
       bankName: form.bankName,
@@ -1157,6 +1228,23 @@ export default function PartiesPage() {
                     </div>
                   )}
 
+                  {/* GST & Tax Details */}
+                  {(() => {
+                    const gst = parsePartyGst(p.notes);
+                    return (
+                      <div className="text-[11px] font-mono text-slate-600 flex items-center gap-1.5 flex-wrap">
+                        {p.taxIdentifier && (
+                          <span>
+                            GSTIN: <strong className="text-slate-800">{p.taxIdentifier}</strong>
+                          </span>
+                        )}
+                        <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 text-[10px] font-bold">
+                          GST {gst.gstRate}% (CGST: {gst.cgstRate}%, SGST: {gst.sgstRate}%)
+                        </span>
+                      </div>
+                    );
+                  })()}
+
                   {/* Money */}
                   {canReadFinance && p.totalBilled !== undefined && (
                     <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2.5 text-center">
@@ -1306,6 +1394,17 @@ export default function PartiesPage() {
                             <Link href={`/parties/${p.id}`} className="block">
                               <div className="font-semibold text-slate-900 group-hover:text-amber-700 transition-colors">{p.name}</div>
                             </Link>
+                            {(() => {
+                              const gst = parsePartyGst(p.notes);
+                              return (
+                                <div className="text-[10px] font-mono text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                  {p.taxIdentifier && <span>GSTIN: {p.taxIdentifier} &bull;</span>}
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-900 border border-amber-200 font-bold">
+                                    GST {gst.gstRate}% (C: {gst.cgstRate}%, S: {gst.sgstRate}%)
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="py-3 px-4">
                             <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1 whitespace-nowrap", style.chip)}>{style.label}</span>
@@ -1751,24 +1850,99 @@ export default function PartiesPage() {
                     <div>
                       <label className={labelCls}>PAN</label>
                       <input type="text" maxLength={10} placeholder="ABCDE1234F" value={form.panNumber} onChange={setField("panNumber")} className={cn(inputCls, "font-mono uppercase")} />
-                      <p className="mt-1 text-[11px] text-slate-400">Without a PAN, TDS applies at a higher 20% rate.</p>
+                      <p className="mt-1 text-[11px] text-slate-400">10-digit PAN for business & tax compliance verification.</p>
                     </div>
-                    <div>
-                      <label className={labelCls}>TDS on payments</label>
-                      <select value={form.tdsSection} onChange={setField("tdsSection")} className={inputCls}>
-                        <option value="">{form.partyType === "VENDOR" ? "None (goods supplier)" : "Automatic: contractor (194C)"}</option>
-                        <option value="194C">Contractor (194C — 1% indiv. / 2% co.)</option>
-                        <option value="194J_PROF">Professional fees, 10% (194J)</option>
-                        <option value="194J_TECH">Technical services, 2% (194J)</option>
-                        <option value="194I_LB">Rent of land or building, 10% (194I)</option>
-                        <option value="194I_PM">Machinery on hire, 2% (194I)</option>
-                        <option value="194Q">Goods over ₹50 lakh a year, 0.1% (194Q)</option>
-                        <option value="NONE">No TDS</option>
-                      </select>
-                      <p className="mt-1 text-[11px] text-slate-400">Contractors usually use Section 194C (1% for individuals, 2% for companies).</p>
+
+                    {/* GST Rate (%), CGST (%), SGST (%) Section */}
+                    <div className="sm:col-span-2 bg-amber-50/50 rounded-xl p-3 border border-amber-200/90 space-y-2.5">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-amber-950">
+                          <Percent className="w-4 h-4 text-amber-600" />
+                          <span>GST Tax Configuration</span>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                          Total: {form.gstRate || 0}% (CGST {form.cgstRate || 0}% + SGST {form.sgstRate || 0}%)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* GST Rate (%) */}
+                        <div>
+                          <label className={labelCls}>GST Rate (%)</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              placeholder="18"
+                              value={form.gstRate}
+                              onChange={(e) => handleGstRateChange(e.target.value)}
+                              className={cn(inputCls, "font-mono font-bold pr-7")}
+                            />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                            {["0", "5", "12", "18", "28"].map((rate) => (
+                              <button
+                                key={rate}
+                                type="button"
+                                onClick={() => handleGstRateChange(rate)}
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer",
+                                  form.gstRate === rate
+                                    ? "bg-amber-500 text-slate-950 shadow-2xs"
+                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                )}
+                              >
+                                {rate}%
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* CGST (%) */}
+                        <div>
+                          <label className={labelCls}>CGST (%)</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.05"
+                              min="0"
+                              max="50"
+                              placeholder="9"
+                              value={form.cgstRate}
+                              onChange={(e) => handleCgstRateChange(e.target.value)}
+                              className={cn(inputCls, "font-mono font-bold pr-7")}
+                            />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                          </div>
+                          <p className="mt-1 text-[10px] text-slate-500 font-medium">Central Tax (e.g. 9%)</p>
+                        </div>
+
+                        {/* SGST (%) */}
+                        <div>
+                          <label className={labelCls}>SGST (%)</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.05"
+                              min="0"
+                              max="50"
+                              placeholder="9"
+                              value={form.sgstRate}
+                              onChange={(e) => handleSgstRateChange(e.target.value)}
+                              className={cn(inputCls, "font-mono font-bold pr-7")}
+                            />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                          </div>
+                          <p className="mt-1 text-[10px] text-slate-500 font-medium">State Tax (e.g. 9%)</p>
+                        </div>
+                      </div>
                     </div>
+
                     {form.partyType !== "VENDOR" && (
-                      <div>
+                      <div className="sm:col-span-2">
                         <label className={labelCls}>Agreed contract value (₹)</label>
                         <input type="number" step="0.01" min="0" placeholder="500000" value={form.contractValueRupees} onChange={setField("contractValueRupees")} className={inputCls} />
                       </div>
