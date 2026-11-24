@@ -7,6 +7,7 @@ import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Alert } from "@/components/ui/Alert";
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import SearchableMultiSelect from "@/components/ui/SearchableMultiSelect";
 import { useTablePagination, ShowEntriesControl, TablePagination } from "@/components/ui/ExcelTable";
 import { cn } from "@/lib/cn";
 import { formatCompactINR, formatCompactNumber } from "@/lib/formatters";
@@ -40,6 +41,7 @@ import {
   ShoppingCart,
   Trash2,
   Upload,
+  Users,
   X,
   XCircle,
   Zap,
@@ -611,14 +613,48 @@ function ReceiveOrderModal({
 
 // ── New Request Modal ───────────────────────────────────────────────────────
 
-function NewRequestModal({ projects, materials, onClose, onCreated }: { projects: any[]; materials: any[]; onClose: () => void; onCreated: (r: any | null) => void }) {
+function NewRequestModal({
+  projects,
+  materials,
+  employees: propEmployees,
+  onClose,
+  onCreated,
+}: {
+  projects: any[];
+  materials: any[];
+  employees?: any[];
+  onClose: () => void;
+  onCreated: (r: any | null) => void;
+}) {
   const [projectId, setProjectId] = useState(projects[0]?.id || "");
+  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
+  const [employees, setEmployees] = useState<any[]>(propEmployees || []);
   const [neededBy, setNeededBy] = useState("");
   const [urgent, setUrgent] = useState(false);
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState([{ materialId: "", description: "", quantity: "", unitCode: "" }]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (propEmployees && propEmployees.length > 0) {
+      setEmployees(propEmployees);
+    } else {
+      fetch("/api/chat/employees")
+        .then((r) => r.json())
+        .then((d) => {
+          const emps = Array.isArray(d?.data?.employees)
+            ? d.data.employees
+            : Array.isArray(d?.employees)
+            ? d.employees
+            : Array.isArray(d?.data)
+            ? d.data
+            : [];
+          setEmployees(emps);
+        })
+        .catch(() => {});
+    }
+  }, [propEmployees]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -641,6 +677,7 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
         url: "/api/material-requests",
         body: {
           projectId,
+          assignedUserIds,
           neededBy: neededBy || null,
           priority: urgent ? "URGENT" : "NORMAL",
           notes: notes || null,
@@ -702,6 +739,33 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
               <span className="text-xs font-bold text-slate-700">Needed by</span>
               <input type="date" value={neededBy} onChange={(e) => setNeededBy(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
             </label>
+          </div>
+
+          {/* Whom to assign the request (Multi-select) */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-amber-600" />
+                <span>Assign Request To (Multiple People)</span>
+              </label>
+              {assignedUserIds.length > 0 && (
+                <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  {assignedUserIds.length} {assignedUserIds.length === 1 ? "person" : "people"} selected
+                </span>
+              )}
+            </div>
+            <SearchableMultiSelect
+              options={(Array.isArray(employees) ? employees : []).filter((emp: any) => emp && emp.id && emp.name).map((emp: any) => ({
+                value: emp.id,
+                label: emp.name,
+                badge: emp.role ? emp.role.replace(/_/g, " ") : undefined,
+              }))}
+              values={assignedUserIds}
+              onChange={setAssignedUserIds}
+              placeholder="Select project managers, storekeepers, or team members..."
+              searchPlaceholder="Search person by name or role..."
+              unassignedLabel="Unassigned (Default Project Reviewers)"
+            />
           </div>
 
           <div>
@@ -981,6 +1045,21 @@ function RequestCard({
               </span>
             )}
           </div>
+          {Array.isArray(r.assignedUsers) && r.assignedUsers.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-slate-500">Assigned to:</span>
+              {r.assignedUsers.map((u: any) => (
+                <span
+                  key={u.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs"
+                >
+                  <Users className="w-2.5 h-2.5 text-amber-600" />
+                  <span>{u.name}</span>
+                  {u.role && <span className="opacity-70 text-[9px] font-medium">({u.role.replace(/_/g, " ")})</span>}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {r.status === "PENDING" && canReview && !approving && !rejecting && (
@@ -1392,6 +1471,7 @@ export default function MaterialOrderHistoryPage() {
   const [materials, setMaterials] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
 
   const [activeView, setActiveView] = useState<"requests" | "orders">("requests");
   const [filter, setFilter] = useState("");
@@ -1513,6 +1593,7 @@ export default function MaterialOrderHistoryPage() {
     api<any[]>("/api/materials").then(setMaterials).catch(() => {});
     api<any[]>("/api/parties").then((d) => setVendors((d || []).filter((p: any) => p.partyType !== "CONTRACTOR"))).catch(() => {});
     api<any[]>("/api/stores").then(setStores).catch(() => {});
+    api<any>("/api/chat/employees").then((d) => setEmployees(Array.isArray(d?.employees) ? d.employees : Array.isArray(d?.data?.employees) ? d.data.employees : Array.isArray(d) ? d : [])).catch(() => {});
   }, [refreshUser]);
 
   const requestsList = useMemo(() => {
@@ -1881,6 +1962,7 @@ export default function MaterialOrderHistoryPage() {
         <NewRequestModal
           projects={projects}
           materials={materials}
+          employees={employees}
           onClose={() => setShowNew(false)}
           onCreated={(r) => {
             setShowNew(false);

@@ -422,6 +422,7 @@ export default function DashboardPage() {
   const [materialCatalog, setMaterialCatalog] = useState<any[]>([]);
   const [showQuickMaterialModal, setShowQuickMaterialModal] = useState(false);
   const [quickMaterialProjectId, setQuickMaterialProjectId] = useState<string>("");
+  const [quickMaterialAssignedUserIds, setQuickMaterialAssignedUserIds] = useState<string[]>([]);
   const [quickMaterialUrgent, setQuickMaterialUrgent] = useState(false);
   const [quickMaterialNeededBy, setQuickMaterialNeededBy] = useState("");
   const [quickMaterialNotes, setQuickMaterialNotes] = useState("");
@@ -434,6 +435,7 @@ export default function DashboardPage() {
 
   const resetQuickMaterialForm = () => {
     setQuickMaterialProjectId(activeSiteId || projects[0]?.id || "");
+    setQuickMaterialAssignedUserIds([]);
     setQuickMaterialUrgent(false);
     setQuickMaterialNeededBy("");
     setQuickMaterialNotes("");
@@ -510,6 +512,7 @@ export default function DashboardPage() {
         url: "/api/material-requests",
         body: {
           projectId: pId,
+          assignedUserIds: quickMaterialAssignedUserIds,
           neededBy: quickMaterialNeededBy || null,
           priority: quickMaterialUrgent ? "URGENT" : "NORMAL",
           notes: quickMaterialNotes || null,
@@ -2134,6 +2137,21 @@ export default function DashboardPage() {
                       <p className="text-[11px] text-slate-500 line-clamp-2 italic">
                         &ldquo;{req.notes}&rdquo;
                       </p>
+                    )}
+
+                    {Array.isArray(req.assignedUsers) && req.assignedUsers.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                        <span className="text-[10px] font-semibold text-slate-500">Assigned:</span>
+                        {req.assignedUsers.map((u: any) => (
+                          <span
+                            key={u.id}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200"
+                          >
+                            <Users className="w-2.5 h-2.5 text-amber-600" />
+                            <span>{u.name}</span>
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
 
@@ -4778,6 +4796,33 @@ export default function DashboardPage() {
                       className="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
+                </div>
+
+                {/* Assign Request To (Multiple People) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Assign Request To (Multiple People)</span>
+                    </label>
+                    {quickMaterialAssignedUserIds.length > 0 && (
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        {quickMaterialAssignedUserIds.length} {quickMaterialAssignedUserIds.length === 1 ? "person" : "people"} selected
+                      </span>
+                    )}
+                  </div>
+                  <SearchableMultiSelect
+                    options={(Array.isArray(employees) ? employees : []).filter((emp: any) => emp && emp.id && emp.name).map((emp: any) => ({
+                      value: emp.id,
+                      label: emp.name,
+                      badge: emp.role ? emp.role.replace(/_/g, " ") : undefined,
+                    }))}
+                    values={quickMaterialAssignedUserIds}
+                    onChange={setQuickMaterialAssignedUserIds}
+                    placeholder="Select project managers, storekeepers, or team members..."
+                    searchPlaceholder="Search person by name or role..."
+                    unassignedLabel="Unassigned (Default Project Reviewers)"
+                  />
                 </div>
 
                 {/* Urgency */}

@@ -52,9 +52,23 @@ const requestInclude = {
   },
 } as const;
 
+export function parseAssignedUserIds(notes: string | null | undefined): { assignedUserIds: string[]; cleanNotes: string } {
+  if (!notes) return { assignedUserIds: [], cleanNotes: "" };
+  const match = notes.match(/^\[ASSIGNED:([^\]]+)\]\s*([\s\S]*)$/);
+  if (match) {
+    const ids = match[1].split(",").map((s) => s.trim()).filter(Boolean);
+    return { assignedUserIds: ids, cleanNotes: match[2].trim() };
+  }
+  return { assignedUserIds: [], cleanNotes: notes };
+}
+
 /** Who can approve requests and turn them into orders. */
-export async function canManageRequest(user: UserContext, projectId: string): Promise<boolean> {
+export async function canManageRequest(user: UserContext, projectId: string, notes?: string | null): Promise<boolean> {
   if (isOrgOwnerOrAdmin(user)) return true;
+  if (notes) {
+    const { assignedUserIds } = parseAssignedUserIds(notes);
+    if (assignedUserIds.includes(user.userId)) return true;
+  }
   if (user.role === "PROJECT_MANAGER") {
     if (user.assignedSiteIds && user.assignedSiteIds.length > 0) {
       const proj = await prisma.project.findFirst({
@@ -98,7 +112,14 @@ function nextStatus(items: { approvedQty: number | null; purchaseOrderId: string
 export class MaterialRequestService {
   static async create(
     user: UserContext,
-    input: { projectId: string; neededBy?: Date | null; priority?: "NORMAL" | "URGENT"; notes?: string | null; items: RequestItemInput[] }
+    input: {
+      projectId: string;
+      assignedUserIds?: string[];
+      neededBy?: Date | null;
+      priority?: "NORMAL" | "URGENT";
+      notes?: string | null;
+      items: RequestItemInput[];
+    }
   ) {
     const project = await prisma.project.findFirst({
       where: { id: input.projectId, organizationId: user.organizationId, isArchived: false },
@@ -130,6 +151,12 @@ export class MaterialRequestService {
       };
     });
 
+    let notesText = input.notes?.trim() || "";
+    if (Array.isArray(input.assignedUserIds) && input.assignedUserIds.length > 0) {
+      const tag = `[ASSIGNED:${input.assignedUserIds.join(",")}]`;
+      notesText = notesText ? `${tag} ${notesText}` : tag;
+    }
+
     let request = null;
     for (let attempt = 0; attempt < 3 && !request; attempt++) {
       try {
@@ -141,7 +168,7 @@ export class MaterialRequestService {
             requestedById: user.userId,
             neededBy: input.neededBy || null,
             priority: input.priority || "NORMAL",
-            notes: input.notes?.trim() || null,
+            notes: notesText || null,
             items: { create: items },
           },
           include: requestInclude,
@@ -151,10 +178,19 @@ export class MaterialRequestService {
       }
     }
 
+    const notifyUserIds = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(input.assignedUserIds) ? input.assignedUserIds : []),
+          project.managerUserId,
+        ].filter(Boolean)
+      )
+    );
+
     await notifyPeople({
       organizationId: user.organizationId,
       actorUserId: user.userId,
-      userIds: [project.managerUserId],
+      userIds: notifyUserIds,
       includeAdmins: true,
       type: "MATERIAL_REQUEST",
       title: `${input.priority === "URGENT" ? "URGENT: " : ""}${user.name} needs material for ${project.name}`,
@@ -196,13 +232,33 @@ export class MaterialRequestService {
     for (const [siteId, ids] of Array.from(bySite.entries())) stock.set(siteId, await stockAtSite(siteId, Array.from(ids)));
 
     const manageable = new Map<string, boolean>();
-    for (const pid of Array.from(new Set(requests.map((r) => r.projectId)))) manageable.set(pid, await canManageRequest(user, pid));
+    for (const r of requests) manageable.set(r.id, await canManageRequest(user, r.projectId, r.notes));
 
-    return requests.map((r) => ({
-      ...r,
-      canManage: manageable.get(r.projectId) || false,
-      items: r.items.map((i) => ({ ...i, stockAtSite: i.materialId ? stock.get(r.project.siteId)?.get(i.materialId) ?? 0 : null })),
-    }));
+    const allAssignedIds = Array.from(
+      new Set(
+        requests.flatMap((r) => parseAssignedUserIds(r.notes).assignedUserIds)
+      )
+    );
+    const assignedUsers = allAssignedIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: allAssignedIds }, organizationId: user.organizationId },
+          select: { id: true, name: true, role: true },
+        })
+      : [];
+    const assignedUserMap = new Map(assignedUsers.map((u) => [u.id, u]));
+
+    return requests.map((r) => {
+      const parsed = parseAssignedUserIds(r.notes);
+      return {
+        ...r,
+        notes: parsed.cleanNotes || null,
+        rawNotes: r.notes,
+        assignedUserIds: parsed.assignedUserIds,
+        assignedUsers: parsed.assignedUserIds.map((id) => assignedUserMap.get(id)).filter(Boolean),
+        canManage: manageable.get(r.id) || false,
+        items: r.items.map((i) => ({ ...i, stockAtSite: i.materialId ? stock.get(r.project.siteId)?.get(i.materialId) ?? 0 : null })),
+      };
+    });
   }
 
   static async review(
@@ -215,8 +271,8 @@ export class MaterialRequestService {
       include: { items: true, project: { select: { id: true, name: true } } },
     });
     if (!request) throw new MaterialRequestError("Request not found", 404, "NOT_FOUND");
-    if (!(await canManageRequest(user, request.projectId))) {
-      throw new MaterialRequestError("Only admins, the project manager or the storekeeper can approve requests.", 403, "FORBIDDEN");
+    if (!(await canManageRequest(user, request.projectId, request.notes))) {
+      throw new MaterialRequestError("Only admins, the project manager, assigned approver or the storekeeper can approve requests.", 403, "FORBIDDEN");
     }
     if (request.status !== "PENDING") throw new MaterialRequestError("This request has already been dealt with.", 409, "ALREADY_REVIEWED");
 
@@ -274,8 +330,8 @@ export class MaterialRequestService {
       include: { items: true, project: { select: { id: true, name: true, siteId: true } } },
     });
     if (!request) throw new MaterialRequestError("Request not found", 404, "NOT_FOUND");
-    if (!(await canManageRequest(user, request.projectId))) {
-      throw new MaterialRequestError("Only admins, the project manager or the storekeeper can place orders.", 403, "FORBIDDEN");
+    if (!(await canManageRequest(user, request.projectId, request.notes))) {
+      throw new MaterialRequestError("Only admins, the project manager, assigned approver or the storekeeper can place orders.", 403, "FORBIDDEN");
     }
     if (!["APPROVED", "PARTLY_ORDERED"].includes(request.status)) {
       throw new MaterialRequestError("Approve the request before ordering.", 409, "NOT_APPROVED");

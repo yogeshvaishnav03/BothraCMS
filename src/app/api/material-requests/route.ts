@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
 
 const createSchema = z.object({
   projectId: z.string().min(1),
+  assignedUserIds: z.array(z.string()).optional().default([]),
   neededBy: z
     .string()
     .nullable()

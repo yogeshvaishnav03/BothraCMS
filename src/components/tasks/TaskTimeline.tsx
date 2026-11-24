@@ -29,6 +29,7 @@ import {
 import { formatDateTime } from "@/lib/formatters";
 import { PhotoPicker, PickedPhoto } from "@/components/ui/PhotoPicker";
 import { submitOrQueue } from "@/lib/offline-queue";
+import SearchableMultiSelect from "@/components/ui/SearchableMultiSelect";
 
 interface FieldChange {
   field: string;
@@ -232,7 +233,9 @@ export function TaskMaterialRequestModal({
 }) {
   const [projects, setProjects] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
+  const [modalEmployees, setModalEmployees] = useState<any[]>([]);
   const [projectId, setProjectId] = useState<string>(initialProjectId || "");
+  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
   const [neededBy, setNeededBy] = useState<string>("");
   const [urgent, setUrgent] = useState(false);
   const [notes, setNotes] = useState<string>("");
@@ -248,13 +251,22 @@ export function TaskMaterialRequestModal({
     Promise.all([
       fetch("/api/projects").then((r) => r.json()).catch(() => ({ success: false })),
       fetch("/api/materials").then((r) => r.json()).catch(() => ({ success: false })),
-    ]).then(([projRes, matRes]) => {
+      fetch("/api/chat/employees").then((r) => r.json()).catch(() => ({ success: false })),
+    ]).then(([projRes, matRes, empRes]) => {
       if (!active) return;
       const projs = projRes?.data?.projects || projRes?.data || [];
       const mats = matRes?.data?.materials || matRes?.data || [];
+      const emps = Array.isArray(empRes?.data?.employees)
+        ? empRes.data.employees
+        : Array.isArray(empRes?.employees)
+        ? empRes.employees
+        : Array.isArray(empRes?.data)
+        ? empRes.data
+        : [];
       const validProjs = Array.isArray(projs) ? projs : [];
       setProjects(validProjs);
       setMaterials(Array.isArray(mats) ? mats : []);
+      setModalEmployees(Array.isArray(emps) ? emps : []);
       if (validProjs.length > 0) {
         setProjectId((prev) => prev || initialProjectId || validProjs[0].id);
       }
@@ -332,6 +344,7 @@ export function TaskMaterialRequestModal({
         url: "/api/material-requests",
         body: {
           projectId,
+          assignedUserIds,
           neededBy: neededBy || null,
           priority: urgent ? "URGENT" : "NORMAL",
           notes: `[Task: ${taskTitle}] ${notes || ""}`.trim(),
@@ -447,6 +460,33 @@ export function TaskMaterialRequestModal({
                 className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-sans"
               />
             </div>
+          </div>
+
+          {/* Whom to assign the request (Multi-select) */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-amber-600" />
+                <span>Assign Request To (Multiple People)</span>
+              </label>
+              {assignedUserIds.length > 0 && (
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  {assignedUserIds.length} {assignedUserIds.length === 1 ? "person" : "people"} selected
+                </span>
+              )}
+            </div>
+            <SearchableMultiSelect
+              options={(Array.isArray(modalEmployees) ? modalEmployees : []).filter((emp: any) => emp && emp.id && emp.name).map((emp: any) => ({
+                value: emp.id,
+                label: emp.name,
+                badge: emp.role ? emp.role.replace(/_/g, " ") : undefined,
+              }))}
+              values={assignedUserIds}
+              onChange={setAssignedUserIds}
+              placeholder="Select project managers, storekeepers, or team members..."
+              searchPlaceholder="Search person by name or role..."
+              unassignedLabel="Unassigned (Default Project Reviewers)"
+            />
           </div>
 
           {/* Priority radio */}

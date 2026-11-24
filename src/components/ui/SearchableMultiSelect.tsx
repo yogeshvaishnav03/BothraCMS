@@ -23,7 +23,7 @@ export interface SearchableMultiSelectProps {
 }
 
 export default function SearchableMultiSelect({
-  options,
+  options = [],
   values = [],
   onChange,
   placeholder = "Select employees...",
@@ -39,23 +39,32 @@ export default function SearchableMultiSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  const safeOptions = useMemo(
+    () => (Array.isArray(options) ? options.filter(Boolean) : []),
+    [options]
+  );
+  const safeValues = useMemo(
+    () => (Array.isArray(values) ? values : []),
+    [values]
+  );
+
   // Filter options based on search query
   const filteredOptions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return options;
+    if (!q) return safeOptions;
 
     const terms = q.split(/\s+/).filter(Boolean);
-    return options.filter((opt) => {
-      const searchTarget = `${opt.label} ${opt.subLabel || ""} ${opt.badge || ""}`.toLowerCase();
+    return safeOptions.filter((opt) => {
+      const searchTarget = `${opt?.label || ""} ${opt?.subLabel || ""} ${opt?.badge || ""}`.toLowerCase();
       return terms.every((term) => searchTarget.includes(term));
     });
-  }, [options, searchQuery]);
+  }, [safeOptions, searchQuery]);
 
   // Selected option objects
   const selectedOptions = useMemo(() => {
-    const set = new Set(values);
-    return options.filter((opt) => set.has(opt.value));
-  }, [options, values]);
+    const set = new Set(safeValues);
+    return safeOptions.filter((opt) => opt && set.has(opt.value));
+  }, [safeOptions, safeValues]);
 
   // Auto-focus search input when opened
   useEffect(() => {
@@ -88,28 +97,28 @@ export default function SearchableMultiSelect({
   const toggleOption = (optValue: string) => {
     if (!optValue) {
       // Cleared / Unassigned
-      onChange([]);
+      onChange?.([]);
       return;
     }
-    if (values.includes(optValue)) {
-      onChange(values.filter((v) => v !== optValue));
+    if (safeValues.includes(optValue)) {
+      onChange?.(safeValues.filter((v) => v !== optValue));
     } else {
-      onChange([...values, optValue]);
+      onChange?.([...safeValues, optValue]);
     }
   };
 
   const removeValue = (e: React.MouseEvent, optValue: string) => {
     e.stopPropagation();
-    onChange(values.filter((v) => v !== optValue));
+    onChange?.(safeValues.filter((v) => v !== optValue));
   };
 
   const selectAll = () => {
-    const all = options.map((o) => o.value).filter(Boolean);
-    onChange(all);
+    const all = safeOptions.map((o) => o.value).filter(Boolean);
+    onChange?.(all);
   };
 
   const clearAll = () => {
-    onChange([]);
+    onChange?.([]);
   };
 
   return (
