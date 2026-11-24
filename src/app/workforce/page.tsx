@@ -8,6 +8,7 @@ import { formatDate, formatDateTime, formatCompactNumber } from "@/lib/formatter
 import { istDateKey } from "@/lib/ist-date";
 import {
   Users,
+  Clock,
   HardHat,
   Plus,
   Building2,
@@ -104,6 +105,9 @@ interface StagedHeadcountEntry {
   source: "CONTRACTOR" | "DIRECT";
   contractorId?: string;
   contractorName?: string;
+  hours?: number;
+  isPair?: boolean;
+  manualAmount?: number;
   skilledCount: number;
   skilledRate: number; // in rupees
   skilledAmount: number; // in rupees
@@ -192,6 +196,11 @@ export default function WorkforcePage() {
     female: 0,
   });
 
+  // Contractor Shift Hours & Pair (Jodi / Manual Lump-Sum) state
+  const [contractorHours, setContractorHours] = useState<number>(8);
+  const [contractorIsPair, setContractorIsPair] = useState<boolean>(false);
+  const [contractorManualAmount, setContractorManualAmount] = useState<string>("");
+
   // Direct Workforce state
   const [directSkilledCount, setDirectSkilledCount] = useState<number>(0);
   const [directMaleCount, setDirectMaleCount] = useState<number>(0);
@@ -201,6 +210,11 @@ export default function WorkforcePage() {
   const [directFemaleRate, setDirectFemaleRate] = useState<number>(550);
   const [directNotes, setDirectNotes] = useState<string>("");
 
+  // Direct Shift Hours & Pair (Jodi / Manual Lump-Sum) state
+  const [directHours, setDirectHours] = useState<number>(8);
+  const [directIsPair, setDirectIsPair] = useState<boolean>(false);
+  const [directManualAmount, setDirectManualAmount] = useState<string>("");
+
   const [editingStagedId, setEditingStagedId] = useState<string | null>(null);
 
   // Labour Financial Reports Modal state
@@ -209,19 +223,75 @@ export default function WorkforcePage() {
   const [reportsLoading, setReportsLoading] = useState<boolean>(false);
   const [reportsActiveTab, setReportsActiveTab] = useState<string>("daily");
 
-  // Active Contractor calculations
-  const contractorSkilledAmount = (contractorSkilledCount || 0) * (contractorSkilledRate || 0);
-  const contractorMaleAmount = (contractorMaleCount || 0) * (contractorMaleRate || 0);
-  const contractorFemaleAmount = (contractorFemaleCount || 0) * (contractorFemaleRate || 0);
-  const contractorTotalExpense = contractorSkilledAmount + contractorMaleAmount + contractorFemaleAmount;
+  // Active Contractor calculations based on standard 8-hour shift and Pair manual amount
+  const safeContractorHours = Math.max(0.5, contractorHours || 8);
+  const contractorShiftMultiplier = safeContractorHours / 8;
+  const rawContractorSkilledAmt = Math.round((contractorSkilledCount || 0) * (contractorSkilledRate || 0) * contractorShiftMultiplier);
+  const rawContractorMaleAmt = Math.round((contractorMaleCount || 0) * (contractorMaleRate || 0) * contractorShiftMultiplier);
+  const rawContractorFemaleAmt = Math.round((contractorFemaleCount || 0) * (contractorFemaleRate || 0) * contractorShiftMultiplier);
+  const contractorBaseExpense = rawContractorSkilledAmt + rawContractorMaleAmt + rawContractorFemaleAmt;
   const contractorTotalWorkers = (contractorSkilledCount || 0) + (contractorMaleCount || 0) + (contractorFemaleCount || 0);
 
-  // Active Direct calculations
-  const directSkilledAmount = (directSkilledCount || 0) * (directSkilledRate || 0);
-  const directMaleAmount = (directMaleCount || 0) * (directMaleRate || 0);
-  const directFemaleAmount = (directFemaleCount || 0) * (directFemaleRate || 0);
-  const directTotalExpense = directSkilledAmount + directMaleAmount + directFemaleAmount;
+  const contractorHasManualAmount = contractorIsPair && contractorManualAmount !== "" && !isNaN(Number(contractorManualAmount));
+  const contractorManualVal = contractorHasManualAmount ? Math.max(0, Math.round(Number(contractorManualAmount))) : 0;
+  const contractorTotalExpense = contractorHasManualAmount ? contractorManualVal : contractorBaseExpense;
+
+  let contractorSkilledAmount = rawContractorSkilledAmt;
+  let contractorMaleAmount = rawContractorMaleAmt;
+  let contractorFemaleAmount = rawContractorFemaleAmt;
+
+  if (contractorHasManualAmount) {
+    if (contractorBaseExpense > 0) {
+      const ratio = contractorManualVal / contractorBaseExpense;
+      contractorSkilledAmount = Math.round(rawContractorSkilledAmt * ratio);
+      contractorMaleAmount = Math.round(rawContractorMaleAmt * ratio);
+      contractorFemaleAmount = contractorManualVal - contractorSkilledAmount - contractorMaleAmount;
+    } else if (contractorTotalWorkers > 0) {
+      const perWorker = Math.floor(contractorManualVal / contractorTotalWorkers);
+      contractorSkilledAmount = perWorker * (contractorSkilledCount || 0);
+      contractorMaleAmount = perWorker * (contractorMaleCount || 0);
+      contractorFemaleAmount = contractorManualVal - contractorSkilledAmount - contractorMaleAmount;
+    } else {
+      contractorSkilledAmount = 0;
+      contractorMaleAmount = 0;
+      contractorFemaleAmount = 0;
+    }
+  }
+
+  // Active Direct calculations based on standard 8-hour shift and Pair manual amount
+  const safeDirectHours = Math.max(0.5, directHours || 8);
+  const directShiftMultiplier = safeDirectHours / 8;
+  const rawDirectSkilledAmt = Math.round((directSkilledCount || 0) * (directSkilledRate || 0) * directShiftMultiplier);
+  const rawDirectMaleAmt = Math.round((directMaleCount || 0) * (directMaleRate || 0) * directShiftMultiplier);
+  const rawDirectFemaleAmt = Math.round((directFemaleCount || 0) * (directFemaleRate || 0) * directShiftMultiplier);
+  const directBaseExpense = rawDirectSkilledAmt + rawDirectMaleAmt + rawDirectFemaleAmt;
   const directTotalWorkers = (directSkilledCount || 0) + (directMaleCount || 0) + (directFemaleCount || 0);
+
+  const directHasManualAmount = directIsPair && directManualAmount !== "" && !isNaN(Number(directManualAmount));
+  const directManualVal = directHasManualAmount ? Math.max(0, Math.round(Number(directManualAmount))) : 0;
+  const directTotalExpense = directHasManualAmount ? directManualVal : directBaseExpense;
+
+  let directSkilledAmount = rawDirectSkilledAmt;
+  let directMaleAmount = rawDirectMaleAmt;
+  let directFemaleAmount = rawDirectFemaleAmt;
+
+  if (directHasManualAmount) {
+    if (directBaseExpense > 0) {
+      const ratio = directManualVal / directBaseExpense;
+      directSkilledAmount = Math.round(rawDirectSkilledAmt * ratio);
+      directMaleAmount = Math.round(rawDirectMaleAmt * ratio);
+      directFemaleAmount = directManualVal - directSkilledAmount - directMaleAmount;
+    } else if (directTotalWorkers > 0) {
+      const perWorker = Math.floor(directManualVal / directTotalWorkers);
+      directSkilledAmount = perWorker * (directSkilledCount || 0);
+      directMaleAmount = perWorker * (directMaleCount || 0);
+      directFemaleAmount = directManualVal - directSkilledAmount - directMaleAmount;
+    } else {
+      directSkilledAmount = 0;
+      directMaleAmount = 0;
+      directFemaleAmount = 0;
+    }
+  }
 
   // Live Summary for Card 4: Daily Site Labour Expense Summary
   // Exclude the item currently being edited so it's not double-counted with the active form
@@ -799,6 +869,13 @@ export default function WorkforcePage() {
       const mRate = existing.maleRate ? existing.maleRate / 100 : 600;
       const fRate = existing.femaleRate ? existing.femaleRate / 100 : 500;
 
+      const matchHours = existing.rateUnit?.match(/(\d+(?:\.\d+)?)h/i);
+      const recHours = matchHours ? parseFloat(matchHours[1]) : 8;
+      const isPairRecord = Boolean(
+        existing.overrideReason?.toLowerCase().includes("pair") ||
+        existing.rateUnit?.toLowerCase().includes("pair")
+      );
+
       if (existing.source === "DIRECT") {
         setDirectSkilledCount(existing.artisanCount || 0);
         setDirectMaleCount(existing.laborerMale || 0);
@@ -807,9 +884,15 @@ export default function WorkforcePage() {
         setDirectMaleRate(mRate);
         setDirectFemaleRate(fRate);
         setDirectNotes(existing.notes || "");
+        setDirectHours(recHours);
+        setDirectIsPair(isPairRecord);
+        setDirectManualAmount(isPairRecord && existing.totalExpense ? String(Math.round(existing.totalExpense / 100)) : "");
         setContractorSkilledCount(0);
         setContractorMaleCount(0);
         setContractorFemaleCount(0);
+        setContractorHours(8);
+        setContractorIsPair(false);
+        setContractorManualAmount("");
         setIsExtraWorkersRate(false);
       } else {
         const cName =
@@ -829,11 +912,17 @@ export default function WorkforcePage() {
           male: mRate,
           female: fRate,
         });
-        setIsExtraWorkersRate(Boolean(existing.isOverridden));
+        setContractorHours(recHours);
+        setContractorIsPair(isPairRecord);
+        setContractorManualAmount(isPairRecord && existing.totalExpense ? String(Math.round(existing.totalExpense / 100)) : "");
+        setIsExtraWorkersRate(Boolean(existing.isOverridden && !isPairRecord && recHours === 8));
         setHasContractorRates(true);
         setDirectSkilledCount(0);
         setDirectMaleCount(0);
         setDirectFemaleCount(0);
+        setDirectHours(8);
+        setDirectIsPair(false);
+        setDirectManualAmount("");
       }
 
       setStagedEntries([]);
@@ -855,6 +944,9 @@ export default function WorkforcePage() {
       setContractorSkilledCount(0);
       setContractorMaleCount(0);
       setContractorFemaleCount(0);
+      setContractorHours(8);
+      setContractorIsPair(false);
+      setContractorManualAmount("");
       setIsExtraWorkersRate(false);
 
       setDirectSkilledCount(0);
@@ -863,6 +955,9 @@ export default function WorkforcePage() {
       setDirectSkilledRate(1000);
       setDirectMaleRate(650);
       setDirectFemaleRate(550);
+      setDirectHours(8);
+      setDirectIsPair(false);
+      setDirectManualAmount("");
       setDirectNotes("");
 
       setNotes("");
@@ -963,6 +1058,9 @@ export default function WorkforcePage() {
         source: "CONTRACTOR",
         contractorId: selectedContractorId || undefined,
         contractorName: contractorName.trim(),
+        hours: contractorHours,
+        isPair: contractorIsPair,
+        manualAmount: contractorHasManualAmount ? contractorManualVal : undefined,
         skilledCount: contractorSkilledCount,
         skilledRate: contractorSkilledRate,
         skilledAmount: contractorSkilledAmount,
@@ -974,14 +1072,23 @@ export default function WorkforcePage() {
         femaleAmount: contractorFemaleAmount,
         totalWorkers: contractorTotalWorkers,
         totalExpense: contractorTotalExpense,
-        isOverridden: isExtraWorkersRate,
-        overrideReason: isExtraWorkersRate ? "Extra workers rate override" : undefined,
+        isOverridden: isExtraWorkersRate || contractorIsPair || contractorHours !== 8,
+        overrideReason: contractorIsPair
+          ? `Pair group manual amount ₹${contractorTotalExpense} (${contractorHours}h shift)`
+          : contractorHours !== 8
+          ? `${contractorHours}h shift (${(contractorHours / 8).toFixed(2)}x)`
+          : isExtraWorkersRate
+          ? "Extra workers rate override"
+          : undefined,
         notes: notes.trim() || "-",
       });
       setContractorSkilledCount(0);
       setContractorMaleCount(0);
       setContractorFemaleCount(0);
       setIsExtraWorkersRate(false);
+      setContractorHours(8);
+      setContractorIsPair(false);
+      setContractorManualAmount("");
       setContractorSkilledRate(baseContractorRates.skilled);
       setContractorMaleRate(baseContractorRates.male);
       setContractorFemaleRate(baseContractorRates.female);
@@ -993,6 +1100,9 @@ export default function WorkforcePage() {
         id: `staged-d-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         source: "DIRECT",
         contractorName: "-",
+        hours: directHours,
+        isPair: directIsPair,
+        manualAmount: directHasManualAmount ? directManualVal : undefined,
         skilledCount: directSkilledCount,
         skilledRate: directSkilledRate,
         skilledAmount: directSkilledAmount,
@@ -1004,11 +1114,20 @@ export default function WorkforcePage() {
         femaleAmount: directFemaleAmount,
         totalWorkers: directTotalWorkers,
         totalExpense: directTotalExpense,
+        isOverridden: directIsPair || directHours !== 8,
+        overrideReason: directIsPair
+          ? `Pair group manual amount ₹${directTotalExpense} (${directHours}h shift)`
+          : directHours !== 8
+          ? `${directHours}h shift (${(directHours / 8).toFixed(2)}x)`
+          : undefined,
         notes: directNotes.trim() || "-",
       });
       setDirectSkilledCount(0);
       setDirectMaleCount(0);
       setDirectFemaleCount(0);
+      setDirectHours(8);
+      setDirectIsPair(false);
+      setDirectManualAmount("");
       setDirectNotes("");
     }
 
@@ -1031,8 +1150,11 @@ export default function WorkforcePage() {
       setContractorSkilledRate(entry.skilledRate);
       setContractorMaleRate(entry.maleRate);
       setContractorFemaleRate(entry.femaleRate);
+      setContractorHours(entry.hours ?? 8);
+      setContractorIsPair(Boolean(entry.isPair));
+      setContractorManualAmount(entry.manualAmount !== undefined ? String(entry.manualAmount) : (entry.isPair ? String(entry.totalExpense) : ""));
       setHasContractorRates(true);
-      setIsExtraWorkersRate(Boolean(entry.isOverridden));
+      setIsExtraWorkersRate(Boolean(entry.isOverridden && !entry.isPair && (!entry.hours || entry.hours === 8)));
       setNotes(entry.notes === "-" ? "" : entry.notes || "");
     } else {
       setDirectSkilledCount(entry.skilledCount);
@@ -1041,6 +1163,9 @@ export default function WorkforcePage() {
       setDirectSkilledRate(entry.skilledRate);
       setDirectMaleRate(entry.maleRate);
       setDirectFemaleRate(entry.femaleRate);
+      setDirectHours(entry.hours ?? 8);
+      setDirectIsPair(Boolean(entry.isPair));
+      setDirectManualAmount(entry.manualAmount !== undefined ? String(entry.manualAmount) : (entry.isPair ? String(entry.totalExpense) : ""));
       setDirectNotes(entry.notes === "-" ? "" : entry.notes || "");
     }
   };
@@ -1068,6 +1193,9 @@ export default function WorkforcePage() {
           id: editingRecordId,
           source: "DIRECT",
           contractorName: "-",
+          hours: directHours,
+          isPair: directIsPair,
+          manualAmount: directHasManualAmount ? directManualVal : undefined,
           skilledCount: directSkilledCount,
           skilledRate: directSkilledRate,
           skilledAmount: directSkilledAmount,
@@ -1079,6 +1207,12 @@ export default function WorkforcePage() {
           femaleAmount: directFemaleAmount,
           totalWorkers: directTotalWorkers,
           totalExpense: directTotalExpense,
+          isOverridden: directIsPair || directHours !== 8,
+          overrideReason: directIsPair
+            ? `Pair group manual amount ₹${directTotalExpense} (${directHours}h shift)`
+            : directHours !== 8
+            ? `${directHours}h shift (${(directHours / 8).toFixed(2)}x)`
+            : undefined,
           notes: directNotes.trim() || "-",
         });
       } else {
@@ -1096,6 +1230,9 @@ export default function WorkforcePage() {
           source: "CONTRACTOR",
           contractorId: selectedContractorId || undefined,
           contractorName: contractorName.trim(),
+          hours: contractorHours,
+          isPair: contractorIsPair,
+          manualAmount: contractorHasManualAmount ? contractorManualVal : undefined,
           skilledCount: contractorSkilledCount,
           skilledRate: contractorSkilledRate,
           skilledAmount: contractorSkilledAmount,
@@ -1107,8 +1244,14 @@ export default function WorkforcePage() {
           femaleAmount: contractorFemaleAmount,
           totalWorkers: contractorTotalWorkers,
           totalExpense: contractorTotalExpense,
-          isOverridden: isExtraWorkersRate,
-          overrideReason: isExtraWorkersRate ? "Extra workers rate override" : undefined,
+          isOverridden: isExtraWorkersRate || contractorIsPair || contractorHours !== 8,
+          overrideReason: contractorIsPair
+            ? `Pair group manual amount ₹${contractorTotalExpense} (${contractorHours}h shift)`
+            : contractorHours !== 8
+            ? `${contractorHours}h shift (${(contractorHours / 8).toFixed(2)}x)`
+            : isExtraWorkersRate
+            ? "Extra workers rate override"
+            : undefined,
           notes: notes.trim() || "-",
         });
       }
@@ -1122,6 +1265,9 @@ export default function WorkforcePage() {
               ...entry,
               contractorId: selectedContractorId || undefined,
               contractorName: contractorName.trim(),
+              hours: contractorHours,
+              isPair: contractorIsPair,
+              manualAmount: contractorHasManualAmount ? contractorManualVal : undefined,
               skilledCount: contractorSkilledCount,
               skilledRate: contractorSkilledRate,
               skilledAmount: contractorSkilledAmount,
@@ -1133,13 +1279,22 @@ export default function WorkforcePage() {
               femaleAmount: contractorFemaleAmount,
               totalWorkers: contractorTotalWorkers,
               totalExpense: contractorTotalExpense,
-              isOverridden: isExtraWorkersRate,
-              overrideReason: isExtraWorkersRate ? "Extra workers rate override" : undefined,
+              isOverridden: isExtraWorkersRate || contractorIsPair || contractorHours !== 8,
+              overrideReason: contractorIsPair
+                ? `Pair group manual amount ₹${contractorTotalExpense} (${contractorHours}h shift)`
+                : contractorHours !== 8
+                ? `${contractorHours}h shift (${(contractorHours / 8).toFixed(2)}x)`
+                : isExtraWorkersRate
+                ? "Extra workers rate override"
+                : undefined,
               notes: notes.trim() || "-",
             };
           } else {
             return {
               ...entry,
+              hours: directHours,
+              isPair: directIsPair,
+              manualAmount: directHasManualAmount ? directManualVal : undefined,
               skilledCount: directSkilledCount,
               skilledRate: directSkilledRate,
               skilledAmount: directSkilledAmount,
@@ -1151,6 +1306,12 @@ export default function WorkforcePage() {
               femaleAmount: directFemaleAmount,
               totalWorkers: directTotalWorkers,
               totalExpense: directTotalExpense,
+              isOverridden: directIsPair || directHours !== 8,
+              overrideReason: directIsPair
+                ? `Pair group manual amount ₹${directTotalExpense} (${directHours}h shift)`
+                : directHours !== 8
+                ? `${directHours}h shift (${(directHours / 8).toFixed(2)}x)`
+                : undefined,
               notes: directNotes.trim() || "-",
             };
           }
@@ -1170,6 +1331,9 @@ export default function WorkforcePage() {
             source: "CONTRACTOR",
             contractorId: selectedContractorId || undefined,
             contractorName: contractorName.trim(),
+            hours: contractorHours,
+            isPair: contractorIsPair,
+            manualAmount: contractorHasManualAmount ? contractorManualVal : undefined,
             skilledCount: contractorSkilledCount,
             skilledRate: contractorSkilledRate,
             skilledAmount: contractorSkilledAmount,
@@ -1181,8 +1345,14 @@ export default function WorkforcePage() {
             femaleAmount: contractorFemaleAmount,
             totalWorkers: contractorTotalWorkers,
             totalExpense: contractorTotalExpense,
-            isOverridden: isExtraWorkersRate,
-            overrideReason: isExtraWorkersRate ? "Extra workers rate override" : undefined,
+            isOverridden: isExtraWorkersRate || contractorIsPair || contractorHours !== 8,
+            overrideReason: contractorIsPair
+              ? `Pair group manual amount ₹${contractorTotalExpense} (${contractorHours}h shift)`
+              : contractorHours !== 8
+              ? `${contractorHours}h shift (${(contractorHours / 8).toFixed(2)}x)`
+              : isExtraWorkersRate
+              ? "Extra workers rate override"
+              : undefined,
             notes: notes.trim() || "-",
           });
         }
@@ -1191,6 +1361,9 @@ export default function WorkforcePage() {
             id: `staged-d-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             source: "DIRECT",
             contractorName: "-",
+            hours: directHours,
+            isPair: directIsPair,
+            manualAmount: directHasManualAmount ? directManualVal : undefined,
             skilledCount: directSkilledCount,
             skilledRate: directSkilledRate,
             skilledAmount: directSkilledAmount,
@@ -1202,6 +1375,12 @@ export default function WorkforcePage() {
             femaleAmount: directFemaleAmount,
             totalWorkers: directTotalWorkers,
             totalExpense: directTotalExpense,
+            isOverridden: directIsPair || directHours !== 8,
+            overrideReason: directIsPair
+              ? `Pair group manual amount ₹${directTotalExpense} (${directHours}h shift)`
+              : directHours !== 8
+              ? `${directHours}h shift (${(directHours / 8).toFixed(2)}x)`
+              : undefined,
             notes: directNotes.trim() || "-",
           });
         }
@@ -1237,6 +1416,8 @@ export default function WorkforcePage() {
             entryNotes = entryNotes ? `${projTag} ${entryNotes}` : projTag;
           }
 
+          const unit = entry.hours ? (entry.isPair ? `${entry.hours}h (Pair)` : `${entry.hours}h`) : "DAY";
+
           return {
             id: entry.id && !entry.id.startsWith("staged-") ? entry.id : undefined,
             siteId: modalSiteId,
@@ -1246,6 +1427,9 @@ export default function WorkforcePage() {
             source: entry.source,
             contractorId: entry.contractorId || undefined,
             contractorName: entry.source === "CONTRACTOR" ? (entry.contractorName || undefined) : undefined,
+            hours: entry.hours || 8,
+            isPair: Boolean(entry.isPair),
+            manualAmount: entry.manualAmount,
             artisanCount: entry.skilledCount,
             skilledCount: entry.skilledCount,
             laborerMale: entry.maleCount,
@@ -1259,9 +1443,9 @@ export default function WorkforcePage() {
             femaleRate: Math.round(entry.femaleRate * 100),
             femaleAmount: Math.round(entry.femaleAmount * 100),
             totalExpense: Math.round(entry.totalExpense * 100),
-            rateUnit: "DAY",
-            isOverridden: Boolean(entry.isOverridden),
-            overrideReason: entry.overrideReason || (entry.isOverridden ? "Extra workers rate override" : undefined),
+            rateUnit: unit,
+            isOverridden: Boolean(entry.isOverridden || entry.isPair || (entry.hours && entry.hours !== 8)),
+            overrideReason: entry.overrideReason || (entry.isPair ? `Pair manual amount ₹${entry.totalExpense} (${entry.hours || 8}h)` : undefined),
             notes: entryNotes || undefined,
           };
         }),
@@ -2141,10 +2325,20 @@ export default function WorkforcePage() {
                           {/* Date & Shift */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="font-bold text-slate-900">{formatDate(r.date)}</div>
-                            <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                            <div className="text-[10px] font-mono text-slate-500 mt-0.5 flex items-center gap-1 flex-wrap">
                               <span className="px-1.5 py-0.2 rounded bg-slate-100 font-bold text-slate-700">
                                 {r.shift} SHIFT
                               </span>
+                              {r.rateUnit && r.rateUnit !== "DAY" && (
+                                <span className="px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 font-bold border border-sky-200">
+                                  ⏱ {r.rateUnit}
+                                </span>
+                              )}
+                              {(r.overrideReason?.toLowerCase().includes("pair") || r.rateUnit?.toLowerCase().includes("pair")) && (
+                                <span className="px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 font-bold border border-purple-200">
+                                  👥 Pair
+                                </span>
+                              )}
                             </div>
                           </td>
 
@@ -2286,12 +2480,22 @@ export default function WorkforcePage() {
                                 </span>
                               </div>
                             )}
-                            <div className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-1.5 min-w-0">
+                            <div className="text-xs text-slate-500 font-mono mt-1 flex items-center gap-1.5 flex-wrap min-w-0">
                               <span className="font-semibold text-slate-700">{formatDate(r.date)}</span>
                               <span className="shrink-0">·</span>
                               <span className="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-700 shrink-0 whitespace-nowrap">
                                 {r.shift} SHIFT
                               </span>
+                              {r.rateUnit && r.rateUnit !== "DAY" && (
+                                <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 font-bold border border-sky-200 text-[10px] shrink-0 whitespace-nowrap">
+                                  ⏱ {r.rateUnit}
+                                </span>
+                              )}
+                              {(r.overrideReason?.toLowerCase().includes("pair") || r.rateUnit?.toLowerCase().includes("pair")) && (
+                                <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-200 text-[10px] shrink-0 whitespace-nowrap">
+                                  👥 Pair
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] font-mono text-slate-600 mt-1">
                               Rates: ₹{Math.round((r.skilledRate || 0) / 100)} / ₹{Math.round((r.maleRate || 0) / 100)} / ₹{Math.round((r.femaleRate || 0) / 100)}
@@ -3061,10 +3265,17 @@ export default function WorkforcePage() {
                 </div>
 
                 {/* 4. Card 2: Contractor Workforce */}
-                <div className="bg-white rounded-xl border border-sky-200/90 p-3.5 sm:p-4 shadow-2xs space-y-2">
-                  <div className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
-                    <UserCheck className="w-4 h-4 text-sky-600" />
-                    <span>Contractor Workforce</span>
+                <div className="bg-white rounded-xl border border-sky-200/90 p-3.5 sm:p-4 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                      <UserCheck className="w-4 h-4 text-sky-600" />
+                      <span>Contractor Workforce</span>
+                    </div>
+                    {contractorHours !== 8 && (
+                      <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold text-[10px]">
+                        ⏱ {contractorHours}h Shift ({(contractorHours / 8).toFixed(2)}x)
+                      </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
@@ -3120,18 +3331,124 @@ export default function WorkforcePage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Shift Hours & Pair (Jodi / Manual Lump-Sum) Controls */}
+                  <div className="pt-2.5 border-t border-sky-100 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
+                      {/* Shift Hours */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1 font-bold text-slate-700 text-xs">
+                          <Clock className="w-3.5 h-3.5 text-sky-600" />
+                          <span>Shift Hours (8h standard):</span>
+                        </div>
+                        <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200">
+                          {[
+                            { h: 4, label: "4h (Half)" },
+                            { h: 8, label: "8h (Std)" },
+                            { h: 10, label: "10h" },
+                            { h: 12, label: "12h (OT)" },
+                          ].map((preset) => (
+                            <button
+                              key={preset.h}
+                              type="button"
+                              onClick={() => setContractorHours(preset.h)}
+                              className={`px-2 py-0.5 rounded-md font-bold text-[10px] transition cursor-pointer ${
+                                contractorHours === preset.h
+                                  ? "bg-sky-600 text-white shadow-2xs"
+                                  : "text-slate-600 hover:text-slate-900"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0.5}
+                            max={24}
+                            step={0.5}
+                            value={contractorHours}
+                            onChange={(e) => setContractorHours(Math.max(0.5, parseFloat(e.target.value) || 8))}
+                            className="w-14 bg-white border border-slate-300 rounded-md px-1.5 py-0.5 text-center font-mono font-bold text-slate-900 text-[11px] focus:ring-1 focus:ring-sky-500"
+                          />
+                          <span className="text-[10px] text-slate-500 font-medium">hrs</span>
+                        </div>
+                      </div>
+
+                      {/* Pair / Group of 2+ people Checkbox */}
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none bg-sky-50/80 hover:bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 transition">
+                        <input
+                          type="checkbox"
+                          checked={contractorIsPair}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setContractorIsPair(checked);
+                            if (checked && !contractorManualAmount && contractorBaseExpense > 0) {
+                              setContractorManualAmount(String(contractorBaseExpense));
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500"
+                        />
+                        <div className="flex items-center gap-1 font-bold text-slate-800 text-[11px]">
+                          <Users className="w-3.5 h-3.5 text-sky-700" />
+                          <span>Pair of 2+ Workers (Enter total amount manually)</span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Manual Total Amount Input when Pair checkbox is checked */}
+                    {contractorIsPair && (
+                      <div className="p-2.5 rounded-lg bg-sky-50 border border-sky-300 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-sky-950">
+                            👥 Pair Total Amount (Manual):
+                          </span>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={contractorManualAmount}
+                              placeholder={contractorBaseExpense > 0 ? String(contractorBaseExpense) : "Enter manual total (e.g. 2000)"}
+                              onChange={(e) => setContractorManualAmount(e.target.value)}
+                              className="w-48 bg-white border border-sky-400 rounded-lg pl-6 pr-2.5 py-1 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            (Manual lump-sum payment for the pair)
+                          </span>
+                        </div>
+                        {contractorHasManualAmount && (
+                          <div className="text-right">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Applied Total</span>
+                            <span className="font-mono font-black text-xs text-sky-800 bg-white px-2 py-0.5 rounded border border-sky-200">
+                              ₹{contractorTotalExpense.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* 5. Card 3: Direct / Extra Workforce */}
-                <div className="bg-amber-50/50 rounded-xl border border-amber-200/90 p-3.5 sm:p-4 shadow-2xs space-y-2">
+                <div className="bg-amber-50/50 rounded-xl border border-amber-200/90 p-3.5 sm:p-4 shadow-2xs space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
                       <HardHat className="w-4 h-4 text-amber-600" />
                       <span>Direct / Extra Workforce</span>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
-                      Independent Rates
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {directHours !== 8 && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px]">
+                          ⏱ {directHours}h Shift ({(directHours / 8).toFixed(2)}x)
+                        </span>
+                      )}
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
+                        Independent Rates
+                      </span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
@@ -3225,6 +3542,105 @@ export default function WorkforcePage() {
                         ({directTotalWorkers} Workers)
                       </div>
                     </div>
+                  </div>
+
+                  {/* Shift Hours & Pair (Jodi / Manual Lump-Sum) Controls */}
+                  <div className="pt-2.5 border-t border-amber-200/70 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
+                      {/* Shift Hours */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1 font-bold text-slate-700 text-xs">
+                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Shift Hours (8h standard):</span>
+                        </div>
+                        <div className="inline-flex rounded-lg p-0.5 bg-white border border-amber-200">
+                          {[
+                            { h: 4, label: "4h (Half)" },
+                            { h: 8, label: "8h (Std)" },
+                            { h: 10, label: "10h" },
+                            { h: 12, label: "12h (OT)" },
+                          ].map((preset) => (
+                            <button
+                              key={preset.h}
+                              type="button"
+                              onClick={() => setDirectHours(preset.h)}
+                              className={`px-2 py-0.5 rounded-md font-bold text-[10px] transition cursor-pointer ${
+                                directHours === preset.h
+                                  ? "bg-amber-600 text-white shadow-2xs"
+                                  : "text-slate-600 hover:text-slate-900"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0.5}
+                            max={24}
+                            step={0.5}
+                            value={directHours}
+                            onChange={(e) => setDirectHours(Math.max(0.5, parseFloat(e.target.value) || 8))}
+                            className="w-14 bg-white border border-amber-300 rounded-md px-1.5 py-0.5 text-center font-mono font-bold text-slate-900 text-[11px] focus:ring-1 focus:ring-amber-500"
+                          />
+                          <span className="text-[10px] text-slate-500 font-medium">hrs</span>
+                        </div>
+                      </div>
+
+                      {/* Pair / Group of 2+ people Checkbox */}
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none bg-amber-100/60 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-300 transition">
+                        <input
+                          type="checkbox"
+                          checked={directIsPair}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setDirectIsPair(checked);
+                            if (checked && !directManualAmount && directBaseExpense > 0) {
+                              setDirectManualAmount(String(directBaseExpense));
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-amber-600 border-amber-300 focus:ring-amber-500"
+                        />
+                        <div className="flex items-center gap-1 font-bold text-amber-950 text-[11px]">
+                          <Users className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Pair of 2+ Workers (Enter total amount manually)</span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Manual Total Amount Input when Pair checkbox is checked */}
+                    {directIsPair && (
+                      <div className="p-2.5 rounded-lg bg-amber-100/70 border border-amber-300 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-amber-950">
+                            👥 Pair Total Amount (Manual):
+                          </span>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={directManualAmount}
+                              placeholder={directBaseExpense > 0 ? String(directBaseExpense) : "Enter manual total (e.g. 2000)"}
+                              onChange={(e) => setDirectManualAmount(e.target.value)}
+                              className="w-48 bg-white border border-amber-400 rounded-lg pl-6 pr-2.5 py-1 text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            (Manual lump-sum payment for the pair)
+                          </span>
+                        </div>
+                        {directHasManualAmount && (
+                          <div className="text-right">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Applied Total</span>
+                            <span className="font-mono font-black text-xs text-amber-900 bg-white px-2 py-0.5 rounded border border-amber-200">
+                              ₹{directTotalExpense.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Direct workforce optional notes */}
@@ -3340,20 +3756,30 @@ export default function WorkforcePage() {
                               <tr key={e.id} className="hover:bg-slate-50/80 transition-colors">
                                 <td className="py-2.5 px-2.5 text-center font-mono text-slate-400">{idx + 1}</td>
                                 <td className="py-2.5 px-2.5 whitespace-nowrap">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                                      e.source === "CONTRACTOR"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : "bg-amber-100 text-amber-800"
-                                    }`}
-                                  >
-                                    {e.source === "CONTRACTOR" ? "Contractor" : "Direct"}
-                                  </span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full font-bold text-[10px] w-fit ${
+                                        e.source === "CONTRACTOR"
+                                          ? "bg-blue-100 text-blue-700"
+                                          : "bg-amber-100 text-amber-800"
+                                      }`}
+                                    >
+                                      {e.source === "CONTRACTOR" ? "Contractor" : "Direct"}
+                                    </span>
+                                    <span className="text-[10px] font-mono text-slate-500 font-bold">
+                                      ⏱ {e.hours || 8}h {e.hours && e.hours !== 8 ? `(${(e.hours / 8).toFixed(2)}x)` : ""}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="py-2.5 px-3 whitespace-nowrap font-semibold text-slate-900 max-w-[160px] truncate">
                                   <div className="flex items-center gap-1.5 truncate">
                                     <span className="truncate">{e.contractorName || "-"}</span>
-                                    {e.isOverridden && (
+                                    {e.isPair && (
+                                      <span className="shrink-0 px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 text-[9px] font-bold border border-sky-300">
+                                        👥 Pair
+                                      </span>
+                                    )}
+                                    {e.isOverridden && !e.isPair && (
                                       <span className="shrink-0 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold border border-amber-300">
                                         Extra Workers
                                       </span>
@@ -3377,7 +3803,12 @@ export default function WorkforcePage() {
                                 <td className="py-2.5 px-2 text-right font-mono font-semibold">₹{e.femaleAmount.toLocaleString("en-IN")}</td>
                                 <td className="py-2.5 px-2 text-right font-mono font-bold">{e.totalWorkers}</td>
                                 <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-600">
-                                  ₹{e.totalExpense.toLocaleString("en-IN")}
+                                  <div>₹{e.totalExpense.toLocaleString("en-IN")}</div>
+                                  {e.isPair && (
+                                    <div className="text-[9px] font-sans font-bold text-sky-700">
+                                      (Pair Manual)
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="py-2.5 px-3 text-slate-500 max-w-[120px] truncate">{e.notes || "-"}</td>
                                 <td className="py-2.5 px-2 text-center whitespace-nowrap">

@@ -1254,10 +1254,20 @@ export default function DashboardPage() {
                             {/* Date & Shift */}
                             <td className="py-3 px-4 whitespace-nowrap">
                               <div className="font-bold text-slate-900">{formatDate(r.date)}</div>
-                              <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                              <div className="text-[10px] font-mono text-slate-500 mt-0.5 flex items-center gap-1 flex-wrap">
                                 <span className="px-1.5 py-0.2 rounded bg-slate-100 font-bold text-slate-700 uppercase">
                                   {r.shift || "GENERAL"} SHIFT
                                 </span>
+                                {r.rateUnit && r.rateUnit !== "DAY" && (
+                                  <span className="px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 font-bold border border-sky-200">
+                                    ⏱ {r.rateUnit}
+                                  </span>
+                                )}
+                                {(r.overrideReason?.toLowerCase().includes("pair") || r.rateUnit?.toLowerCase().includes("pair")) && (
+                                  <span className="px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 font-bold border border-purple-200">
+                                    👥 Pair
+                                  </span>
+                                )}
                               </div>
                             </td>
 

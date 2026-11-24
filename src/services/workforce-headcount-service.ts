@@ -70,6 +70,9 @@ export interface SaveHeadcountInput {
   source?: "CONTRACTOR" | "DIRECT";
   contractorId?: string;
   contractorName?: string;
+  hours?: number;
+  isPair?: boolean;
+  manualAmount?: number;
   artisanCount?: number;
   skilledCount?: number;
   craftsmanCount?: number;
@@ -431,9 +434,9 @@ export class WorkforceHeadcountService {
           ? Math.max(0, Math.round(Number(input.totalExpense)))
           : skilledAmount + maleAmount + femaleAmount;
 
-        const rateUnit = input.rateUnit || "DAY";
-        const isOverridden = Boolean(input.isOverridden);
-        const overrideReason = input.overrideReason?.trim() || null;
+        const rateUnit = input.rateUnit || (input.hours ? (input.isPair ? `${input.hours}h (Pair)` : `${input.hours}h`) : "DAY");
+        const isOverridden = Boolean(input.isOverridden || input.isPair || (input.hours && input.hours !== 8));
+        const overrideReason = input.overrideReason?.trim() || (input.isPair ? `Pair manual amount ₹${Math.round((input.totalExpense || 0) / 100)} (${input.hours || 8}h)` : null);
         const contractorName = input.contractorName?.trim() || (source === "DIRECT" ? null : null);
         const contractorId = input.contractorId?.trim() || null;
 
