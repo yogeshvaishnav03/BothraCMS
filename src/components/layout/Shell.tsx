@@ -97,6 +97,47 @@ function formatAlertDate(dateInput: Date | string | null | undefined): string {
   return formatDateTime(d);
 }
 
+function formatAlertTime(dateInput: Date | string | null | undefined): string {
+  if (!dateInput) return "";
+  const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return "";
+
+  return d.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function getDateGroupLabel(dateKey: string, sampleDate: Date, language: string): string {
+  const now = new Date();
+  const todayKey = istDateKey(now);
+  const yest = new Date(now.getTime() - 24 * 3600 * 1000);
+  const yestKey = istDateKey(yest);
+
+  const formattedDate = sampleDate.toLocaleDateString(language === "hi" ? "hi-IN" : "en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (dateKey === todayKey) {
+    return language === "hi" ? `आज • ${formattedDate}` : `Today • ${formattedDate}`;
+  }
+  if (dateKey === yestKey) {
+    return language === "hi" ? `कल • ${formattedDate}` : `Yesterday • ${formattedDate}`;
+  }
+
+  const weekday = sampleDate.toLocaleDateString(language === "hi" ? "hi-IN" : "en-IN", {
+    timeZone: "Asia/Kolkata",
+    weekday: "short",
+  });
+
+  return `${weekday}, ${formattedDate}`;
+}
+
 interface ShellProps {
   children: React.ReactNode;
 }
@@ -110,8 +151,7 @@ export default function Shell({ children }: ShellProps) {
   const { language, setLanguage, t, languages } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notificationDatePreset, setNotificationDatePreset] = useState<"ALL" | "TODAY" | "YESTERDAY" | "THIS_WEEK" | "CUSTOM">("ALL");
-  const [notificationCustomDate, setNotificationCustomDate] = useState<string>("");
+  const [notificationDateFilter, setNotificationDateFilter] = useState<string>("");
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [logoutConfirmCount, setLogoutConfirmCount] = useState<number | null>(null);
   const [menuSearch, setMenuSearch] = useState("");
@@ -192,32 +232,52 @@ export default function Shell({ children }: ShellProps) {
     await markAllNotificationsRead();
   };
 
-  const filteredNotifications = useMemo(() => {
-    if (notificationDatePreset === "ALL") return notifications;
-    const nowDate = new Date();
-    const todayStr = istDateKey(nowDate);
-    const yestDate = new Date(nowDate.getTime() - 24 * 3600 * 1000);
-    const yesterdayStr = istDateKey(yestDate);
+  const groupedNotifications = useMemo(() => {
+    const list = notificationDateFilter
+      ? notifications.filter((n) => {
+          if (!n.createdAt) return false;
+          const d = new Date(n.createdAt);
+          if (isNaN(d.getTime())) return false;
+          return istDateKey(d) === notificationDateFilter;
+        })
+      : notifications;
 
-    return notifications.filter((n) => {
-      if (!n.createdAt) return false;
-      const d = new Date(n.createdAt);
-      if (isNaN(d.getTime())) return false;
-      const notifDateStr = istDateKey(d);
+    const groupsMap = new Map<string, { label: string; date: Date; items: any[] }>();
 
-      if (notificationDatePreset === "TODAY") return notifDateStr === todayStr;
-      if (notificationDatePreset === "YESTERDAY") return notifDateStr === yesterdayStr;
-      if (notificationDatePreset === "THIS_WEEK") {
-        const weekAgo = new Date(nowDate.getTime() - 7 * 24 * 3600 * 1000);
-        return d >= weekAgo && d <= nowDate;
+    for (const notif of list) {
+      let dateKey = "earlier";
+      let dateObj = new Date(0);
+      if (notif.createdAt) {
+        const d = new Date(notif.createdAt);
+        if (!isNaN(d.getTime())) {
+          dateKey = istDateKey(d);
+          dateObj = d;
+        }
       }
-      if (notificationDatePreset === "CUSTOM") {
-        if (!notificationCustomDate) return true;
-        return notifDateStr === notificationCustomDate;
+
+      if (!groupsMap.has(dateKey)) {
+        const label =
+          dateKey === "earlier"
+            ? language === "hi"
+              ? "पहले की सूचनाएं"
+              : "Earlier Alerts"
+            : getDateGroupLabel(dateKey, dateObj, language);
+        groupsMap.set(dateKey, { label, date: dateObj, items: [] });
       }
-      return true;
-    });
-  }, [notifications, notificationDatePreset, notificationCustomDate]);
+
+      groupsMap.get(dateKey)!.items.push(notif);
+    }
+
+    // Sort groups in descending chronological order (newest date first)
+    return Array.from(groupsMap.entries())
+      .map(([dateKey, group]) => ({
+        dateKey,
+        label: group.label,
+        items: group.items,
+        timestamp: group.date.getTime(),
+      }))
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }, [notifications, notificationDateFilter, language]);
 
   useEffect(() => {
     setDevicePlatform(detectDevicePlatform());
@@ -1098,110 +1158,33 @@ export default function Shell({ children }: ShellProps) {
             </div>
             <PushToggle />
 
-            {/* Date filter bar */}
-            <div className="px-3 py-2 bg-slate-50 border-y border-slate-200/80 space-y-1.5 shrink-0">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Filter by Date:</span>
-                </span>
-                {notificationDatePreset !== "ALL" && (
+            {/* Optional date filter */}
+            <div className="px-3 py-1.5 bg-slate-50 border-y border-slate-200/80 flex items-center justify-between text-xs shrink-0">
+              <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>{language === "hi" ? "तारीख से देखें:" : "Filter by date:"}</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={notificationDateFilter}
+                  onChange={(e) => setNotificationDateFilter(e.target.value)}
+                  className="text-[11px] px-2 py-0.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-sans"
+                />
+                {notificationDateFilter && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setNotificationDatePreset("ALL");
-                      setNotificationCustomDate("");
-                    }}
+                    onClick={() => setNotificationDateFilter("")}
                     className="text-[10px] font-bold text-amber-600 hover:text-amber-700 underline"
                   >
-                    Clear Filter ({filteredNotifications.length}/{notifications.length})
+                    {language === "hi" ? "सभी तारीखें" : "Show all"}
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNotificationDatePreset("ALL");
-                    setNotificationCustomDate("");
-                  }}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
-                    notificationDatePreset === "ALL"
-                      ? "bg-slate-900 text-amber-400 shadow-xs"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  All ({notifications.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNotificationDatePreset("TODAY")}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
-                    notificationDatePreset === "TODAY"
-                      ? "bg-slate-900 text-amber-400 shadow-xs"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNotificationDatePreset("YESTERDAY")}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
-                    notificationDatePreset === "YESTERDAY"
-                      ? "bg-slate-900 text-amber-400 shadow-xs"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  Yesterday
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNotificationDatePreset("THIS_WEEK")}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
-                    notificationDatePreset === "THIS_WEEK"
-                      ? "bg-slate-900 text-amber-400 shadow-xs"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  Last 7 Days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNotificationDatePreset("CUSTOM")}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap transition ${
-                    notificationDatePreset === "CUSTOM"
-                      ? "bg-slate-900 text-amber-400 shadow-xs"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  Pick Date
-                </button>
-              </div>
-              {notificationDatePreset === "CUSTOM" && (
-                <div className="flex items-center gap-1.5 pt-0.5">
-                  <input
-                    type="date"
-                    value={notificationCustomDate}
-                    onChange={(e) => setNotificationCustomDate(e.target.value)}
-                    className="w-full text-xs px-2 py-1 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-sans"
-                  />
-                  {notificationCustomDate && (
-                    <button
-                      type="button"
-                      onClick={() => setNotificationCustomDate("")}
-                      className="text-slate-400 hover:text-slate-600 p-1"
-                      title="Clear custom date"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
 
-            <div className="flex-1 min-h-0 max-h-[60dvh] overflow-y-auto divide-y divide-slate-100 p-2">
-              {filteredNotifications.length === 0 ? (
+            <div className="flex-1 min-h-0 max-h-[60dvh] overflow-y-auto p-2 space-y-3">
+              {groupedNotifications.length === 0 ? (
                 <div className="text-center py-8 px-4 text-slate-400 text-xs flex flex-col items-center gap-2">
                   <Calendar className="w-8 h-8 text-slate-300" />
                   {notifications.length === 0 ? (
@@ -1211,10 +1194,7 @@ export default function Shell({ children }: ShellProps) {
                       <span>No alerts found for this date.</span>
                       <button
                         type="button"
-                        onClick={() => {
-                          setNotificationDatePreset("ALL");
-                          setNotificationCustomDate("");
-                        }}
+                        onClick={() => setNotificationDateFilter("")}
                         className="text-xs font-bold text-amber-600 hover:text-amber-700 underline"
                       >
                         Show All Alerts ({notifications.length})
@@ -1223,50 +1203,68 @@ export default function Shell({ children }: ShellProps) {
                   )}
                 </div>
               ) : (
-                filteredNotifications.map((n) => (
-                  <div
-                    key={n.id}
-                    onClick={() => handleMarkAsRead(n.id, n.href)}
-                    className={`block p-3 rounded-xl transition cursor-pointer group ${
-                      n.isRead
-                        ? "bg-slate-50/50 opacity-70 hover:opacity-100 hover:bg-slate-50"
-                        : "bg-white hover:bg-amber-50/40 ring-1 ring-amber-100/80 shadow-2xs"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                        {!n.isRead && (
-                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" title="Unread" />
-                        )}
-                        <span
-                          className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase shrink-0 ${
-                            n.type === "CHAT_MESSAGE"
-                              ? "bg-purple-100 text-purple-800 border border-purple-200"
-                              : n.severity === "CRITICAL"
-                              ? "bg-rose-100 text-rose-700 border border-rose-200"
-                              : n.severity === "WARNING"
-                              ? "bg-amber-100 text-amber-800 border border-amber-200"
-                              : "bg-blue-100 text-blue-700 border border-blue-200"
-                          }`}
-                        >
-                          {n.type === "CHAT_MESSAGE" ? "MESSAGE" : n.type.replace(/_/g, " ")}
-                        </span>
-                        {n.createdAt && (
-                          <span
-                            className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 font-mono"
-                            title={formatDateTime(n.createdAt)}
-                          >
-                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{formatAlertDate(n.createdAt)}</span>
-                          </span>
-                        )}
+                groupedNotifications.map((group) => (
+                  <div key={group.dateKey} className="space-y-1.5">
+                    {/* Single heading of the date */}
+                    <div className="sticky top-0 z-10 py-1 px-2.5 bg-slate-100/95 backdrop-blur-xs rounded-lg flex items-center justify-between border border-slate-200/80 shadow-2xs">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+                        <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>{group.label}</span>
                       </div>
-                      <span className="text-[10px] text-amber-600 font-semibold group-hover:underline shrink-0 ml-1">
-                        View &rarr;
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200 shadow-2xs font-mono">
+                        {group.items.length} {group.items.length === 1 ? "alert" : "alerts"}
                       </span>
                     </div>
-                    <div className={`text-xs mt-1 ${n.isRead ? "font-medium text-slate-700" : "font-bold text-slate-900"}`}>{n.title}</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{n.message}</div>
+
+                    {/* All notifications of that date */}
+                    <div className="space-y-1.5">
+                      {group.items.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => handleMarkAsRead(n.id, n.href)}
+                          className={`block p-3 rounded-xl transition cursor-pointer group ${
+                            n.isRead
+                              ? "bg-slate-50/50 opacity-70 hover:opacity-100 hover:bg-slate-50"
+                              : "bg-white hover:bg-amber-50/40 ring-1 ring-amber-100/80 shadow-2xs"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                              {!n.isRead && (
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" title="Unread" />
+                              )}
+                              <span
+                                className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase shrink-0 ${
+                                  n.type === "CHAT_MESSAGE"
+                                    ? "bg-purple-100 text-purple-800 border border-purple-200"
+                                    : n.severity === "CRITICAL"
+                                    ? "bg-rose-100 text-rose-700 border border-rose-200"
+                                    : n.severity === "WARNING"
+                                    ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                    : "bg-blue-100 text-blue-700 border border-blue-200"
+                                }`}
+                              >
+                                {n.type === "CHAT_MESSAGE" ? "MESSAGE" : n.type.replace(/_/g, " ")}
+                              </span>
+                              {n.createdAt && (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded shrink-0 font-mono"
+                                  title={formatDateTime(n.createdAt)}
+                                >
+                                  <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span>{formatAlertTime(n.createdAt)}</span>
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-amber-600 font-semibold group-hover:underline shrink-0 ml-1">
+                              View &rarr;
+                            </span>
+                          </div>
+                          <div className={`text-xs mt-1 ${n.isRead ? "font-medium text-slate-700" : "font-bold text-slate-900"}`}>{n.title}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{n.message}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))
               )}
