@@ -241,15 +241,15 @@ export default function ReportsPage() {
   );
 
   const totalPayablesBilled = useMemo(
-    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.totalBilled) || 0), 0) / 100,
+    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.totalBilled) || 0), 0),
     [excelPayables.filteredData]
   );
   const totalPayablesPaid = useMemo(
-    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.totalPaid) || 0), 0) / 100,
+    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.totalPaid) || 0), 0),
     [excelPayables.filteredData]
   );
   const totalOutstandingLiability = useMemo(
-    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.outstandingBalance) || 0), 0) / 100,
+    () => excelPayables.filteredData.reduce((acc, p) => acc + (Number(p.outstandingBalance) || 0), 0),
     [excelPayables.filteredData]
   );
 
