@@ -433,6 +433,13 @@ export default function Shell({ children }: ShellProps) {
           icon: BookOpen,
           keywords: ["mb", "measurement", "civil", "boq", "quantity", "quantities", "dimensions", "measurements"],
         },
+        {
+          key: "nav.materialRequests",
+          defaultLabel: "Material Requests",
+          href: "/material-requests",
+          icon: PackagePlus,
+          keywords: ["requests", "materials", "requisitions", "indents", "orders", "procurement", "requested material"],
+        },
         ...(user?.role !== "PROJECT_MANAGER"
           ? [
               {
@@ -455,13 +462,6 @@ export default function Shell({ children }: ShellProps) {
                 href: "/material-pricing",
                 icon: Tag,
                 keywords: ["rates", "prices", "price list", "quotation", "rate card", "costs", "pricing"],
-              },
-              {
-                key: "nav.materialRequests",
-                defaultLabel: "Material Order History",
-                href: "/material-requests",
-                icon: PackageCheck,
-                keywords: ["po", "purchase orders", "requests", "requisitions", "indents", "orders", "procurement", "history"],
               },
             ]
           : []),

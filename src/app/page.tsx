@@ -54,7 +54,9 @@ import {
   Search,
   LayoutGrid,
   Play,
+  Loader2,
 } from "lucide-react";
+import { submitOrQueue } from "@/lib/offline-queue";
 import { clientCache } from "@/lib/client-cache";
 import { useLanguage } from "@/lib/i18n";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
@@ -410,10 +412,134 @@ export default function DashboardPage() {
   } | null>(null);
 
   // Interactive Dashboard View & Section Navigation
-  type DashboardSectionTab = "ALL" | "SITES" | "TASKS" | "PROJECTS" | "PHOTOS";
+  type DashboardSectionTab = "ALL" | "SITES" | "TASKS" | "PROJECTS" | "PHOTOS" | "MATERIALS";
   const [activeSectionTab, setActiveSectionTab] = useState<DashboardSectionTab>("ALL");
   const [dashboardFilterQuery, setDashboardFilterQuery] = useState("");
   const [kpiDensity, setKpiDensity] = useState<"compact" | "cards">("compact");
+
+  // Material Requests State & Modal
+  const [recentMaterialRequests, setRecentMaterialRequests] = useState<any[]>([]);
+  const [materialCatalog, setMaterialCatalog] = useState<any[]>([]);
+  const [showQuickMaterialModal, setShowQuickMaterialModal] = useState(false);
+  const [quickMaterialProjectId, setQuickMaterialProjectId] = useState<string>("");
+  const [quickMaterialUrgent, setQuickMaterialUrgent] = useState(false);
+  const [quickMaterialNeededBy, setQuickMaterialNeededBy] = useState("");
+  const [quickMaterialNotes, setQuickMaterialNotes] = useState("");
+  const [quickMaterialItems, setQuickMaterialItems] = useState([
+    { materialId: "", description: "", quantity: "", unitCode: "NOS" },
+  ]);
+  const [submittingQuickMaterial, setSubmittingQuickMaterial] = useState(false);
+  const [quickMaterialError, setQuickMaterialError] = useState<string | null>(null);
+  const [materialRequestNotice, setMaterialRequestNotice] = useState<string | null>(null);
+
+  const resetQuickMaterialForm = () => {
+    setQuickMaterialProjectId(projects[0]?.id || "");
+    setQuickMaterialUrgent(false);
+    setQuickMaterialNeededBy("");
+    setQuickMaterialNotes("");
+    setQuickMaterialItems([{ materialId: "", description: "", quantity: "", unitCode: "NOS" }]);
+    setQuickMaterialError(null);
+  };
+
+  const updateQuickMaterialItem = (index: number, patch: Partial<{ materialId: string; description: string; quantity: string; unitCode: string }>) => {
+    setQuickMaterialItems((prev) =>
+      prev.map((it, idx) => {
+        if (idx !== index) return it;
+        const updated = { ...it, ...patch };
+        if (patch.materialId !== undefined) {
+          if (patch.materialId && patch.materialId !== "OTHER") {
+            const selectedMat = materialCatalog.find((m) => m.id === patch.materialId);
+            if (selectedMat) {
+              updated.description = selectedMat.name;
+              updated.unitCode = selectedMat.unitCode || "NOS";
+            }
+          } else if (patch.materialId === "OTHER") {
+            updated.description = "";
+          }
+        }
+        return updated;
+      })
+    );
+  };
+
+  const addQuickMaterialItem = () => {
+    setQuickMaterialItems((prev) => [
+      ...prev,
+      { materialId: "", description: "", quantity: "", unitCode: "NOS" },
+    ]);
+  };
+
+  const removeQuickMaterialItem = (index: number) => {
+    if (quickMaterialItems.length <= 1) return;
+    setQuickMaterialItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleQuickMaterialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setQuickMaterialError(null);
+
+    const validItems = quickMaterialItems.filter((it) => {
+      const hasName = (it.materialId && it.materialId !== "OTHER") || it.description.trim().length > 0;
+      const qty = parseFloat(it.quantity);
+      return hasName && !isNaN(qty) && qty > 0;
+    });
+
+    if (validItems.length === 0) {
+      setQuickMaterialError("Please add at least one material with a quantity greater than 0.");
+      return;
+    }
+
+    const pId = quickMaterialProjectId || projects[0]?.id;
+    if (!pId) {
+      setQuickMaterialError("Please select a project.");
+      return;
+    }
+
+    setSubmittingQuickMaterial(true);
+    try {
+      const project = projects.find((p) => p.id === pId);
+      const payloadItems = validItems.map((it) => ({
+        materialId: it.materialId && it.materialId !== "OTHER" ? it.materialId : null,
+        description: it.materialId === "OTHER" || !it.materialId ? it.description.trim() : null,
+        quantity: parseFloat(it.quantity),
+        unitCode: (it.unitCode || "NOS").trim().toUpperCase(),
+      }));
+
+      const res = await submitOrQueue<any>({
+        label: `Material request for "${project?.name || "Project"}"`,
+        url: "/api/material-requests",
+        body: {
+          projectId: pId,
+          neededBy: quickMaterialNeededBy || null,
+          priority: quickMaterialUrgent ? "URGENT" : "NORMAL",
+          notes: quickMaterialNotes || null,
+          items: payloadItems,
+        },
+      });
+
+      const reqNum = res && "data" in res && (res.data as any)?.requestNumber ? ` (${(res.data as any).requestNumber})` : "";
+      setMaterialRequestNotice(`Material request${reqNum} posted successfully! The office has been notified.`);
+      setShowQuickMaterialModal(false);
+      resetQuickMaterialForm();
+
+      // Refresh material requests list
+      fetch(`/api/material-requests?_t=${Date.now()}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.success && Array.isArray(data.data)) {
+            setRecentMaterialRequests(data.data);
+          }
+        })
+        .catch(() => {});
+
+      window.dispatchEvent(new CustomEvent("refreshNotifications"));
+      setTimeout(() => setMaterialRequestNotice(null), 6000);
+    } catch (err: any) {
+      setQuickMaterialError(err?.message || "Failed to submit material request. Please try again.");
+    } finally {
+      setSubmittingQuickMaterial(false);
+    }
+  };
 
   // Collapsible section states for custom workspace layout
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
@@ -588,6 +714,23 @@ export default function DashboardPage() {
     return list;
   }, [recentPhotos, dashboardFilterQuery]);
 
+  const displayedMaterialRequests = useMemo(() => {
+    let list = recentMaterialRequests;
+    if (dashboardFilterQuery.trim()) {
+      const q = dashboardFilterQuery.toLowerCase();
+      list = list.filter(
+        (r: any) =>
+          (r.requestNumber && r.requestNumber.toLowerCase().includes(q)) ||
+          (r.project?.name && r.project.name.toLowerCase().includes(q)) ||
+          (r.project?.site?.name && r.project.site.name.toLowerCase().includes(q)) ||
+          (r.requestedBy?.name && r.requestedBy.name.toLowerCase().includes(q)) ||
+          (r.notes && r.notes.toLowerCase().includes(q)) ||
+          (r.items && r.items.some((it: any) => (it.material?.name || it.description || "").toLowerCase().includes(q)))
+      );
+    }
+    return activeSectionTab === "MATERIALS" ? list : list.slice(0, 6);
+  }, [recentMaterialRequests, dashboardFilterQuery, activeSectionTab]);
+
   const refreshKpis = (serverKpi?: any, siteId?: string) => {
     const computed = clientCache.calculateKpis(serverKpi, siteId);
     setKpi(computed);
@@ -682,6 +825,29 @@ export default function DashboardPage() {
         if (filteredProjs.length > 0 && !quickProjectId) {
           setQuickProjectId(filteredProjs[0].id);
         }
+        if (filteredProjs.length > 0 && !quickMaterialProjectId) {
+          setQuickMaterialProjectId(filteredProjs[0].id);
+        }
+
+        // Fetch material requests and catalog for dashboard
+        fetch(`/api/material-requests?${cb}`, { cache: "no-store" })
+          .then((r) => r.json())
+          .then((res) => {
+            if (res?.success && Array.isArray(res.data)) {
+              setRecentMaterialRequests(res.data);
+            }
+          })
+          .catch(() => {});
+
+        fetch(`/api/materials?${cb}`, { cache: "no-store" })
+          .then((r) => r.json())
+          .then((res) => {
+            const mats = res?.data?.materials || res?.data || [];
+            if (Array.isArray(mats)) {
+              setMaterialCatalog(mats);
+            }
+          })
+          .catch(() => {});
 
         setAllTasks(filteredTasks);
         setTasks(filteredTasks.filter((t: any) => !["COMPLETED", "VERIFIED", "ARCHIVED"].includes(t.status) && !t.completedAt));
@@ -962,7 +1128,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (!(selectedPhoto || cameraModalOpen || activeKpiModal || showQuickTaskModal || pendingDeletePhoto)) return;
+    if (!(selectedPhoto || cameraModalOpen || activeKpiModal || showQuickTaskModal || showQuickMaterialModal || pendingDeletePhoto)) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -971,6 +1137,7 @@ export default function DashboardPage() {
         if (cameraModalOpen) stopLiveCamera();
         setActiveKpiModal(null);
         setShowQuickTaskModal(false);
+        setShowQuickMaterialModal(false);
         setPendingDeletePhoto(null);
       }
     };
@@ -980,7 +1147,7 @@ export default function DashboardPage() {
       window.removeEventListener("keydown", handleKeyDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPhoto, cameraModalOpen, activeKpiModal, showQuickTaskModal, pendingDeletePhoto]);
+  }, [selectedPhoto, cameraModalOpen, activeKpiModal, showQuickTaskModal, showQuickMaterialModal, pendingDeletePhoto]);
 
   const renderKpiModalContent = () => {
     if (!canViewStock && activeKpiModal === "lowStockItems") return null;
@@ -1815,6 +1982,182 @@ export default function DashboardPage() {
     }
   };
 
+  const renderRequestedMaterialsSection = (isFullView: boolean) => {
+    const list = isFullView ? displayedMaterialRequests : displayedMaterialRequests.slice(0, 6);
+    return (
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center font-bold">
+              <PackagePlus className="w-4 h-4 text-amber-700" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">Requested Materials</h2>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold">
+                  {recentMaterialRequests.length} Requests
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Site material requisitions, approvals, and order tracking
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                resetQuickMaterialForm();
+                setShowQuickMaterialModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-brand text-slate-950 font-bold text-xs rounded-lg shadow-sm hover:brightness-105 transition cursor-pointer"
+            >
+              <PackagePlus className="w-3.5 h-3.5 text-slate-950" />
+              <span>Request Material</span>
+            </button>
+            <Link
+              href="/material-requests"
+              className="text-xs font-semibold text-amber-600 hover:underline inline-flex items-center gap-1"
+            >
+              <span>View All</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+
+        {materialRequestNotice && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-semibold flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{materialRequestNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMaterialRequestNotice(null)}
+              className="text-emerald-700 hover:text-emerald-950 text-xs font-bold cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {list.length === 0 ? (
+          <div className="py-8 px-4 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200">
+            <PackagePlus className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-bold text-slate-700">No material requests yet</p>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              Need cement, rebar, timber, or site supplies? Raise a material request and office/store teams will be notified immediately.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                resetQuickMaterialForm();
+                setShowQuickMaterialModal(true);
+              }}
+              className="mt-3.5 inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-brand text-slate-950 text-xs font-bold rounded-lg shadow-sm hover:brightness-105 cursor-pointer"
+            >
+              <PackagePlus className="w-3.5 h-3.5 text-slate-950" />
+              <span>+ Request Material for Work</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {list.map((req: any) => {
+              const statusConfig: Record<string, { label: string; cls: string }> = {
+                PENDING: { label: "Waiting for approval", cls: "bg-amber-100 text-amber-900 border-amber-300" },
+                APPROVED: { label: "Approved", cls: "bg-blue-100 text-blue-900 border-blue-300" },
+                PARTLY_ORDERED: { label: "Partly Ordered", cls: "bg-indigo-100 text-indigo-900 border-indigo-300" },
+                ORDERED: { label: "Ordered / In Transit", cls: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                DELIVERED: { label: "Received & Billed", cls: "bg-emerald-100 text-emerald-950 font-bold border-emerald-400" },
+                REJECTED: { label: "Declined", cls: "bg-rose-100 text-rose-900 border-rose-300" },
+                CANCELLED: { label: "Cancelled", cls: "bg-slate-100 text-slate-600 border-slate-300" },
+              };
+              const st = statusConfig[req.status] || { label: req.status, cls: "bg-slate-100 text-slate-700 border-slate-200" };
+              const isUrgent = req.priority === "URGENT";
+
+              return (
+                <div
+                  key={req.id}
+                  className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-amber-300 hover:shadow-xs transition space-y-2.5 flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[11px] font-bold text-slate-500">
+                        #{req.requestNumber || req.id.slice(0, 8)}
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        {isUrgent && (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-600 text-white uppercase tracking-wider animate-pulse">
+                            URGENT
+                          </span>
+                        )}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${st.cls}`}>
+                          {st.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 truncate">
+                        {req.project?.name || "Project Requisition"}
+                      </div>
+                      {req.project?.site?.name && (
+                        <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                          <Building2 className="w-3 h-3 text-slate-400" />
+                          <span>{req.project.site.name}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Items summary */}
+                    <div className="bg-white rounded-lg p-2 border border-slate-200/80 space-y-1">
+                      {(req.items || []).slice(0, 3).map((it: any, idx: number) => {
+                        const name = it.material?.name || it.description || "Material";
+                        return (
+                          <div key={idx} className="flex items-center justify-between text-xs gap-2">
+                            <span className="text-slate-800 font-medium truncate">• {name}</span>
+                            <span className="font-mono font-bold text-slate-900 shrink-0 text-[11px]">
+                              {it.quantity} {it.unitCode || it.material?.unitCode || "NOS"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {(req.items?.length || 0) > 3 && (
+                        <div className="text-[10px] text-amber-700 font-semibold pt-0.5">
+                          + {req.items.length - 3} more item(s)...
+                        </div>
+                      )}
+                    </div>
+
+                    {req.notes && (
+                      <p className="text-[11px] text-slate-500 line-clamp-2 italic">
+                        &ldquo;{req.notes}&rdquo;
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-slate-500">
+                    <span>
+                      By {req.requestedBy?.name || "Staff"} · {formatDate(req.createdAt)}
+                    </span>
+                    <Link
+                      href={`/material-requests?id=${req.id}`}
+                      className="font-bold text-amber-600 hover:underline flex items-center gap-0.5"
+                    >
+                      <span>Details</span>
+                      <ArrowRight className="w-2.5 h-2.5" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Shell>
       <div className="space-y-4">
@@ -2178,6 +2521,23 @@ export default function DashboardPage() {
                 >
                   <Camera className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span>Photos</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectionTab("MATERIALS")}
+                  className={`shrink-0 px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+                    activeSectionTab === "MATERIALS"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <PackagePlus className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Material Requests</span>
+                  {recentMaterialRequests.length > 0 && (
+                    <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-900 px-1 py-0.2 rounded">
+                      {recentMaterialRequests.length}
+                    </span>
+                  )}
                 </button>
               </div>
 
@@ -3300,6 +3660,9 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* Requested Materials in All-In-One View */}
+          {renderRequestedMaterialsSection(false)}
           </div>
         )}
 
@@ -4033,6 +4396,9 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* FULL MATERIAL REQUESTS VIEW */}
+      {activeSectionTab === "MATERIALS" && renderRequestedMaterialsSection(true)}
+
         {/* Modal: Confirm Dashboard Photo Delete */}
         {pendingDeletePhoto && (
           <div
@@ -4321,6 +4687,259 @@ export default function DashboardPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Quick Material Request */}
+        {showQuickMaterialModal && (
+          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
+              <div className="flex items-center justify-between p-5 pb-4 border-b border-slate-100 shrink-0 bg-white">
+                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-bold">
+                    <PackagePlus className="w-4 h-4" />
+                  </div>
+                  <span>Request Material for Site Work</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickMaterialModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleQuickMaterialSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 text-xs">
+                {quickMaterialError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-semibold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{quickMaterialError}</span>
+                  </div>
+                )}
+
+                {/* Project Selection & Needed By */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      Project / Site *
+                    </label>
+                    <select
+                      value={quickMaterialProjectId || (projects[0]?.id || "")}
+                      onChange={(e) => setQuickMaterialProjectId(e.target.value)}
+                      className="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                      required
+                    >
+                      <option value="">Select project...</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} {p.code ? `(${p.code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      Needed by date (optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={quickMaterialNeededBy}
+                      onChange={(e) => setQuickMaterialNeededBy(e.target.value)}
+                      className="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Urgency */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-700">Urgency:</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setQuickMaterialUrgent(false)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                        !quickMaterialUrgent
+                          ? "bg-slate-900 text-amber-400 shadow-xs"
+                          : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      Normal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickMaterialUrgent(true)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                        quickMaterialUrgent
+                          ? "bg-rose-600 text-white shadow-xs"
+                          : "bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600"
+                      }`}
+                    >
+                      <AlertTriangle className="w-3 h-3" />
+                      <span>Urgent (Site Blocking)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Materials List */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                      Required Material(s) *
+                    </span>
+                    <button
+                      type="button"
+                      onClick={addQuickMaterialItem}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Another Material</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {quickMaterialItems.map((it, idx) => {
+                      const isCustom = it.materialId === "OTHER" || !it.materialId;
+                      return (
+                        <div
+                          key={idx}
+                          className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <select
+                                value={it.materialId}
+                                onChange={(e) => updateQuickMaterialItem(idx, { materialId: e.target.value })}
+                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                              >
+                                <option value="">Select from catalog or custom...</option>
+                                {materialCatalog.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.name} ({m.unitCode || "NOS"})
+                                  </option>
+                                ))}
+                                <option value="OTHER">Custom material (type name below)</option>
+                              </select>
+                            </div>
+                            {quickMaterialItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeQuickMaterialItem(idx)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition shrink-0 cursor-pointer"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {isCustom && (
+                            <input
+                              type="text"
+                              value={it.description}
+                              onChange={(e) => updateQuickMaterialItem(idx, { description: e.target.value })}
+                              placeholder="e.g. Laminate sheet, 12mm binding wire, 2x1 timber..."
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50/40 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              required
+                            />
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-[10px] font-semibold text-slate-600 block mb-0.5">
+                                Quantity *
+                              </span>
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="any"
+                                value={it.quantity}
+                                onChange={(e) => updateQuickMaterialItem(idx, { quantity: e.target.value })}
+                                placeholder="e.g. 10"
+                                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-semibold text-slate-600 block mb-0.5">
+                                Unit
+                              </span>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  list={`dash-units-list-${idx}`}
+                                  value={it.unitCode}
+                                  onChange={(e) => updateQuickMaterialItem(idx, { unitCode: e.target.value.toUpperCase() })}
+                                  placeholder="Unit (NOS, BAG, KG)"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 uppercase focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                                />
+                                <datalist id={`dash-units-list-${idx}`}>
+                                  {["BAG", "TONNE", "KG", "CFT", "CUM", "BRASS", "NOS", "PIECE", "BOX", "BUNDLE", "SHEET", "SQFT", "SQM", "RFT", "METER", "LITRE", "DRUM", "BUCKET", "TRUCK", "TROLLEY", "TRIP", "PACKET"].map((u) => (
+                                    <option key={u} value={u} />
+                                  ))}
+                                </datalist>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Work Notes */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Work Notes / Reason for requirement
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={quickMaterialNotes}
+                    onChange={(e) => setQuickMaterialNotes(e.target.value)}
+                    placeholder="e.g. Needed for 2nd floor shuttering work at site"
+                    className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickMaterialModal(false)}
+                      className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <Link
+                      href="/material-requests"
+                      className="text-xs text-amber-600 hover:underline inline-flex items-center gap-1 font-semibold"
+                    >
+                      <span>Full Page</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submittingQuickMaterial}
+                    className="px-4 py-2 bg-gradient-brand text-slate-950 text-xs font-bold rounded-lg shadow-sm hover:brightness-105 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {submittingQuickMaterial ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <PackagePlus className="w-3.5 h-3.5" />
+                    )}
+                    <span>Post Material Request</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

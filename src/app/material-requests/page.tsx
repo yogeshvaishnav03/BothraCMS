@@ -1510,6 +1510,9 @@ export default function MaterialOrderHistoryPage() {
     setHighlight(params.get("id"));
     const status = params.get("status");
     if (status && FILTERS.some((f) => f.id === status)) setFilter(status);
+    if (params.get("new") === "true" || params.get("new") === "1" || params.get("action") === "new") {
+      setShowNew(true);
+    }
     refreshUser().then((u) => u && setMe(u)).catch(() => {});
     api<any>("/api/projects").then((d) => setProjects(Array.isArray(d) ? d : d?.projects || [])).catch(() => {});
     api<any[]>("/api/materials").then(setMaterials).catch(() => {});
@@ -1604,16 +1607,16 @@ export default function MaterialOrderHistoryPage() {
     <Shell>
       <div className="space-y-5">
         <PageHeader
-          icon={PackageCheck}
-          title="Material Order History"
-          subtitle="Track material requests, vendor purchase orders, receive deliveries, and automatically add to Stock & Bills with bill photos."
+          icon={PackagePlus}
+          title="Material Requests"
+          subtitle="Track site material requisitions, approvals, vendor purchase orders, and site deliveries."
         >
           <button
             onClick={() => setShowNew(true)}
             disabled={projects.length === 0}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-brand px-4 py-2.5 text-sm font-bold text-slate-950 shadow-glow disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-brand px-4 py-2.5 text-sm font-bold text-slate-950 shadow-glow disabled:opacity-50 cursor-pointer"
           >
-            <Plus className="h-4 w-4" /> New request
+            <Plus className="h-4 w-4" /> Request Material
           </button>
         </PageHeader>
 
