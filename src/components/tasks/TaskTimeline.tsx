@@ -545,42 +545,20 @@ export function TaskMaterialRequestModal({
                       />
                     )}
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-600 block mb-0.5">
-                          Quantity *
-                        </span>
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="any"
-                          value={it.quantity}
-                          onChange={(e) => updateItem(idx, { quantity: e.target.value })}
-                          placeholder="e.g. 10"
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-semibold text-slate-600 block mb-0.5">
-                          Unit
-                        </span>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            list={`units-list-${idx}`}
-                            value={it.unitCode}
-                            onChange={(e) => updateItem(idx, { unitCode: e.target.value.toUpperCase() })}
-                            placeholder="Unit (NOS, BAG, KG)"
-                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 uppercase focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
-                          />
-                          <datalist id={`units-list-${idx}`}>
-                            {COMMON_UNITS.map((u) => (
-                              <option key={u} value={u} />
-                            ))}
-                          </datalist>
-                        </div>
-                      </div>
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-600 block mb-0.5">
+                        Quantity *
+                      </span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="any"
+                        value={it.quantity}
+                        onChange={(e) => updateItem(idx, { quantity: e.target.value })}
+                        placeholder="e.g. 10"
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono"
+                        required
+                      />
                     </div>
                   </div>
                 );

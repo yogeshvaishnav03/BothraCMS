@@ -646,12 +646,15 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
           notes: notes || null,
           items: items
             .filter((it) => it.materialId || it.description.trim())
-            .map((it) => ({
-              materialId: it.materialId && it.materialId !== "OTHER" ? it.materialId : null,
-              description: it.materialId === "OTHER" || !it.materialId ? it.description : null,
-              quantity: Number(it.quantity),
-              unitCode: it.unitCode || null,
-            })),
+            .map((it) => {
+              const mat = materials.find((m) => m.id === it.materialId);
+              return {
+                materialId: it.materialId && it.materialId !== "OTHER" ? it.materialId : null,
+                description: it.materialId === "OTHER" || !it.materialId ? it.description : null,
+                quantity: Number(it.quantity),
+                unitCode: mat?.unitCode || it.unitCode || "NOS",
+              };
+            }),
         },
       });
       onCreated(result.queued ? null : result.data);
@@ -747,16 +750,8 @@ function NewRequestModal({ projects, materials, onClose, onCreated }: { projects
                       value={it.quantity}
                       onChange={(e) => setItem(i, { quantity: e.target.value })}
                       placeholder="Qty"
-                      className="col-span-5 rounded-lg border border-slate-200 bg-white px-2 py-2 text-right text-sm tabular-nums sm:col-span-3"
+                      className="col-span-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right text-sm tabular-nums sm:col-span-5"
                       aria-label="Quantity"
-                    />
-                    <input
-                      value={mat ? mat.unitCode : it.unitCode}
-                      disabled={!!mat}
-                      onChange={(e) => setItem(i, { unitCode: e.target.value.toUpperCase() })}
-                      placeholder="Unit"
-                      className="col-span-5 rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm disabled:bg-slate-100 sm:col-span-2"
-                      aria-label="Unit"
                     />
                     <button
                       type="button"
