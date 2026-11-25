@@ -171,6 +171,15 @@ export default function FinancePage() {
   const [tdsReason, setTdsReason] = useState("");
   const [tdsPreview, setTdsPreview] = useState<any>(null);
   const [paymentFile, setPaymentFile] = useState<{ url: string; name: string; fileId?: string } | null>(null);
+  const [settlingEntry, setSettlingEntry] = useState<{
+    id: string;
+    type: "PAYMENT" | "BILL";
+    referenceNumber: string;
+    totalAmount: number;
+    settledAmount: number;
+    remainingAmount: number;
+    recipientName?: string;
+  } | null>(null);
 
   // Bill Modal state
   const [showBillModal, setShowBillModal] = useState(false);
@@ -379,6 +388,7 @@ export default function FinancePage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setShowPaymentModal(false);
+        setSettlingEntry(null);
         setShowBillModal(false);
         setShowReverseModal(false);
         setShowExpenseModal(false);
@@ -464,12 +474,16 @@ export default function FinancePage() {
     }
 
     try {
-      const finalNotes = [
+      let finalNotes = [
         notes?.trim(),
         paymentFile ? `[Attached Payment Proof: ${paymentFile.name} | ${paymentFile.url}]` : "",
       ]
         .filter(Boolean)
         .join(" ");
+
+      if (settlingEntry && settlingEntry.type === "PAYMENT") {
+        finalNotes = `[SETTLES_EXPENSE:${settlingEntry.id}:${paymentAmountPaise}] ${finalNotes}`.trim();
+      }
 
       const payload: any = {
         partyId: finalPartyId,
@@ -533,6 +547,7 @@ export default function FinancePage() {
         setTdsManual("");
         setTdsReason("");
         setTdsPreview(null);
+        setSettlingEntry(null);
         setPaymentFile(null);
         loadData();
       }
@@ -644,6 +659,114 @@ export default function FinancePage() {
       setSubmitting(false);
     }
   };
+
+  // Map of target payment id -> total settled / reimbursed amount in paise
+  const settlementMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const pay of payments) {
+      if (pay.status === "REJECTED" || pay.status === "REVERSED") continue;
+      if (!pay.notes) continue;
+      const matches = pay.notes.matchAll(/\[(?:SETTLES_EXPENSE|SETTLES_PAYMENT):([a-zA-Z0-9_-]+)(?::(\d+))?\]/g);
+      for (const m of matches) {
+        const targetId = m[1];
+        const settledAmt = m[2] ? parseInt(m[2], 10) : pay.amount;
+        map.set(targetId, (map.get(targetId) || 0) + settledAmt);
+      }
+    }
+    return map;
+  }, [payments]);
+
+  const getSettledAmountPaise = useCallback(
+    (paymentId: string) => settlementMap.get(paymentId) || 0,
+    [settlementMap]
+  );
+
+  const handleOpenPayForEntry = useCallback(
+    (p: any) => {
+      const settled = getSettledAmountPaise(p.id);
+      const remaining = Math.max(0, p.amount - settled);
+      const isOutOfPocket =
+        p.payingAccount === "Supervisor Out-of-Pocket" ||
+        p.recipientType === "OUT_OF_POCKET" ||
+        (p.notes && p.notes.includes("[Cash Expense]"));
+
+      if (isOutOfPocket) {
+        setRecipientType("EMPLOYEE");
+        const creatorName = p.creator?.name || p.approvedBy || "";
+        const matchedW = workforce.find(
+          (w) => w.name && creatorName && w.name.toLowerCase() === creatorName.toLowerCase()
+        );
+        if (matchedW) {
+          setSelectedEmployeeId(matchedW.id);
+          setRecipientName(`${matchedW.name} (${matchedW.workerType || "Staff"})`);
+        } else {
+          setSelectedEmployeeId("CUSTOM");
+          setRecipientName(creatorName || p.recipientName || "Supervisor");
+        }
+      } else if (p.partyId) {
+        const isVendor = p.recipientType === "VENDOR" || p.party?.partyType === "VENDOR";
+        setRecipientType(isVendor ? "VENDOR" : "CONTRACTOR");
+        setSelectedPartyId(p.partyId);
+        setRecipientName(p.party?.name || p.recipientName || "");
+      } else if (p.recipientType === "EMPLOYEE") {
+        setRecipientType("EMPLOYEE");
+        setRecipientName(p.recipientName || "");
+      } else {
+        setRecipientType("VENDOR");
+        setRecipientName(p.recipientName || "");
+      }
+
+      const amtToPay = remaining > 0 ? remaining : p.amount;
+      setAmount((amtToPay / 100).toFixed(2));
+      setPayingAccount("HDFC Bank Operating A/C (A/C: ...4421)");
+      setCustomPayingAccount("");
+      setReferenceNumber("");
+      const purpose = isOutOfPocket
+        ? `Reimbursement for Ref #${formatShortBillNumber(p.referenceNumber)}: ${p.approvalQuery || p.notes || p.recipientName}`
+        : `Payment settlement for Ref #${formatShortBillNumber(p.referenceNumber)}: ${p.approvalQuery || p.notes || p.recipientName}`;
+      setApprovalQuery(purpose);
+
+      setSettlingEntry({
+        id: p.id,
+        type: "PAYMENT",
+        referenceNumber: p.referenceNumber,
+        totalAmount: p.amount,
+        settledAmount: settled,
+        remainingAmount: remaining,
+        recipientName: p.recipientName || p.creator?.name,
+      });
+
+      setSelectedBillId("");
+      setPaymentFile(null);
+      setShowPaymentModal(true);
+    },
+    [getSettledAmountPaise, workforce]
+  );
+
+  const handleOpenPayForBill = useCallback((b: any) => {
+    setRecipientType("VENDOR");
+    setSelectedPartyId(b.partyId || "");
+    setRecipientName(b.party?.name || "Vendor");
+    setSelectedBillId(b.id);
+    setAmount(((b.outstandingAmount || b.totalAmount) / 100).toFixed(2));
+    setPayingAccount("HDFC Bank Operating A/C (A/C: ...4421)");
+    setCustomPayingAccount("");
+    setReferenceNumber("");
+    setApprovalQuery(`Payment for Bill #${formatShortBillNumber(b.billNumber)} (${b.party?.name || "Vendor"})`);
+
+    setSettlingEntry({
+      id: b.id,
+      type: "BILL",
+      referenceNumber: b.billNumber,
+      totalAmount: b.totalAmount,
+      settledAmount: b.paidAmount,
+      remainingAmount: b.outstandingAmount,
+      recipientName: b.party?.name,
+    });
+
+    setPaymentFile(null);
+    setShowPaymentModal(true);
+  }, []);
 
   const addBillLine = () => {
     setBillLines([
@@ -2223,6 +2346,12 @@ export default function FinancePage() {
                       const rType = p.recipientType || p.party?.type || "VENDOR";
                       const canSuperAdminAct =
                         currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+                      const isOutOfPocket =
+                        p.payingAccount === "Supervisor Out-of-Pocket" ||
+                        p.recipientType === "OUT_OF_POCKET" ||
+                        (p.notes && p.notes.includes("[Cash Expense]"));
+                      const settledPaise = getSettledAmountPaise(p.id);
+                      const remainingPaise = Math.max(0, p.amount - settledPaise);
 
                       return (
                         <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
@@ -2307,6 +2436,25 @@ export default function FinancePage() {
                             >
                               {formatCurrency(p.amount)}
                             </span>
+                            {/* Out-of-pocket settlement status & rest amount */}
+                            {isOutOfPocket && !isReversed && !isRejected && (
+                              <div className="text-[10px] font-sans font-semibold mt-1">
+                                {settledPaise >= p.amount ? (
+                                  <span className="inline-block text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    Reimbursed (Rest: ₹0)
+                                  </span>
+                                ) : settledPaise > 0 ? (
+                                  <span className="inline-block text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-right">
+                                    Paid: {formatCurrency(settledPaise)}<br />
+                                    <strong className="text-rose-700">Rest: {formatCurrency(remainingPaise)}</strong>
+                                  </span>
+                                ) : (
+                                  <span className="inline-block text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                    To Reimburse: {formatCurrency(p.amount)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             {p.tdsAmount > 0 && (
                               <div className="whitespace-nowrap text-[10px] font-semibold leading-tight text-indigo-700" title={p.tdsNote || undefined}>
                                 <div>TDS {formatCurrency(p.tdsAmount)} held</div>
@@ -2328,6 +2476,14 @@ export default function FinancePage() {
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-slate-100 text-slate-700">
                                 Reversed
                               </span>
+                            ) : isOutOfPocket && settledPaise >= p.amount ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                Reimbursed
+                              </span>
+                            ) : isOutOfPocket && settledPaise > 0 ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-amber-100 text-amber-900 border border-amber-300">
+                                Partial Rest
+                              </span>
                             ) : (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-800">
                                 Approved
@@ -2336,6 +2492,34 @@ export default function FinancePage() {
                           </td>
                           <td className="py-3 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* Pay / Reimburse Action Button */}
+                              {(canWriteFinance || canSuperAdminAct) && !isReversed && !isRejected && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPayForEntry(p)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-gradient-brand hover:brightness-105 text-slate-950 rounded-md shadow-2xs transition cursor-pointer"
+                                  title={
+                                    isOutOfPocket
+                                      ? remainingPaise > 0 && settledPaise > 0
+                                        ? `Pay remaining rest balance of ${formatCurrency(remainingPaise)}`
+                                        : remainingPaise === 0
+                                        ? "Reimbursed in full — click to record additional payment"
+                                        : "Pay / Reimburse supervisor for this cash expense"
+                                      : "Pay / record payment for this entry"
+                                  }
+                                >
+                                  <CreditCard className="w-3 h-3 text-slate-950" />
+                                  <span>
+                                    {isOutOfPocket
+                                      ? remainingPaise > 0 && settledPaise > 0
+                                        ? `Pay Rest (${formatCompactINR(remainingPaise)})`
+                                        : remainingPaise === 0
+                                        ? "Pay More"
+                                        : "Pay"
+                                      : "Pay"}
+                                  </span>
+                                </button>
+                              )}
                               <button
                                 onClick={() =>
                                   setAttachmentTarget({
@@ -2434,6 +2618,12 @@ export default function FinancePage() {
                     const rType = p.recipientType || p.party?.type || "VENDOR";
                     const canSuperAdminAct =
                       currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+                    const isOutOfPocket =
+                      p.payingAccount === "Supervisor Out-of-Pocket" ||
+                      p.recipientType === "OUT_OF_POCKET" ||
+                      (p.notes && p.notes.includes("[Cash Expense]"));
+                    const settledPaise = getSettledAmountPaise(p.id);
+                    const remainingPaise = Math.max(0, p.amount - settledPaise);
 
                     return (
                       <div key={`p-card-${p.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
@@ -2515,6 +2705,22 @@ export default function FinancePage() {
                           </div>
                         </div>
 
+                        {/* Rest Amount Display on Mobile Card */}
+                        {isOutOfPocket && !isReversed && !isRejected && (
+                          <div className="mt-2 p-2 rounded-lg bg-amber-50/70 border border-amber-200 text-xs flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-amber-900">
+                              {settledPaise >= p.amount ? "Reimbursed in Full" : settledPaise > 0 ? "Partially Reimbursed" : "Out-of-Pocket Expense:"}
+                            </span>
+                            <span className="font-bold text-slate-900">
+                              {settledPaise >= p.amount
+                                ? "Rest: ₹0.00"
+                                : settledPaise > 0
+                                ? `Paid: ${formatCurrency(settledPaise)} · Rest: ${formatCurrency(remainingPaise)}`
+                                : `To Reimburse: ${formatCurrency(p.amount)}`}
+                            </span>
+                          </div>
+                        )}
+
                         {/* Actions Footer */}
                         <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                           <button
@@ -2533,6 +2739,20 @@ export default function FinancePage() {
                           </button>
 
                           <div className="flex items-center gap-1.5 ml-auto">
+                            {(canWriteFinance || canSuperAdminAct) && !isReversed && !isRejected && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPayForEntry(p)}
+                                className="px-2.5 py-1 rounded text-xs font-bold bg-gradient-brand hover:brightness-105 text-slate-950 flex items-center gap-1 cursor-pointer"
+                              >
+                                <CreditCard className="w-3 h-3 text-slate-950" />
+                                <span>
+                                  {isOutOfPocket && remainingPaise > 0 && settledPaise > 0
+                                    ? `Pay Rest (${formatCompactINR(remainingPaise)})`
+                                    : "Pay"}
+                                </span>
+                              </button>
+                            )}
                             {isPending && canSuperAdminAct ? (
                               <>
                                 <button
@@ -2815,6 +3035,17 @@ export default function FinancePage() {
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
+                            {(canWriteFinance || canSuperAdminAct) && b.status !== "CHALLAN" && b.outstandingAmount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPayForBill(b)}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-gradient-brand hover:brightness-105 text-slate-950 rounded-md shadow-2xs transition cursor-pointer"
+                                title="Pay bill — amount is changeable and remaining balance is updated"
+                              >
+                                <CreditCard className="w-3 h-3 text-slate-950" />
+                                <span>Pay Bill</span>
+                              </button>
+                            )}
                             {b.status === "CHALLAN" && canWriteFinance && (
                               <button
                                 onClick={() => openGenerateBillModal(b)}
@@ -2954,6 +3185,16 @@ export default function FinancePage() {
                         </span>
 
                         <div className="flex items-center gap-1.5">
+                          {(canWriteFinance || canSuperAdminAct) && b.status !== "CHALLAN" && b.outstandingAmount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPayForBill(b)}
+                              className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-gradient-brand hover:brightness-105 text-slate-950 transition shadow-xs cursor-pointer"
+                            >
+                              <CreditCard className="w-3.5 h-3.5 text-slate-950" />
+                              <span>Pay Bill</span>
+                            </button>
+                          )}
                           {b.status === "CHALLAN" && canWriteFinance && (
                             <button
                               onClick={() => openGenerateBillModal(b)}
@@ -2999,7 +3240,7 @@ export default function FinancePage() {
         )}
 
         {/* Modal: Record Payment */}
-        {showPaymentModal && canWriteFinance && (
+        {showPaymentModal && (canWriteFinance || canSuperAdminAct) && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90dvh]">
               <div className="flex items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-4">
@@ -3010,6 +3251,7 @@ export default function FinancePage() {
                 <button
                   onClick={() => {
                     setShowPaymentModal(false);
+                    setSettlingEntry(null);
                     setPaymentFile(null);
                   }}
                   className="p-1 text-slate-400 hover:text-slate-600 shrink-0"
@@ -3019,6 +3261,38 @@ export default function FinancePage() {
               </div>
 
               <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                {/* Linked Settlement Banner if opened from table entry */}
+                {settlingEntry && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1.5">
+                    <div className="flex items-center justify-between font-bold text-amber-900">
+                      <span className="flex items-center gap-1.5">
+                        <CreditCard className="w-4 h-4 text-amber-700" />
+                        <span>
+                          Paying for {settlingEntry.type === "BILL" ? "Bill" : "Entry"} #{formatShortBillNumber(settlingEntry.referenceNumber)}
+                          {settlingEntry.recipientName ? ` (${settlingEntry.recipientName})` : ""}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSettlingEntry(null)}
+                        className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title="Clear pre-fill link"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="text-[11px] text-amber-800 flex items-center gap-3 flex-wrap">
+                      <span>Total Entry: <strong>{formatCurrency(settlingEntry.totalAmount)}</strong></span>
+                      {settlingEntry.settledAmount > 0 && (
+                        <span>Paid So Far: <strong>{formatCurrency(settlingEntry.settledAmount)}</strong></span>
+                      )}
+                      <span>Remaining Rest: <strong className="text-rose-700">{formatCurrency(settlingEntry.remainingAmount)}</strong></span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      💡 Amount is changeable below. Any remaining rest balance will stay recorded on the entry until fully settled.
+                    </p>
+                  </div>
+                )}
                 {/* 1. Recipient Type Selector */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -3195,6 +3469,24 @@ export default function FinancePage() {
                       onChange={(e) => setAmount(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono font-bold"
                     />
+                    {settlingEntry && amount && !isNaN(parseFloat(amount)) && (
+                      <div className="text-[11px] font-semibold text-slate-600 mt-1.5 p-2 rounded-lg bg-amber-50/70 border border-amber-200">
+                        {(() => {
+                          const payingPaise = Math.round(parseFloat(amount) * 100);
+                          const restPaise = Math.max(0, settlingEntry.remainingAmount - payingPaise);
+                          return (
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                              <span>Paying Now: <strong>{formatCurrency(payingPaise)}</strong></span>
+                              <span className={restPaise > 0 ? "text-amber-800 font-bold" : "text-emerald-700 font-bold"}>
+                                {restPaise > 0
+                                  ? `Remaining Rest: ${formatCurrency(restPaise)}`
+                                  : "✓ Fully Paid / Settled (Rest: ₹0)"}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -3363,6 +3655,7 @@ export default function FinancePage() {
                     type="button"
                     onClick={() => {
                       setShowPaymentModal(false);
+                      setSettlingEntry(null);
                       setPaymentFile(null);
                     }}
                     className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg whitespace-nowrap shrink-0"
