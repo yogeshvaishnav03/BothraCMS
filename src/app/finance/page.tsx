@@ -14,6 +14,7 @@ import {
   Receipt,
   FileText,
   CreditCard,
+  Calculator,
   RotateCcw,
   CheckCircle2,
   AlertTriangle,
@@ -1883,6 +1884,96 @@ export default function FinancePage() {
     columns: billColumns,
   });
 
+  // Option for Grand Total in tables (persisted in localStorage)
+  const [showGrandTotal, setShowGrandTotal] = useState(true);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bothra_show_grand_total");
+      if (saved !== null) {
+        setShowGrandTotal(saved === "true");
+      }
+    }
+  }, []);
+
+  const toggleGrandTotal = useCallback(() => {
+    setShowGrandTotal((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("bothra_show_grand_total", String(next));
+      }
+      return next;
+    });
+  }, []);
+
+  // Grand totals computed on the current filtered data of payments table
+  const paymentsGrandTotal = useMemo(() => {
+    let totalPaise = 0;
+    let totalTdsPaise = 0;
+    let totalSettledPaise = 0;
+    let totalRemainingPaise = 0;
+    let outOfPocketCount = 0;
+
+    for (const p of excelPayments.filteredData) {
+      if (p.status === "REJECTED" || p.status === "REVERSED") continue;
+      const amt = Number(p.amount) || 0;
+      totalPaise += amt;
+      totalTdsPaise += Number(p.tdsAmount) || 0;
+
+      const isOutOfPocket =
+        p.payingAccount === "Supervisor Out-of-Pocket" ||
+        p.recipientType === "OUT_OF_POCKET" ||
+        (p.notes && p.notes.includes("[Cash Expense]"));
+
+      if (isOutOfPocket) {
+        outOfPocketCount++;
+        const settled = getSettledAmountPaise(p.id);
+        const rem = Math.max(0, amt - settled);
+        totalSettledPaise += settled;
+        totalRemainingPaise += rem;
+      }
+    }
+
+    const activeCount = excelPayments.filteredData.filter(
+      (p) => p.status !== "REJECTED" && p.status !== "REVERSED"
+    ).length;
+
+    return {
+      count: excelPayments.filteredData.length,
+      activeCount,
+      totalPaise,
+      totalTdsPaise,
+      totalSettledPaise,
+      totalRemainingPaise,
+      outOfPocketCount,
+    };
+  }, [excelPayments.filteredData, getSettledAmountPaise]);
+
+  // Grand totals computed on the current filtered data of vendor bills table
+  const billsGrandTotal = useMemo(() => {
+    let totalPaise = 0;
+    let paidPaise = 0;
+    let outstandingPaise = 0;
+    let challanCount = 0;
+
+    for (const b of excelBills.filteredData) {
+      if (b.status === "CHALLAN") {
+        challanCount++;
+      } else {
+        totalPaise += Number(b.totalAmount) || 0;
+        paidPaise += Number(b.paidAmount) || 0;
+        outstandingPaise += Number(b.outstandingAmount) || 0;
+      }
+    }
+
+    return {
+      count: excelBills.filteredData.length,
+      challanCount,
+      totalPaise,
+      paidPaise,
+      outstandingPaise,
+    };
+  }, [excelBills.filteredData]);
+
   if (!loading && currentUser && !canReadFinance) {
     return (
       <Shell>
@@ -2321,6 +2412,48 @@ export default function FinancePage() {
                 showSearch={true}
                 showExport={true}
               />
+
+              {/* Option of Grand Total Toolbar Bar */}
+              <div className="bg-slate-50 border-b border-slate-200 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Calculator className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Grand Total:</span>
+                  </span>
+                  <span className="font-mono font-black text-slate-900 bg-amber-100/90 text-amber-950 px-2 py-0.5 rounded border border-amber-300 text-xs sm:text-sm">
+                    {formatCurrency(paymentsGrandTotal.totalPaise)}
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    ({paymentsGrandTotal.activeCount} payments)
+                  </span>
+                  {paymentsGrandTotal.totalRemainingPaise > 0 && (
+                    <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      To Reimburse: {formatCurrency(paymentsGrandTotal.totalRemainingPaise)}
+                    </span>
+                  )}
+                  {paymentsGrandTotal.totalSettledPaise > 0 && (
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Reimbursed: {formatCurrency(paymentsGrandTotal.totalSettledPaise)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <button
+                    type="button"
+                    onClick={toggleGrandTotal}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
+                      showGrandTotal
+                        ? "bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-600 shadow-2xs"
+                        : "bg-white hover:bg-slate-100 text-slate-600 border-slate-300"
+                    }`}
+                    title="Toggle Grand Total footer row in the table"
+                  >
+                    <Calculator className="w-3 h-3" />
+                    <span>{showGrandTotal ? "Grand Total Row: ON" : "Grand Total Row: OFF"}</span>
+                  </button>
+                </div>
+              </div>
               {/* Desktop Payments Table (≥ lg screens) */}
               <div className="hidden lg:block overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-sm min-w-[760px]">
@@ -2598,6 +2731,87 @@ export default function FinancePage() {
                       </tr>
                     )}
                   </tbody>
+                  {showGrandTotal && excelPayments.filteredData.length > 0 && (
+                    <tfoot className="bg-slate-900 text-white font-semibold text-xs border-t-2 border-amber-400">
+                      <tr>
+                        {/* 1. Date & Ref */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5 font-bold tracking-wider uppercase text-amber-400 text-xs">
+                            <Calculator className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>Grand Total</span>
+                          </div>
+                          <div className="text-[11px] text-slate-300 font-normal">
+                            {paymentsGrandTotal.activeCount} payment{paymentsGrandTotal.activeCount === 1 ? "" : "s"}
+                          </div>
+                        </td>
+
+                        {/* 2. Payee & Type */}
+                        <td className="py-3 px-4 text-slate-300 text-xs">
+                          {paymentsGrandTotal.outOfPocketCount > 0 ? (
+                            <span>{paymentsGrandTotal.outOfPocketCount} out-of-pocket</span>
+                          ) : (
+                            <span>All payees</span>
+                          )}
+                        </td>
+
+                        {/* 3. Paid From Account */}
+                        <td className="py-3 px-4 text-slate-400 text-xs">
+                          —
+                        </td>
+
+                        {/* 4. Method */}
+                        <td className="py-3 px-4 text-slate-400 text-xs">
+                          —
+                        </td>
+
+                        {/* 5. Payment Purpose */}
+                        <td className="py-3 px-4 text-slate-300 text-xs">
+                          {paymentsGrandTotal.totalRemainingPaise > 0 ? (
+                            <span className="text-amber-300 font-medium">
+                              Pending reimbursement total
+                            </span>
+                          ) : (
+                            <span className="text-emerald-300 font-medium">
+                              Filtered payments total
+                            </span>
+                          )}
+                        </td>
+
+                        {/* 6. Linked Bill */}
+                        <td className="py-3 px-4 text-slate-400 text-xs">
+                          —
+                        </td>
+
+                        {/* 7. Amount: Grand Total and Rest / Reimbursed breakdown */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="font-mono font-black text-sm text-amber-400">
+                            {formatCurrency(paymentsGrandTotal.totalPaise)}
+                          </div>
+                          {paymentsGrandTotal.totalRemainingPaise > 0 ? (
+                            <div className="text-[10px] text-rose-300 font-bold mt-0.5 whitespace-nowrap">
+                              To Reimburse: {formatCurrency(paymentsGrandTotal.totalRemainingPaise)}
+                            </div>
+                          ) : paymentsGrandTotal.totalSettledPaise > 0 ? (
+                            <div className="text-[10px] text-emerald-300 font-bold mt-0.5 whitespace-nowrap">
+                              Reimbursed: {formatCurrency(paymentsGrandTotal.totalSettledPaise)}
+                            </div>
+                          ) : null}
+                        </td>
+
+                        {/* 8. Status */}
+                        <td className="py-3 px-4 text-center">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 uppercase">
+                            Total
+                          </span>
+                        </td>
+
+                        {/* 9. Actions */}
+                        <td className="py-3 px-4 text-right text-slate-500 text-xs">
+                          —
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
 
@@ -2787,6 +3001,43 @@ export default function FinancePage() {
                     );
                   })
                 )}
+
+                {/* Mobile Grand Total Card */}
+                {showGrandTotal && excelPayments.filteredData.length > 0 && (
+                  <div className="p-4 bg-slate-900 text-white rounded-xl border-2 border-amber-400/80 shadow-md">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-1.5 font-bold tracking-wider uppercase text-amber-400 text-xs">
+                        <Calculator className="w-4 h-4 text-amber-400" />
+                        <span>Grand Total ({paymentsGrandTotal.activeCount} payments)</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 uppercase">
+                        Summary
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between pt-1 border-t border-slate-800">
+                      <span className="text-xs text-slate-300 font-medium">Total Amount:</span>
+                      <span className="font-mono font-black text-base text-amber-400">
+                        {formatCurrency(paymentsGrandTotal.totalPaise)}
+                      </span>
+                    </div>
+                    {paymentsGrandTotal.totalRemainingPaise > 0 && (
+                      <div className="flex items-baseline justify-between text-xs mt-1">
+                        <span className="text-slate-400">Pending Reimbursement:</span>
+                        <span className="font-mono font-bold text-rose-300">
+                          {formatCurrency(paymentsGrandTotal.totalRemainingPaise)}
+                        </span>
+                      </div>
+                    )}
+                    {paymentsGrandTotal.totalSettledPaise > 0 && (
+                      <div className="flex items-baseline justify-between text-xs mt-1">
+                        <span className="text-slate-400">Reimbursed:</span>
+                        <span className="font-mono font-semibold text-emerald-300">
+                          {formatCurrency(paymentsGrandTotal.totalSettledPaise)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <TablePagination
                 currentPage={excelPayments.currentPage}
@@ -2964,6 +3215,53 @@ export default function FinancePage() {
                 showSearch={true}
                 showExport={true}
               />
+
+              {/* Option of Grand Total Toolbar Bar */}
+              <div className="bg-slate-50 border-b border-slate-200 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2 text-xs">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Calculator className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Grand Total:</span>
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-500">Invoiced:</span>
+                    <span className="font-mono font-black text-slate-900 bg-amber-100/90 text-amber-950 px-2 py-0.5 rounded border border-amber-300 text-xs sm:text-sm">
+                      {formatCurrency(billsGrandTotal.totalPaise)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-500">Paid:</span>
+                    <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
+                      {formatCurrency(billsGrandTotal.paidPaise)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-500">Balance:</span>
+                    <span className="font-mono font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-xs">
+                      {formatCurrency(billsGrandTotal.outstandingPaise)}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    ({billsGrandTotal.count} bills)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <button
+                    type="button"
+                    onClick={toggleGrandTotal}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
+                      showGrandTotal
+                        ? "bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-600 shadow-2xs"
+                        : "bg-white hover:bg-slate-100 text-slate-600 border-slate-300"
+                    }`}
+                    title="Toggle Grand Total footer row in the table"
+                  >
+                    <Calculator className="w-3 h-3" />
+                    <span>{showGrandTotal ? "Grand Total Row: ON" : "Grand Total Row: OFF"}</span>
+                  </button>
+                </div>
+              </div>
               {/* Desktop Bills Table (≥ lg screens) */}
               <div className="hidden lg:block overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-sm min-w-[720px]">
@@ -3087,6 +3385,66 @@ export default function FinancePage() {
                       </tr>
                     )}
                   </tbody>
+                  {showGrandTotal && excelBills.filteredData.length > 0 && (
+                    <tfoot className="bg-slate-900 text-white font-semibold text-xs border-t-2 border-amber-400">
+                      <tr>
+                        {/* 1. Bill # */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5 font-bold tracking-wider uppercase text-amber-400 text-xs">
+                            <Calculator className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>Grand Total</span>
+                          </div>
+                          <div className="text-[11px] text-slate-300 font-normal">
+                            {billsGrandTotal.count} bill{billsGrandTotal.count === 1 ? "" : "s"}
+                            {billsGrandTotal.challanCount > 0 && ` (${billsGrandTotal.challanCount} DCs)`}
+                          </div>
+                        </td>
+
+                        {/* 2. Vendor */}
+                        <td className="py-3 px-4 text-slate-300 text-xs">
+                          All filtered vendors
+                        </td>
+
+                        {/* 3. Bill Date */}
+                        <td className="py-3 px-4 text-slate-400 text-xs">
+                          —
+                        </td>
+
+                        {/* 4. Total Amount */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="font-mono font-black text-sm text-amber-400">
+                            {formatCurrency(billsGrandTotal.totalPaise)}
+                          </div>
+                        </td>
+
+                        {/* 5. Paid Amount */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="font-mono font-bold text-xs text-emerald-300">
+                            {formatCurrency(billsGrandTotal.paidPaise)}
+                          </div>
+                        </td>
+
+                        {/* 6. Outstanding Amount */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="font-mono font-bold text-xs text-rose-300">
+                            {formatCurrency(billsGrandTotal.outstandingPaise)}
+                          </div>
+                        </td>
+
+                        {/* 7. Status */}
+                        <td className="py-3 px-4 text-center">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 uppercase">
+                            Total
+                          </span>
+                        </td>
+
+                        {/* 8. Actions */}
+                        <td className="py-3 px-4 text-right text-slate-500 text-xs">
+                          —
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
 
@@ -3222,6 +3580,41 @@ export default function FinancePage() {
                       </div>
                     </div>
                   ))
+                )}
+
+                {/* Mobile Grand Total Card for Vendor Bills */}
+                {showGrandTotal && excelBills.filteredData.length > 0 && (
+                  <div className="p-4 bg-slate-900 text-white rounded-xl border-2 border-amber-400/80 shadow-md space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 font-bold tracking-wider uppercase text-amber-400 text-xs">
+                        <Calculator className="w-4 h-4 text-amber-400" />
+                        <span>Grand Total ({billsGrandTotal.count} bills)</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 uppercase">
+                        Summary
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-center">
+                      <div className="bg-slate-800/60 p-2 rounded-lg">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Bills</div>
+                        <div className="font-mono font-bold text-xs text-amber-400 mt-0.5">
+                          {formatCurrency(billsGrandTotal.totalPaise)}
+                        </div>
+                      </div>
+                      <div className="bg-slate-800/60 p-2 rounded-lg">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Paid</div>
+                        <div className="font-mono font-bold text-xs text-emerald-300 mt-0.5">
+                          {formatCurrency(billsGrandTotal.paidPaise)}
+                        </div>
+                      </div>
+                      <div className="bg-slate-800/60 p-2 rounded-lg">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">Balance</div>
+                        <div className="font-mono font-bold text-xs text-rose-300 mt-0.5">
+                          {formatCurrency(billsGrandTotal.outstandingPaise)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
               <TablePagination
