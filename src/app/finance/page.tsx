@@ -148,6 +148,9 @@ export default function FinancePage() {
   const [approvePaymentTarget, setApprovePaymentTarget] = useState<any | null>(null);
   const [rejectPaymentTarget, setRejectPaymentTarget] = useState<any | null>(null);
   const [rejectPaymentReason, setRejectPaymentReason] = useState("Payment request was declined");
+  const [reRequestPaymentTarget, setReRequestPaymentTarget] = useState<any | null>(null);
+  const [reRequestPaymentReason, setReRequestPaymentReason] = useState("");
+  const [reRequestPaymentAmount, setReRequestPaymentAmount] = useState("");
   const [approvalActionSubmitting, setApprovalActionSubmitting] = useState(false);
 
   // Payment Modal state
@@ -396,9 +399,10 @@ export default function FinancePage() {
         setAttachmentTarget(null);
         setApprovePaymentTarget(null);
         setRejectPaymentTarget(null);
+        setReRequestPaymentTarget(null);
       }
     };
-    if (showPaymentModal || showBillModal || showReverseModal || showExpenseModal || attachmentTarget || approvePaymentTarget || rejectPaymentTarget) {
+    if (showPaymentModal || showBillModal || showReverseModal || showExpenseModal || attachmentTarget || approvePaymentTarget || rejectPaymentTarget || reRequestPaymentTarget) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -406,7 +410,7 @@ export default function FinancePage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [showPaymentModal, showBillModal, showReverseModal, showExpenseModal, attachmentTarget, approvePaymentTarget, rejectPaymentTarget]);
+  }, [showPaymentModal, showBillModal, showReverseModal, showExpenseModal, attachmentTarget, approvePaymentTarget, rejectPaymentTarget, reRequestPaymentTarget]);
 
   // Ask the server what TDS this payment would hold back, as the form changes.
   useEffect(() => {
@@ -620,6 +624,60 @@ export default function FinancePage() {
       }
     } catch {
       setErrorMessage("Connection error while declining payment. Check your internet and try again.");
+    } finally {
+      setApprovalActionSubmitting(false);
+    }
+  };
+
+  const handleOpenReRequestPayment = (payment: any) => {
+    setReRequestPaymentTarget(payment);
+    setReRequestPaymentReason(payment.approvalQuery || payment.notes || "");
+    setReRequestPaymentAmount(payment.amount ? String(payment.amount / 100) : "");
+  };
+
+  const executeReRequestPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reRequestPaymentTarget) return;
+    const payment = reRequestPaymentTarget;
+    const payeeName = payment.recipientName || payment.party?.name || "Recipient";
+    setApprovalActionSubmitting(true);
+    try {
+      const parsedAmount = parseFloat(reRequestPaymentAmount);
+      const isOop = payment.recipientType === "OUT_OF_POCKET";
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: isOop ? "EXPENSE" : "PAYMENT",
+          entityId: payment.id,
+          action: "RESUBMIT",
+          reason: reRequestPaymentReason.trim() || undefined,
+          amountRupees: !isNaN(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setReRequestPaymentTarget(null);
+        setStatusMessage(`Payment request for ${payeeName} has been re-submitted for approval.`);
+        const updatedPaise = !isNaN(parsedAmount) && parsedAmount > 0 ? Math.round(parsedAmount * 100) : payment.amount;
+        setPayments((prev) =>
+          prev.map((p) =>
+            p.id === payment.id
+              ? {
+                  ...p,
+                  status: "PENDING_APPROVAL",
+                  rejectionReason: null,
+                  amount: updatedPaise,
+                }
+              : p
+          )
+        );
+        loadData();
+      } else {
+        setErrorMessage(data.error?.message || "Could not re-request payment. Please try again.");
+      }
+    } catch {
+      setErrorMessage("Connection error while re-requesting payment. Check your internet and try again.");
     } finally {
       setApprovalActionSubmitting(false);
     }
@@ -2690,6 +2748,16 @@ export default function FinancePage() {
                                 <span className="text-[11px] text-amber-700 font-medium italic">
                                   Waiting for Approval
                                 </span>
+                              ) : isRejected ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReRequestPayment(p)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-md transition cursor-pointer shadow-2xs"
+                                  title="Re-request Send: Resubmit this rejected payment for approval"
+                                >
+                                  <RotateCcw className="w-3 h-3 text-amber-600" />
+                                  <span>Re-request</span>
+                                </button>
                               ) : p.status === "POSTED" && !isReversed && canReverseFinance ? (
                                 <button
                                   onClick={() => {
@@ -2983,6 +3051,18 @@ export default function FinancePage() {
                                 </button>
                               </>
                             ) : null}
+
+                            {isRejected && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenReRequestPayment(p)}
+                                className="px-2.5 py-1 rounded text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1 cursor-pointer"
+                                title="Re-request Send: Resubmit this rejected payment for approval"
+                              >
+                                <RotateCcw className="w-3 h-3 text-amber-600" />
+                                <span>Re-request</span>
+                              </button>
+                            )}
 
                             {!isReversed && !isRejected && !isPending && canReverseFinance && (
                               <button
@@ -5139,6 +5219,93 @@ export default function FinancePage() {
                     className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg disabled:opacity-50"
                   >
                     {approvalActionSubmitting ? "Declining..." : "Decline Payment"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Re-request / Resubmit Payment Request */}
+        {reRequestPaymentTarget && (
+          <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 max-h-[90dvh] overflow-y-auto space-y-4">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
+                <RotateCcw className="w-5 h-5 text-amber-600" />
+                <span>Re-request Send (Resubmit for Approval)</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Resubmit the rejected payment request for{" "}
+                <span className="font-bold text-slate-900">
+                  {reRequestPaymentTarget.recipientName || reRequestPaymentTarget.party?.name || "Recipient"}
+                </span>{" "}
+                back to Pending Approval status.
+              </p>
+
+              {reRequestPaymentTarget.rejectionReason && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">
+                  <span className="font-bold">Original Rejection Reason: </span>
+                  {reRequestPaymentTarget.rejectionReason}
+                </div>
+              )}
+
+              <form onSubmit={executeReRequestPayment} className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Requested Amount (₹) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="1"
+                      required
+                      value={reRequestPaymentAmount}
+                      onChange={(e) => setReRequestPaymentAmount(e.target.value)}
+                      className="w-full pl-7 pr-3 py-2 text-sm rounded-lg border border-slate-300 font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Re-request Note / Clarification *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Enter clarification or reason for resubmitting (e.g. Rate updated as requested, revised bill attached)..."
+                    value={reRequestPaymentReason}
+                    onChange={(e) => setReRequestPaymentReason(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setReRequestPaymentTarget(null)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={approvalActionSubmitting || !reRequestPaymentReason.trim()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {approvalActionSubmitting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Confirm &amp; Re-request Send</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

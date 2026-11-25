@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 const approvalActionSchema = z.object({
   entityType: z.enum(["PAYMENT", "EXPENSE", "MATERIAL_REQUEST", "MEASUREMENT_CHANGE", "PURCHASE_ORDER"]),
   entityId: z.string().min(1),
-  action: z.enum(["APPROVE", "REJECT"]),
+  action: z.enum(["APPROVE", "REJECT", "RESUBMIT", "RE_REQUEST"]),
   reason: z.string().optional(),
+  amountRupees: z.number().positive().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -197,13 +198,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = approvalActionSchema.parse(body);
 
+    const isReRequest = data.action === "RESUBMIT" || data.action === "RE_REQUEST";
+
     const isApprover =
       user.role === "SUPER_ADMIN" ||
       user.role === "ORG_ADMIN" ||
       user.role === "ACCOUNTANT" ||
       user.role === "PROJECT_MANAGER";
 
-    if (!isApprover) {
+    if (!isApprover && !isReRequest) {
       return jsonError("Forbidden: You do not have permission to approve/reject requests", 403);
     }
 
@@ -213,6 +216,38 @@ export async function POST(req: NextRequest) {
       });
 
       if (!payment) return jsonError("Payment record not found", "NOT_FOUND", 404);
+
+      if (isReRequest) {
+        const reRequestNote = data.reason?.trim() || "";
+        const updatedAmountPaise = data.amountRupees ? Math.round(data.amountRupees * 100) : payment.amount;
+        const historyStamp = `[Re-submitted for approval by ${user.name || "User"} on ${new Date().toLocaleDateString("en-IN")}]: ${reRequestNote || "Re-requested"}`;
+        const updatedNotes = payment.notes ? `${payment.notes}\n${historyStamp}` : historyStamp;
+
+        await prisma.payment.update({
+          where: { id: data.entityId },
+          data: {
+            status: "PENDING_APPROVAL",
+            rejectionReason: null,
+            amount: updatedAmountPaise,
+            approvalQuery: reRequestNote || payment.approvalQuery || payment.notes,
+            notes: updatedNotes,
+            updatedAt: new Date(),
+          },
+        });
+
+        await prisma.auditEvent.create({
+          data: {
+            organizationId: user.organizationId,
+            actorUserId: user.userId,
+            action: "PAYMENT_RESUBMITTED",
+            entityType: "PAYMENT",
+            entityId: payment.id,
+            reason: `Payment request resubmitted for approval: ${reRequestNote || "Re-request"}`,
+          },
+        });
+
+        return jsonSuccess({ message: "Payment request successfully re-submitted for approval" });
+      }
 
       const isExecutive = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
 
@@ -251,6 +286,36 @@ export async function POST(req: NextRequest) {
       });
       if (!mr) return jsonError("Material request not found or outside organization scope", 404);
 
+      if (isReRequest) {
+        const reRequestNote = data.reason?.trim() || "";
+        const historyStamp = `[Re-submitted for approval by ${user.name || "User"} on ${new Date().toLocaleDateString("en-IN")}]: ${reRequestNote || "Re-requested"}`;
+
+        await prisma.materialRequest.update({
+          where: { id: data.entityId },
+          data: {
+            status: "PENDING",
+            reviewNote: null,
+            reviewedById: null,
+            reviewedAt: null,
+            notes: mr.notes ? `${mr.notes}\n${historyStamp}` : historyStamp,
+            updatedAt: new Date(),
+          },
+        });
+
+        await prisma.auditEvent.create({
+          data: {
+            organizationId: user.organizationId,
+            actorUserId: user.userId,
+            action: "MATERIAL_REQUEST_RESUBMITTED",
+            entityType: "MATERIAL_REQUEST",
+            entityId: mr.id,
+            reason: `Material request resubmitted for approval: ${reRequestNote || "Re-request"}`,
+          },
+        });
+
+        return jsonSuccess({ message: "Material request successfully re-submitted for approval" });
+      }
+
       await prisma.materialRequest.update({
         where: { id: data.entityId },
         data: {
@@ -265,6 +330,37 @@ export async function POST(req: NextRequest) {
         where: { id: data.entityId, organizationId: user.organizationId },
       });
       if (!po) return jsonError("Purchase order not found or outside organization scope", 404);
+
+      if (isReRequest) {
+        const reRequestNote = data.reason?.trim() || "";
+        const updatedAmountPaise = data.amountRupees ? Math.round(data.amountRupees * 100) : po.totalAmount;
+        const historyStamp = `[Re-submitted for approval by ${user.name || "User"} on ${new Date().toLocaleDateString("en-IN")}]: ${reRequestNote || "Re-requested"}`;
+
+        await prisma.purchaseOrder.update({
+          where: { id: data.entityId },
+          data: {
+            status: "PENDING_APPROVAL",
+            rejectionReason: null,
+            totalAmount: updatedAmountPaise,
+            approvalQuery: reRequestNote || po.approvalQuery,
+            notes: po.notes ? `${po.notes}\n${historyStamp}` : historyStamp,
+            updatedAt: new Date(),
+          },
+        });
+
+        await prisma.auditEvent.create({
+          data: {
+            organizationId: user.organizationId,
+            actorUserId: user.userId,
+            action: "PURCHASE_ORDER_RESUBMITTED",
+            entityType: "PURCHASE_ORDER",
+            entityId: po.id,
+            reason: `Purchase order resubmitted for approval: ${reRequestNote || "Re-request"}`,
+          },
+        });
+
+        return jsonSuccess({ message: "Purchase order successfully re-submitted for approval" });
+      }
 
       const now = new Date();
       if (data.action === "APPROVE") {
@@ -321,6 +417,20 @@ export async function POST(req: NextRequest) {
         where: { id: data.entityId, organizationId: user.organizationId },
       });
       if (!mc) return jsonError("Measurement change request not found or outside organization scope", 404);
+
+      if (isReRequest) {
+        await prisma.measurementChangeRequest.update({
+          where: { id: data.entityId },
+          data: {
+            status: "PENDING",
+            reviewerComments: null,
+            reviewedBy: null,
+            reviewedByName: null,
+            reviewedAt: null,
+          },
+        });
+        return jsonSuccess({ message: "Measurement change request successfully re-submitted for approval" });
+      }
 
       await prisma.measurementChangeRequest.update({
         where: { id: data.entityId },

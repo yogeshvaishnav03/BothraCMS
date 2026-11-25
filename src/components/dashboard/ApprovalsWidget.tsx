@@ -15,6 +15,8 @@ import {
   AlertCircle,
   Check,
   X,
+  RotateCcw,
+  Send,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -50,6 +52,10 @@ export default function ApprovalsWidget({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [reRequestingId, setReRequestingId] = useState<string | null>(null);
+  const [reRequestNote, setReRequestNote] = useState("");
+  const [reRequestAmount, setReRequestAmount] = useState("");
+  const [statusNotification, setStatusNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeFilter, setActiveFilter] = useState<"ALL" | "PENDING" | "REJECTED">("ALL");
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -100,6 +106,44 @@ export default function ApprovalsWidget({
       }
     } catch (e) {
       console.error("Approval action failed:", e);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReRequest = async (item: ApprovalItem) => {
+    try {
+      setActionLoading(item.id);
+      const parsedAmount = parseFloat(reRequestAmount);
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: item.type,
+          entityId: item.id,
+          action: "RESUBMIT",
+          reason: reRequestNote.trim() || undefined,
+          amountRupees: !isNaN(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setReRequestingId(null);
+        setReRequestNote("");
+        setReRequestAmount("");
+        setStatusNotification({
+          message: `Request "${item.title}" successfully re-submitted for approval! Status updated to Pending.`,
+          type: "success",
+        });
+        setTimeout(() => setStatusNotification(null), 5000);
+        await fetchApprovals();
+        onActionComplete?.();
+      } else {
+        alert(data.error?.message || "Failed to resubmit request.");
+      }
+    } catch (e: any) {
+      console.error("Re-request failed:", e);
+      alert(e.message || "Network error while resubmitting request");
     } finally {
       setActionLoading(null);
     }
@@ -159,6 +203,32 @@ export default function ApprovalsWidget({
             title="Refresh Queue"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      )}
+
+      {statusNotification && (
+        <div
+          className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between animate-in fade-in ${
+            statusNotification.type === "success"
+              ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+              : "bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {statusNotification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            )}
+            <span>{statusNotification.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusNotification(null)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
@@ -339,34 +409,144 @@ export default function ApprovalsWidget({
                         </div>
                       )
                     ) : (
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
-                          isApproved
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            : isRejected
-                            ? "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300"
-                            : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-                        }`}
-                      >
-                        {isApproved ? (
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        ) : isRejected ? (
-                          <XCircle className="w-3.5 h-3.5" />
-                        ) : (
-                          <Clock className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                            isApproved
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+                              : isRejected
+                              ? "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                          }`}
+                        >
+                          {isApproved ? (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          ) : isRejected ? (
+                            <XCircle className="w-3.5 h-3.5" />
+                          ) : (
+                            <Clock className="w-3.5 h-3.5" />
+                          )}
+                          {item.status.replace("_", " ")}
+                        </span>
+
+                        {isRejected && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (reRequestingId === item.id) {
+                                setReRequestingId(null);
+                              } else {
+                                setReRequestingId(item.id);
+                                setReRequestNote(item.query || "");
+                                setReRequestAmount(item.amountRupees > 0 ? String(item.amountRupees) : "");
+                              }
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                              reRequestingId === item.id
+                                ? "bg-amber-700 text-white ring-2 ring-amber-400"
+                                : "bg-amber-500 hover:bg-amber-600 text-white"
+                            }`}
+                            title="Re-request Send: Resubmit for approval with updated details"
+                          >
+                            <RotateCcw className={`w-3.5 h-3.5 ${reRequestingId === item.id ? "rotate-180" : ""}`} />
+                            <span>Re-request Send</span>
+                          </button>
                         )}
-                        {item.status.replace("_", " ")}
-                      </span>
+                      </div>
                     )}
                   </div>
                 </div>
 
                 {isRejected && item.rejectionReason && (
-                  <div className="text-xs bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 p-2 rounded-lg text-rose-800 dark:text-rose-300 flex items-start gap-1.5">
+                  <div className="text-xs bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 p-2.5 rounded-lg text-rose-800 dark:text-rose-300 flex items-start gap-1.5">
                     <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
                     <div>
                       <span className="font-semibold">Rejection Note: </span>
                       {item.rejectionReason}
+                    </div>
+                  </div>
+                )}
+
+                {reRequestingId === item.id && (
+                  <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 space-y-3 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-200 pb-2 border-b border-amber-200/70 dark:border-amber-900/50">
+                      <span className="flex items-center gap-1.5">
+                        <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span>Re-request Send &bull; Resubmit for Approval</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setReRequestingId(null)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {item.amountRupees > 0 && (
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                            Requested Amount (₹)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                              ₹
+                            </span>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={reRequestAmount}
+                              onChange={(e) => setReRequestAmount(e.target.value)}
+                              placeholder={String(item.amountRupees)}
+                              className="w-full pl-6 pr-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className={`space-y-1 ${item.amountRupees > 0 ? "sm:col-span-2" : "sm:col-span-3"}`}>
+                        <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                          Re-request Note / Explanation for Resubmitting
+                        </label>
+                        <input
+                          type="text"
+                          value={reRequestNote}
+                          onChange={(e) => setReRequestNote(e.target.value)}
+                          placeholder="e.g. Revised quote attached / vendor agreed to discount / clarification provided"
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+                      <button
+                        type="button"
+                        onClick={() => setReRequestingId(null)}
+                        disabled={actionLoading === item.id}
+                        className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleReRequest(item)}
+                        disabled={actionLoading === item.id}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        {actionLoading === item.id ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Submitting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Confirm &amp; Re-request Send</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 )}
