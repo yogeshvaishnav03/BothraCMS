@@ -1,10 +1,20 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserContext } from "@/lib/auth";
 import { assertPermission } from "@/lib/permissions";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
+
+const updateSiteSchema = z.object({
+  name: z.string().min(2).optional(),
+  code: z.string().min(2).max(20).optional(),
+  address: z.string().min(3).optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  geofenceM: z.number().nullable().optional(),
+});
 
 export async function GET(
   req: NextRequest,
@@ -66,6 +76,83 @@ export async function GET(
     return handleApiError(error);
   }
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserContext(req);
+    if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
+
+    assertPermission(user, "sites:manage");
+
+    const site = await prisma.site.findFirst({
+      where: {
+        id: params.id,
+        organizationId: user.organizationId,
+        status: "ACTIVE",
+      },
+    });
+
+    if (!site) return jsonError("Site not found", "NOT_FOUND", 404);
+
+    const body = await req.json();
+    const data = updateSiteSchema.parse(body);
+
+    // If changing the site code, ensure uniqueness within organization
+    if (data.code) {
+      const normalizedCode = data.code.trim().toUpperCase();
+      if (normalizedCode !== site.code) {
+        const existing = await prisma.site.findFirst({
+          where: {
+            organizationId: user.organizationId,
+            code: normalizedCode,
+            id: { not: site.id },
+            status: "ACTIVE",
+          },
+        });
+
+        if (existing) {
+          return jsonError(
+            `Site with code '${normalizedCode}' already exists`,
+            "DUPLICATE_CODE",
+            409
+          );
+        }
+      }
+    }
+
+    const updated = await prisma.site.update({
+      where: { id: site.id },
+      data: {
+        ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+        ...(data.code !== undefined ? { code: data.code.trim().toUpperCase() } : {}),
+        ...(data.address !== undefined ? { address: data.address.trim() } : {}),
+        ...(data.latitude !== undefined ? { latitude: data.latitude } : {}),
+        ...(data.longitude !== undefined ? { longitude: data.longitude } : {}),
+        ...(data.geofenceM !== undefined ? { geofenceM: data.geofenceM } : {}),
+      },
+    });
+
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "SITE_UPDATED",
+        entityType: "SITE",
+        entityId: site.id,
+        reason: `Site updated: "${updated.name}" (${updated.code})`,
+      },
+    });
+
+    return jsonSuccess(updated);
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export const PUT = PATCH;
 
 export async function DELETE(
   req: NextRequest,

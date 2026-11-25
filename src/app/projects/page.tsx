@@ -20,6 +20,7 @@ import {
   FileText,
   ClipboardList,
   Trash2,
+  Pencil,
   Filter,
   Search,
   RotateCcw,
@@ -162,6 +163,13 @@ export default function ProjectsPage() {
   const [siteCode, setSiteCode] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
 
+  // Site edit modal & form states
+  const [showEditSiteModal, setShowEditSiteModal] = useState(false);
+  const [siteToEdit, setSiteToEdit] = useState<any | null>(null);
+  const [editSiteName, setEditSiteName] = useState("");
+  const [editSiteCode, setEditSiteCode] = useState("");
+  const [editSiteAddress, setEditSiteAddress] = useState("");
+
   // Site delete & transfer states
   const [showDeleteSiteModal, setShowDeleteSiteModal] = useState(false);
   const [siteToDelete, setSiteToDelete] = useState<any | null>(null);
@@ -240,12 +248,14 @@ export default function ProjectsPage() {
       if (e.key === "Escape") {
         setShowCreateModal(false);
         setShowCreateSiteModal(false);
+        setShowEditSiteModal(false);
+        setSiteToEdit(null);
         setShowDailyReportModal(false);
         setShowDeleteSiteModal(false);
         setPendingDeleteProject(null);
       }
     };
-    if (showCreateModal || showCreateSiteModal || showDailyReportModal || showDeleteSiteModal || pendingDeleteProject) {
+    if (showCreateModal || showCreateSiteModal || showEditSiteModal || showDailyReportModal || showDeleteSiteModal || pendingDeleteProject) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -253,7 +263,7 @@ export default function ProjectsPage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [showCreateModal, showCreateSiteModal, showDailyReportModal, showDeleteSiteModal, pendingDeleteProject]);
+  }, [showCreateModal, showCreateSiteModal, showEditSiteModal, showDailyReportModal, showDeleteSiteModal, pendingDeleteProject]);
 
   const initiateDeleteSite = (site: any) => {
     setErrorMessage(null);
@@ -465,6 +475,55 @@ export default function ProjectsPage() {
     }
   };
 
+  const openEditSiteModal = (site: any) => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setSiteToEdit(site);
+    setEditSiteName(site.name || "");
+    setEditSiteCode(site.code || "");
+    setEditSiteAddress(site.address || "");
+    setShowEditSiteModal(true);
+  };
+
+  const handleUpdateSite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!siteToEdit) return;
+    if (!editSiteName.trim() || !editSiteCode.trim() || !editSiteAddress.trim()) {
+      setErrorMessage("Site code, name, and physical address are required.");
+      return;
+    }
+
+    setSubmitting(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch(`/api/sites/${siteToEdit.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editSiteName.trim(),
+          code: editSiteCode.trim().toUpperCase(),
+          address: editSiteAddress.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Could not update site. Please check details.");
+      } else {
+        setStatusMessage(`Site "${data.data.name}" updated successfully!`);
+        setShowEditSiteModal(false);
+        setSiteToEdit(null);
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("sitesUpdated"));
+        loadData(activeSiteFilter || undefined);
+      }
+    } catch {
+      setErrorMessage("Network error while updating site. Check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportProjectId) {
@@ -655,18 +714,31 @@ export default function ProjectsPage() {
                 </select>
 
                 {activeSiteFilter && canManageSites && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const curSite = sites.find((s) => s.id === activeSiteFilter);
-                      if (curSite) initiateDeleteSite(curSite);
-                    }}
-                    className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition cursor-pointer"
-                    title="Delete this selected site"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete Site</span>
-                  </button>
+                  <div className="col-span-2 sm:col-span-1 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const curSite = sites.find((s) => s.id === activeSiteFilter);
+                        if (curSite) openEditSiteModal(curSite);
+                      }}
+                      className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                      title="Edit this selected site"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Edit Site</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const curSite = sites.find((s) => s.id === activeSiteFilter);
+                        if (curSite) initiateDeleteSite(curSite);
+                      }}
+                      className="inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                      title="Delete this selected site"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -920,14 +992,24 @@ export default function ProjectsPage() {
                         </button>
 
                         {canManageSites && (
-                          <button
-                            type="button"
-                            onClick={() => initiateDeleteSite(site)}
-                            title={`Delete site "${site.name}"`}
-                            className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openEditSiteModal(site)}
+                              title={`Edit site "${site.name}"`}
+                              className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition cursor-pointer"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => initiateDeleteSite(site)}
+                              title={`Delete site "${site.name}"`}
+                              className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1109,6 +1191,96 @@ export default function ProjectsPage() {
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition"
                 >
                   {submitting ? "Creating Site..." : "Create Site"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Edit Site */}
+        {showEditSiteModal && siteToEdit && canManageSites && (
+          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
+              <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
+                <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <Pencil className="w-5 h-5 text-amber-500" />
+                  <span>Edit Construction Site</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditSiteModal(false);
+                    setSiteToEdit(null);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form id="edit-site-modal-form" onSubmit={handleUpdateSite} className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Site Code *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. BB-01"
+                    value={editSiteCode}
+                    onChange={(e) => setEditSiteCode(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono uppercase"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-0.5">Unique identifier for this construction site</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Site / Location Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Bothra International"
+                    value={editSiteName}
+                    onChange={(e) => setEditSiteName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Site Physical Address *
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="e.g. E-230, MIA Basni"
+                    value={editSiteAddress}
+                    onChange={(e) => setEditSiteAddress(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+              </form>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditSiteModal(false);
+                    setSiteToEdit(null);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  form="edit-site-modal-form"
+                  disabled={submitting}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition cursor-pointer"
+                >
+                  {submitting ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
