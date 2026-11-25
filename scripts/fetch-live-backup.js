@@ -117,13 +117,33 @@ async function downloadCompleteLiveBackup() {
     }
   }
 
-  // 3. Save backup file to disk
+  // 3. Prepare backup directory & timestamp
   const backupDir = path.resolve(__dirname, '..', 'backups');
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
-
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+  // 4. Also fetch full direct raw database dump from /api/admin/backup if available
+  console.log('\n📥 Attempting direct database dump from /api/admin/backup...');
+  try {
+    const rawBackupRes = await fetch(`${baseUrl}/api/admin/backup`, { headers });
+    if (rawBackupRes.ok) {
+      const rawJson = await rawBackupRes.json().catch(() => null);
+      if (rawJson && rawJson.data) {
+        const rawFileName = `bothra_cms_direct_prisma_backup_${timestamp}.json`;
+        const rawFilePath = path.join(backupDir, rawFileName);
+        fs.writeFileSync(rawFilePath, JSON.stringify(rawJson, null, 2), 'utf8');
+        console.log(`  ✓ Saved direct raw Prisma dump to: ${rawFileName} (${(fs.statSync(rawFilePath).size / 1024).toFixed(2)} KB)`);
+      }
+    } else {
+      console.log(`  ℹ️ /api/admin/backup status: ${rawBackupRes.status} (module export is primary)`);
+    }
+  } catch (err) {
+    console.log(`  ℹ️ /api/admin/backup notice: ${err.message}`);
+  }
+
+  // 5. Save primary business module backup file to disk
   const jsonContent = JSON.stringify(backupData, null, 2);
   const sha256 = crypto.createHash('sha256').update(jsonContent).digest('hex');
 
