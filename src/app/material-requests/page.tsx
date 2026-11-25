@@ -74,6 +74,7 @@ const FILTERS = [
   { id: "PENDING", label: "Waiting" },
   { id: "APPROVED,PARTLY_ORDERED", label: "To Order" },
   { id: "ORDERED", label: "Ordered" },
+  { id: "DELIVERED", label: "Received & Billed" },
   { id: "REJECTED,CANCELLED", label: "Closed" },
 ];
 
@@ -1563,7 +1564,6 @@ export default function MaterialOrderHistoryPage() {
 
   const load = useCallback(() => {
     const qs = new URLSearchParams();
-    if (filter) qs.set("status", filter);
     if (projectFilter) qs.set("projectId", projectFilter);
 
     api<any[]>(`/api/material-requests?${qs}`)
@@ -1574,7 +1574,7 @@ export default function MaterialOrderHistoryPage() {
     api<any[]>("/api/orders")
       .then(setOrders)
       .catch(() => setOrders([]));
-  }, [filter, projectFilter]);
+  }, [projectFilter]);
 
   useEffect(() => {
     load();
@@ -1598,25 +1598,42 @@ export default function MaterialOrderHistoryPage() {
 
   const requestsList = useMemo(() => {
     if (!requests) return [];
-    if (!searchQuery.trim()) return requests;
-    const q = searchQuery.toLowerCase().trim();
-    return requests.filter((r) => {
-      // 1. Search in request number or project info
-      if (r.requestNumber?.toLowerCase().includes(q)) return true;
-      if (r.project?.name?.toLowerCase().includes(q) || r.project?.code?.toLowerCase().includes(q)) return true;
-      if (r.project?.site?.name?.toLowerCase().includes(q)) return true;
-      // 2. Search in requested items: material name, category, SKU, description
-      return r.items?.some((i: any) => {
-        if (i.description?.toLowerCase().includes(q)) return true;
-        if (i.material?.name?.toLowerCase().includes(q)) return true;
-        if (i.material?.sku?.toLowerCase().includes(q)) return true;
-        if (i.material?.category?.name?.toLowerCase().includes(q)) return true;
-        if (i.purchaseOrder?.orderNumber?.toLowerCase().includes(q)) return true;
-        if (i.purchaseOrder?.vendor?.name?.toLowerCase().includes(q)) return true;
-        return false;
+    let list = requests;
+
+    // Filter by status if filter is selected
+    if (filter === "PENDING") {
+      list = list.filter((r) => r.status === "PENDING");
+    } else if (filter === "APPROVED,PARTLY_ORDERED") {
+      list = list.filter((r) => ["APPROVED", "PARTLY_ORDERED"].includes(r.status));
+    } else if (filter === "ORDERED") {
+      list = list.filter((r) => r.status === "ORDERED");
+    } else if (filter === "DELIVERED") {
+      list = list.filter((r) => r.status === "DELIVERED" || r.status === "FULFILLED");
+    } else if (filter === "REJECTED,CANCELLED") {
+      list = list.filter((r) => ["REJECTED", "CANCELLED"].includes(r.status));
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((r) => {
+        // 1. Search in request number or project info
+        if (r.requestNumber?.toLowerCase().includes(q)) return true;
+        if (r.project?.name?.toLowerCase().includes(q) || r.project?.code?.toLowerCase().includes(q)) return true;
+        if (r.project?.site?.name?.toLowerCase().includes(q)) return true;
+        // 2. Search in requested items: material name, category, SKU, description
+        return r.items?.some((i: any) => {
+          if (i.description?.toLowerCase().includes(q)) return true;
+          if (i.material?.name?.toLowerCase().includes(q)) return true;
+          if (i.material?.sku?.toLowerCase().includes(q)) return true;
+          if (i.material?.category?.name?.toLowerCase().includes(q)) return true;
+          if (i.purchaseOrder?.orderNumber?.toLowerCase().includes(q)) return true;
+          if (i.purchaseOrder?.vendor?.name?.toLowerCase().includes(q)) return true;
+          return false;
+        });
       });
-    });
-  }, [requests, searchQuery]);
+    }
+    return list;
+  }, [requests, filter, searchQuery]);
 
   const requestsPagination = useTablePagination(requestsList);
 
@@ -1630,6 +1647,10 @@ export default function MaterialOrderHistoryPage() {
       list = list.filter((o) => ["APPROVED", "PLACED", "CONFIRMED"].includes(o.status));
     } else if (filter === "PENDING") {
       list = list.filter((o) => o.status === "PENDING_APPROVAL");
+    } else if (filter === "DELIVERED") {
+      list = list.filter((o) => o.status === "DELIVERED");
+    } else if (filter === "APPROVED,PARTLY_ORDERED") {
+      list = list.filter((o) => o.status === "APPROVED" && !o.notificationSent);
     } else if (filter === "REJECTED,CANCELLED") {
       list = list.filter((o) => ["REJECTED", "CANCELLED"].includes(o.status));
     }
@@ -1670,11 +1691,17 @@ export default function MaterialOrderHistoryPage() {
   const counts = useMemo(() => {
     const reqList = requests || [];
     const ordList = orders || [];
-    const deliveredCount = ordList.filter((o) => o.status === "DELIVERED").length;
+    const deliveredCount =
+      ordList.filter((o) => o.status === "DELIVERED").length +
+      reqList.filter((r) => r.status === "DELIVERED" || r.status === "FULFILLED").length;
     return {
-      waiting: reqList.filter((r) => r.status === "PENDING").length,
+      waiting:
+        reqList.filter((r) => r.status === "PENDING").length +
+        ordList.filter((o) => o.status === "PENDING_APPROVAL").length,
       toOrder: reqList.filter((r) => ["APPROVED", "PARTLY_ORDERED"].includes(r.status)).length,
-      ordered: reqList.filter((r) => r.status === "ORDERED").length + ordList.filter((o) => ["APPROVED", "PLACED", "CONFIRMED"].includes(o.status)).length,
+      ordered:
+        reqList.filter((r) => r.status === "ORDERED").length +
+        ordList.filter((o) => ["APPROVED", "PLACED", "CONFIRMED"].includes(o.status)).length,
       delivered: deliveredCount,
     };
   }, [requests, orders]);
@@ -1699,21 +1726,81 @@ export default function MaterialOrderHistoryPage() {
         {error && <Alert tone="error" onDismiss={() => setError(null)}>{error}</Alert>}
         {notice && <Alert tone="success" onDismiss={() => setNotice(null)}>{notice}</Alert>}
 
-        {/* Top Metric Summary Cards */}
+        {/* Top Metric Summary Cards with Click-to-Filter */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 stagger">
           {[
-            { label: "Waiting for approval", value: counts.waiting, tone: "text-amber-600" },
-            { label: "Approved, to order", value: counts.toOrder, tone: "text-blue-600" },
-            { label: "Ordered / In Transit", value: counts.ordered, tone: "text-indigo-600" },
-            { label: "Received & Billed", value: counts.delivered, tone: "text-emerald-600" },
-          ].map((x) => (
-            <div key={x.label} className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 shadow-2xs">
-              <div className={cn("font-display text-xl sm:text-2xl font-black tabular-nums tracking-tight leading-none", x.tone)}>
-                {requests ? formatCompactNumber(x.value) : "–"}
-              </div>
-              <div className="text-[11px] sm:text-xs font-medium text-slate-500 mt-1 truncate">{x.label}</div>
-            </div>
-          ))}
+            {
+              id: "PENDING",
+              label: "Waiting for approval",
+              value: counts.waiting,
+              tone: "text-amber-600",
+              activeBorder: "border-amber-500 ring-2 ring-amber-500/30 bg-amber-50/50 shadow-xs",
+              activeBadge: "bg-amber-100 text-amber-800",
+            },
+            {
+              id: "APPROVED,PARTLY_ORDERED",
+              label: "Approved, to order",
+              value: counts.toOrder,
+              tone: "text-blue-600",
+              activeBorder: "border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/50 shadow-xs",
+              activeBadge: "bg-blue-100 text-blue-800",
+            },
+            {
+              id: "ORDERED",
+              label: "Ordered / In Transit",
+              value: counts.ordered,
+              tone: "text-indigo-600",
+              activeBorder: "border-indigo-500 ring-2 ring-indigo-500/30 bg-indigo-50/50 shadow-xs",
+              activeBadge: "bg-indigo-100 text-indigo-800",
+            },
+            {
+              id: "DELIVERED",
+              label: "Received & Billed",
+              value: counts.delivered,
+              tone: "text-emerald-600",
+              activeBorder: "border-emerald-500 ring-2 ring-emerald-500/30 bg-emerald-50/50 shadow-xs",
+              activeBadge: "bg-emerald-100 text-emerald-800",
+            },
+          ].map((x) => {
+            const isActive = filter === x.id;
+            return (
+              <button
+                key={x.label}
+                type="button"
+                onClick={() => {
+                  if (isActive) {
+                    setFilter("");
+                  } else {
+                    setFilter(x.id);
+                    if (x.id === "APPROVED,PARTLY_ORDERED" && activeView === "orders" && counts.toOrder > 0) {
+                      setActiveView("requests");
+                    }
+                  }
+                }}
+                title={isActive ? `Active filter: ${x.label} (Click to show all)` : `Click to filter by ${x.label}`}
+                className={cn(
+                  "rounded-xl sm:rounded-2xl border p-3 sm:p-4 text-left transition-all duration-150 cursor-pointer relative group",
+                  isActive
+                    ? x.activeBorder
+                    : "border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs hover:-translate-y-0.5"
+                )}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <div className={cn("font-display text-xl sm:text-2xl font-black tabular-nums tracking-tight leading-none", x.tone)}>
+                    {requests ? formatCompactNumber(x.value) : "–"}
+                  </div>
+                  {isActive && (
+                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0", x.activeBadge)}>
+                      Filter Active ✓
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] sm:text-xs font-medium text-slate-500 mt-1 truncate group-hover:text-slate-800 transition">
+                  {x.label}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* View Switcher: Site Requests vs Purchase Orders */}
@@ -1799,13 +1886,23 @@ export default function MaterialOrderHistoryPage() {
                 key={f.id}
                 onClick={() => setFilter(f.id)}
                 className={cn(
-                  "whitespace-nowrap shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
+                  "whitespace-nowrap shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition cursor-pointer",
                   filter === f.id ? "bg-slate-900 text-white ring-slate-900 shadow-xs" : "bg-white text-slate-600 ring-slate-200 hover:ring-slate-300"
                 )}
               >
                 {f.label}
               </button>
             ))}
+            {filter && (
+              <button
+                type="button"
+                onClick={() => setFilter("")}
+                className="whitespace-nowrap shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 transition cursor-pointer ml-1"
+                title="Reset status filter to All"
+              >
+                ✕ Clear Filter
+              </button>
+            )}
           </div>
         </div>
 
