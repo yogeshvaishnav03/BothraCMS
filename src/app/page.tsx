@@ -53,6 +53,7 @@ import {
   Edit2,
   Search,
   LayoutGrid,
+  List,
   Play,
   Loader2,
 } from "lucide-react";
@@ -378,6 +379,7 @@ export default function DashboardPage() {
   const [activeSiteId, setActiveSiteId] = useState<string>("");
   const [dashboardDate, setDashboardDate] = useState<string>(() => istDateKey());
   const [dashboardHeadcountRecords, setDashboardHeadcountRecords] = useState<any[]>([]);
+  const [headcountViewMode, setHeadcountViewMode] = useState<"CARDS" | "TABLE">("CARDS");
 
   // Quick Task Modal & Filter
   const [showQuickTaskModal, setShowQuickTaskModal] = useState(false);
@@ -1302,8 +1304,36 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* Right side: Site filter info & Log Headcount button */}
-                <div className="flex items-center gap-2">
+                {/* Right side: View toggle, Site filter info & Log Headcount button */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setHeadcountViewMode("CARDS")}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                        headcountViewMode === "CARDS"
+                          ? "bg-slate-900 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`}
+                      title="Cards View"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Cards</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHeadcountViewMode("TABLE")}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                        headcountViewMode === "TABLE"
+                          ? "bg-slate-900 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`}
+                      title="Table View"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>Table</span>
+                    </button>
+                  </div>
                   {activeSiteId ? (
                     <span className="text-xs font-bold px-2 py-1 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300">
                       📍 {sites.find((s) => s.id === activeSiteId)?.name || "Selected Site"}
@@ -1362,12 +1392,151 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Workers Table (exact layout of workforce page) */}
+              {/* Workers Records (Cards / Table) */}
               {filteredRecords.length > 0 ? (
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                  {/* Desktop Table View */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs min-w-[700px]">
+                headcountViewMode === "CARDS" ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    {filteredRecords.map((r: any) => (
+                      <div
+                        key={r.id}
+                        className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          {/* Card Top: Contractor / Vendor & Total Workers */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-900 text-sm truncate">
+                                  {r.contractorName || "Direct / Self"}
+                                </span>
+                                {r.isOverridden && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                    Extra Workers
+                                  </span>
+                                )}
+                                {r.attachments && r.attachments.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPhoto(r.attachments[0].url)}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition cursor-pointer"
+                                    title={`View ${r.attachments.length} muster roll photo(s)`}
+                                  >
+                                    <Camera className="w-3 h-3 text-amber-700" />
+                                    <span>{r.attachments.length} {r.attachments.length === 1 ? "Photo" : "Photos"}</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {r.siteName && (
+                                <div className="mt-1">
+                                  <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                    📍 {r.siteName}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              <span className="inline-block whitespace-nowrap px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-black font-mono text-xs border border-emerald-200">
+                                {r.grandTotal} {r.grandTotal === 1 ? "Worker" : "Workers"}
+                              </span>
+                              {r.totalExpense ? (
+                                <div className="font-mono font-bold text-emerald-700 text-xs mt-1">
+                                  ₹{Math.round(r.totalExpense / 100).toLocaleString("en-IN")}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {/* Date, Shift, Unit & Pair Badges */}
+                          <div className="text-xs text-slate-500 font-mono mt-2.5 flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-slate-700">{formatDate(r.date)}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 font-bold text-slate-700 text-[10px] uppercase">
+                              {r.shift || "GENERAL"} SHIFT
+                            </span>
+                            {r.rateUnit && r.rateUnit !== "DAY" && (
+                              <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 font-bold border border-sky-200 text-[10px]">
+                                ⏱ {r.rateUnit}
+                              </span>
+                            )}
+                            {(r.overrideReason?.toLowerCase().includes("pair") || r.rateUnit?.toLowerCase().includes("pair")) && (
+                              <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-200 text-[10px]">
+                                👥 Pair
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Worker Category Breakdown */}
+                          <div className="mt-2.5 p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-[11px] grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Artisans / Skilled</span>
+                              <strong className="text-slate-800 text-xs">{r.artisanCount ?? r.artisanTotal ?? 0}</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px] uppercase font-semibold">Laborers</span>
+                              <strong className="text-slate-800 text-xs">
+                                {r.laborerTotal}{" "}
+                                <span className="text-slate-500 font-normal text-[10px]">
+                                  (M: {r.laborerMale}, F: {r.laborerFemale})
+                                </span>
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Applied Rates Strip */}
+                          <div className="mt-2.5 flex items-center justify-between text-[10px] text-slate-500">
+                            <span>Rates (Skilled / M / F):</span>
+                            <span className="font-mono font-semibold text-slate-700 bg-slate-100/80 px-1.5 py-0.5 rounded">
+                              ₹{Math.round((r.skilledRate || 0) / 100)} / ₹{Math.round((r.maleRate || 0) / 100)} / ₹{Math.round((r.femaleRate || 0) / 100)}
+                            </span>
+                          </div>
+
+                          {r.notes && (
+                            <div className="mt-2.5 text-[11px] text-slate-600 bg-amber-50/50 p-2 rounded border border-amber-100/60 line-clamp-2">
+                              {r.notes}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Card Footer: Logged By & Actions */}
+                        <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                          <div className="text-[11px] text-slate-500">
+                            <span className="text-slate-400">By</span>{" "}
+                            <span className="font-semibold text-slate-700">{r.supervisorName || "Supervisor"}</span>
+                            {r.createdAt && (
+                              <span className="text-slate-400 ml-1">
+                                · {new Date(r.updatedAt || r.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <Link
+                              href={`/workforce?date=${r.date}&siteId=${r.siteId || ''}`}
+                              className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                              title="Edit in Workforce"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteHeadcountRecord(r.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Delete Record"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                    {/* Desktop Table View */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs min-w-[700px]">
                       <thead className="bg-slate-900 text-slate-200 uppercase tracking-wider text-[10px] font-semibold">
                         <tr>
                           <th className="py-3 px-4">Contractor / Vendor</th>
@@ -1539,6 +1708,7 @@ export default function DashboardPage() {
                     </table>
                   </div>
                 </div>
+                )
               ) : (
                 <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
                   <HardHat className="w-10 h-10 text-slate-400 mx-auto mb-2" />
