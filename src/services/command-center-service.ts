@@ -134,7 +134,12 @@ export class CommandCenterService {
       }),
       prisma.payment.findMany({
         where: { organizationId, status: "PENDING_APPROVAL", isArchived: false },
-        select: { amount: true },
+        include: {
+          creator: { select: { id: true, name: true, role: true } },
+          project: { select: { id: true, name: true, code: true, site: { select: { id: true, name: true } } } },
+          party: { select: { id: true, name: true, partyType: true } },
+        },
+        orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
       }).catch(() => []),
       prisma.payment.findMany({
         where: { organizationId, status: "REJECTED", isArchived: false },
@@ -143,13 +148,15 @@ export class CommandCenterService {
       prisma.purchaseOrder.count({ where: { organizationId, status: "PENDING_APPROVAL" } }).catch(() => 0),
       prisma.bill.findMany({
         where: { organizationId, status: "POSTED", isArchived: false },
-        select: {
-          totalAmount: true,
+        include: {
+          party: { select: { id: true, name: true, partyType: true } },
+          project: { select: { id: true, name: true, code: true, site: { select: { id: true, name: true } } } },
           allocations: {
             where: { reversedAt: null, payment: { status: "POSTED" } },
             select: { amount: true },
           },
         },
+        orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
       }).catch(() => []),
       prisma.payment.findMany({
         where: {
@@ -657,12 +664,79 @@ export class CommandCenterService {
         staffPresentCount: 0,
         reportsCount: 0,
       },
+      payments: (dayBook?.payments || []).map((p: any) => ({
+        id: p.id,
+        amount: p.amount,
+        referenceNumber: p.referenceNumber,
+        recipientName: p.recipientName || p.party?.name || "Recipient",
+        recipientType: p.recipientType || p.party?.partyType || "VENDOR",
+        costHead: p.costHead,
+        method: p.method,
+        payingAccount: p.payingAccount,
+        notes: p.notes,
+        approvalQuery: p.approvalQuery,
+        status: p.status,
+        paymentDate: p.paymentDate,
+        createdAt: p.createdAt,
+        projectName: p.project?.name,
+        siteName: p.project?.site?.name,
+        creatorName: p.creator?.name,
+        attachments: p.attachments || [],
+      })),
+      bills: (dayBook?.bills || []).map((b: any) => ({
+        id: b.id,
+        billNumber: b.billNumber,
+        totalAmount: b.totalAmount,
+        paidAmount: b.paidAmount,
+        outstandingAmount: b.outstandingAmount,
+        partyName: b.party?.name,
+        projectName: b.project?.name,
+        billDate: b.billDate,
+        dueDate: b.dueDate,
+        status: b.status,
+      })),
+      unpaidBills: (postedBills || [])
+        .map((b: any) => {
+          const paid = (b.allocations || []).reduce((s: number, a: any) => s + (a.amount ?? 0), 0);
+          const remaining = roundPaise((b.totalAmount || 0) - paid);
+          return {
+            id: b.id,
+            billNumber: b.billNumber,
+            totalAmount: b.totalAmount,
+            paidAmount: paid,
+            outstandingAmount: remaining,
+            partyName: b.party?.name || "Vendor",
+            projectName: b.project?.name,
+            siteName: b.project?.site?.name,
+            billDate: b.billDate,
+            dueDate: b.dueDate,
+            status: b.status,
+          };
+        })
+        .filter((b: any) => b.outstandingAmount > 0)
+        .slice(0, 50),
       timeline: timeline.slice(0, 80),
       timelineTotal: timeline.length,
       attention: attentionData,
       approvals: {
         paymentsPendingCount: (pendingPayments || []).length,
         paymentsPendingAmount: roundPaise((pendingPayments || []).reduce((s, p) => s + (p.amount || 0), 0)),
+        pendingPaymentsList: (pendingPayments || []).map((p: any) => ({
+          id: p.id,
+          amount: p.amount,
+          referenceNumber: p.referenceNumber,
+          recipientName: p.recipientName || p.party?.name || "Recipient",
+          recipientType: p.recipientType || p.party?.partyType || "VENDOR",
+          costHead: p.costHead,
+          method: p.method,
+          notes: p.notes,
+          approvalQuery: p.approvalQuery,
+          paymentDate: p.paymentDate,
+          createdAt: p.createdAt,
+          projectName: p.project?.name,
+          siteName: p.project?.site?.name,
+          creatorName: p.creator?.name,
+        })),
         paymentsRejectedCount: (rejectedPayments || []).length,
         ordersPendingCount: pendingOrders || 0,
         materialRequestsPending: materialRequestsPending || 0,
