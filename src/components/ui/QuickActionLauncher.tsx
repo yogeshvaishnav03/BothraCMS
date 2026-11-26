@@ -198,7 +198,7 @@ const QUICK_ACTIONS: QuickActionItem[] = [
     badgeHi: "प्रोजेक्ट्स",
     keywords: ["project", "site", "budget", "progress", "building", "kam"],
     requiredPermission: "projects:read",
-    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "ACCOUNTANT"],
+    roles: ["SUPER_ADMIN", "ORG_ADMIN", "PROJECT_MANAGER", "SITE_SUPERVISOR", "ACCOUNTANT"],
   },
   {
     id: "reports",

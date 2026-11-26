@@ -129,7 +129,16 @@ export async function POST(req: NextRequest) {
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
-    assertPermission(user, "sites:manage");
+    const isAuthorized =
+      hasPermission(user, "sites:manage") ||
+      user.role === "SITE_SUPERVISOR" ||
+      user.role === "PROJECT_MANAGER" ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "ORG_ADMIN";
+
+    if (!isAuthorized) {
+      return jsonError("Forbidden: You do not have permission to create sites", "FORBIDDEN", 403);
+    }
 
     const body = await req.json();
     const data = createSiteSchema.parse(body);
@@ -175,6 +184,26 @@ export async function POST(req: NextRequest) {
         status: "ACTIVE",
       },
     });
+
+    // If the creator has site-specific restrictions, automatically append the new site to their assigned list
+    if (user.assignedSiteIds && user.assignedSiteIds.length > 0) {
+      const updatedSiteIds = Array.from(new Set([...user.assignedSiteIds, site.id]));
+      await prisma.user.update({
+        where: { id: user.userId },
+        data: { assignedSiteIdsJson: JSON.stringify(updatedSiteIds) },
+      }).catch(() => {});
+    }
+
+    await prisma.auditEvent.create({
+      data: {
+        organizationId: user.organizationId,
+        actorUserId: user.userId,
+        action: "SITE_CREATED",
+        entityType: "SITE",
+        entityId: site.id,
+        reason: `Construction site created: "${site.name}" (${site.code}) by ${user.name || user.role}`,
+      },
+    }).catch(() => {});
 
     return jsonSuccess(site, 201);
   } catch (error) {

@@ -162,6 +162,10 @@ export async function DELETE(
     const user = await getUserContext(req);
     if (!user) return jsonError("Unauthorized", "UNAUTHORIZED", 401);
 
+    if (user.role !== "SUPER_ADMIN" && user.role !== "ORG_ADMIN") {
+      return jsonError("Forbidden: Only organization administrators can delete construction sites", "FORBIDDEN", 403);
+    }
+
     assertPermission(user, "sites:manage");
 
     // Check optional transferToSiteId from query or body

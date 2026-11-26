@@ -259,6 +259,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "sales:write",
   ],
   PROJECT_MANAGER: [
+    "sites:manage",
     "projects:read",
     "projects:write",
     "tasks:read",
@@ -274,7 +275,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "sales:write",
   ],
   SITE_SUPERVISOR: [
+    "sites:manage",
     "projects:read",
+    "projects:write",
     "tasks:read",
     "tasks:write",
     "inventory:read",

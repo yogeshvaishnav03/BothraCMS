@@ -188,6 +188,14 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
     }
 
+    if (user.assignedSiteIds && user.assignedSiteIds.length > 0 && !user.assignedSiteIds.includes(data.siteId)) {
+      const updatedSiteIds = Array.from(new Set([...user.assignedSiteIds, data.siteId]));
+      await prisma.user.update({
+        where: { id: user.userId },
+        data: { assignedSiteIdsJson: JSON.stringify(updatedSiteIds) },
+      }).catch(() => {});
+    }
+
     await prisma.auditEvent.create({
       data: {
         organizationId: user.organizationId,

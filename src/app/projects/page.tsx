@@ -37,8 +37,9 @@ export default function ProjectsPage() {
   const [activeTab, setActiveTab] = useState<"PROJECTS" | "SITES" | "REPORTS">("PROJECTS");
 
   // Role & Permission Checks
-  const canManageSites = canUser(currentUser, "sites:manage");
-  const canWriteProjects = canUser(currentUser, "projects:write");
+  const canManageSites = canUser(currentUser, "sites:manage") || currentUser?.role === "SITE_SUPERVISOR" || currentUser?.role === "PROJECT_MANAGER";
+  const canWriteProjects = canUser(currentUser, "projects:write") || currentUser?.role === "SITE_SUPERVISOR" || currentUser?.role === "PROJECT_MANAGER";
+  const canDeleteAdmin = Boolean(currentUser && (currentUser.role === "SUPER_ADMIN" || currentUser.role === "ORG_ADMIN"));
 
   const reportColumns: ExcelColumn<any>[] = useMemo(
     () => [
@@ -843,7 +844,7 @@ export default function ProjectsPage() {
                         >
                           View Project Details &rarr;
                         </Link>
-                        {canWriteProjects && (
+                        {canDeleteAdmin && (
                           <button
                             onClick={() => handleDeleteProject(p.id, p.name)}
                             title="Delete Project"
@@ -992,24 +993,24 @@ export default function ProjectsPage() {
                         </button>
 
                         {canManageSites && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => openEditSiteModal(site)}
-                              title={`Edit site "${site.name}"`}
-                              className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition cursor-pointer"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => initiateDeleteSite(site)}
-                              title={`Delete site "${site.name}"`}
-                              className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
+                          <button
+                            type="button"
+                            onClick={() => openEditSiteModal(site)}
+                            title={`Edit site "${site.name}"`}
+                            className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition cursor-pointer"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDeleteAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => initiateDeleteSite(site)}
+                            title={`Delete site "${site.name}"`}
+                            className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
                     </div>

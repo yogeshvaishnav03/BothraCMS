@@ -361,7 +361,7 @@ export class MeasurementBookService {
     role: Role;
     permissions?: Permission[];
   }): Promise<MeasurementGroupItem> {
-    if (input.role === "SITE_SUPERVISOR" && !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")) {
+    if (input.role === "SITE_SUPERVISOR") {
       const assignment = await prisma.projectAssignment.findFirst({
         where: {
           organizationId: input.organizationId,
@@ -483,7 +483,7 @@ export class MeasurementBookService {
       throw new Error("NotFound: Measurement Main Group not found");
     }
 
-    if (input.role === "SITE_SUPERVISOR" && !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")) {
+    if (input.role === "SITE_SUPERVISOR") {
       const assignment = await prisma.projectAssignment.findFirst({
         where: {
           organizationId: input.organizationId,
@@ -694,7 +694,7 @@ export class MeasurementBookService {
     role: Role;
     permissions?: Permission[];
   }): Promise<MeasurementEntry> {
-    if (input.role === "SITE_SUPERVISOR" && !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")) {
+    if (input.role === "SITE_SUPERVISOR") {
       const assignment = await prisma.projectAssignment.findFirst({
         where: {
           organizationId: input.organizationId,
@@ -1393,12 +1393,11 @@ export class MeasurementBookService {
     role: Role;
     permissions?: Permission[];
   }): Promise<any> {
-    // Only Admin / Super Admin or authorized manager (or user with projects:write) can approve changes
+    // Only Admin / Super Admin or authorized manager can approve changes
     if (
       input.role !== "SUPER_ADMIN" &&
       input.role !== "ORG_ADMIN" &&
-      input.role !== "PROJECT_MANAGER" &&
-      !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")
+      input.role !== "PROJECT_MANAGER"
     ) {
       throw new Error("Forbidden: Only project managers or administrators can approve change requests.");
     }
@@ -1594,7 +1593,7 @@ export class MeasurementBookService {
   }): Promise<MeasurementEntry> {
     if (input.status === "APPROVED") {
       assertPermission({ role: input.role, permissions: input.permissions }, "finance:write");
-    } else if (input.role === "SITE_SUPERVISOR" && !hasPermission({ role: input.role, permissions: input.permissions }, "projects:write")) {
+    } else if (input.role === "SITE_SUPERVISOR") {
       const entry = await prisma.measurementBookEntry.findFirst({
         where: { id: input.entryId, organizationId: input.organizationId },
         select: { projectId: true },
