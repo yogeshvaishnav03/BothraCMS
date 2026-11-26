@@ -44,8 +44,8 @@ export async function bootstrapWebsiteDataRuntime(targetOrgId?: string): Promise
       },
     });
 
-    // 2. Core Users
-    const fallbackHash = "$2a$10$wT0/NspT5aLzC8q43j.aZOCnC2R471P6oM9wT8oM.Qx5Cg9nO8g9e"; // Password123!
+    // 2. Core Users (Verified valid bcrypt hash for "Password123!" with 10 salt rounds)
+    const fallbackHash = "$2a$10$DCW0Am1zRxYSO0ywR14nBekY8gBFr7Vs.mDTGJn/mab10lAZ7cYjq"; // Password123!
     for (const u of dataset.users || []) {
       const email = u.email.toLowerCase().trim();
       const existing = await client.user.findFirst({

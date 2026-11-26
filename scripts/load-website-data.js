@@ -80,7 +80,7 @@ try {
 }
 
 // Fallback known valid bcrypt hash for "Password123!" with 10 salt rounds
-const FALLBACK_BCRYPT_HASH = "$2a$10$wT0/NspT5aLzC8q43j.aZOCnC2R471P6oM9wT8oM.Qx5Cg9nO8g9e";
+const FALLBACK_BCRYPT_HASH = "$2a$10$DCW0Am1zRxYSO0ywR14nBekY8gBFr7Vs.mDTGJn/mab10lAZ7cYjq";
 
 async function hashPassword(plainPassword) {
   if (!plainPassword) return FALLBACK_BCRYPT_HASH;

@@ -149,10 +149,10 @@ function assertCanAssignRole(actor: UserContext, role: string) {
   }
 }
 
-async function findInOrg(actor: UserContext, userId: string) {
+async function findInOrg(actor: UserContext, userId: string, allowAdminForSuperAdmin: boolean = false) {
   const target = await prisma.user.findFirst({ where: { id: userId, organizationId: actor.organizationId } });
   if (!target) throw new AuthorizationError("NotFound: User not found", 404, "NOT_FOUND");
-  if (target.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") {
+  if (target.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN" && !allowAdminForSuperAdmin) {
     throw new AuthorizationError("Forbidden: Only a Super Admin can change a Super Admin account", 403, "FORBIDDEN");
   }
   return target;
@@ -472,7 +472,8 @@ export class UserAdminService {
   }
 
   static async resetPassword(actor: UserContext, userId: string, customPassword?: string) {
-    const target = await findInOrg(actor, userId);
+    const isOrgAdminOrSuper = actor.role === "ORG_ADMIN" || actor.role === "SUPER_ADMIN";
+    const target = await findInOrg(actor, userId, isOrgAdminOrSuper);
     let finalPassword = customPassword?.trim();
     if (finalPassword) {
       if (finalPassword.length < 6) {
