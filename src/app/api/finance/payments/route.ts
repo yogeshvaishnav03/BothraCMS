@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 const createPaymentSchema = z.object({
   partyId: z.string().optional(),
-  recipientType: z.enum(["VENDOR", "CONTRACTOR", "EMPLOYEE"]).optional().default("VENDOR"),
+  recipientType: z.enum(["VENDOR", "CONTRACTOR", "EMPLOYEE", "OTHER"]).optional().default("VENDOR"),
   recipientName: z.string().optional(),
   payingAccount: z.string().optional().default("Primary Operating Account"),
   approvalQuery: z.string().optional(),
@@ -23,7 +23,7 @@ const createPaymentSchema = z.object({
   method: z.enum(["BANK_TRANSFER", "UPI", "CASH", "CHEQUE", "NEFT_RTGS"]),
   referenceNumber: z.string().min(1),
   idempotencyKey: z.string().min(1),
-  costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
+  costHead: z.string().optional().nullable(),
   notes: z.string().optional(),
   attachmentFileId: z.string().optional(),
   autoApprove: z.boolean().optional(),
@@ -115,6 +115,9 @@ export async function POST(req: NextRequest) {
       await requireProjectAccess(user, data.projectId, isStaffSubmission ? "projects:read" : "finance:write");
     }
 
+    const APPROVAL_THRESHOLD_PAISE = 20000 * 100;
+    const isUnderThreshold = data.amount < APPROVAL_THRESHOLD_PAISE;
+
     const result = await FinanceService.recordPayment({
       organizationId: user.organizationId,
       partyId: data.partyId,
@@ -133,7 +136,7 @@ export async function POST(req: NextRequest) {
       userId: user.userId,
       role: user.role,
       permissions: user.permissions,
-      autoApprove: isStaffSubmission ? false : data.autoApprove,
+      autoApprove: isUnderThreshold ? true : (isStaffSubmission ? false : data.autoApprove),
       allocations: data.allocations,
       tds: data.tds,
     });
@@ -157,8 +160,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Tell admins on mobile push & WhatsApp that a payment is waiting for approval.
-    if (!result.idempotentReplay && result.payment.status === "PENDING_APPROVAL") {
+    // Tell admins on mobile push & WhatsApp that a payment is waiting for approval ONLY when >= ₹20,000 threshold
+    if (!result.idempotentReplay && result.payment.status === "PENDING_APPROVAL" && result.payment.amount >= APPROVAL_THRESHOLD_PAISE) {
       try {
         const admins = await prisma.user.findMany({
           where: {

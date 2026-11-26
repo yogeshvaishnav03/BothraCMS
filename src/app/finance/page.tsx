@@ -130,6 +130,14 @@ export default function FinancePage() {
   const canReadFinance = canUser(currentUser, "finance:read");
   const canWriteFinance = canUser(currentUser, "finance:write");
   const canReverseFinance = canUser(currentUser, "finance:reverse");
+  const canSuperAdminAct =
+    currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+  const canRecordPayment =
+    canWriteFinance ||
+    canSuperAdminAct ||
+    ["SITE_SUPERVISOR", "PROJECT_MANAGER", "SITE_ENGINEER", "STOREKEEPER"].includes(
+      currentUser?.role
+    );
   const [sites, setSites] = useState<any[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
@@ -156,12 +164,15 @@ export default function FinancePage() {
   const [reRequestPaymentAmount, setReRequestPaymentAmount] = useState("");
   const [approvalActionSubmitting, setApprovalActionSubmitting] = useState(false);
 
-  // Payment Modal state
+  // Payment Modal state (Single unified form for direct payments, bill settlements, and site cash expenses)
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [recipientType, setRecipientType] = useState<"VENDOR" | "CONTRACTOR" | "EMPLOYEE">("VENDOR");
+  const [recipientType, setRecipientType] = useState<"VENDOR" | "CONTRACTOR" | "EMPLOYEE" | "OTHER">("VENDOR");
   const [recipientName, setRecipientName] = useState("");
   const [selectedPartyId, setSelectedPartyId] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [paymentSiteId, setPaymentSiteId] = useState("");
+  const [paymentProjectId, setPaymentProjectId] = useState("");
+  const [paymentCostHead, setPaymentCostHead] = useState("CEMENT_BINDING");
   const [workforce, setWorkforce] = useState<any[]>([]);
   const [payingAccount, setPayingAccount] = useState("HDFC Bank Operating A/C (A/C: ...4421)");
   const [customPayingAccount, setCustomPayingAccount] = useState("");
@@ -245,24 +256,6 @@ export default function FinancePage() {
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [paymentToReverse, setPaymentToReverse] = useState<any>(null);
   const [reverseReason, setReverseReason] = useState("");
-
-  // Cash Expense Modal state
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [expenseTitle, setExpenseTitle] = useState("");
-  const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseDate, setExpenseDate] = useState(() => istDateKey());
-  const [expensePaidTo, setExpensePaidTo] = useState("");
-  const [expensePaymentMode, setExpensePaymentMode] = useState("PERSONAL_UPI");
-  const [expenseCategory, setExpenseCategory] = useState("MATERIALS");
-  const [expenseSiteId, setExpenseSiteId] = useState("");
-  const [expenseNotes, setExpenseNotes] = useState("");
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [uploadingReceipt, setUploadingReceipt] = useState(false);
-  const [submittingExpense, setSubmittingExpense] = useState(false);
-  const [receiptError, setReceiptError] = useState<string | null>(null);
-  const expenseFileInputRef = useRef<HTMLInputElement>(null);
-  const expenseCameraInputRef = useRef<HTMLInputElement>(null);
 
   // Search & Filter state for Payments Register
   const todayDateStr = useMemo(() => istDateKey(), []);
@@ -399,14 +392,13 @@ export default function FinancePage() {
         setSettlingEntry(null);
         setShowBillModal(false);
         setShowReverseModal(false);
-        setShowExpenseModal(false);
         setAttachmentTarget(null);
         setApprovePaymentTarget(null);
         setRejectPaymentTarget(null);
         setReRequestPaymentTarget(null);
       }
     };
-    if (showPaymentModal || showBillModal || showReverseModal || showExpenseModal || attachmentTarget || approvePaymentTarget || rejectPaymentTarget || reRequestPaymentTarget) {
+    if (showPaymentModal || showBillModal || showReverseModal || attachmentTarget || approvePaymentTarget || rejectPaymentTarget || reRequestPaymentTarget) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -414,7 +406,7 @@ export default function FinancePage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [showPaymentModal, showBillModal, showReverseModal, showExpenseModal, attachmentTarget, approvePaymentTarget, rejectPaymentTarget, reRequestPaymentTarget]);
+  }, [showPaymentModal, showBillModal, showReverseModal, attachmentTarget, approvePaymentTarget, rejectPaymentTarget, reRequestPaymentTarget]);
 
   // Ask the server what TDS this payment would hold back, as the form changes.
   useEffect(() => {
@@ -468,7 +460,7 @@ export default function FinancePage() {
     let finalPartyId: string | undefined = undefined;
     let finalRecipientName = recipientName.trim();
 
-    if (recipientType !== "EMPLOYEE" && selectedPartyId) {
+    if ((recipientType === "VENDOR" || recipientType === "CONTRACTOR") && selectedPartyId) {
       finalPartyId = selectedPartyId;
       const foundParty = parties.find((p) => p.id === selectedPartyId);
       if (foundParty) {
@@ -482,6 +474,10 @@ export default function FinancePage() {
       return;
     }
 
+    const amtNum = parseFloat(amount);
+    const isUnderThreshold = amtNum < 20000;
+    const isExecutive = currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+
     try {
       let finalNotes = [
         notes?.trim(),
@@ -490,9 +486,7 @@ export default function FinancePage() {
         .filter(Boolean)
         .join(" ");
 
-      if (settlingEntry && settlingEntry.type === "PAYMENT") {
-        finalNotes = `[SETTLES_EXPENSE:${settlingEntry.id}:${paymentAmountPaise}] ${finalNotes}`.trim();
-      }
+      const targetProjId = paymentProjectId || (paymentSiteId ? projects.find((p) => p.siteId === paymentSiteId)?.id : selectedProjectId) || undefined;
 
       const payload: any = {
         partyId: finalPartyId,
@@ -503,14 +497,16 @@ export default function FinancePage() {
         paymentDate: new Date().toISOString(),
         amount: paymentAmountPaise,
         method,
-        referenceNumber,
+        referenceNumber: referenceNumber.trim() || `PAY-${Date.now().toString().slice(-6)}`,
         idempotencyKey,
+        costHead: paymentCostHead || undefined,
+        projectId: targetProjId,
         notes: finalNotes || undefined,
         attachmentFileId: paymentFile?.fileId || undefined,
-        autoApprove: currentUser?.role === "SUPER_ADMIN" ? autoApprove : false,
+        autoApprove: isUnderThreshold ? true : (isExecutive ? autoApprove : false),
       };
 
-      if (tdsPreview) {
+      if (tdsPreview && recipientType !== "OTHER") {
         payload.tds = {
           mode: tdsMode,
           amount: tdsMode === "MANUAL" ? Math.round(parseFloat(tdsManual || "0") * 100) : undefined,
@@ -540,8 +536,8 @@ export default function FinancePage() {
         const isPending = data.data?.payment?.status === "PENDING_APPROVAL";
         setStatusMessage(
           isPending
-            ? `Payment request of ₹${amount} for ${finalRecipientName} sent for approval (from "${effectivePayingAccount}").`
-            : `Payment of ₹${amount} saved from "${effectivePayingAccount}".`
+            ? `Payment of ₹${amount} for ${finalRecipientName} submitted for Admin approval (≥ ₹20,000 threshold).`
+            : `Payment of ₹${amount} saved and approved from "${effectivePayingAccount}".`
         );
         setShowPaymentModal(false);
         setAmount("");
@@ -742,68 +738,6 @@ export default function FinancePage() {
   const getSettledAmountPaise = useCallback(
     (paymentId: string) => settlementMap.get(paymentId) || 0,
     [settlementMap]
-  );
-
-  const handleOpenPayForEntry = useCallback(
-    (p: any) => {
-      const settled = getSettledAmountPaise(p.id);
-      const remaining = Math.max(0, p.amount - settled);
-      const isOutOfPocket =
-        p.payingAccount === "Supervisor Out-of-Pocket" ||
-        p.recipientType === "OUT_OF_POCKET" ||
-        (p.notes && p.notes.includes("[Cash Expense]"));
-
-      if (isOutOfPocket) {
-        setRecipientType("EMPLOYEE");
-        const creatorName = p.creator?.name || p.approvedBy || "";
-        const matchedW = workforce.find(
-          (w) => w.name && creatorName && w.name.toLowerCase() === creatorName.toLowerCase()
-        );
-        if (matchedW) {
-          setSelectedEmployeeId(matchedW.id);
-          setRecipientName(`${matchedW.name} (${matchedW.workerType || "Staff"})`);
-        } else {
-          setSelectedEmployeeId("CUSTOM");
-          setRecipientName(creatorName || p.recipientName || "Supervisor");
-        }
-      } else if (p.partyId) {
-        const isVendor = p.recipientType === "VENDOR" || p.party?.partyType === "VENDOR";
-        setRecipientType(isVendor ? "VENDOR" : "CONTRACTOR");
-        setSelectedPartyId(p.partyId);
-        setRecipientName(p.party?.name || p.recipientName || "");
-      } else if (p.recipientType === "EMPLOYEE") {
-        setRecipientType("EMPLOYEE");
-        setRecipientName(p.recipientName || "");
-      } else {
-        setRecipientType("VENDOR");
-        setRecipientName(p.recipientName || "");
-      }
-
-      const amtToPay = remaining > 0 ? remaining : p.amount;
-      setAmount((amtToPay / 100).toFixed(2));
-      setPayingAccount("HDFC Bank Operating A/C (A/C: ...4421)");
-      setCustomPayingAccount("");
-      setReferenceNumber("");
-      const purpose = isOutOfPocket
-        ? `Reimbursement for Ref #${formatShortBillNumber(p.referenceNumber)}: ${p.approvalQuery || p.notes || p.recipientName}`
-        : `Payment settlement for Ref #${formatShortBillNumber(p.referenceNumber)}: ${p.approvalQuery || p.notes || p.recipientName}`;
-      setApprovalQuery(purpose);
-
-      setSettlingEntry({
-        id: p.id,
-        type: "PAYMENT",
-        referenceNumber: p.referenceNumber,
-        totalAmount: p.amount,
-        settledAmount: settled,
-        remainingAmount: remaining,
-        recipientName: p.recipientName || p.creator?.name,
-      });
-
-      setSelectedBillId("");
-      setPaymentFile(null);
-      setShowPaymentModal(true);
-    },
-    [getSettledAmountPaise, workforce]
   );
 
   const handleOpenPayForBill = useCallback((b: any) => {
@@ -1171,140 +1105,6 @@ export default function FinancePage() {
       setErrorMessage("Connection error while generating bill. Check your network connection.");
     } finally {
       setGeneratingBill(false);
-    }
-  };
-
-  const handleClearExpensePhoto = () => {
-    setReceiptFile(null);
-    setReceiptPreview(null);
-    setReceiptError(null);
-    if (expenseFileInputRef.current) expenseFileInputRef.current.value = "";
-    if (expenseCameraInputRef.current) expenseCameraInputRef.current.value = "";
-  };
-
-  const handleExpensePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
-    e.target.value = "";
-    if (!rawFile) return;
-
-    const isVideo = rawFile.type.startsWith("video/") || /\.(mp4|mov|webm|3gp|avi)$/i.test(rawFile.name);
-    if (!rawFile.type.startsWith("image/") && rawFile.type !== "application/pdf" && !isVideo) {
-      setReceiptError("Unsupported file type. Upload a photo, video (MP4/WebM/MOV), or PDF receipt.");
-      return;
-    }
-
-    if (isVideo) {
-      if (rawFile.size > 250 * 1024 * 1024) {
-        setReceiptError("Video receipt exceeds the 250 MB limit. Please choose a smaller video.");
-        return;
-      }
-      const compressedVideo = await compressVideoFile(rawFile);
-      setReceiptFile(compressedVideo);
-      setReceiptError(null);
-      setReceiptPreview(URL.createObjectURL(compressedVideo));
-      return;
-    }
-
-    if (rawFile.type === "application/pdf" && rawFile.size > 15 * 1024 * 1024) {
-      setReceiptError("This PDF is larger than 15 MB. Compress it or take a clear photo of the receipt instead.");
-      return;
-    }
-
-    const file = rawFile.type.startsWith("image/")
-      ? await compressImageFile(rawFile, { preset: "receipt" })
-      : rawFile;
-
-    if (file.size > 15 * 1024 * 1024) {
-      setReceiptError("This file is still over 15 MB. Take a closer cropped photo or choose a smaller file.");
-      return;
-    }
-
-    setReceiptFile(file);
-    setReceiptError(null);
-
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setReceiptPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setReceiptPreview(null);
-    }
-  };
-
-  const handleSubmitExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage("");
-    setStatusMessage("");
-    setReceiptError(null);
-
-    if (!receiptFile) {
-      setReceiptError("Please attach a receipt photo or PDF before submitting.");
-      return;
-    }
-
-    const amtNum = parseFloat(expenseAmount);
-    if (isNaN(amtNum) || amtNum <= 0) {
-      setErrorMessage("Enter an amount greater than ₹0.");
-      return;
-    }
-
-    setSubmittingExpense(true);
-    setUploadingReceipt(true);
-
-    try {
-      const uploadResult = await uploadClientMedia(receiptFile, {
-        category: "RECEIPT",
-        entityType: "PAYMENT",
-        createAttachment: true,
-      });
-
-      const receiptFileId = uploadResult?.fileId;
-      if (!receiptFileId) {
-        throw new Error("Upload did not finish properly. Please remove the receipt and upload it again.");
-      }
-
-      setUploadingReceipt(false);
-
-      const res = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: expenseTitle.trim(),
-          amount: amtNum,
-          expenseDate,
-          category: expenseCategory,
-          paidTo: expensePaidTo.trim(),
-          paymentMode: expensePaymentMode,
-          siteId: expenseSiteId || undefined,
-          notes: expenseNotes.trim() || undefined,
-          receiptFileId,
-          receiptFileName: receiptFile.name,
-          receiptFileSize: receiptFile.size,
-          receiptMimeType: receiptFile.type,
-        }),
-      });
-
-      const resJson = await res.json();
-      if (!res.ok || !resJson.success) {
-        throw new Error(resJson.error?.message || "Could not submit your expense claim. Please check the details and try again.");
-      }
-
-      setStatusMessage(`Expense claim of ₹${amtNum.toLocaleString("en-IN")} submitted successfully.`);
-      setShowExpenseModal(false);
-      setExpenseTitle("");
-      setExpenseAmount("");
-      setExpensePaidTo("");
-      setExpenseNotes("");
-      handleClearExpensePhoto();
-      loadData();
-      window.dispatchEvent(new CustomEvent("refreshExpenses"));
-    } catch (err: any) {
-      setErrorMessage(err.message || "Could not save your expense claim. Please try again.");
-    } finally {
-      setSubmittingExpense(false);
-      setUploadingReceipt(false);
     }
   };
 
@@ -2069,20 +1869,6 @@ export default function FinancePage() {
               <button
                 type="button"
                 onClick={() => {
-                  setExpenseSiteId(activeSiteId || (sites.length > 0 ? sites[0].id : ""));
-                  setShowExpenseModal(true);
-                  setReceiptError(null);
-                }}
-                className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap shrink-0 shadow-sm transition-all cursor-pointer"
-              >
-                <Receipt className="w-4 h-4 shrink-0" />
-                <span>Add Cash Expense</span>
-              </button>
-            )}
-            {canWriteFinance && (
-              <button
-                type="button"
-                onClick={() => {
                   if (parties.length > 0) setBillPartyId(parties[0].id);
                   setShowBillModal(true);
                 }}
@@ -2092,7 +1878,7 @@ export default function FinancePage() {
                 <span>Record Bill</span>
               </button>
             )}
-            {canWriteFinance && (
+            {canRecordPayment && (
               <button
                 type="button"
                 onClick={() => {
@@ -2103,6 +1889,9 @@ export default function FinancePage() {
                     }) || parties[0];
                     setSelectedPartyId(firstVendor.id);
                     setRecipientName(firstVendor.name);
+                  }
+                  if (!paymentSiteId && (activeSiteId || sites.length > 0)) {
+                    setPaymentSiteId(activeSiteId || sites[0]?.id || "");
                   }
                   setShowPaymentModal(true);
                 }}
@@ -2488,16 +2277,6 @@ export default function FinancePage() {
                   <span className="text-[11px] text-slate-500">
                     ({paymentsGrandTotal.activeCount} payments)
                   </span>
-                  {paymentsGrandTotal.totalRemainingPaise > 0 && (
-                    <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                      To Reimburse: {formatCurrency(paymentsGrandTotal.totalRemainingPaise)}
-                    </span>
-                  )}
-                  {paymentsGrandTotal.totalSettledPaise > 0 && (
-                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      Reimbursed: {formatCurrency(paymentsGrandTotal.totalSettledPaise)}
-                    </span>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-2 ml-auto flex-wrap">
@@ -2664,25 +2443,6 @@ export default function FinancePage() {
                             >
                               {formatCurrency(p.amount)}
                             </span>
-                            {/* Out-of-pocket settlement status & rest amount */}
-                            {isOutOfPocket && !isReversed && !isRejected && (
-                              <div className="text-[10px] font-sans font-semibold mt-1">
-                                {settledPaise >= p.amount ? (
-                                  <span className="inline-block text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                    Reimbursed (Rest: ₹0)
-                                  </span>
-                                ) : settledPaise > 0 ? (
-                                  <span className="inline-block text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-right">
-                                    Paid: {formatCurrency(settledPaise)}<br />
-                                    <strong className="text-rose-700">Rest: {formatCurrency(remainingPaise)}</strong>
-                                  </span>
-                                ) : (
-                                  <span className="inline-block text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                    To Reimburse: {formatCurrency(p.amount)}
-                                  </span>
-                                )}
-                              </div>
-                            )}
                             {p.tdsAmount > 0 && (
                               <div className="whitespace-nowrap text-[10px] font-semibold leading-tight text-indigo-700" title={p.tdsNote || undefined}>
                                 <div>TDS {formatCurrency(p.tdsAmount)} held</div>
@@ -2704,50 +2464,15 @@ export default function FinancePage() {
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-slate-100 text-slate-700">
                                 Reversed
                               </span>
-                            ) : isOutOfPocket && settledPaise >= p.amount ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                Reimbursed
-                              </span>
-                            ) : isOutOfPocket && settledPaise > 0 ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-amber-100 text-amber-900 border border-amber-300">
-                                Partial Rest
-                              </span>
                             ) : (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-800">
-                                Approved
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Approved</span>
                               </span>
                             )}
                           </td>
                           <td className="py-3 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
-                              {/* Pay / Reimburse Action Button */}
-                              {(canWriteFinance || canSuperAdminAct) && !isReversed && !isRejected && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPayForEntry(p)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 bg-gradient-brand hover:brightness-105 text-slate-950 rounded-md shadow-2xs transition cursor-pointer"
-                                  title={
-                                    isOutOfPocket
-                                      ? remainingPaise > 0 && settledPaise > 0
-                                        ? `Pay remaining rest balance of ${formatCurrency(remainingPaise)}`
-                                        : remainingPaise === 0
-                                        ? "Reimbursed in full — click to record additional payment"
-                                        : "Pay / Reimburse supervisor for this cash expense"
-                                      : "Pay / record payment for this entry"
-                                  }
-                                >
-                                  <CreditCard className="w-3 h-3 text-slate-950" />
-                                  <span>
-                                    {isOutOfPocket
-                                      ? remainingPaise > 0 && settledPaise > 0
-                                        ? `Pay Rest (${formatCompactINR(remainingPaise)})`
-                                        : remainingPaise === 0
-                                        ? "Pay More"
-                                        : "Pay"
-                                      : "Pay"}
-                                  </span>
-                                </button>
-                              )}
                               <button
                                 onClick={() =>
                                   setAttachmentTarget({
@@ -2871,15 +2596,9 @@ export default function FinancePage() {
 
                         {/* 5. Payment Purpose */}
                         <td className="py-3 px-4 text-slate-300 text-xs">
-                          {paymentsGrandTotal.totalRemainingPaise > 0 ? (
-                            <span className="text-amber-300 font-medium">
-                              Pending reimbursement total
-                            </span>
-                          ) : (
-                            <span className="text-emerald-300 font-medium">
-                              Filtered payments total
-                            </span>
-                          )}
+                          <span className="text-amber-300 font-medium">
+                            Total Disbursed
+                          </span>
                         </td>
 
                         {/* 6. Linked Bill */}
@@ -2887,20 +2606,16 @@ export default function FinancePage() {
                           —
                         </td>
 
-                        {/* 7. Amount: Grand Total and Rest / Reimbursed breakdown */}
+                        {/* 7. Amount: Grand Total */}
                         <td className="py-3 px-4 text-right">
                           <div className="font-mono font-black text-sm text-amber-400">
                             {formatCurrency(paymentsGrandTotal.totalPaise)}
                           </div>
-                          {paymentsGrandTotal.totalRemainingPaise > 0 ? (
-                            <div className="text-[10px] text-rose-300 font-bold mt-0.5 whitespace-nowrap">
-                              To Reimburse: {formatCurrency(paymentsGrandTotal.totalRemainingPaise)}
+                          {paymentsGrandTotal.totalTdsPaise > 0 && (
+                            <div className="text-[10px] text-indigo-300 font-bold mt-0.5 whitespace-nowrap">
+                              TDS held: {formatCurrency(paymentsGrandTotal.totalTdsPaise)}
                             </div>
-                          ) : paymentsGrandTotal.totalSettledPaise > 0 ? (
-                            <div className="text-[10px] text-emerald-300 font-bold mt-0.5 whitespace-nowrap">
-                              Reimbursed: {formatCurrency(paymentsGrandTotal.totalSettledPaise)}
-                            </div>
-                          ) : null}
+                          )}
                         </td>
 
                         {/* 8. Status */}
@@ -3087,22 +2802,6 @@ export default function FinancePage() {
                                 </span>
                               </div>
                             </div>
-
-                            {/* Rest Amount Display on Card */}
-                            {isOutOfPocket && !isReversed && !isRejected && (
-                              <div className="mt-2 p-2 rounded-lg bg-amber-50/70 border border-amber-200 text-xs flex items-center justify-between">
-                                <span className="text-[11px] font-semibold text-amber-900">
-                                  {settledPaise >= p.amount ? "Reimbursed in Full" : settledPaise > 0 ? "Partially Reimbursed" : "Out-of-Pocket:"}
-                                </span>
-                                <span className="font-bold text-slate-900 text-right">
-                                  {settledPaise >= p.amount
-                                    ? "Rest: ₹0.00"
-                                    : settledPaise > 0
-                                    ? `Paid: ${formatCurrency(settledPaise)} · Rest: ${formatCurrency(remainingPaise)}`
-                                    : `To Reimburse: ${formatCurrency(p.amount)}`}
-                                </span>
-                              </div>
-                            )}
                           </div>
 
                           {/* Actions Footer */}
@@ -3123,20 +2822,6 @@ export default function FinancePage() {
                             </button>
 
                             <div className="flex items-center gap-1.5 ml-auto">
-                              {(canWriteFinance || canSuperAdminAct) && !isReversed && !isRejected && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPayForEntry(p)}
-                                  className="px-2.5 py-1 rounded text-xs font-bold bg-gradient-brand hover:brightness-105 text-slate-950 flex items-center gap-1 cursor-pointer"
-                                >
-                                  <CreditCard className="w-3 h-3 text-slate-950" />
-                                  <span>
-                                    {isOutOfPocket && remainingPaise > 0 && settledPaise > 0
-                                      ? `Pay Rest (${formatCompactINR(remainingPaise)})`
-                                      : "Pay"}
-                                  </span>
-                                </button>
-                              )}
                               {isPending && canSuperAdminAct ? (
                                 <>
                                   <button
@@ -3203,19 +2888,11 @@ export default function FinancePage() {
                         {formatCurrency(paymentsGrandTotal.totalPaise)}
                       </span>
                     </div>
-                    {paymentsGrandTotal.totalRemainingPaise > 0 && (
+                    {paymentsGrandTotal.totalTdsPaise > 0 && (
                       <div className="flex items-baseline justify-between text-xs mt-1">
-                        <span className="text-slate-400">Pending Reimbursement:</span>
-                        <span className="font-mono font-bold text-rose-300">
-                          {formatCurrency(paymentsGrandTotal.totalRemainingPaise)}
-                        </span>
-                      </div>
-                    )}
-                    {paymentsGrandTotal.totalSettledPaise > 0 && (
-                      <div className="flex items-baseline justify-between text-xs mt-1">
-                        <span className="text-slate-400">Reimbursed:</span>
-                        <span className="font-mono font-semibold text-emerald-300">
-                          {formatCurrency(paymentsGrandTotal.totalSettledPaise)}
+                        <span className="text-slate-400">TDS Held:</span>
+                        <span className="font-mono font-bold text-indigo-300">
+                          {formatCurrency(paymentsGrandTotal.totalTdsPaise)}
                         </span>
                       </div>
                     )}
@@ -3817,13 +3494,13 @@ export default function FinancePage() {
         )}
 
         {/* Modal: Record Payment */}
-        {showPaymentModal && (canWriteFinance || canSuperAdminAct) && (
+        {showPaymentModal && canRecordPayment && (
           <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90dvh]">
               <div className="flex items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-4">
                 <div className="font-bold text-slate-900 text-base sm:text-lg flex items-start sm:items-center gap-2 min-w-0 leading-snug">
                   <CreditCard className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 sm:mt-0" />
-                  <span>Record Payment &amp; Request Approval</span>
+                  <span>Record Payment</span>
                 </div>
                 <button
                   onClick={() => {
@@ -3831,21 +3508,21 @@ export default function FinancePage() {
                     setSettlingEntry(null);
                     setPaymentFile(null);
                   }}
-                  className="p-1 text-slate-400 hover:text-slate-600 shrink-0"
+                  className="p-1 text-slate-400 hover:text-slate-600 shrink-0 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <form onSubmit={handlePaymentSubmit} className="space-y-4">
-                {/* Linked Settlement Banner if opened from table entry */}
+                {/* Linked Settlement Banner if opened from bill */}
                 {settlingEntry && (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1.5">
                     <div className="flex items-center justify-between font-bold text-amber-900">
                       <span className="flex items-center gap-1.5">
                         <CreditCard className="w-4 h-4 text-amber-700" />
                         <span>
-                          Paying for {settlingEntry.type === "BILL" ? "Bill" : "Entry"} #{formatShortBillNumber(settlingEntry.referenceNumber)}
+                          Paying for Bill #{formatShortBillNumber(settlingEntry.referenceNumber)}
                           {settlingEntry.recipientName ? ` (${settlingEntry.recipientName})` : ""}
                         </span>
                       </span>
@@ -3859,24 +3536,22 @@ export default function FinancePage() {
                       </button>
                     </div>
                     <div className="text-[11px] text-amber-800 flex items-center gap-3 flex-wrap">
-                      <span>Total Entry: <strong>{formatCurrency(settlingEntry.totalAmount)}</strong></span>
+                      <span>Total Bill: <strong>{formatCurrency(settlingEntry.totalAmount)}</strong></span>
                       {settlingEntry.settledAmount > 0 && (
                         <span>Paid So Far: <strong>{formatCurrency(settlingEntry.settledAmount)}</strong></span>
                       )}
-                      <span>Remaining Rest: <strong className="text-rose-700">{formatCurrency(settlingEntry.remainingAmount)}</strong></span>
+                      <span>Remaining Balance: <strong className="text-rose-700">{formatCurrency(settlingEntry.remainingAmount)}</strong></span>
                     </div>
-                    <p className="text-[10px] text-slate-500">
-                      💡 Amount is changeable below. Any remaining rest balance will stay recorded on the entry until fully settled.
-                    </p>
                   </div>
                 )}
+
                 {/* 1. Recipient Type Selector */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Payee / Recipient Category
                   </label>
-                  <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-lg">
-                    {(["VENDOR", "CONTRACTOR", "EMPLOYEE"] as const).map((t) => (
+                  <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-lg">
+                    {(["VENDOR", "CONTRACTOR", "EMPLOYEE", "OTHER"] as const).map((t) => (
                       <button
                         key={t}
                         type="button"
@@ -3887,20 +3562,34 @@ export default function FinancePage() {
                           setSelectedEmployeeId("");
                           setRecipientName("");
                         }}
-                        className={`py-1.5 text-xs font-bold rounded-md transition ${
+                        className={`py-1.5 px-1.5 text-xs font-bold rounded-md transition cursor-pointer ${
                           recipientType === t
                             ? "bg-white text-slate-900 shadow-xs"
                             : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
-                        {t === "VENDOR" ? "Vendor" : t === "CONTRACTOR" ? "Contractor" : "Employee"}
+                        {t === "VENDOR" ? "Vendor" : t === "CONTRACTOR" ? "Contractor" : t === "EMPLOYEE" ? "Employee" : "Other / Expense"}
                       </button>
                     ))}
                   </div>
                 </div>
 
                 {/* 2. Recipient Selector / Name */}
-                {recipientType === "EMPLOYEE" ? (
+                {recipientType === "OTHER" ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Paid To (Shop / Person Name) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Sharma Hardware, Local Petrol Pump, Ramesh Kumar"
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    />
+                  </div>
+                ) : recipientType === "EMPLOYEE" ? (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Employee Name & Designation *
@@ -3993,7 +3682,54 @@ export default function FinancePage() {
                   </div>
                 )}
 
-                {/* 3. Paying Account / Source Bank (Mandatory) */}
+                {/* 3. Construction Site & Expense Category / Cost Head */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Construction Site
+                    </label>
+                    <select
+                      value={paymentSiteId}
+                      onChange={(e) => {
+                        const sId = e.target.value;
+                        setPaymentSiteId(sId);
+                        const pForSite = projects.filter((p) => p.siteId === sId);
+                        setPaymentProjectId(pForSite.length > 0 ? pForSite[0].id : "");
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    >
+                      <option value="">-- General / Office --</option>
+                      {sites.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code || "SITE"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Cost Head / Category *
+                    </label>
+                    <select
+                      value={paymentCostHead}
+                      onChange={(e) => setPaymentCostHead(e.target.value)}
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                    >
+                      {EXPENSE_CATEGORY_GROUPS.map((g) => (
+                        <optgroup key={g.group} label={g.group}>
+                          {g.options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 4. Paying Account / Source Bank (Mandatory) */}
                 <div>
                   <label className="text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1.5">
                     <Landmark className="w-3.5 h-3.5 text-slate-600 shrink-0" />
@@ -4015,6 +3751,7 @@ export default function FinancePage() {
                       State Bank of India CMS Current A/C (A/C: ...1109)
                     </option>
                     <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
+                    <option value="Supervisor Out-of-Pocket">Supervisor Out-of-Pocket / Personal UPI</option>
                     <option value="CUSTOM">Other / Custom Bank Account...</option>
                   </select>
 
@@ -4030,7 +3767,7 @@ export default function FinancePage() {
                   )}
                 </div>
 
-                {/* 4. Amount and Method */}
+                {/* 5. Amount and Method */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -4046,24 +3783,6 @@ export default function FinancePage() {
                       onChange={(e) => setAmount(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono font-bold"
                     />
-                    {settlingEntry && amount && !isNaN(parseFloat(amount)) && (
-                      <div className="text-[11px] font-semibold text-slate-600 mt-1.5 p-2 rounded-lg bg-amber-50/70 border border-amber-200">
-                        {(() => {
-                          const payingPaise = Math.round(parseFloat(amount) * 100);
-                          const restPaise = Math.max(0, settlingEntry.remainingAmount - payingPaise);
-                          return (
-                            <div className="flex items-center justify-between flex-wrap gap-1">
-                              <span>Paying Now: <strong>{formatCurrency(payingPaise)}</strong></span>
-                              <span className={restPaise > 0 ? "text-amber-800 font-bold" : "text-emerald-700 font-bold"}>
-                                {restPaise > 0
-                                  ? `Remaining Rest: ${formatCurrency(restPaise)}`
-                                  : "✓ Fully Paid / Settled (Rest: ₹0)"}
-                              </span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
@@ -4076,44 +3795,68 @@ export default function FinancePage() {
                     >
                       <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS)</option>
                       <option value="UPI">UPI Transfer</option>
+                      <option value="CASH">Petty Cash / Cash</option>
                       <option value="CHEQUE">Bank Cheque</option>
-                      <option value="CASH">Petty Cash</option>
                     </select>
                   </div>
                 </div>
 
-                {/* 5. Reference Number */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Reference / UTR / Cheque Number *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. UTR-HDFC-991823 / CHQ-10492"
-                    value={referenceNumber}
-                    onChange={(e) => setReferenceNumber(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
-                  />
-                </div>
+                {/* Live Dynamic Approval Threshold Badge */}
+                {amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0 && (
+                  parseFloat(amount) < 20000 ? (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">✓ Auto-Approved (&lt; ₹20,000)</span>
+                        <p className="text-[11px] text-emerald-800 mt-0.5">
+                          Payments under ₹20,000 are recorded and approved immediately without requiring Admin review.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-950 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">⚠️ Admin Approval Required (≥ ₹20,000)</span>
+                        <p className="text-[11px] text-amber-900 mt-0.5">
+                          Payments of ₹20,000 or above require Super Admin / Admin review. An approval request will be sent to the Admins.
+                        </p>
+                      </div>
+                    </div>
+                  )
+                )}
 
-                {/* 6. Reason / Approval Query (Mandatory) */}
+                {/* 6. Payment Purpose / Items Purchased */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Payment Purpose (Shown for Approval) *
+                    Payment Purpose / Items Purchased *
                   </label>
                   <textarea
                     required
-                    rows={3}
-                    placeholder="e.g. Advance payment for column rebar tying week 42, Steel shipment delivery settlement, Site food allowance reimbursement"
+                    rows={2}
+                    placeholder="e.g. Bought 2 bags cement & binding wire from local hardware, Advance for column rebar tying"
                     value={approvalQuery}
                     onChange={(e) => setApprovalQuery(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm leading-relaxed"
                   />
                 </div>
 
-                {/* 7. Bill Allocation if Vendor / Contractor */}
-                {recipientType !== "EMPLOYEE" && partyBills.length > 0 && (
+                {/* 7. Reference Number (Optional) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Reference / UTR / Cheque Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. UTR-HDFC-991823 / UPI Ref (auto-generated if empty)"
+                    value={referenceNumber}
+                    onChange={(e) => setReferenceNumber(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
+                  />
+                </div>
+
+                {/* 8. Bill Allocation if Vendor / Contractor */}
+                {recipientType !== "EMPLOYEE" && recipientType !== "OTHER" && partyBills.length > 0 && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                       Link to an Unpaid Bill (Optional)
@@ -4134,7 +3877,7 @@ export default function FinancePage() {
                 )}
 
                 {/* TDS held back on this payment (194C, 194J or 194I) */}
-                {tdsPreview && (
+                {tdsPreview && recipientType !== "OTHER" && (
                   <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-xs text-indigo-950">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-bold uppercase tracking-wide">TDS · {tdsPreview.label || "Contractor (194C)"}</span>
@@ -4188,23 +3931,23 @@ export default function FinancePage() {
                   </div>
                 )}
 
-                {/* 8. Payment Proof / Receipt Photo */}
+                {/* 9. Payment Proof / Receipt Photo */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Payment Proof / Receipt Photo (Optional)
+                    Payment Proof / Receipt Photo / Video / PDF (Optional)
                   </label>
                   <FileUpload
                     value={paymentFile}
                     onChange={setPaymentFile}
                     entityType="PAYMENT"
-                    projectId={selectedProjectId || undefined}
+                    projectId={paymentProjectId || selectedProjectId || undefined}
                     category="RECEIPT"
-                    label="Upload Payment Receipt, Cheque, or Transfer Screenshot"
+                    label="Upload Payment Receipt, Shop Bill, Cheque, or Transfer Screenshot"
                   />
                 </div>
 
-                {/* 9. Super Admin Auto-Approve Checkbox or Normal User Alert */}
-                {currentUser?.role === "SUPER_ADMIN" ? (
+                {/* 10. Admin Direct Approval Checkbox (Only for >= ₹20,000) */}
+                {(currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN") && parseFloat(amount || "0") >= 20000 && (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -4214,16 +3957,12 @@ export default function FinancePage() {
                         className="w-4 h-4 text-emerald-600 rounded"
                       />
                       <span className="text-xs font-bold text-amber-950">
-                        Approve and save immediately (Super Admin)
+                        Approve and save immediately (Admin Direct Approval)
                       </span>
                     </label>
                     <p className="text-[11px] text-amber-800 mt-1">
-                      Uncheck to send this payment for Super Admin approval first.
+                      Uncheck to submit this payment for review first.
                     </p>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 leading-relaxed">
-                    ℹ️ <strong>Admin Approval Required:</strong> This payment will be sent to the Super Admin for approval. The payment will be completed once approved.
                   </div>
                 )}
 
@@ -4235,29 +3974,24 @@ export default function FinancePage() {
                       setSettlingEntry(null);
                       setPaymentFile(null);
                     }}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg whitespace-nowrap shrink-0"
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-4 sm:px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0"
+                    className="px-4 sm:px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                    <span className="sm:hidden">
+                    <span>
                       {submitting
-                        ? "Sending..."
-                        : currentUser?.role === "SUPER_ADMIN" && autoApprove
-                        ? "Approve & Save"
-                        : "Request Approval"}
-                    </span>
-                    <span className="hidden sm:inline">
-                      {submitting
-                        ? "Sending Request..."
-                        : currentUser?.role === "SUPER_ADMIN" && autoApprove
+                        ? "Saving..."
+                        : parseFloat(amount || "0") < 20000
+                        ? "Save Payment"
+                        : (currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN") && autoApprove
                         ? "Approve & Save Payment"
-                        : "Send Payment for Approval"}
+                        : "Submit for Approval (₹20,000+)"}
                     </span>
                   </button>
                 </div>
@@ -5408,295 +5142,6 @@ export default function FinancePage() {
                       <>
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>Confirm &amp; Re-request Send</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Add Cash Expense */}
-        {showExpenseModal && (
-          <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden">
-              <div className="p-4 sm:p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-start sm:items-center justify-between gap-2">
-                <div className="font-bold text-slate-900 text-base sm:text-lg flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
-                  <div className="p-1.5 bg-amber-100 text-amber-700 rounded-lg shrink-0 mt-0.5 sm:mt-0">
-                    <Receipt className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="leading-snug">Add Cash Expense</div>
-                    <div className="text-xs font-normal text-slate-500 mt-0.5 leading-snug">
-                      Submit a site cash expense with a receipt photo for reimbursement
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowExpenseModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg shrink-0 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmitExpense} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 sm:space-y-4">
-                {receiptError && <Alert tone="error">{receiptError}</Alert>}
-
-                {/* Expense Purpose / Title */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Expense Purpose / Items Purchased <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Bought 2 bags cement & binding wire from local hardware"
-                    value={expenseTitle}
-                    onChange={(e) => setExpenseTitle(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                {/* Amount & Date */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Amount Spent (₹) <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="1"
-                      required
-                      placeholder="e.g. 1450"
-                      value={expenseAmount}
-                      onChange={(e) => setExpenseAmount(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Expense Date <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={expenseDate}
-                      onChange={(e) => setExpenseDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Paid To & Payment Mode */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Paid To (Shop / Person) <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Sharma Hardware / Petrol Pump"
-                      value={expensePaidTo}
-                      onChange={(e) => setExpensePaidTo(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      How You Paid <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={expensePaymentMode}
-                      onChange={(e) => setExpensePaymentMode(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="PERSONAL_UPI">Personal UPI (GPay / PhonePe / Paytm)</option>
-                      <option value="PERSONAL_CASH">Personal Cash</option>
-                      <option value="PERSONAL_CARD">Personal Debit / Credit Card</option>
-                      <option value="OTHER">Other Personal Mode</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Category & Site */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Expense Category <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={expenseCategory}
-                      onChange={(e) => setExpenseCategory(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      {EXPENSE_CATEGORY_GROUPS.map((group) => (
-                        <optgroup key={group.group} label={group.group}>
-                          {group.options.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Construction Site
-                    </label>
-                    <select
-                      value={expenseSiteId}
-                      onChange={(e) => setExpenseSiteId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="">General Site / HQ</option>
-                      {sites.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* MANDATORY RECEIPT PHOTO ATTACHMENT */}
-                <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-300">
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
-                    <label className="text-xs font-black text-amber-950 uppercase tracking-wide whitespace-nowrap">
-                      📷 Receipt Photo / Video <span className="text-rose-600 font-black">* MANDATORY</span>
-                    </label>
-                    <span className="text-[11px] text-amber-700 font-semibold whitespace-nowrap">Photo, Video or PDF</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 mb-2.5">
-                    Upload a clear photo, video (under 250 MB), or PDF of the shop bill, cash memo, or UPI payment screenshot.
-                  </p>
-
-                  <div className="relative">
-                    <input
-                      type="file"
-                      ref={expenseCameraInputRef}
-                      accept="image/*,video/*"
-                      capture="environment"
-                      onChange={handleExpensePhotoSelect}
-                      className="sr-only"
-                      id="finance-receipt-camera-input"
-                    />
-                    <input
-                      type="file"
-                      ref={expenseFileInputRef}
-                      accept="image/*,video/*,application/pdf"
-                      onChange={handleExpensePhotoSelect}
-                      className="sr-only"
-                      id="finance-receipt-photo-input"
-                    />
-
-                    {receiptFile ? (
-                      <div className="bg-white p-3 rounded-lg border border-amber-200 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          {receiptPreview && (receiptFile.type.startsWith("video/") || /\.(mp4|webm|mov|3gp|avi)$/i.test(receiptFile.name)) ? (
-                            <div className="w-12 h-12 rounded-md bg-slate-900 relative overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
-                              <video src={receiptPreview} className="w-full h-full object-cover" muted preload="metadata" />
-                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <Play className="w-4 h-4 text-white fill-current" />
-                              </div>
-                            </div>
-                          ) : receiptPreview ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={receiptPreview}
-                              alt="Receipt preview"
-                              className="w-12 h-12 object-cover rounded-md border border-slate-200 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-md bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
-                              <Receipt className="w-6 h-6" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-bold text-xs text-slate-900 truncate">
-                              {receiptFile.name}
-                            </div>
-                            <div className="text-[10px] text-slate-400 font-mono">
-                              {(receiptFile.size / 1024).toFixed(1)} KB • Receipt attached ✓
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleClearExpensePhoto}
-                          className="p-2 text-slate-400 hover:text-rose-600 rounded-md transition cursor-pointer"
-                          title="Remove receipt"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => expenseCameraInputRef.current?.click()}
-                          className="py-3.5 px-3 border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <Camera className="w-4 h-4 text-amber-700" />
-                          <span className="font-bold text-xs text-slate-900">Take Photo / Video</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => expenseFileInputRef.current?.click()}
-                          className="py-3.5 px-3 border-2 border-dashed border-slate-300 hover:border-slate-500 rounded-lg bg-white/80 hover:bg-white text-center transition flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <Upload className="w-4 h-4 text-slate-700" />
-                          <span className="font-bold text-xs text-slate-900">Choose Receipt / Video / PDF</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Notes / Remarks */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Notes / Remarks (Optional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="Add any extra notes for the admin or finance team..."
-                    value={expenseNotes}
-                    onChange={(e) => setExpenseNotes(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowExpenseModal(false)}
-                    className="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs whitespace-nowrap transition shrink-0 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingExpense || !receiptFile}
-                    className="px-4 sm:px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-black text-xs whitespace-nowrap shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
-                  >
-                    {submittingExpense ? (
-                      <>
-                        <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin shrink-0" />
-                        <span>{uploadingReceipt ? "Uploading Photo..." : "Submitting..."}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4 shrink-0 stroke-[3]" />
-                        <span>Submit Expense for Approval</span>
                       </>
                     )}
                   </button>

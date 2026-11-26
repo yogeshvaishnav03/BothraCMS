@@ -53,7 +53,7 @@ describe("Payment auto-approval is restricted to SUPER_ADMIN / ORG_ADMIN", () =>
       organizationId: testOrgId,
       partyId,
       paymentDate: new Date(),
-      amount: 100000,
+      amount: 2500000, // ₹25,000 (above ₹20,000 threshold requiring approval)
       method: "UPI",
       referenceNumber: `REF-${stamp}-${seq}`,
       idempotencyKey: `idemp-autoapprove-${stamp}-${seq}`,

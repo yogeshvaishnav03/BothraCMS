@@ -790,9 +790,23 @@ export class FinanceService {
   }
 
   static async recordPayment(input: RecordPaymentInput) {
-    const isQuerySubmission = input.autoApprove === false || Boolean(input.approvalQuery);
-    const isStaffQuery = isQuerySubmission && (input.role === "SITE_SUPERVISOR" || input.role === "PROJECT_MANAGER");
-    if (!isStaffQuery) {
+    const APPROVAL_THRESHOLD_PAISE = 20000 * 100;
+    const isUnderThreshold = input.amount < APPROVAL_THRESHOLD_PAISE;
+    const canPostDirectly = input.role === "SUPER_ADMIN" || input.role === "ORG_ADMIN";
+
+    const isStaffRole =
+      input.role === "SITE_SUPERVISOR" ||
+      input.role === "PROJECT_MANAGER" ||
+      (input.role as string) === "SITE_ENGINEER" ||
+      input.role === "STOREKEEPER";
+
+    // Staff can submit payments under ₹20,000 (auto-approved) or submit review queries.
+    // If amount >= ₹20,000 and autoApprove is requested, caller must have finance:write.
+    const isStaffQuerySubmission =
+      isStaffRole &&
+      (isUnderThreshold || input.autoApprove === false || Boolean(input.approvalQuery));
+
+    if (!isStaffQuerySubmission) {
       assertPermission({ role: input.role, permissions: input.permissions }, "finance:write");
     }
 
@@ -839,7 +853,7 @@ export class FinanceService {
 
     if (existingPayment) {
       // Validate that the replayed request matches the original payload parameters
-      const requestedPaise = Math.round(input.amount * 100);
+      const requestedPaise = input.amount;
       const isConflictingPayload =
         existingPayment.amount !== requestedPaise ||
         (input.partyId && existingPayment.partyId && existingPayment.partyId !== input.partyId);
@@ -864,32 +878,30 @@ export class FinanceService {
       }
     }
 
-    // Determine status & approval. Only SUPER_ADMIN / ORG_ADMIN may post a
-    // payment directly (autoApprove or status POSTED); every other role's
-    // payment always waits for approval, whatever the request asks for.
-    const canPostDirectly = input.role === "SUPER_ADMIN" || input.role === "ORG_ADMIN";
+    // Determine status & approval.
+    // Approval threshold: ₹20,000 (2,000,000 paise).
+    // Payments under ₹20,000 are auto-approved for all roles without requiring admin review.
+    // Payments of ₹20,000 or above require Super Admin / Org Admin approval.
     let status: string;
     let approvedBy: string | null = null;
     let approvedAt: Date | null = null;
 
-    if (!canPostDirectly || isStaffQuery) {
+    if (input.status === "PENDING_APPROVAL") {
       status = "PENDING_APPROVAL";
-    } else if (input.status === "POSTED" || input.status === "PENDING_APPROVAL") {
-      status = input.status;
-    } else if (input.autoApprove === true) {
-      status = "POSTED";
-    } else if (input.autoApprove === false || input.approvalQuery) {
-      // Admin chose to route the payment for review
+    } else if (input.autoApprove === false) {
       status = "PENDING_APPROVAL";
-    } else {
+    } else if (isUnderThreshold) {
       status = "POSTED";
-    }
-
-    if (status === "POSTED") {
       approvedBy = input.autoApprove === true
         ? `${input.role} (Auto-Approved)`
-        : `${input.role} (Direct)`;
+        : `${input.role} (Auto-Approved < ₹20,000)`;
       approvedAt = new Date();
+    } else if (canPostDirectly && (input.autoApprove === true || input.status === "POSTED")) {
+      status = "POSTED";
+      approvedBy = `${input.role} (Direct)`;
+      approvedAt = new Date();
+    } else {
+      status = "PENDING_APPROVAL";
     }
 
     // Validate allocations if provided
@@ -1053,7 +1065,7 @@ export class FinanceService {
           include: { allocations: true, party: true },
         });
         if (replayed) {
-          const requestedPaise = Math.round(input.amount * 100);
+          const requestedPaise = input.amount;
           if (replayed.amount !== requestedPaise || (input.partyId && replayed.partyId && replayed.partyId !== input.partyId)) {
             throw new Error("Conflict: Idempotency key collision under concurrent execution with conflicting transaction parameters.");
           }
@@ -1384,7 +1396,7 @@ export class FinanceService {
           orderBy: [{ deductionDate: "desc" }, { createdAt: "desc" }],
         });
       } else {
-        const rows: any[] = await prisma.$queryRawUnsafe(
+        const rows = (await prisma.$queryRawUnsafe(
           `SELECT ld.*, p.name as "projectName", p.code as "projectCode", u.name as "creatorName"
            FROM "LiquidatedDamage" ld
            LEFT JOIN "Project" p ON ld."projectId" = p."id"
@@ -1393,7 +1405,7 @@ export class FinanceService {
            ORDER BY ld."deductionDate" DESC, ld."createdAt" DESC`,
           organizationId,
           partyId
-        ).catch(() => []);
+        ).catch(() => [])) as any[];
         liquidatedDamages = (rows || []).map((d: any) => ({
           ...d,
           project: d.projectName ? { id: d.projectId, name: d.projectName, code: d.projectCode } : null,

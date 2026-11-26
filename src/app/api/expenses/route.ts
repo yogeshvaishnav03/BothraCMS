@@ -245,6 +245,10 @@ export async function POST(req: NextRequest) {
     const cleanTitle = data.title.trim();
     const cleanPaidTo = data.paidTo.trim();
 
+    // Approval threshold: ₹20,000 (2,000,000 paise)
+    const APPROVAL_THRESHOLD_PAISE = 20000 * 100;
+    const isUnderThreshold = amountPaise < APPROVAL_THRESHOLD_PAISE;
+
     // Create Payment record with recipientType = "OUT_OF_POCKET"
     const payment = await prisma.payment.create({
       data: {
@@ -260,9 +264,9 @@ export async function POST(req: NextRequest) {
         method,
         referenceNumber: refNum,
         idempotencyKey,
-        status: "POSTED",
-        approvedBy: user.name,
-        approvedAt: new Date(),
+        status: isUnderThreshold ? "POSTED" : "PENDING_APPROVAL",
+        approvedBy: isUnderThreshold ? `${user.name} (Auto-Approved < ₹20,000)` : null,
+        approvedAt: isUnderThreshold ? new Date() : null,
         paymentDate: new Date(data.expenseDate),
         amount: amountPaise,
         projectId: targetProjectId,
@@ -310,35 +314,37 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Notify Admins & Finance accountants
-    try {
-      const accountants = await prisma.user.findMany({
-        where: {
+    // Notify Admins & Finance accountants ONLY when >= ₹20,000 threshold
+    if (!isUnderThreshold) {
+      try {
+        const accountants = await prisma.user.findMany({
+          where: {
+            organizationId: user.organizationId,
+            status: "ACTIVE",
+            role: "ACCOUNTANT",
+          },
+          select: { id: true },
+        });
+        const accountantIds = accountants.map((a) => a.id);
+
+        await notifyPeople({
           organizationId: user.organizationId,
-          status: "ACTIVE",
-          role: "ACCOUNTANT",
-        },
-        select: { id: true },
-      });
-      const accountantIds = accountants.map((a) => a.id);
+          actorUserId: user.userId,
+          userIds: accountantIds,
+          includeAdmins: true,
+          type: "PAYMENT_APPROVAL",
+          title: `Cash Expense Approval Required: ₹${data.amount.toLocaleString("en-IN")}`,
+          message: `${user.name} (${user.role.replace("_", " ")}) logged a cash expense for "${cleanTitle}" (≥ ₹20,000 threshold). Receipt attached for verification.`,
+          href: "/expenses",
+          entityType: "PAYMENT",
+          entityId: payment.id,
+          severity: "INFO",
+        });
 
-      await notifyPeople({
-        organizationId: user.organizationId,
-        actorUserId: user.userId,
-        userIds: accountantIds,
-        includeAdmins: true,
-        type: "PAYMENT_APPROVAL",
-        title: `Cash Expense Claim: ₹${data.amount.toLocaleString("en-IN")}`,
-        message: `${user.name} (${user.role.replace("_", " ")}) logged a cash expense for "${cleanTitle}". Receipt attached for verification.`,
-        href: "/expenses",
-        entityType: "PAYMENT",
-        entityId: payment.id,
-        severity: "INFO",
-      });
-
-      await alertStaffNow(user.organizationId);
-    } catch (notifErr) {
-      console.warn("Out-of-pocket expense notification warning:", notifErr);
+        await alertStaffNow(user.organizationId);
+      } catch (notifErr) {
+        console.warn("Out-of-pocket expense notification warning:", notifErr);
+      }
     }
 
     // Fetch complete payment with relations for instant client-side state update

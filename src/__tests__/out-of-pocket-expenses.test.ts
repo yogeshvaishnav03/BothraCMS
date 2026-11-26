@@ -163,7 +163,7 @@ describe("Supervisor Out-of-Pocket Expenses", () => {
     expect(json.success).toBe(true);
     expect(json.data.amount).toBe(1450);
     expect(json.data.amountPaise).toBe(145000);
-    expect(json.data.status).toBe("PENDING_APPROVAL");
+    expect(json.data.status).toBe("POSTED"); // Auto-approved under ₹20,000 threshold
     expect(json.data.receiptUrl).toBe(`/api/uploads/${receiptFileId}`);
 
     // Verify database record
@@ -217,10 +217,10 @@ describe("Supervisor Out-of-Pocket Expenses", () => {
     expect(finJson.data.some((e: any) => e.id === created.data.id)).toBe(true);
   });
 
-  it("allows Admin or Finance to approve the out-of-pocket expense claim for reimbursement", async () => {
+  it("allows Admin or Finance to approve the out-of-pocket expense claim for reimbursement (>= ₹20,000)", async () => {
     const createReq = makeJsonRequest("http://localhost:3000/api/expenses", "POST", supervisorToken, {
-      title: "Tempo freight delivery of sand bags",
-      amount: 1200,
+      title: "Bulk structural materials transport delivery",
+      amount: 25000,
       expenseDate: "2026-11-06",
       category: "TRANSPORT",
       paidTo: "Raju Tempo Service",
@@ -230,6 +230,7 @@ describe("Supervisor Out-of-Pocket Expenses", () => {
     });
     const createRes = await createExpense(createReq);
     const created = await createRes.json();
+    expect(created.data.status).toBe("PENDING_APPROVAL");
 
     // Finance approves
     const approveReq = makeJsonRequest(
@@ -249,10 +250,10 @@ describe("Supervisor Out-of-Pocket Expenses", () => {
     expect(payment?.approvedBy).toContain("Pooja Finance");
   });
 
-  it("allows Admin or Finance to decline the out-of-pocket claim with a reason", async () => {
+  it("allows Admin or Finance to decline the out-of-pocket claim with a reason (>= ₹20,000)", async () => {
     const createReq = makeJsonRequest("http://localhost:3000/api/expenses", "POST", supervisorToken, {
-      title: "Miscellaneous hardware",
-      amount: 3500,
+      title: "Miscellaneous heavy hardware",
+      amount: 35000,
       expenseDate: "2026-11-06",
       category: "MATERIALS",
       paidTo: "Local Store",
@@ -262,6 +263,7 @@ describe("Supervisor Out-of-Pocket Expenses", () => {
     });
     const createRes = await createExpense(createReq);
     const created = await createRes.json();
+    expect(created.data.status).toBe("PENDING_APPROVAL");
 
     // Admin declines
     const rejectReq = makeJsonRequest(
