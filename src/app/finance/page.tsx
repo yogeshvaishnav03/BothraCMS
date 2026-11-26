@@ -28,6 +28,8 @@ import {
   UserCheck,
   Paperclip,
   Calendar,
+  LayoutGrid,
+  List,
   Filter,
   SlidersHorizontal,
   ChevronDown,
@@ -271,6 +273,7 @@ export default function FinancePage() {
   const [paymentPayingAccount, setPaymentPayingAccount] = useState("ALL");
   const [paymentMethod, setPaymentMethod] = useState("ALL");
   const [paymentStatus, setPaymentStatus] = useState("ALL");
+  const [paymentViewMode, setPaymentViewMode] = useState<"CARDS" | "TABLE">("CARDS");
   const [paymentReason, setPaymentReason] = useState("");
   const [paymentAllocatedTo, setPaymentAllocatedTo] = useState("");
   const [paymentMinAmount, setPaymentMinAmount] = useState("");
@@ -2497,24 +2500,57 @@ export default function FinancePage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 ml-auto">
-                  <button
-                    type="button"
-                    onClick={toggleGrandTotal}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
-                      showGrandTotal
-                        ? "bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-600 shadow-2xs"
-                        : "bg-white hover:bg-slate-100 text-slate-600 border-slate-300"
-                    }`}
-                    title="Toggle Grand Total footer row in the table"
-                  >
-                    <Calculator className="w-3 h-3" />
-                    <span>{showGrandTotal ? "Grand Total Row: ON" : "Grand Total Row: OFF"}</span>
-                  </button>
+                <div className="flex items-center gap-2 ml-auto flex-wrap">
+                  {/* View Mode Switcher: Cards (Default) / Table */}
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentViewMode("CARDS")}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                        paymentViewMode === "CARDS"
+                          ? "bg-slate-900 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`}
+                      title="Cards View"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Cards</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentViewMode("TABLE")}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                        paymentViewMode === "TABLE"
+                          ? "bg-slate-900 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`}
+                      title="Table View"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>Table</span>
+                    </button>
+                  </div>
+
+                  {paymentViewMode === "TABLE" && (
+                    <button
+                      type="button"
+                      onClick={toggleGrandTotal}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
+                        showGrandTotal
+                          ? "bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-600 shadow-2xs"
+                          : "bg-white hover:bg-slate-100 text-slate-600 border-slate-300"
+                      }`}
+                      title="Toggle Grand Total footer row in the table"
+                    >
+                      <Calculator className="w-3 h-3" />
+                      <span>{showGrandTotal ? "Grand Total Row: ON" : "Grand Total Row: OFF"}</span>
+                    </button>
+                  )}
                 </div>
               </div>
-              {/* Desktop Payments Table (≥ lg screens) */}
-              <div className="hidden lg:block overflow-x-auto min-h-[400px]">
+              {/* Payments Content: Cards (Default) vs Table */}
+              {paymentViewMode === "TABLE" ? (
+                <div className="overflow-x-auto min-h-[400px]">
                 <table className="w-full text-left text-sm min-w-[760px]">
                   <thead className="bg-slate-900 text-slate-200 text-xs uppercase tracking-wider font-semibold">
                     <tr>
@@ -2883,9 +2919,9 @@ export default function FinancePage() {
                   )}
                 </table>
               </div>
-
-              {/* Mobile & Tablet Payments Cards (< lg screens) */}
-              <div className="lg:hidden p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
+            ) : (
+              /* Cards View (Responsive Grid across all devices) */
+              <div className="p-3 bg-slate-50/60 space-y-3 min-h-[300px]">
                 {excelPayments.filteredData.length === 0 ? (
                   <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
                     <Filter className="w-8 h-8 text-slate-300 mx-auto mb-2" />
@@ -2893,197 +2929,263 @@ export default function FinancePage() {
                     <p className="text-xs text-slate-400">Try adjusting your search terms or filters.</p>
                   </div>
                 ) : (
-                  excelPayments.paginatedData.map((p) => {
-                    const isReversed = p.status === "REVERSED";
-                    const isPending = p.status === "PENDING_APPROVAL";
-                    const isRejected = p.status === "REJECTED";
-                    const payee = p.recipientName || p.party?.name || "Recipient";
-                    const rType = p.recipientType || p.party?.type || "VENDOR";
-                    const canSuperAdminAct =
-                      currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
-                    const isOutOfPocket =
-                      p.payingAccount === "Supervisor Out-of-Pocket" ||
-                      p.recipientType === "OUT_OF_POCKET" ||
-                      (p.notes && p.notes.includes("[Cash Expense]"));
-                    const settledPaise = getSettledAmountPaise(p.id);
-                    const remainingPaise = Math.max(0, p.amount - settledPaise);
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                    {excelPayments.paginatedData.map((p) => {
+                      const isReversed = p.status === "REVERSED";
+                      const isPending = p.status === "PENDING_APPROVAL";
+                      const isRejected = p.status === "REJECTED";
+                      const payee = p.recipientName || p.party?.name || "Recipient";
+                      const rType = p.recipientType || p.party?.type || "VENDOR";
+                      const canSuperAdminAct =
+                        currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "ORG_ADMIN";
+                      const isOutOfPocket =
+                        p.payingAccount === "Supervisor Out-of-Pocket" ||
+                        p.recipientType === "OUT_OF_POCKET" ||
+                        (p.notes && p.notes.includes("[Cash Expense]"));
+                      const settledPaise = getSettledAmountPaise(p.id);
+                      const remainingPaise = Math.max(0, p.amount - settledPaise);
 
-                    return (
-                      <div key={`p-card-${p.id}`} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all">
-                        {/* Top: Payee, Type Pill & Status Badge */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {p.partyId ? (
-                                <Link
-                                  href={`/parties/${p.partyId}`}
-                                  className="font-bold text-slate-900 hover:text-amber-600 text-sm truncate min-w-0"
-                                  title={payee}
+                      return (
+                        <div
+                          key={`p-card-${p.id}`}
+                          className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            {/* Top: Payee, Type Pill & Status Badge */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                  {p.partyId ? (
+                                    <Link
+                                      href={`/parties/${p.partyId}`}
+                                      className="font-bold text-slate-900 hover:text-amber-600 text-sm truncate min-w-0"
+                                      title={payee}
+                                    >
+                                      {payee}
+                                    </Link>
+                                  ) : (
+                                    <span className="font-bold text-slate-900 text-sm truncate min-w-0" title={payee}>
+                                      {payee}
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border shrink-0 whitespace-nowrap ${
+                                      rType === "EMPLOYEE"
+                                        ? "bg-purple-50 text-purple-700 border-purple-200"
+                                        : rType === "SUBCONTRACTOR"
+                                        ? "bg-sky-50 text-sky-700 border-sky-200"
+                                        : rType === "OUT_OF_POCKET"
+                                        ? "bg-amber-50 text-amber-800 border-amber-300 font-bold"
+                                        : "bg-slate-100 text-slate-700 border-slate-200"
+                                    }`}
+                                  >
+                                    {rType}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  By: {p.creator?.name || p.approvedBy || "Admin"}
+                                </div>
+                                <div
+                                  className="text-xs text-slate-500 font-mono mt-1"
+                                  title={`${formatDate(p.paymentDate)} · Ref: ${p.referenceNumber}`}
                                 >
-                                  <span className="sm:hidden">{formatShortName(payee)}</span>
-                                  <span className="hidden sm:inline">{payee}</span>
-                                </Link>
+                                  <span className="font-semibold text-slate-700">{formatDate(p.paymentDate)}</span>
+                                  <span className="text-slate-300 mx-1">·</span>
+                                  <span>Ref: {p.referenceNumber}</span>
+                                </div>
+                              </div>
+
+                              {/* Status Badge */}
+                              <div className="shrink-0">
+                                {isReversed ? (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800">
+                                    REVERSED
+                                  </span>
+                                ) : isRejected ? (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700">
+                                    DECLINED
+                                  </span>
+                                ) : isPending ? (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                                    PENDING
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                    APPROVED
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Paid From Account & Method */}
+                            <div className="mt-2.5 flex items-center justify-between gap-1 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100">
+                              <div className="flex items-center gap-1.5 min-w-0 text-slate-700">
+                                <Landmark className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate font-medium">{p.payingAccount || "Supervisor Out-of-Pocket"}</span>
+                              </div>
+                              <span className="shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-800 font-bold uppercase">
+                                {p.method || "Direct Bank"}
+                              </span>
+                            </div>
+
+                            {/* Payment Purpose / Notes */}
+                            {(p.approvalQuery || p.notes) && (
+                              <div className="mt-2 text-xs text-slate-700 bg-slate-50/70 p-2 rounded-lg border border-slate-100 break-words">
+                                <span className="text-slate-400 text-[10px] uppercase font-bold block mb-0.5">
+                                  Purpose:
+                                </span>
+                                <span className="text-[11px] leading-relaxed">
+                                  {p.approvalQuery || p.notes}
+                                </span>
+                                {isRejected && p.rejectionReason && (
+                                  <div className="text-[10px] text-rose-600 font-semibold mt-1">
+                                    Declined: {p.rejectionReason}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Linked Bill & Allocation Info */}
+                            <div className="mt-2 text-[11px]">
+                              {p.allocations && p.allocations.length > 0 ? (
+                                <div className="space-y-0.5">
+                                  {p.allocations.map((a: any) => (
+                                    <div key={a.id} className="font-mono text-[11px] text-slate-600" title={a.bill?.billNumber || a.billId}>
+                                      Bill #{formatShortBillNumber(a.bill?.billNumber || a.billId)} ({formatCurrency(a.amount)})
+                                    </div>
+                                  ))}
+                                </div>
                               ) : (
-                                <span className="font-bold text-slate-900 text-sm truncate min-w-0" title={payee}>
-                                  <span className="sm:hidden">{formatShortName(payee)}</span>
-                                  <span className="hidden sm:inline">{payee}</span>
+                                <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  Advance / Not Linked to a Bill
                                 </span>
                               )}
-                              <span
-                                className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border shrink-0 whitespace-nowrap ${
-                                  rType === "EMPLOYEE"
-                                    ? "bg-purple-50 text-purple-700 border-purple-200"
-                                    : rType === "SUBCONTRACTOR"
-                                    ? "bg-sky-50 text-sky-700 border-sky-200"
-                                    : "bg-amber-50 text-amber-700 border-amber-200"
-                                }`}
-                              >
-                                {rType}
-                              </span>
                             </div>
-                            <div
-                              className="text-xs text-slate-400 font-mono mt-0.5 truncate"
-                              title={`${formatDate(p.paymentDate)} · Ref: ${p.referenceNumber}`}
-                            >
-                              {formatDate(p.paymentDate)} · Ref: {formatShortBillNumber(p.referenceNumber)}
-                            </div>
-                          </div>
 
-                          {/* Status Badge */}
-                          <div className="shrink-0">
-                            {isReversed ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800">
-                                REVERSED
-                              </span>
-                            ) : isRejected ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-700">
-                                DECLINED
-                              </span>
-                            ) : isPending ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
-                                PENDING
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                                APPROVED
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                            {/* Amount */}
+                            <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs items-baseline">
+                              <div>
+                                <div className="text-[11px] text-slate-400 font-medium">Payment Amount</div>
+                                <div
+                                  className={`font-mono text-base font-extrabold tabular-nums truncate ${
+                                    isReversed || isRejected
+                                      ? "line-through text-slate-400"
+                                      : isPending
+                                      ? "text-amber-700 font-bold"
+                                      : "text-slate-900"
+                                  }`}
+                                  title={formatCurrency(p.amount)}
+                                >
+                                  {formatCurrency(p.amount)}
+                                </div>
+                              </div>
 
-                        {/* Amount & Method - Paying bank account & allocation internals hidden */}
-                        <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-xs">
-                          <div>
-                            <div className="text-[11px] text-slate-400 font-medium">Payment Amount</div>
-                            <div className="font-display text-base font-extrabold text-slate-900 tabular-nums truncate" title={formatCurrency(p.amount)}>
-                              {formatCompactINR(p.amount)}
-                            </div>
-                          </div>
-
-                          <div className="text-right">
-                            <div className="text-[11px] text-slate-400 font-medium">Mode</div>
-                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
-                              {p.method || "Direct Bank"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Rest Amount Display on Mobile Card */}
-                        {isOutOfPocket && !isReversed && !isRejected && (
-                          <div className="mt-2 p-2 rounded-lg bg-amber-50/70 border border-amber-200 text-xs flex items-center justify-between">
-                            <span className="text-[11px] font-semibold text-amber-900">
-                              {settledPaise >= p.amount ? "Reimbursed in Full" : settledPaise > 0 ? "Partially Reimbursed" : "Out-of-Pocket Expense:"}
-                            </span>
-                            <span className="font-bold text-slate-900">
-                              {settledPaise >= p.amount
-                                ? "Rest: ₹0.00"
-                                : settledPaise > 0
-                                ? `Paid: ${formatCurrency(settledPaise)} · Rest: ${formatCurrency(remainingPaise)}`
-                                : `To Reimburse: ${formatCurrency(p.amount)}`}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Actions Footer */}
-                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                          <button
-                            onClick={() =>
-                              setAttachmentTarget({
-                                type: "PAYMENT",
-                                id: p.id,
-                                title: `Payment #${p.referenceNumber} Receipts`,
-                                categoryDefault: "RECEIPT",
-                              })
-                            }
-                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                          >
-                            <Paperclip className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Receipts & Docs</span>
-                          </button>
-
-                          <div className="flex items-center gap-1.5 ml-auto">
-                            {(canWriteFinance || canSuperAdminAct) && !isReversed && !isRejected && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenPayForEntry(p)}
-                                className="px-2.5 py-1 rounded text-xs font-bold bg-gradient-brand hover:brightness-105 text-slate-950 flex items-center gap-1 cursor-pointer"
-                              >
-                                <CreditCard className="w-3 h-3 text-slate-950" />
-                                <span>
-                                  {isOutOfPocket && remainingPaise > 0 && settledPaise > 0
-                                    ? `Pay Rest (${formatCompactINR(remainingPaise)})`
-                                    : "Pay"}
+                              <div className="text-right">
+                                <div className="text-[11px] text-slate-400 font-medium">Ref #</div>
+                                <span className="font-mono text-[11px] font-semibold text-slate-600">
+                                  {formatShortBillNumber(p.referenceNumber)}
                                 </span>
-                              </button>
-                            )}
-                            {isPending && canSuperAdminAct ? (
-                              <>
-                                <button
-                                  onClick={() => handleApprovePayment(p)}
-                                  className="px-2.5 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  onClick={() => handleRejectPayment(p)}
-                                  className="px-2.5 py-1 rounded text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200"
-                                >
-                                  Decline
-                                </button>
-                              </>
-                            ) : null}
+                              </div>
+                            </div>
 
-                            {isRejected && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenReRequestPayment(p)}
-                                className="px-2.5 py-1 rounded text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1 cursor-pointer"
-                                title="Re-request Send: Resubmit this rejected payment for approval"
-                              >
-                                <RotateCcw className="w-3 h-3 text-amber-600" />
-                                <span>Re-request</span>
-                              </button>
-                            )}
-
-                            {!isReversed && !isRejected && !isPending && canReverseFinance && (
-                              <button
-                                onClick={() => {
-                                  setPaymentToReverse(p);
-                                  setShowReverseModal(true);
-                                }}
-                                className="px-2 py-1 rounded text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200"
-                              >
-                                Reverse
-                              </button>
+                            {/* Rest Amount Display on Card */}
+                            {isOutOfPocket && !isReversed && !isRejected && (
+                              <div className="mt-2 p-2 rounded-lg bg-amber-50/70 border border-amber-200 text-xs flex items-center justify-between">
+                                <span className="text-[11px] font-semibold text-amber-900">
+                                  {settledPaise >= p.amount ? "Reimbursed in Full" : settledPaise > 0 ? "Partially Reimbursed" : "Out-of-Pocket:"}
+                                </span>
+                                <span className="font-bold text-slate-900 text-right">
+                                  {settledPaise >= p.amount
+                                    ? "Rest: ₹0.00"
+                                    : settledPaise > 0
+                                    ? `Paid: ${formatCurrency(settledPaise)} · Rest: ${formatCurrency(remainingPaise)}`
+                                    : `To Reimburse: ${formatCurrency(p.amount)}`}
+                                </span>
+                              </div>
                             )}
                           </div>
+
+                          {/* Actions Footer */}
+                          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                            <button
+                              onClick={() =>
+                                setAttachmentTarget({
+                                  type: "PAYMENT",
+                                  id: p.id,
+                                  title: `Payment #${p.referenceNumber} Receipts`,
+                                  categoryDefault: "RECEIPT",
+                                })
+                              }
+                              className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                            >
+                              <Paperclip className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Receipts & Docs</span>
+                            </button>
+
+                            <div className="flex items-center gap-1.5 ml-auto">
+                              {(canWriteFinance || canSuperAdminAct) && !isReversed && !isRejected && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPayForEntry(p)}
+                                  className="px-2.5 py-1 rounded text-xs font-bold bg-gradient-brand hover:brightness-105 text-slate-950 flex items-center gap-1 cursor-pointer"
+                                >
+                                  <CreditCard className="w-3 h-3 text-slate-950" />
+                                  <span>
+                                    {isOutOfPocket && remainingPaise > 0 && settledPaise > 0
+                                      ? `Pay Rest (${formatCompactINR(remainingPaise)})`
+                                      : "Pay"}
+                                  </span>
+                                </button>
+                              )}
+                              {isPending && canSuperAdminAct ? (
+                                <>
+                                  <button
+                                    onClick={() => handleApprovePayment(p)}
+                                    className="px-2.5 py-1 rounded text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectPayment(p)}
+                                    className="px-2.5 py-1 rounded text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer"
+                                  >
+                                    Decline
+                                  </button>
+                                </>
+                              ) : null}
+
+                              {isRejected && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReRequestPayment(p)}
+                                  className="px-2.5 py-1 rounded text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1 cursor-pointer"
+                                  title="Re-request Send: Resubmit this rejected payment for approval"
+                                >
+                                  <RotateCcw className="w-3 h-3 text-amber-600" />
+                                  <span>Re-request</span>
+                                </button>
+                              )}
+
+                              {!isReversed && !isRejected && !isPending && canReverseFinance && (
+                                <button
+                                  onClick={() => {
+                                    setPaymentToReverse(p);
+                                    setShowReverseModal(true);
+                                  }}
+                                  className="px-2 py-1 rounded text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 cursor-pointer"
+                                >
+                                  Reverse
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </div>
                 )}
 
-                {/* Mobile Grand Total Card */}
+                {/* Grand Total Card in Cards View */}
                 {showGrandTotal && excelPayments.filteredData.length > 0 && (
                   <div className="p-4 bg-slate-900 text-white rounded-xl border-2 border-amber-400/80 shadow-md">
                     <div className="flex items-center justify-between gap-2 mb-2">
@@ -3120,6 +3222,7 @@ export default function FinancePage() {
                   </div>
                 )}
               </div>
+            )}
               <TablePagination
                 currentPage={excelPayments.currentPage}
                 totalPages={excelPayments.totalPages}
