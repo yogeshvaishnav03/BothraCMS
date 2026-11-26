@@ -53,6 +53,7 @@ import { compressImageFile } from "@/lib/image-compression";
 import { compressVideoFile } from "@/lib/video-compression";
 import { uploadClientMedia } from "@/lib/upload-client";
 import { useActiveSite } from "@/hooks/useActiveSite";
+import { EXPENSE_CATEGORY_GROUPS, CATEGORY_LABELS } from "@/lib/expense-categories";
 
 const CHALLAN_UNIT_GROUPS = [
   {
@@ -5432,13 +5433,15 @@ export default function FinancePage() {
                       onChange={(e) => setExpenseCategory(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
-                      <option value="MATERIALS">Materials & Hardware</option>
-                      <option value="EQUIPMENT">Fuel & Generator Diesel</option>
-                      <option value="TRANSPORT">Transport & Delivery / Auto / Tempo</option>
-                      <option value="LABOUR">Labour Tea & Refreshments</option>
-                      <option value="SITE_OFFICE">Site Office & Consumables</option>
-                      <option value="REPAIRS">Minor Repairs & Tools</option>
-                      <option value="OTHER">Other Site Expense</option>
+                      {EXPENSE_CATEGORY_GROUPS.map((group) => (
+                        <optgroup key={group.group} label={group.group}>
+                          {group.options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
 

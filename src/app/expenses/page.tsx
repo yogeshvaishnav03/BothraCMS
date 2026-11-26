@@ -38,6 +38,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { istDateKey } from "@/lib/ist-date";
+import { EXPENSE_CATEGORY_GROUPS, CATEGORY_LABELS } from "@/lib/expense-categories";
 
 interface ExpenseItem {
   id: string;
@@ -70,15 +71,7 @@ interface ExpenseItem {
   createdAt: string;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  MATERIALS: "Materials & Hardware",
-  EQUIPMENT: "Fuel & Generator Diesel",
-  TRANSPORT: "Transport & Delivery",
-  LABOUR: "Labour Tea & Refreshment",
-  SITE_OFFICE: "Site Office & Consumables",
-  REPAIRS: "Minor Repairs & Tools",
-  OTHER: "Other Site Expense",
-};
+
 
 function cleanExpenseTitle(title?: string | null): string {
   if (!title) return "Site Expense";
@@ -1410,13 +1403,15 @@ export default function ExpensesPage() {
                       onChange={(e) => setCategory(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
-                      <option value="MATERIALS">Materials & Hardware</option>
-                      <option value="EQUIPMENT">Fuel & Generator Diesel</option>
-                      <option value="TRANSPORT">Transport & Delivery / Auto / Tempo</option>
-                      <option value="LABOUR">Labour Tea & Refreshments</option>
-                      <option value="SITE_OFFICE">Site Office & Consumables</option>
-                      <option value="REPAIRS">Minor Repairs & Tools</option>
-                      <option value="OTHER">Other Site Expense</option>
+                      {EXPENSE_CATEGORY_GROUPS.map((group) => (
+                        <optgroup key={group.group} label={group.group}>
+                          {group.options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
 
@@ -1841,13 +1836,15 @@ export default function ExpensesPage() {
                       onChange={(e) => setEditCategory(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
-                      <option value="MATERIALS">Materials & Hardware</option>
-                      <option value="EQUIPMENT">Fuel & Generator Diesel</option>
-                      <option value="TRANSPORT">Transport & Delivery / Auto / Tempo</option>
-                      <option value="LABOUR">Labour Tea & Refreshments</option>
-                      <option value="SITE_OFFICE">Site Office & Consumables</option>
-                      <option value="REPAIRS">Minor Repairs & Tools</option>
-                      <option value="OTHER">Other Site Expense</option>
+                      {EXPENSE_CATEGORY_GROUPS.map((group) => (
+                        <optgroup key={group.group} label={group.group}>
+                          {group.options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
 
