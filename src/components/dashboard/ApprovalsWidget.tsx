@@ -17,23 +17,10 @@ import {
   X,
   RotateCcw,
   Send,
+  Eye,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-
-interface ApprovalItem {
-  id: string;
-  type: "PAYMENT" | "EXPENSE" | "MATERIAL_REQUEST" | "MEASUREMENT_CHANGE" | "PURCHASE_ORDER";
-  title: string;
-  amountRupees: number;
-  status: string;
-  projectName: string;
-  siteName: string;
-  requestedBy: string;
-  requestedByRole: string;
-  rejectionReason: string | null;
-  date: string;
-  query?: string | null;
-}
+import ApprovalDetailModal, { ApprovalItem } from "./ApprovalDetailModal";
 
 interface ApprovalsWidgetProps {
   onActionComplete?: () => void;
@@ -49,6 +36,7 @@ export default function ApprovalsWidget({
   const [loading, setLoading] = useState(true);
   const [isApprover, setIsApprover] = useState(false);
   const [items, setItems] = useState<ApprovalItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<ApprovalItem | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -111,10 +99,11 @@ export default function ApprovalsWidget({
     }
   };
 
-  const handleReRequest = async (item: ApprovalItem) => {
+  const handleReRequest = async (item: ApprovalItem, customNote?: string, customAmount?: number) => {
     try {
       setActionLoading(item.id);
-      const parsedAmount = parseFloat(reRequestAmount);
+      const noteToUse = customNote !== undefined ? customNote : reRequestNote;
+      const amtToUse = customAmount !== undefined ? customAmount : parseFloat(reRequestAmount);
       const res = await fetch("/api/approvals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -122,8 +111,8 @@ export default function ApprovalsWidget({
           entityType: item.type,
           entityId: item.id,
           action: "RESUBMIT",
-          reason: reRequestNote.trim() || undefined,
-          amountRupees: !isNaN(parsedAmount) && parsedAmount > 0 ? parsedAmount : undefined,
+          reason: noteToUse.trim() || undefined,
+          amountRupees: !isNaN(amtToUse) && amtToUse > 0 ? amtToUse : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -313,18 +302,20 @@ export default function ApprovalsWidget({
             return (
               <div
                 key={item.id}
-                className={`p-3.5 rounded-xl border transition-all space-y-2.5 ${
+                onClick={() => setSelectedItem(item)}
+                className={`p-3.5 rounded-xl border transition-all space-y-2.5 cursor-pointer hover:border-amber-400 dark:hover:border-amber-500 hover:shadow-md group relative ${
                   isRejected
                     ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900"
                     : isApproved
                     ? "bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900"
                     : "bg-slate-50/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800"
                 }`}
+                title="Click to view full details"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                      <span className="font-semibold text-sm text-slate-900 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                         {item.title}
                       </span>
                       <span
@@ -363,7 +354,23 @@ export default function ApprovalsWidget({
                   </div>
 
                   {/* Status Badge or Approver Actions */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div
+                    className="flex items-center gap-2 shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedItem(item);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 rounded-lg border border-amber-200/80 dark:border-amber-800/70 transition-colors shadow-2xs cursor-pointer"
+                      title="View full details"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-amber-500" />
+                      <span>View Details</span>
+                    </button>
+
                     {isApprover && isPending ? (
                       rejectingId === item.id ? (
                         <div className="flex items-center gap-1.5">
@@ -377,13 +384,13 @@ export default function ApprovalsWidget({
                           <button
                             onClick={() => handleAction(item, "REJECT", rejectReason)}
                             disabled={actionLoading === item.id}
-                            className="px-2.5 py-1 text-xs font-bold rounded bg-rose-600 text-white hover:bg-rose-700"
+                            className="px-2.5 py-1 text-xs font-bold rounded bg-rose-600 text-white hover:bg-rose-700 cursor-pointer"
                           >
                             Confirm
                           </button>
                           <button
                             onClick={() => setRejectingId(null)}
-                            className="p-1 text-slate-400 hover:text-slate-600"
+                            className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -393,7 +400,7 @@ export default function ApprovalsWidget({
                           <button
                             onClick={() => handleAction(item, "APPROVE")}
                             disabled={actionLoading === item.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5" />
                             Approve
@@ -401,7 +408,7 @@ export default function ApprovalsWidget({
                           <button
                             onClick={() => setRejectingId(item.id)}
                             disabled={actionLoading === item.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
                             Reject
@@ -468,7 +475,10 @@ export default function ApprovalsWidget({
                 )}
 
                 {reRequestingId === item.id && (
-                  <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 space-y-3 animate-in fade-in duration-150">
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 space-y-3 animate-in fade-in duration-150"
+                  >
                     <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-200 pb-2 border-b border-amber-200/70 dark:border-amber-900/50">
                       <span className="flex items-center gap-1.5">
                         <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -555,6 +565,26 @@ export default function ApprovalsWidget({
           })}
         </div>
       )}
+
+      <ApprovalDetailModal
+        item={selectedItem}
+        isOpen={Boolean(selectedItem)}
+        onClose={() => setSelectedItem(null)}
+        isApprover={isApprover}
+        onApprove={async (it) => {
+          await handleAction(it, "APPROVE");
+          setSelectedItem(null);
+        }}
+        onReject={async (it, reason) => {
+          await handleAction(it, "REJECT", reason);
+          setSelectedItem(null);
+        }}
+        onReRequest={async (it, note, amt) => {
+          await handleReRequest(it, note, amt);
+          setSelectedItem(null);
+        }}
+        actionLoading={Boolean(actionLoading)}
+      />
     </div>
   );
 }
