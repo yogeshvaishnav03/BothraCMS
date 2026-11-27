@@ -610,6 +610,15 @@ export default function SuperAdminDashboardPage() {
                 <Database className="w-4 h-4" /> Download DB Backup
               </a>
             )}
+            {(currentUser?.role === "SUPER_ADMIN" || currentUser?.role === "OWNER") && (
+              <Link
+                href="/settings#company-bank-accounts"
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition shadow-sm"
+                title="Configure multiple company bank accounts for payment dropdowns"
+              >
+                <Landmark className="w-4 h-4 text-amber-600" /> Bank Accounts
+              </Link>
+            )}
             <Link
               href="/chat"
               className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl text-xs font-bold transition shadow-sm"

@@ -29,6 +29,16 @@ const updateOrgSchema = z.object({
       lowStockThresholdMultiplier: z.number().min(0.5).max(5).optional(),
       workDayHours: z.number().min(4).max(16).optional(),
       language: z.string().optional(),
+      bankAccounts: z
+        .array(
+          z.object({
+            id: z.string(),
+            bankName: z.string().trim().min(1),
+            accountLast4: z.string().trim().min(1).max(10),
+            accountHolder: z.string().trim().min(1),
+          })
+        )
+        .optional(),
     })
     .optional(),
 });
@@ -87,7 +97,7 @@ export async function GET(req: NextRequest) {
       ...organization,
       users: isAdmin ? organization.users : [],
       settingsJson: undefined,
-      settings: isAdmin ? settings : { language: settings?.language },
+      settings: isAdmin ? settings : { language: settings?.language, bankAccounts: settings?.bankAccounts || [] },
     });
   } catch (error) {
     return handleApiError(error);

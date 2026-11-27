@@ -237,6 +237,11 @@ export default function FinancePage() {
   const [billPaymentNotes, setBillPaymentNotes] = useState("");
   const [challanManualTotal, setChallanManualTotal] = useState("");
 
+  // Super Admin Configured Company Bank Accounts
+  const [configuredBankAccounts, setConfiguredBankAccounts] = useState<
+    Array<{ id: string; bankName: string; accountLast4: string; accountHolder: string }>
+  >([]);
+
   // Challan Form State
   const [challanPartyId, setChallanPartyId] = useState("");
   const [challanProjectId, setChallanProjectId] = useState("");
@@ -387,8 +392,9 @@ export default function FinancePage() {
       fetch(`/api/projects?_t=${t}`, noCacheInit).then((r) => r.json()),
       fetch(`/api/materials?_t=${t}`, noCacheInit).then((r) => r.json()),
       fetch(`/api/workforce?_t=${t}`, noCacheInit).then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/organization/bank-accounts?_t=${t}`, noCacheInit).then((r) => r.json()).catch(() => ({ success: false, data: [] })),
     ])
-      .then(([meRes, sitesRes, billsRes, paymentsRes, partiesRes, projRes, matRes, wfRes]) => {
+      .then(([meRes, sitesRes, billsRes, paymentsRes, partiesRes, projRes, matRes, wfRes, bankRes]) => {
         if (meRes.success && meRes.data) {
           setCurrentUser(meRes.data.user);
           if (meRes.data.user.role === "SUPER_ADMIN") {
@@ -404,6 +410,14 @@ export default function FinancePage() {
         if (projRes.success) setProjects(projRes.data || []);
         if (matRes.success) setMaterials(matRes.data || []);
         if (wfRes && wfRes.success) setWorkforce(wfRes.data || []);
+        if (bankRes && bankRes.success && Array.isArray(bankRes.data)) {
+          setConfiguredBankAccounts(bankRes.data);
+          if (bankRes.data.length > 0) {
+            const firstAccountVal = `${bankRes.data[0].bankName} - ${bankRes.data[0].accountHolder} (A/C: ...${bankRes.data[0].accountLast4})`;
+            setPayingAccount((prev) => (prev.includes("...4421") ? firstAccountVal : prev));
+            setBillPayingAccount((prev) => (prev.includes("...4421") ? firstAccountVal : prev));
+          }
+        }
       })
       .catch((err) => {
         console.error("Authoritative finance data load failed:", err);
@@ -795,6 +809,37 @@ export default function FinancePage() {
     setPaymentFile(null);
     setShowPaymentModal(true);
   }, []);
+
+  const renderPayingAccountOptions = () => {
+    if (configuredBankAccounts.length > 0) {
+      return (
+        <>
+          {configuredBankAccounts.map((b) => {
+            const val = `${b.bankName} - ${b.accountHolder} (A/C: ...${b.accountLast4})`;
+            return (
+              <option key={b.id} value={val}>
+                {val}
+              </option>
+            );
+          })}
+          <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
+          <option value="Supervisor Out-of-Pocket">Supervisor Out-of-Pocket / Personal UPI</option>
+          <option value="CUSTOM">Other / Custom Bank Account...</option>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <option value="HDFC Bank Operating A/C (A/C: ...4421)">HDFC Bank Operating A/C (A/C: ...4421)</option>
+        <option value="ICICI Bank Project Escrow A/C (A/C: ...9012)">ICICI Bank Project Escrow A/C (A/C: ...9012)</option>
+        <option value="State Bank of India CMS Current A/C (A/C: ...1109)">State Bank of India CMS Current A/C (A/C: ...1109)</option>
+        <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
+        <option value="Supervisor Out-of-Pocket">Supervisor Out-of-Pocket / Personal UPI</option>
+        <option value="CUSTOM">Other / Custom Bank Account...</option>
+      </>
+    );
+  };
 
   const addBillLine = () => {
     setBillLines([
@@ -4053,18 +4098,7 @@ export default function FinancePage() {
                     required
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
                   >
-                    <option value="HDFC Bank Operating A/C (A/C: ...4421)">
-                      HDFC Bank Operating A/C (A/C: ...4421)
-                    </option>
-                    <option value="ICICI Bank Project Escrow A/C (A/C: ...9012)">
-                      ICICI Bank Project Escrow A/C (A/C: ...9012)
-                    </option>
-                    <option value="State Bank of India CMS Current A/C (A/C: ...1109)">
-                      State Bank of India CMS Current A/C (A/C: ...1109)
-                    </option>
-                    <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
-                    <option value="Supervisor Out-of-Pocket">Supervisor Out-of-Pocket / Personal UPI</option>
-                    <option value="CUSTOM">Other / Custom Bank Account...</option>
+                    {renderPayingAccountOptions()}
                   </select>
 
                   {payingAccount === "CUSTOM" && (
@@ -4787,12 +4821,7 @@ export default function FinancePage() {
                                   required
                                   className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium"
                                 >
-                                  <option value="HDFC Bank Operating A/C (A/C: ...4421)">HDFC Bank Operating A/C (A/C: ...4421)</option>
-                                  <option value="ICICI Bank Project Escrow A/C (A/C: ...9012)">ICICI Bank Project Escrow A/C (A/C: ...9012)</option>
-                                  <option value="State Bank of India CMS Current A/C (A/C: ...1109)">State Bank of India CMS Current A/C (A/C: ...1109)</option>
-                                  <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
-                                  <option value="Supervisor Out-of-Pocket">Supervisor Out-of-Pocket / Personal UPI</option>
-                                  <option value="CUSTOM">Other / Custom Account...</option>
+                                  {renderPayingAccountOptions()}
                                 </select>
                                 {billPayingAccount === "CUSTOM" && (
                                   <input
@@ -5338,12 +5367,7 @@ export default function FinancePage() {
                                 required
                                 className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium"
                               >
-                                <option value="HDFC Bank Operating A/C (A/C: ...4421)">HDFC Bank Operating A/C (A/C: ...4421)</option>
-                                <option value="ICICI Bank Project Escrow A/C (A/C: ...9012)">ICICI Bank Project Escrow A/C (A/C: ...9012)</option>
-                                <option value="State Bank of India CMS Current A/C (A/C: ...1109)">State Bank of India CMS Current A/C (A/C: ...1109)</option>
-                                <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
-                                <option value="Supervisor Out-of-Pocket">Supervisor Out-of-Pocket / Personal UPI</option>
-                                <option value="CUSTOM">Other / Custom Account...</option>
+                                {renderPayingAccountOptions()}
                               </select>
                               {billPayingAccount === "CUSTOM" && (
                                 <input
