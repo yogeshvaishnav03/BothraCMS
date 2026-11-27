@@ -99,6 +99,10 @@ export default function TasksPage() {
   const [assigneeUserIds, setAssigneeUserIds] = useState<string[]>([]);
   const [dueAt, setDueAt] = useState(() => istDateKey());
   const [createModalSuccessNotice, setCreateModalSuccessNotice] = useState<string | null>(null);
+  const [isBulkTaskMode, setIsBulkTaskMode] = useState(false);
+  const [bulkTasks, setBulkTasks] = useState<Array<{ title: string; description: string }>>([
+    { title: "", description: "" },
+  ]);
 
   // Edit Task Modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -304,62 +308,120 @@ export default function TasksPage() {
     }
   };
 
+  const handleToggleBulkMode = () => {
+    if (!isBulkTaskMode) {
+      if (title.trim() || description.trim()) {
+        setBulkTasks([{ title, description }]);
+      } else if (bulkTasks.length === 0) {
+        setBulkTasks([{ title: "", description: "" }]);
+      }
+      setIsBulkTaskMode(true);
+    } else {
+      const first = bulkTasks[0];
+      if (first) {
+        if (first.title) setTitle(first.title);
+        if (first.description) setDescription(first.description);
+      }
+      setIsBulkTaskMode(false);
+    }
+  };
+
   const handleCreateTask = async (e?: React.FormEvent, keepOpen = false) => {
     if (e) e.preventDefault();
-    if (!title.trim() || submitting) return;
+    if (submitting) return;
+
+    const tasksToCreate: Array<{ title: string; description?: string }> = isBulkTaskMode
+      ? bulkTasks
+          .map((t) => ({
+            title: t.title.trim(),
+            description: t.description.trim() ? t.description.trim() : undefined,
+          }))
+          .filter((t) => t.title.length > 0)
+      : title.trim()
+      ? [
+          {
+            title: title.trim(),
+            description: description.trim() ? description.trim() : undefined,
+          },
+        ]
+      : [];
+
+    if (tasksToCreate.length === 0) {
+      setErrorMessage("Please enter at least one task title.");
+      return;
+    }
+
     setSubmitting(true);
     setErrorMessage(null);
     setCreateModalSuccessNotice(null);
 
     try {
-      const res = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: projectId || (projects.length > 0 ? projects[0].id : "OTHER"),
-          title: title.trim(),
-          description: description ? description.trim() : undefined,
-          priority,
-          assigneeUserId: assigneeUserIds.length === 1 ? assigneeUserIds[0] : (assigneeUserId || undefined),
-          assigneeUserIds: assigneeUserIds.length > 0 ? assigneeUserIds : undefined,
-          dueAt: dueAt ? new Date(dueAt).toISOString() : new Date().toISOString(),
-        }),
-      });
+      const targetProjId = projectId || (projects.length > 0 ? projects[0].id : "OTHER");
+      const targetAssignees = assigneeUserIds.length > 0
+        ? assigneeUserIds
+        : assigneeUserId ? [assigneeUserId] : [];
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setErrorMessage(data.error?.message || "Could not create task. Please check the title and try again.");
-      } else {
-        const count = data.data?.count || (Array.isArray(data.data?.tasks) ? data.data.tasks.length : 1);
-        const msg = count > 1
-          ? `Successfully created ${count} tasks assigned to selected employees!`
-          : "Task created and assigned successfully!";
-        setStatusMessage(msg);
+      let totalTasksCreated = 0;
+      const allIncomingTasks: any[] = [];
 
-        if (keepOpen) {
-          setCreateModalSuccessNotice(`✓ ${msg} Project, assignees & date preserved for next task.`);
-          setTitle("");
-          setDescription("");
-        } else {
-          setShowCreateModal(false);
-          setTitle("");
-          setDescription("");
-          setDueAt(istDateKey());
-          setAssigneeUserId("");
-          setAssigneeUserIds([]);
-          setPriority("DAILY");
-          setProjectId(projects.length > 0 ? projects[0].id : "OTHER");
+      for (const tItem of tasksToCreate) {
+        const res = await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: targetProjId,
+            title: tItem.title,
+            description: tItem.description,
+            priority,
+            assigneeUserId: targetAssignees.length === 1 ? targetAssignees[0] : undefined,
+            assigneeUserIds: targetAssignees.length > 0 ? targetAssignees : undefined,
+            dueAt: dueAt ? new Date(dueAt).toISOString() : new Date().toISOString(),
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error?.message || `Failed to create task "${tItem.title}"`);
         }
 
+        const count = data.data?.count || (Array.isArray(data.data?.tasks) ? data.data.tasks.length : 1);
+        totalTasksCreated += count;
         if (data.data) {
           const incoming = Array.isArray(data.data?.tasks) ? data.data.tasks : [data.data];
-          setTasks((prev) => [...incoming, ...prev.filter((t) => !incoming.some((inc: any) => inc.id === t.id))]);
+          allIncomingTasks.push(...incoming);
         }
-        loadData();
-        window.dispatchEvent(new CustomEvent("refreshTasks"));
       }
-    } catch {
-      setErrorMessage("Network error while creating task. Check your connection and try again.");
+
+      const msg = totalTasksCreated > 1
+        ? `Successfully created ${totalTasksCreated} tasks assigned to selected employees!`
+        : `Task "${tasksToCreate[0].title}" created & assigned successfully!`;
+      setStatusMessage(msg);
+
+      if (keepOpen) {
+        setCreateModalSuccessNotice(`✓ ${msg} Project, assignees & date preserved for next task.`);
+        setTitle("");
+        setDescription("");
+        setBulkTasks([{ title: "", description: "" }]);
+      } else {
+        setShowCreateModal(false);
+        setTitle("");
+        setDescription("");
+        setBulkTasks([{ title: "", description: "" }]);
+        setIsBulkTaskMode(false);
+        setDueAt(istDateKey());
+        setAssigneeUserId("");
+        setAssigneeUserIds([]);
+        setPriority("DAILY");
+        setProjectId(projects.length > 0 ? projects[0].id : "OTHER");
+      }
+
+      if (allIncomingTasks.length > 0) {
+        setTasks((prev) => [...allIncomingTasks, ...prev.filter((t) => !allIncomingTasks.some((inc: any) => inc.id === t.id))]);
+      }
+      loadData();
+      window.dispatchEvent(new CustomEvent("refreshTasks"));
+    } catch (err: any) {
+      setErrorMessage(`Error: ${err.message || "Network error while creating task."}`);
     } finally {
       setSubmitting(false);
     }
@@ -1050,31 +1112,128 @@ export default function TasksPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Task Title
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Tie rebar on 6th floor columns / Submit electrical drawings"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase">
+                      {isBulkTaskMode ? "Task Titles & Descriptions (Batch Mode)" : "Task Title"}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleToggleBulkMode}
+                      className="text-[11px] font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>{isBulkTaskMode ? "Switch to Single Task" : "+ Add Multiple Tasks at once"}</span>
+                    </button>
+                  </div>
+
+                  {!isBulkTaskMode ? (
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Tie rebar on 6th floor columns / Submit electrical drawings"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-[11px] text-slate-500">
+                        Add multiple tasks. Each task has its own title and description & specifications note.
+                      </p>
+                      {bulkTasks.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 bg-slate-50/90 border border-slate-200 rounded-xl space-y-2.5 relative"
+                        >
+                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70">
+                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 text-[11px] font-black inline-flex items-center justify-center">
+                                {idx + 1}
+                              </span>
+                              <span>Task #{idx + 1}</span>
+                            </span>
+                            {bulkTasks.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setBulkTasks((prev) => prev.filter((_, i) => i !== idx))}
+                                className="p-1 px-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer transition text-xs flex items-center gap-1"
+                                title="Remove this task row"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span className="text-[11px] font-medium">Remove</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                              Task Title #{idx + 1} *
+                            </label>
+                            <input
+                              type="text"
+                              required={idx === 0}
+                              placeholder={idx === 0 ? "e.g. Tie rebar on 6th floor columns" : `Task ${idx + 1} title...`}
+                              value={item.title}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setBulkTasks((prev) => {
+                                  const next = [...prev];
+                                  next[idx] = { ...next[idx], title: val };
+                                  return next;
+                                });
+                              }}
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                              Description & Specifications #{idx + 1} (Optional)
+                            </label>
+                            <textarea
+                              rows={2}
+                              placeholder={idx === 0 ? "Execution details, materials required, and safety instructions for task #1..." : `Execution details, materials required, and safety instructions for task #${idx + 1}...`}
+                              value={item.description}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setBulkTasks((prev) => {
+                                  const next = [...prev];
+                                  next[idx] = { ...next[idx], description: val };
+                                  return next;
+                                });
+                              }}
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                            />
+                          </div>
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setBulkTasks((prev) => [...prev, { title: "", description: "" }])}
+                        className="text-xs font-bold text-amber-700 hover:text-amber-800 inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 transition cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Add another task row (Title & Description)</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-                    Description & Specifications
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Provide execution details, materials required, and safety instructions..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
-                  />
-                </div>
+                {!isBulkTaskMode && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Description & Specifications
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Provide execution details, materials required, and safety instructions..."
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm"
+                    />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -1144,7 +1303,7 @@ export default function TasksPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={submitting || !title.trim()}
+                  disabled={submitting || (isBulkTaskMode ? bulkTasks.every((t) => !t.title.trim()) : !title.trim())}
                   onClick={() => handleCreateTask(undefined, true)}
                   className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition disabled:opacity-50 cursor-pointer shadow-2xs"
                   title="Creates this task and keeps project, assignees, and date pre-filled for your next task"
@@ -1154,13 +1313,15 @@ export default function TasksPage() {
                 <button
                   type="submit"
                   form="create-task-modal-form"
-                  disabled={submitting || !title.trim()}
+                  disabled={submitting || (isBulkTaskMode ? bulkTasks.every((t) => !t.title.trim()) : !title.trim())}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition cursor-pointer"
                 >
                   {submitting
                     ? "Creating..."
                     : assigneeUserIds.length > 1
                     ? `Create & Assign to ${assigneeUserIds.length} Employees`
+                    : isBulkTaskMode && bulkTasks.filter((t) => t.title.trim()).length > 1
+                    ? `Create ${bulkTasks.filter((t) => t.title.trim()).length} Tasks`
                     : "Create Task"}
                 </button>
               </div>
