@@ -10,10 +10,12 @@ export const dynamic = "force-dynamic";
 const editMaterialSchema = z.object({
   name: z.string().min(2).optional(),
   sku: z.string().min(2).optional(),
-  unitCode: z.enum(["BAG", "KG", "TONNE", "LITRE", "METER", "PIECE", "BOX"]).optional(),
+  unitCode: z.string().min(1).optional(),
+  unitPrice: z.number().min(0).optional(),
   minStockQty: z.number().min(0).optional(),
   reorderQty: z.number().min(0).optional(),
   categoryId: z.string().nullable().optional(),
+  vendorPartyId: z.string().nullable().optional(),
   active: z.boolean().optional(),
   reason: z.string().optional(),
 });
@@ -64,8 +66,9 @@ export async function PATCH(
 
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name.trim();
-    if (data.sku !== undefined) updateData.sku = data.sku.trim();
+    if (data.sku !== undefined) updateData.sku = data.sku.trim().toUpperCase();
     if (data.unitCode !== undefined) updateData.unitCode = data.unitCode;
+    if (data.unitPrice !== undefined) updateData.unitPrice = data.unitPrice;
     if (data.minStockQty !== undefined) updateData.minStockQty = data.minStockQty;
     if (data.reorderQty !== undefined) updateData.reorderQty = data.reorderQty;
     if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
@@ -76,6 +79,30 @@ export async function PATCH(
       data: updateData,
       include: { category: true },
     });
+
+    if (data.vendorPartyId !== undefined && data.vendorPartyId) {
+      try {
+        const baseRatePaise = Math.round((updated.unitPrice || 0) * 100);
+        await prisma.materialQuotation.create({
+          data: {
+            organizationId: user.organizationId,
+            materialId: material.id,
+            vendorPartyId: data.vendorPartyId,
+            unitCode: updated.unitCode,
+            ratePaise: baseRatePaise,
+            taxRatePercent: 0,
+            taxAmountPaise: 0,
+            additionalPaise: 0,
+            totalRatePaise: baseRatePaise,
+            quotationDate: new Date().toISOString().split("T")[0],
+            notes: "Updated master vendor and unit rate for material",
+            createdBy: user.userId,
+          },
+        });
+      } catch (qErr) {
+        console.warn("Could not record vendor quotation for material update:", qErr);
+      }
+    }
 
     await prisma.auditEvent.create({
       data: {
@@ -89,6 +116,7 @@ export async function PATCH(
           name: material.name,
           sku: material.sku,
           unitCode: material.unitCode,
+          unitPrice: material.unitPrice,
           minStockQty: material.minStockQty,
           reorderQty: material.reorderQty,
           active: material.active,
@@ -97,6 +125,7 @@ export async function PATCH(
           name: updated.name,
           sku: updated.sku,
           unitCode: updated.unitCode,
+          unitPrice: updated.unitPrice,
           minStockQty: updated.minStockQty,
           reorderQty: updated.reorderQty,
           active: updated.active,

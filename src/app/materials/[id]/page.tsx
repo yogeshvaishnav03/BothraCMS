@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import Shell from "@/components/layout/Shell";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import PlaceOrderModal from "@/components/materials/PlaceOrderModal";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { formatCurrency, formatCompactINR, formatQuantity, formatCompactQuantity, formatDateTime, formatDate } from "@/lib/formatters";
 import { useLanguage } from "@/lib/i18n";
 import {
@@ -31,6 +32,8 @@ import {
   CheckCircle2,
   XCircle,
   X,
+  Pencil,
+  Sparkles,
 } from "lucide-react";
 import { canUser } from "@/lib/permissions";
 
@@ -50,20 +53,37 @@ export default function MaterialDetailPage() {
   const [orderRejectReason, setOrderRejectReason] = useState("Purchase order declined by administrator");
   const [orderFeedback, setOrderFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
+  // Edit Material Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [parties, setParties] = useState<any[]>([]);
+  const [editName, setEditName] = useState("");
+  const [editSku, setEditSku] = useState("");
+  const [editUnit, setEditUnit] = useState("BAG");
+  const [editUnitPrice, setEditUnitPrice] = useState("");
+  const [editMinStock, setEditMinStock] = useState("");
+  const [editReorder, setEditReorder] = useState("");
+  const [editVendorId, setEditVendorId] = useState("");
+  const [editActive, setEditActive] = useState(true);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+
   useEffect(() => {
-    if (!orderDialog) return;
+    if (!orderDialog && !showEditModal) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOrderDialog(null);
+      if (e.key === "Escape") {
+        setOrderDialog(null);
+        setShowEditModal(false);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [orderDialog]);
+  }, [orderDialog, showEditModal]);
 
+  const canEditMaterial = canUser(currentUser, "inventory:adjust");
   const canPlaceOrder =
     canUser(currentUser, "inventory:receipt") ||
     canUser(currentUser, "inventory:adjust") ||
@@ -112,6 +132,77 @@ export default function MaterialDetailPage() {
       })
       .catch(() => {});
   }, [refreshUser]);
+
+  const openEditMaterialModal = () => {
+    if (!ledgerData?.material) return;
+    const m = ledgerData.material;
+    setEditName(m.name || "");
+    setEditSku(m.sku || "");
+    setEditUnit(m.unitCode || "BAG");
+    setEditUnitPrice(m.unitPrice !== undefined && m.unitPrice !== null ? String(m.unitPrice) : "");
+    setEditMinStock(m.minStockQty !== undefined && m.minStockQty !== null ? String(m.minStockQty) : "");
+    setEditReorder(m.reorderQty !== undefined && m.reorderQty !== null ? String(m.reorderQty) : "");
+    setEditVendorId((m as any).preferredVendorId || "");
+    setEditActive(m.active !== false);
+
+    if (parties.length === 0) {
+      fetch("/api/parties")
+        .then((r) => r.json())
+        .then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            setParties(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+
+    setShowEditModal(true);
+  };
+
+  const handleEditMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!materialId) return;
+
+    setIsSubmittingEdit(true);
+    try {
+      const res = await fetch(`/api/materials/${materialId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim(),
+          sku: editSku.trim().toUpperCase(),
+          unitCode: editUnit,
+          unitPrice: editUnitPrice ? parseFloat(editUnitPrice) : 0,
+          minStockQty: editMinStock ? parseFloat(editMinStock) : 0,
+          reorderQty: editReorder ? parseFloat(editReorder) : 0,
+          vendorPartyId: editVendorId || null,
+          active: editActive,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setOrderFeedback({
+          tone: "error",
+          text: data.error?.message || "Could not update material. Please check inputs.",
+        });
+      } else {
+        setOrderFeedback({
+          tone: "success",
+          text: `Material "${editName.trim()}" updated successfully!`,
+        });
+        setShowEditModal(false);
+        loadLedger();
+      }
+    } catch {
+      setOrderFeedback({
+        tone: "error",
+        text: "Network error while updating material. Check connection.",
+      });
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
 
   const handleApproveOrder = (order: any) => {
     setOrderFeedback(null);
@@ -275,15 +366,26 @@ export default function MaterialDetailPage() {
             </div>
           </div>
 
-          {canPlaceOrder && (
-            <button
-              onClick={() => setShowPlaceOrderModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition self-start sm:self-auto cursor-pointer"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              <span>{t("order.placeOrderToVendor", "Place Order to Vendor")}</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            {canEditMaterial && (
+              <button
+                onClick={openEditMaterialModal}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
+              >
+                <Pencil className="w-4 h-4 text-amber-400" />
+                <span>Edit Material</span>
+              </button>
+            )}
+            {canPlaceOrder && (
+              <button
+                onClick={() => setShowPlaceOrderModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>{t("order.placeOrderToVendor", "Place Order to Vendor")}</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {orderFeedback && (
@@ -817,6 +919,202 @@ export default function MaterialDetailPage() {
           currentStock: currentBalance,
         }}
       />
+
+      {/* Modal: Edit Material */}
+      {showEditModal && canEditMaterial && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="p-5 pb-3 border-b border-slate-100 shrink-0 bg-white flex items-center justify-between">
+              <div className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-amber-500" />
+                <span>Edit Material: {material.name}</span>
+              </div>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form id="edit-material-detail-form" onSubmit={handleEditMaterial} className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1.5">
+                  Material Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 12mm TMT Fe550D Rebar"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    SKU / Code *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. MAT-CEM-53"
+                    value={editSku}
+                    onChange={(e) => setEditSku(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Unit of Measure *
+                  </label>
+                  <select
+                    value={editUnit}
+                    onChange={(e) => setEditUnit(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-medium"
+                  >
+                    <optgroup label="Weight & Bulk">
+                      <option value="BAG">BAG (Bags — 50kg Cement, Putty, Adhesives)</option>
+                      <option value="TON">TON / MT (Metric Tonnes — TMT Steel, Rebar, Bulk)</option>
+                      <option value="KG">KG (Kilograms — Binding Wire, Nails, Hardware)</option>
+                      <option value="QUINTAL">QUINTAL (100 kg — Steel, Scaffolding)</option>
+                    </optgroup>
+                    <optgroup label="Volume & Bulk Loads">
+                      <option value="CFT">CFT (Cubic Feet — Sand, Aggregate, Stone, Timber)</option>
+                      <option value="CUM">CUM / M³ (Cubic Meters — RMC Concrete, Earthwork)</option>
+                      <option value="BRASS">BRASS (100 CFT — Quarry Sand, Rubble, Murrum)</option>
+                      <option value="TRUCK">TRUCK / DUMPER (Full Dumper Loads — Soil, Gravel)</option>
+                      <option value="TROLLEY">TROLLEY (Tractor Trolley Loads — Bricks, Rubble)</option>
+                    </optgroup>
+                    <optgroup label="Area & Flooring">
+                      <option value="SQFT">SQFT (Square Feet — Tiles, Granite, Marble, Glass)</option>
+                      <option value="SQM">SQM (Square Meters — Flooring, Plaster, Paint)</option>
+                    </optgroup>
+                    <optgroup label="Length & Linear">
+                      <option value="RFT">RFT (Running Feet — Pipes, Railings, Beading)</option>
+                      <option value="METER">METER / RMT (Running Meters — Cables, Conduits)</option>
+                    </optgroup>
+                    <optgroup label="Counts & Packages">
+                      <option value="NOS">NOS / PCS (Pieces — Bricks, AAC Blocks, Doors)</option>
+                      <option value="BOX">BOX / PKT (Boxes / Packets — Screws, Spacers, Fittings)</option>
+                      <option value="BUNDLE">BUNDLE (Bundles — Plywood, Rebar Bundles)</option>
+                    </optgroup>
+                    <optgroup label="Liquids & Chemicals">
+                      <option value="LTR">LTR (Litres — Paint, Primer, Admixtures, Fuel)</option>
+                      <option value="BARREL">BARREL / DRUM (Drums — Bitumen, Waterproofing Liquid)</option>
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Preferred Vendor / Supplier (from Vendors &amp; Contractors)
+                </label>
+                <SearchableSelect
+                  options={parties.map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                    badge: p.partyType || "VENDOR",
+                    subLabel: p.phone ? `Phone: ${p.phone}${p.city ? ` • ${p.city}` : ""}` : (p.category || undefined),
+                  }))}
+                  value={editVendorId}
+                  onChange={(val) => setEditVendorId(val)}
+                  placeholder="Search and select vendor from directory (optional)..."
+                  searchPlaceholder="Type vendor name, phone, trade..."
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Links this material with a registered supplier from Vendors &amp; Contractors.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Unit Price (₹)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-sm pointer-events-none">₹</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="0.00"
+                      value={editUnitPrice}
+                      onChange={(e) => setEditUnitPrice(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 pl-7 text-sm font-mono font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Min Stock Threshold
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. 50"
+                    value={editMinStock}
+                    onChange={(e) => setEditMinStock(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Reorder Quantity
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. 200"
+                    value={editReorder}
+                    onChange={(e) => setEditReorder(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-slate-800">Status</div>
+                  <div className="text-[11px] text-slate-500">Active materials are visible for store receipts and issues.</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editActive}
+                    onChange={(e) => setEditActive(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+              </div>
+            </form>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/70 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="edit-material-detail-form"
+                disabled={isSubmittingEdit}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm disabled:opacity-50 transition cursor-pointer"
+              >
+                {isSubmittingEdit ? "Updating..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }
