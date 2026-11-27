@@ -66,6 +66,7 @@ import { useAppSession } from "@/components/providers/AppSessionProvider";
 import CommandCenter from "@/components/dashboard/CommandCenter";
 import ApprovalsWidget from "@/components/dashboard/ApprovalsWidget";
 import TaskTimeline from "@/components/tasks/TaskTimeline";
+import CheckOutConfirmationModal from "@/components/attendance/CheckOutConfirmationModal";
 import { canUser } from "@/lib/permissions";
 
 export default function DashboardPage() {
@@ -403,6 +404,7 @@ export default function DashboardPage() {
 
   // Attendance state for logged in user
   const [todaySessions, setTodaySessions] = useState<any[]>([]);
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
 
   // Feedback notifications
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -1095,25 +1097,61 @@ export default function DashboardPage() {
     });
   };
 
-  const handleQuickCheckInOut = async () => {
-    if (submittingCheckIn) return;
+  const executeCheckOut = async () => {
     setSubmittingCheckIn(true);
     setErrorMessage(null);
     setStatusMessage(null);
 
     try {
+      const gps = await getGpsCoords(false);
+      const res = await fetch("/api/attendance/check-out", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: currentUserSession?.id,
+          latitude: gps.lat,
+          longitude: gps.lng,
+          accuracyM: gps.acc,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setErrorMessage(data.error?.message || "Failed to check out");
+        return;
+      }
+      setShowCheckOutModal(false);
+      const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
+      setStatusMessage(`Checked out successfully at ${timeStr}${gpsStr}!`);
+      loadDashboard(activeSiteId);
+    } catch (err: any) {
+      setErrorMessage(`Network error: ${err.message || "Failed to update attendance"}`);
+    } finally {
+      setSubmittingCheckIn(false);
+    }
+  };
+
+  const handleQuickCheckInOut = async () => {
+    if (submittingCheckIn) return;
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
       if (!isUserCheckedIn) {
+        setSubmittingCheckIn(true);
         // Enforce mandatory GPS capture before check-in
         let gps: { lat?: number; lng?: number; acc?: number };
         try {
           gps = await getGpsCoords(true);
         } catch (err: any) {
           setErrorMessage(err.message || "📍 GPS location capture is mandatory before check-in can be submitted.");
+          setSubmittingCheckIn(false);
           return;
         }
 
         if (gps.lat == null || gps.lng == null || isNaN(gps.lat) || isNaN(gps.lng)) {
           setErrorMessage("📍 GPS location capture is mandatory before check-in can be submitted. Please allow location permissions and try again.");
+          setSubmittingCheckIn(false);
           return;
         }
 
@@ -1132,44 +1170,26 @@ export default function DashboardPage() {
         const data = await res.json();
         if (!res.ok || !data.success) {
           setErrorMessage(data.error?.message || "Failed to check in");
+          setSubmittingCheckIn(false);
           return;
         }
         const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         const gpsStr = ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)})`;
         setStatusMessage(`Checked in successfully at ${timeStr}${gpsStr}!`);
         loadDashboard(activeSiteId);
+        setSubmittingCheckIn(false);
       } else if (!isUserCheckedOut) {
-        // Perform self check-out
-        const gps = await getGpsCoords(false);
-        const res = await fetch("/api/attendance/check-out", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: currentUserSession?.id,
-            latitude: gps.lat,
-            longitude: gps.lng,
-            accuracyM: gps.acc,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          setErrorMessage(data.error?.message || "Failed to check out");
-          return;
-        }
-        const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
-        setStatusMessage(`Checked out successfully at ${timeStr}${gpsStr}!`);
-        loadDashboard(activeSiteId);
+        // Open confirmation popup verifying pending tasks and payments
+        setShowCheckOutModal(true);
       }
     } catch (err: any) {
       setErrorMessage(`Network error: ${err.message || "Failed to update attendance"}`);
-    } finally {
       setSubmittingCheckIn(false);
     }
   };
 
   useEffect(() => {
-    if (!(selectedPhoto || cameraModalOpen || activeKpiModal || showQuickTaskModal || showQuickMaterialModal || pendingDeletePhoto)) return;
+    if (!(selectedPhoto || cameraModalOpen || activeKpiModal || showQuickTaskModal || showQuickMaterialModal || pendingDeletePhoto || showCheckOutModal)) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1180,6 +1200,7 @@ export default function DashboardPage() {
         setShowQuickTaskModal(false);
         setShowQuickMaterialModal(false);
         setPendingDeletePhoto(null);
+        setShowCheckOutModal(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -1188,7 +1209,7 @@ export default function DashboardPage() {
       window.removeEventListener("keydown", handleKeyDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPhoto, cameraModalOpen, activeKpiModal, showQuickTaskModal, showQuickMaterialModal, pendingDeletePhoto]);
+  }, [selectedPhoto, cameraModalOpen, activeKpiModal, showQuickTaskModal, showQuickMaterialModal, pendingDeletePhoto, showCheckOutModal]);
 
   const renderKpiModalContent = () => {
     if (!canViewStock && activeKpiModal === "lowStockItems") return null;
@@ -4983,6 +5004,15 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Modal: Check-Out Confirmation & Pending Items Audit */}
+        <CheckOutConfirmationModal
+          isOpen={showCheckOutModal}
+          siteId={activeSiteId}
+          isSubmitting={submittingCheckIn}
+          onClose={() => setShowCheckOutModal(false)}
+          onConfirm={executeCheckOut}
+        />
 
         {/* Modal: Quick Material Request */}
         {showQuickMaterialModal && (

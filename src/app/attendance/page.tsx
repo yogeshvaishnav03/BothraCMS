@@ -37,6 +37,7 @@ import { useExcelTable, ExcelColumnHeader, ExcelTableToolbar, TablePagination, E
 import { useActiveSite } from "@/hooks/useActiveSite";
 import { useAppSession } from "@/components/providers/AppSessionProvider";
 import { canUser } from "@/lib/permissions";
+import CheckOutConfirmationModal from "@/components/attendance/CheckOutConfirmationModal";
 
 interface AttendanceRecord {
   id: string;
@@ -282,6 +283,7 @@ export default function AttendancePage() {
   const [correctionCheckOut, setCorrectionCheckOut] = useState<string>("");
   const [correctionReason, setCorrectionReason] = useState<string>("");
   const [correcting, setCorrecting] = useState<boolean>(false);
+  const [showCheckOutModal, setShowCheckOutModal] = useState<boolean>(false);
 
   // Shift timings & reminders state
   const [shiftSettings, setShiftSettings] = useState<any>(null);
@@ -688,9 +690,10 @@ export default function AttendancePage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setCorrectionSession(null);
+        setShowCheckOutModal(false);
       }
     };
-    if (correctionSession) {
+    if (correctionSession || showCheckOutModal) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
       return () => {
@@ -698,9 +701,16 @@ export default function AttendancePage() {
         window.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [correctionSession]);
+  }, [correctionSession, showCheckOutModal]);
 
-  const handleCheckOut = async () => {
+  const handleOpenCheckOutConfirm = () => {
+    if (!todaySession) return;
+    setShowCheckOutModal(true);
+  };
+
+  const handleCheckOut = handleOpenCheckOutConfirm;
+
+  const executeCheckOut = async () => {
     if (!todaySession) return;
     setSubmitting(true);
     setErrorMessage(null);
@@ -728,6 +738,7 @@ export default function AttendancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Failed to check out");
       } else {
+        setShowCheckOutModal(false);
         const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         const gpsStr = gps.lat ? ` (GPS: ${gps.lat.toFixed(4)}, ${gps.lng?.toFixed(4)})` : "";
         setStatusMessage(`Checked out successfully at ${timeStr}${gpsStr}! Today's shift completed.`);
@@ -2464,6 +2475,15 @@ export default function AttendancePage() {
             </div>
           </div>
         )}
+
+        {/* Modal: Check-Out Confirmation & Pending Items Audit */}
+        <CheckOutConfirmationModal
+          isOpen={showCheckOutModal}
+          siteId={selectedSiteId}
+          isSubmitting={submitting}
+          onClose={() => setShowCheckOutModal(false)}
+          onConfirm={executeCheckOut}
+        />
       </div>
       </AttendanceErrorBoundary>
     </Shell>
