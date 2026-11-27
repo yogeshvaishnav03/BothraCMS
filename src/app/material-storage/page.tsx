@@ -90,6 +90,20 @@ interface ProjectOption {
   siteName?: string;
 }
 
+interface PartyOption {
+  id: string;
+  name: string;
+  partyType: string;
+  phone?: string | null;
+}
+
+interface UserOption {
+  id: string;
+  name: string;
+  role: string;
+  email?: string;
+}
+
 export default function MaterialStoragePage() {
   const { session } = useAppSession();
   const { activeSiteId } = useActiveSite();
@@ -103,6 +117,8 @@ export default function MaterialStoragePage() {
   const [materials, setMaterials] = useState<MaterialOption[]>([]);
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [parties, setParties] = useState<PartyOption[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
 
   // Filters (Default to Today)
   const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
@@ -167,10 +183,12 @@ export default function MaterialStoragePage() {
 
   const fetchOptions = async () => {
     try {
-      const [matRes, storeRes, projRes] = await Promise.all([
+      const [matRes, storeRes, projRes, partyRes, userRes] = await Promise.all([
         fetch("/api/materials?limit=200"),
         fetch("/api/stores"),
         fetch("/api/projects?limit=200"),
+        fetch("/api/parties?limit=300"),
+        fetch("/api/users").catch(() => null),
       ]);
 
       if (matRes.ok) {
@@ -206,10 +224,87 @@ export default function MaterialStoragePage() {
           }))
         );
       }
+
+      if (partyRes && partyRes.ok) {
+        const partyJson = await partyRes.json().catch(() => ({}));
+        const rawParties = partyJson.data || [];
+        setParties(
+          rawParties.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            partyType: p.partyType || "VENDOR",
+            phone: p.phone || null,
+          }))
+        );
+      }
+
+      if (userRes && userRes.ok) {
+        const userJson = await userRes.json().catch(() => ({}));
+        const rawUsers = userJson.data || userJson.users || [];
+        if (Array.isArray(rawUsers)) {
+          setUsers(
+            rawUsers.map((u: any) => ({
+              id: u.id,
+              name: u.name,
+              role: u.role || "STAFF",
+              email: u.email || "",
+            }))
+          );
+        }
+      }
     } catch (e) {
       console.warn("Failed loading auxiliary storage options:", e);
     }
   };
+
+  const contractorOptions = useMemo(() => {
+    const list: Array<{ value: string; label: string; subLabel?: string; badge?: string }> = [];
+    const seenNames = new Set<string>();
+
+    // 1. Registered Contractors (first)
+    const contractors = parties.filter(
+      (p) => p.partyType === "CONTRACTOR" || p.partyType === "BOTH"
+    );
+    for (const c of contractors) {
+      if (!c.name || seenNames.has(c.name.trim().toLowerCase())) continue;
+      seenNames.add(c.name.trim().toLowerCase());
+      list.push({
+        value: c.name.trim(),
+        label: c.name.trim(),
+        subLabel: c.phone ? `Phone: ${c.phone}` : "Contractor",
+        badge: c.partyType === "BOTH" ? "Contractor & Vendor" : "Contractor",
+      });
+    }
+
+    // 2. Vendors & Suppliers
+    const vendors = parties.filter(
+      (p) => p.partyType !== "CONTRACTOR" && p.partyType !== "BOTH"
+    );
+    for (const v of vendors) {
+      if (!v.name || seenNames.has(v.name.trim().toLowerCase())) continue;
+      seenNames.add(v.name.trim().toLowerCase());
+      list.push({
+        value: v.name.trim(),
+        label: v.name.trim(),
+        subLabel: v.phone ? `Phone: ${v.phone}` : "Vendor",
+        badge: v.partyType || "Vendor",
+      });
+    }
+
+    // 3. Site Supervisors & Staff Team
+    for (const u of users) {
+      if (!u.name || seenNames.has(u.name.trim().toLowerCase())) continue;
+      seenNames.add(u.name.trim().toLowerCase());
+      list.push({
+        value: u.name.trim(),
+        label: u.name.trim(),
+        subLabel: u.email || undefined,
+        badge: u.role ? u.role.replace(/_/g, " ") : "Site Staff",
+      });
+    }
+
+    return list;
+  }, [parties, users]);
 
   useEffect(() => {
     fetchOptions();
@@ -1019,14 +1114,18 @@ export default function MaterialStoragePage() {
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                     Contractor / Responsible Person (Receiver) *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ramesh Kumar (Contractor / Site Supervisor)"
+                  <SearchableSelect
+                    options={contractorOptions}
                     value={issueForm.issuedToName}
-                    onChange={(e) => setIssueForm({ ...issueForm, issuedToName: e.target.value })}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                    onChange={(val) => setIssueForm({ ...issueForm, issuedToName: val })}
+                    placeholder="-- Select or Search Contractor (Receiver) --"
+                    searchPlaceholder="Type contractor name, phone, or enter custom name..."
+                    allowCustom={true}
+                    required
                   />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Choose from registered contractors or type a custom receiver name.
+                  </p>
                 </div>
 
                 {/* Notes */}
@@ -1209,14 +1308,18 @@ export default function MaterialStoragePage() {
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                     Returned by (Contractor / Person Name) *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Apex Civil Contractors / Mr. Suresh"
+                  <SearchableSelect
+                    options={contractorOptions}
                     value={returnForm.returnedByName}
-                    onChange={(e) => setReturnForm({ ...returnForm, returnedByName: e.target.value })}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                    onChange={(val) => setReturnForm({ ...returnForm, returnedByName: val })}
+                    placeholder="-- Select or Search Contractor (Returning) --"
+                    searchPlaceholder="Type contractor name, phone, or enter custom name..."
+                    allowCustom={true}
+                    required
                   />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    Choose from registered contractors or type a custom person name.
+                  </p>
                 </div>
 
                 {/* Return Notes */}
