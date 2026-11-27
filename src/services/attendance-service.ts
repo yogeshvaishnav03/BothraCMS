@@ -267,18 +267,54 @@ export class AttendanceService {
     }
 
     const now = new Date();
+    const durationHours = session.checkInAt
+      ? (now.getTime() - new Date(session.checkInAt).getTime()) / 3_600_000
+      : 0;
 
-    return await prisma.attendanceSession.update({
+    let updatedStatus = session.status;
+    // Calculate shift status based on hours worked
+    if (session.status === "PRESENT" || session.status === "TODO" || !session.status) {
+      if (durationHours < 3) {
+        updatedStatus = "ABSENT"; // Worked less than 3 hours -> absent
+      } else if (durationHours < 7) {
+        updatedStatus = "HALF_DAY"; // Checked out after 3 hours of check in (3h to 7h) -> half day
+      } else {
+        updatedStatus = "PRESENT"; // Full day
+      }
+    }
+
+    const updated = await prisma.attendanceSession.update({
       where: { id: session.id },
       data: {
         checkOutAt: now,
         checkOutLat: input.latitude ?? null,
         checkOutLng: input.longitude ?? null,
         checkOutAccuracyM: input.accuracyM ?? null,
+        status: updatedStatus,
         notes: input.notes ? `${session.notes || ""}; ${input.notes}`.trim() : session.notes,
       },
       include: { workforceMember: true, site: true },
     });
+
+    // Also sync StaffAttendance table if matching record exists
+    if (session.createdBy && (updatedStatus === "PRESENT" || updatedStatus === "HALF_DAY" || updatedStatus === "ABSENT")) {
+      const todayKey = session.workDate || new Date().toISOString().split("T")[0];
+      await prisma.staffAttendance.updateMany({
+        where: {
+          organizationId: input.organizationId,
+          userId: session.createdBy,
+          workDate: todayKey,
+        },
+        data: {
+          checkOutAt: now,
+          checkOutLat: input.latitude ?? null,
+          checkOutLng: input.longitude ?? null,
+          status: updatedStatus,
+        },
+      }).catch(() => {});
+    }
+
+    return updated;
   }
 
   /**
@@ -560,11 +596,26 @@ export class AttendanceService {
     siteId?: string,
     workDate?: string
   ) {
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    // Auto-resolve forgotten checkouts on past dates to HALF_DAY in database
+    await prisma.attendanceSession.updateMany({
+      where: {
+        organizationId,
+        checkOutAt: null,
+        workDate: { lt: todayStr },
+        status: { in: ["PRESENT", "TODO"] },
+      },
+      data: {
+        status: "HALF_DAY",
+      },
+    }).catch(() => {});
+
     const whereClause: any = { organizationId };
     if (siteId) whereClause.siteId = siteId;
     if (workDate) whereClause.workDate = workDate;
 
-    return await prisma.attendanceSession.findMany({
+    const records = await prisma.attendanceSession.findMany({
       where: whereClause,
       include: {
         workforceMember: true,
@@ -576,6 +627,14 @@ export class AttendanceService {
         },
       },
       orderBy: { checkInAt: "desc" },
+    });
+
+    return records.map((s) => {
+      // If user forgot to check out on a past day, reflect status as HALF_DAY
+      if (!s.checkOutAt && s.workDate < todayStr && s.status === "PRESENT") {
+        return { ...s, status: "HALF_DAY" };
+      }
+      return s;
     });
   }
 }

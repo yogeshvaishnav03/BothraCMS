@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Info,
   X,
+  XCircle,
   BellRing,
   Sliders,
   UserPlus,
@@ -43,6 +44,7 @@ interface AttendanceRecord {
   id: string;
   workDate: string;
   status: string;
+  isNotCheckedIn?: boolean;
   checkInAt: string;
   checkInLat?: number | null;
   checkInLng?: number | null;
@@ -826,9 +828,10 @@ export default function AttendancePage() {
 
       // Status filter
       if (statusFilter !== "ALL") {
-        if (statusFilter === "COMPLETED" && !s.checkOutAt) return false;
-        if (statusFilter === "IN_PROGRESS" && s.checkOutAt) return false;
+        if (statusFilter === "COMPLETED" && (!s.checkOutAt || s.status !== "PRESENT")) return false;
+        if (statusFilter === "IN_PROGRESS" && (s.checkOutAt || s.isNotCheckedIn)) return false;
         if (statusFilter === "HALF_DAY" && s.status !== "HALF_DAY") return false;
+        if (statusFilter === "ABSENT" && s.status !== "ABSENT") return false;
       }
 
       return true;
@@ -857,7 +860,11 @@ export default function AttendancePage() {
       {
         key: "status",
         label: "Shift Status",
-        accessor: (s) => (s.checkOutAt ? "Shift Completed" : "Active Shift"),
+        accessor: (s) => {
+          if (s.isNotCheckedIn || s.status === "ABSENT") return "Absent";
+          if (s.status === "HALF_DAY") return "Half Day";
+          return s.checkOutAt ? "Shift Completed (Full Day)" : "Active Shift";
+        },
         type: "text",
       },
       {
@@ -1613,9 +1620,10 @@ export default function AttendancePage() {
                 className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
               >
                 <option value="ALL">All Status</option>
-                <option value="COMPLETED">Shift Completed</option>
+                <option value="COMPLETED">Shift Completed (Full Day)</option>
                 <option value="IN_PROGRESS">In Progress</option>
                 <option value="HALF_DAY">Half Day</option>
+                <option value="ABSENT">Absent</option>
               </select>
             </div>
           </div>
@@ -1780,19 +1788,30 @@ export default function AttendancePage() {
                         </td>
 
                         <td className="py-3 px-4 whitespace-nowrap">
-                          {isCompleted ? (
+                          {s.status === "ABSENT" || s.isNotCheckedIn ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              <span>{s.isNotCheckedIn ? "Absent (No Check-In)" : s.durationMinutes < 180 ? "Absent (< 3 hrs)" : "Absent"}</span>
+                            </span>
+                          ) : s.status === "HALF_DAY" ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>{!s.checkOutAt ? "Half Day (No Check-Out)" : "Half Day (3h+ Shift)"}</span>
+                            </span>
+                          ) : isCompleted ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>Shift Completed</span>
+                              <span>Shift Completed (Full Day)</span>
                             </span>
                           ) : s.isToday ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 inline-flex items-center gap-1 animate-pulse">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-300 inline-flex items-center gap-1 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                               <span>In Progress</span>
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                              Checked In (No Check-Out)
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Half Day (No Check-Out)</span>
                             </span>
                           )}
                         </td>
@@ -1878,14 +1897,24 @@ export default function AttendancePage() {
 
                       {/* Status Badge */}
                       <div className="shrink-0">
-                        {isCompleted ? (
+                        {s.status === "ABSENT" || s.isNotCheckedIn ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
+                            <XCircle className="w-3 h-3 text-rose-600" />
+                            <span>{s.isNotCheckedIn ? "Absent (No Check-In)" : "Absent (< 3h)"}</span>
+                          </span>
+                        ) : s.status === "HALF_DAY" ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            <span>{!s.checkOutAt ? "Half Day" : "Half Day (3h+)"}</span>
+                          </span>
+                        ) : isCompleted ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             <span>Shift Done</span>
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                             <span>On Shift</span>
                           </span>
                         )}

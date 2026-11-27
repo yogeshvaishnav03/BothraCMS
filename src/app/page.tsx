@@ -2460,7 +2460,13 @@ export default function DashboardPage() {
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Shift Done</span>
+                  <span>
+                    {currentUserSession?.status === "HALF_DAY"
+                      ? "Half Day"
+                      : currentUserSession?.status === "ABSENT"
+                      ? "Absent (< 3h)"
+                      : "Shift Done"}
+                  </span>
                 </Link>
               )
             )}

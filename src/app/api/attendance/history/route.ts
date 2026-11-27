@@ -65,6 +65,19 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // Auto-resolve past un-checked-out sessions to HALF_DAY in background
+    await prisma.attendanceSession.updateMany({
+      where: {
+        organizationId: user.organizationId,
+        checkOutAt: null,
+        workDate: { lt: todayStr },
+        status: { in: ["PRESENT", "TODO"] },
+      },
+      data: {
+        status: "HALF_DAY",
+      },
+    }).catch(() => {});
+
     let todaySession: any = null;
     if (todaySessionRaw) {
       let durMin = 0;
@@ -78,10 +91,24 @@ export async function GET(req: NextRequest) {
       }
       const hrs = Math.floor(durMin / 60);
       const mns = durMin % 60;
+      const durHours = durMin / 60;
+      let calculatedTodayStatus = todaySessionRaw.status || "PRESENT";
+      if (todaySessionRaw.checkInAt && todaySessionRaw.checkOutAt) {
+        if (!todaySessionRaw.correctionReason) {
+          if (durHours < 3) {
+            calculatedTodayStatus = "ABSENT";
+          } else if (durHours < 7) {
+            calculatedTodayStatus = "HALF_DAY";
+          } else {
+            calculatedTodayStatus = "PRESENT";
+          }
+        }
+      }
+
       todaySession = {
         id: todaySessionRaw.id,
         workDate: todaySessionRaw.workDate,
-        status: todaySessionRaw.status,
+        status: calculatedTodayStatus,
         checkInAt: todaySessionRaw.checkInAt,
         checkInLat: todaySessionRaw.checkInLat,
         checkInLng: todaySessionRaw.checkInLng,
@@ -132,7 +159,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.user.findMany({
         where: { organizationId: user.organizationId },
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, role: true, status: true },
       }),
     ]);
 
@@ -247,10 +274,32 @@ export async function GET(req: NextRequest) {
       const employeeCode =
         s.workforceMember?.employeeCode || (s.creator?.id ? `USR-${s.creator.id.slice(-6).toUpperCase()}` : "N/A");
 
+      // Shift status calculation based on rules:
+      // 1. If user forgot to check out on past day -> HALF_DAY
+      // 2. If user checked in and out:
+      //    < 3 hours -> ABSENT
+      //    3 hours to 7 hours -> HALF_DAY
+      //    >= 7 hours -> PRESENT
+      let calculatedStatus = s.status || "PRESENT";
+      if (!s.checkOutAt && s.workDate < todayStr) {
+        calculatedStatus = "HALF_DAY";
+      } else if (s.checkInAt && s.checkOutAt) {
+        if (!s.correctionReason) {
+          const workedHours = durationMinutes / 60;
+          if (workedHours < 3) {
+            calculatedStatus = "ABSENT";
+          } else if (workedHours < 7) {
+            calculatedStatus = "HALF_DAY";
+          } else {
+            calculatedStatus = "PRESENT";
+          }
+        }
+      }
+
       return {
         id: s.id,
         workDate: s.workDate,
-        status: s.status,
+        status: calculatedStatus,
         checkInAt: s.checkInAt,
         checkInLat: s.checkInLat,
         checkInLng: s.checkInLng,
@@ -274,6 +323,67 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Identify staff who did NOT click check-in today
+    const checkedInUserIds = new Set<string>();
+    for (const s of enrichedSessions) {
+      if (s.isToday) {
+        if (s.creator?.id) checkedInUserIds.add(s.creator.id);
+        const empCode = s.workforceMember?.employeeCode;
+        if (empCode && userByEmpCode.has(empCode)) {
+          const u = userByEmpCode.get(empCode);
+          if (u?.id) checkedInUserIds.add(u.id);
+        }
+        const name = s.workforceMember?.name?.toLowerCase().trim();
+        if (name && userByName.has(name)) {
+          const u = userByName.get(name);
+          if (u?.id) checkedInUserIds.add(u.id);
+        }
+      }
+    }
+
+    const activeStaff = orgUsers.filter((u) => u.status === "ACTIVE" || !u.status);
+    const absentTodaySessions: any[] = [];
+
+    // When viewing all sites (or site not filtered), show active staff who didn't check in today as ABSENT
+    if (!siteIdParam || siteIdParam === "ALL") {
+      const candidates = fetchAll
+        ? activeStaff
+        : activeStaff.filter((u) => u.id === user.userId);
+
+      for (const u of candidates) {
+        if (!checkedInUserIds.has(u.id)) {
+          absentTodaySessions.push({
+            id: `absent-${u.id}-${todayStr}`,
+            workDate: todayStr,
+            status: "ABSENT",
+            isNotCheckedIn: true,
+            checkInAt: null,
+            checkInLat: null,
+            checkInLng: null,
+            checkOutAt: null,
+            checkOutLat: null,
+            checkOutLng: null,
+            durationMinutes: 0,
+            durationFormatted: "0m",
+            durationHours: 0,
+            site: null,
+            project: null,
+            workforceMember: null,
+            creator: { id: u.id, name: u.name, email: u.email, role: u.role },
+            employeeName: u.name || "Staff Member",
+            employeeRole: u.role || "STAFF",
+            employeeCode: `USR-${u.id.slice(-6).toUpperCase()}`,
+            employeeEmail: u.email,
+            notes: "No check-in recorded (Absent)",
+            correctionReason: null,
+            isToday: true,
+          });
+        }
+      }
+    }
+
+    const finalSessions = [...enrichedSessions, ...absentTodaySessions];
+
     // Monthly breakdown (e.g. 2026-10, 2026-09, 2026-08)
     const monthsMap = new Map<string, { monthKey: string; label: string; count: number; totalMinutes: number }>();
 
@@ -292,7 +402,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    enrichedSessions.forEach((s) => {
+    finalSessions.forEach((s) => {
       const key = s.workDate.slice(0, 7);
       if (monthsMap.has(key)) {
         const item = monthsMap.get(key)!;
@@ -306,19 +416,28 @@ export async function GET(req: NextRequest) {
       totalHours: parseFloat((m.totalMinutes / 60).toFixed(1)),
     }));
 
-    // Calculate metrics
-    const totalDaysPresent = enrichedSessions.length;
-    const completedShifts = enrichedSessions.filter((s) => !!s.checkOutAt).length;
-    const totalMinutesLogged = enrichedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
+    // Calculate metrics:
+    // Full day (PRESENT) = 1.0 day
+    // Half day (HALF_DAY) = 0.5 day
+    // Absent (ABSENT) = 0
+    const totalDaysPresent = finalSessions.reduce((acc, s) => {
+      if (s.status === "HALF_DAY") return acc + 0.5;
+      if (s.status === "ABSENT" || s.isNotCheckedIn) return acc;
+      return acc + 1;
+    }, 0);
+    const completedShifts = finalSessions.filter((s) => !!s.checkOutAt).length;
+    const totalMinutesLogged = finalSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
     const totalHoursLogged = parseFloat((totalMinutesLogged / 60).toFixed(1));
     const averageDailyHours =
       totalDaysPresent > 0 ? parseFloat((totalHoursLogged / totalDaysPresent).toFixed(1)) : 0;
 
     // Org-wide metrics for privileged viewers
-    const activeStaffToday = enrichedSessions.filter((s) => s.isToday && !s.checkOutAt).length;
-    const completedStaffToday = enrichedSessions.filter((s) => s.isToday && !!s.checkOutAt).length;
+    const activeStaffToday = finalSessions.filter((s) => s.isToday && !s.checkOutAt && !s.isNotCheckedIn).length;
+    const completedStaffToday = finalSessions.filter((s) => s.isToday && !!s.checkOutAt).length;
+    const absentStaffToday = finalSessions.filter((s) => s.isToday && (s.status === "ABSENT" || s.isNotCheckedIn)).length;
+    const halfDayStaffToday = finalSessions.filter((s) => s.isToday && s.status === "HALF_DAY").length;
     const totalStaffOnSiteToday = activeStaffToday + completedStaffToday;
-    const uniqueStaffCount = new Set(enrichedSessions.map((s) => s.employeeName + s.employeeCode)).size;
+    const uniqueStaffCount = new Set(finalSessions.map((s) => s.employeeName + s.employeeCode)).size;
 
     return jsonSuccess({
       employee: {
@@ -341,11 +460,13 @@ export async function GET(req: NextRequest) {
         averageDailyHours,
         activeStaffToday,
         completedStaffToday,
+        absentStaffToday,
+        halfDayStaffToday,
         totalStaffOnSiteToday,
         uniqueStaffCount,
       },
       monthsBreakdown,
-      sessions: enrichedSessions,
+      sessions: finalSessions,
     });
   } catch (error) {
     return handleApiError(error);

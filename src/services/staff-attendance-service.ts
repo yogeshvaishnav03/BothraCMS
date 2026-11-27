@@ -109,14 +109,27 @@ export class StaffAttendanceService {
     if (existing.checkOutAt?.getTime() === now.getTime()) return existing;
     if (existing.checkOutAt) throw new StaffAttendanceError("You have already checked out today.");
     const hours = hoursBetween(existing.checkInAt, now) ?? 0;
+    let resolvedStatus: StaffStatus = existing.status;
+    // Calculate shift status:
+    // < 3 hours -> ABSENT
+    // >= 3 hours and < 7 hours -> HALF_DAY
+    // >= 7 hours -> PRESENT (Full shift)
+    if (existing.status === "PRESENT" || existing.status === "HALF_DAY" || existing.status === "ABSENT") {
+      if (hours < 3) {
+        resolvedStatus = "ABSENT";
+      } else if (hours < 7) {
+        resolvedStatus = "HALF_DAY";
+      } else {
+        resolvedStatus = "PRESENT";
+      }
+    }
     return prisma.staffAttendance.update({
       where: { id: existing.id },
       data: {
         checkOutAt: now,
         checkOutLat: input.lat ?? null,
         checkOutLng: input.lng ?? null,
-        // Under four hours counts as half a day unless an admin says otherwise.
-        status: existing.status === "PRESENT" && hours < 4 ? "HALF_DAY" : existing.status,
+        status: resolvedStatus,
       },
     });
   }
@@ -154,10 +167,16 @@ export class StaffAttendanceService {
       string,
       Record<string, { status: string; checkInAt: string; checkOutAt: string | null; hours: number | null; flag: string | null; site: string | null; distanceM: number | null; selfie: string | null }>
     >();
+    const todayStr = istDateKey(new Date());
     for (const r of rows) {
       const cells = byUser.get(r.userId) || {};
+      let rowStatus = r.status;
+      // If user forgot to check out on a past day, reflect status as HALF_DAY
+      if (!r.checkOutAt && r.workDate < todayStr && rowStatus === "PRESENT") {
+        rowStatus = "HALF_DAY";
+      }
       cells[r.workDate] = {
-        status: r.status,
+        status: rowStatus,
         checkInAt: r.checkInAt.toISOString(),
         checkOutAt: r.checkOutAt ? r.checkOutAt.toISOString() : null,
         hours: hoursBetween(r.checkInAt, r.checkOutAt),
@@ -179,6 +198,7 @@ export class StaffAttendanceService {
           present: values.filter((c) => c.status === "PRESENT").length,
           halfDay: values.filter((c) => c.status === "HALF_DAY").length,
           leave: values.filter((c) => c.status === "LEAVE").length,
+          absent: values.filter((c) => c.status === "ABSENT").length,
           away: values.filter((c) => c.flag === "OFF_SITE").length,
           hours: Math.round(values.reduce((s, c) => s + (c.hours || 0), 0) * 10) / 10,
         },
