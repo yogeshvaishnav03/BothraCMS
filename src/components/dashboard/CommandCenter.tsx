@@ -1914,7 +1914,7 @@ export default function CommandCenter({
                             Total: {formatCurrency(b.totalAmount)}
                           </div>
                           <Link
-                            href="/finance?tab=bills"
+                            href={`/finance?tab=bills&payBill=${b.id}`}
                             className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 mt-1.5 hover:underline"
                           >
                             <span>{hi ? "भुगतान करें" : "Pay Bill →"}</span>

@@ -811,6 +811,18 @@ export default function FinancePage() {
     setShowPaymentModal(true);
   }, []);
 
+  useEffect(() => {
+    if (bills.length === 0 || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const payBillId = params.get("payBill");
+    if (payBillId) {
+      const target = bills.find((b: any) => b.id === payBillId);
+      if (target) {
+        handleOpenPayForBill(target);
+      }
+    }
+  }, [bills, handleOpenPayForBill]);
+
   const renderPayingAccountOptions = () => {
     if (configuredBankAccounts.length > 0) {
       return (
