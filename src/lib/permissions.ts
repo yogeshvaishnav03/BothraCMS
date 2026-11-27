@@ -281,6 +281,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "tasks:read",
     "tasks:write",
     "inventory:read",
+    "inventory:write",
     "inventory:receipt",
     "inventory:issue",
     "attendance:read",
