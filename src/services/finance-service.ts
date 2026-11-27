@@ -45,6 +45,7 @@ export interface CreateBillInput {
   notes?: string;
   costHead?: string | null;
   status?: string;
+  totalAmount?: number;
   /**
    * GST on top of the lines. Supplier in another state → IGST, else CGST + SGST.
    * `rate` applies to lines without their own rate. Under reverse charge the
@@ -64,6 +65,7 @@ export interface GenerateBillFromChallanInput {
   dueDate?: Date;
   costHead?: string | null;
   notes?: string;
+  totalAmount?: number;
   gst?: {
     rate?: number | null;
     interState?: boolean | null;
@@ -406,7 +408,7 @@ export class FinanceService {
 
     const linesTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
     let gstFields: Record<string, unknown> = {};
-    let calculatedTotal = linesTotal;
+    let calculatedTotal = linesTotal > 0 ? linesTotal : (input.totalAmount ? roundPaise(input.totalAmount) : 0);
     let lineTax: { gstRate: number | null; taxAmount: number }[] = input.lines.map(() => ({ gstRate: null, taxAmount: 0 }));
     if (input.gst) {
       const rates = input.lines.map((l) => l.gstRate ?? input.gst!.rate ?? null);
@@ -462,7 +464,7 @@ export class FinanceService {
               materialId: l.materialId ?? null,
               quantity: l.quantity ?? null,
               unitRate: l.unitRate ?? null,
-              lineTotal: l.lineTotal,
+              lineTotal: l.lineTotal > 0 ? l.lineTotal : (input.lines.length === 1 && input.totalAmount ? roundPaise(input.totalAmount) : l.lineTotal),
               ...lineTax[i],
             })),
           },
@@ -548,7 +550,7 @@ export class FinanceService {
 
     const linesTotal = roundPaise(input.lines.reduce((sum: number, line: any) => sum + (line.lineTotal || 0), 0));
     let gstFields: Record<string, unknown> = {};
-    let calculatedTotal = linesTotal;
+    let calculatedTotal = linesTotal > 0 ? linesTotal : (input.totalAmount ? roundPaise(input.totalAmount) : 0);
     let lineTax: { gstRate: number | null; taxAmount: number }[] = input.lines.map(() => ({ gstRate: null, taxAmount: 0 }));
 
     if (input.gst) {
@@ -977,7 +979,7 @@ export class FinanceService {
           currency: input.currency ?? "INR",
           method: input.method,
           costHead: input.costHead ?? null,
-          referenceNumber: input.referenceNumber,
+          referenceNumber: input.referenceNumber || `PAY-${Date.now().toString().slice(-6)}`,
           status,
           approvedBy,
           approvedAt,

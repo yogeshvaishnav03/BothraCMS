@@ -18,6 +18,17 @@ const createBillSchema = z.object({
   costHead: z.enum(COST_HEAD_KEYS).optional().nullable(),
   notes: z.string().optional(),
   attachmentFileId: z.string().optional(),
+  totalAmount: z.number().min(0).optional(),
+  payment: z
+    .object({
+      isPaid: z.boolean(),
+      paidAmount: z.number().min(0),
+      payingAccount: z.string().optional(),
+      method: z.string().optional(),
+      referenceNumber: z.string().optional(),
+      notes: z.string().optional(),
+    })
+    .optional(),
   gst: z
     .object({
       rate: z.number().min(0).max(28).nullable().optional(),
@@ -117,10 +128,45 @@ export async function POST(req: NextRequest) {
       notes: data.notes,
       gst: data.gst,
       lines: data.lines,
+      totalAmount: data.totalAmount,
       userId: user.userId,
       role: user.role,
       permissions: user.permissions,
     });
+
+    let paymentRecord: any = null;
+    if (data.payment && data.payment.isPaid && data.payment.paidAmount > 0) {
+      const isUnderThreshold = data.payment.paidAmount < 2000000;
+      const isExecutive = user.role === "SUPER_ADMIN" || user.role === "ORG_ADMIN";
+      const party = bill.party || (await prisma.party.findUnique({ where: { id: data.partyId } }));
+
+      paymentRecord = await FinanceService.recordPayment({
+        organizationId: user.organizationId,
+        partyId: data.partyId,
+        recipientType: party?.partyType || "VENDOR",
+        recipientName: party?.name || "Vendor",
+        payingAccount: data.payment.payingAccount || "HDFC Bank Operating A/C (A/C: ...4421)",
+        approvalQuery: data.payment.notes || `Payment for Bill #${bill.billNumber}`,
+        paymentDate: new Date(data.billDate),
+        amount: data.payment.paidAmount,
+        method: data.payment.method || "BANK_TRANSFER",
+        referenceNumber: data.payment.referenceNumber || `PAY-${bill.billNumber}-${Date.now().toString().slice(-4)}`,
+        idempotencyKey: `pay-bill-${bill.id}-${Date.now()}`,
+        costHead: data.costHead || undefined,
+        projectId: data.projectId,
+        notes: data.payment.notes || `Payment recorded on bill #${bill.billNumber}`,
+        userId: user.userId,
+        role: user.role,
+        permissions: user.permissions,
+        autoApprove: isUnderThreshold ? true : (isExecutive ? true : false),
+        allocations: [
+          {
+            billId: bill.id,
+            amount: data.payment.paidAmount,
+          },
+        ],
+      });
+    }
 
     if (data.attachmentFileId) {
       try {
@@ -140,7 +186,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return jsonSuccess(bill, 201);
+    return jsonSuccess({ ...bill, payment: paymentRecord }, 201);
   } catch (error) {
     return handleApiError(error);
   }

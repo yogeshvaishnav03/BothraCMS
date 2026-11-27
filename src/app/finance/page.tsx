@@ -227,14 +227,24 @@ export default function FinancePage() {
   // Tab within Record Bill modal: "BILL" | "CHALLAN"
   const [billModalTab, setBillModalTab] = useState<"BILL" | "CHALLAN">("BILL");
 
+  // Payment Option within Bill & Challan modal (Paid vs Unpaid, Full or Partial)
+  const [billPaymentStatus, setBillPaymentStatus] = useState<"UNPAID" | "PAID">("UNPAID");
+  const [billPaidAmount, setBillPaidAmount] = useState("");
+  const [billPayingAccount, setBillPayingAccount] = useState("HDFC Bank Operating A/C (A/C: ...4421)");
+  const [billCustomPayingAccount, setBillCustomPayingAccount] = useState("");
+  const [billPaymentMethod, setBillPaymentMethod] = useState("UPI");
+  const [billPaymentReference, setBillPaymentReference] = useState("");
+  const [billPaymentNotes, setBillPaymentNotes] = useState("");
+  const [challanManualTotal, setChallanManualTotal] = useState("");
+
   // Challan Form State
   const [challanPartyId, setChallanPartyId] = useState("");
   const [challanProjectId, setChallanProjectId] = useState("");
   const [challanNumber, setChallanNumber] = useState("");
   const [challanDate, setChallanDate] = useState(() => istDateKey());
   const [challanLines, setChallanLines] = useState<
-    Array<{ description: string; materialId: string; quantity: string; unit: string; isCustomUnit?: boolean }>
-  >([{ description: "", materialId: "", quantity: "", unit: "BAG", isCustomUnit: false }]);
+    Array<{ description: string; materialId: string; quantity: string; unit: string; isCustomUnit?: boolean; unitRate?: string; lineTotal?: string }>
+  >([{ description: "", materialId: "", quantity: "", unit: "BAG", isCustomUnit: false, unitRate: "", lineTotal: "" }]);
   const [challanNotes, setChallanNotes] = useState("");
   const [challanFile, setChallanFile] = useState<{ url: string; name: string; fileId?: string } | null>(null);
 
@@ -843,6 +853,38 @@ export default function FinancePage() {
       return;
     }
 
+    const taxable = parsedLines.reduce((sum: number, l: any) => sum + (l.lineTotal || 0), 0);
+    const rate = billGstRate === "" ? 0 : Number(billGstRate);
+    const lineRate = (l: any) => (billGstRate === "" ? 0 : l.gstRate ? Number(l.gstRate) : rate);
+    const tax = parsedLines.reduce((sum: number, l: any) => sum + Math.round((l.lineTotal || 0) * lineRate(l)) / 100, 0);
+    const billTotalPaise = billRcm ? taxable : taxable + tax;
+
+    let paymentPayload: any = undefined;
+    if (billPaymentStatus === "PAID") {
+      const paidPaise = Math.round(parseFloat(billPaidAmount || "0") * 100);
+      if (isNaN(paidPaise) || paidPaise <= 0) {
+        setErrorMessage("Please enter an amount paying greater than ₹0.");
+        return;
+      }
+      if (paidPaise > billTotalPaise) {
+        setErrorMessage(`Amount paying (₹${(paidPaise / 100).toFixed(2)}) cannot exceed the total bill amount (₹${(billTotalPaise / 100).toFixed(2)}).`);
+        return;
+      }
+      const effectivePayingAccount = billPayingAccount === "CUSTOM" ? billCustomPayingAccount.trim() : billPayingAccount.trim();
+      if (!effectivePayingAccount) {
+        setErrorMessage("Please select or specify the account you are paying from.");
+        return;
+      }
+      paymentPayload = {
+        isPaid: true,
+        paidAmount: paidPaise,
+        payingAccount: effectivePayingAccount,
+        method: billPaymentMethod,
+        referenceNumber: billPaymentReference.trim() || undefined,
+        notes: billPaymentNotes.trim() || undefined,
+      };
+    }
+
     setSubmitting(true);
     setErrorMessage(null);
     setStatusMessage(null);
@@ -876,6 +918,7 @@ export default function FinancePage() {
                   reverseCharge: billRcm,
                 },
           lines: parsedLines,
+          payment: paymentPayload,
         }),
       });
 
@@ -883,8 +926,19 @@ export default function FinancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Could not save bill. Please check the details and try again.");
       } else {
-        const totalAmountRupees = ((data.data?.totalAmount ?? parsedLines.reduce((s: number, l: any) => s + (l.lineTotal || 0), 0)) / 100).toFixed(2);
-        setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} saved!`);
+        const totalAmountRupees = (billTotalPaise / 100).toFixed(2);
+        const paidPaise = paymentPayload ? paymentPayload.paidAmount : 0;
+        if (paidPaise > 0) {
+          const paidRupees = (paidPaise / 100).toFixed(2);
+          const pendingRupees = ((billTotalPaise - paidPaise) / 100).toFixed(2);
+          if (paidPaise >= billTotalPaise) {
+            setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} saved and marked fully paid!`);
+          } else {
+            setStatusMessage(`Bill #${billNumber} saved: ₹${paidRupees} paid, ₹${pendingRupees} pending balance.`);
+          }
+        } else {
+          setStatusMessage(`Bill #${billNumber} for ₹${totalAmountRupees} recorded (Unpaid - full balance pending).`);
+        }
         setShowBillModal(false);
         setBillNumber("");
         setBillDueDate("");
@@ -895,6 +949,10 @@ export default function FinancePage() {
         setBillRcm(false);
         setBillLines([{ description: "", materialId: "", quantity: "", unitRate: "", lineTotal: "" }]);
         setBillFile(null);
+        setBillPaymentStatus("UNPAID");
+        setBillPaidAmount("");
+        setBillPaymentReference("");
+        setBillPaymentNotes("");
         loadData();
       }
     } catch {
@@ -905,7 +963,7 @@ export default function FinancePage() {
   };
 
   const addChallanLine = () => {
-    setChallanLines((prev) => [...prev, { description: "", materialId: "", quantity: "", unit: "BAG", isCustomUnit: false }]);
+    setChallanLines((prev) => [...prev, { description: "", materialId: "", quantity: "", unit: "BAG", isCustomUnit: false, unitRate: "", lineTotal: "" }]);
   };
 
   const removeChallanLine = (index: number) => {
@@ -925,6 +983,13 @@ export default function FinancePage() {
               updated.unit = mat.unitCode;
               updated.isCustomUnit = !CHALLAN_ALL_CODES.has(mat.unitCode);
             }
+          }
+        }
+        if ((field === "quantity" || field === "unitRate") && (updated.quantity || updated.unitRate)) {
+          const q = parseFloat(updated.quantity);
+          const r = parseFloat(updated.unitRate || "0");
+          if (!isNaN(q) && !isNaN(r) && r > 0) {
+            updated.lineTotal = (q * r).toFixed(2);
           }
         }
         return updated;
@@ -953,12 +1018,44 @@ export default function FinancePage() {
         materialId: l.materialId || undefined,
         quantity: parseFloat(l.quantity) || 0,
         unit: l.unit.trim(),
+        unitRate: l.unitRate ? Math.round(parseFloat(l.unitRate) * 100) : 0,
+        lineTotal: l.lineTotal ? Math.round(parseFloat(l.lineTotal) * 100) : 0,
       }))
       .filter((l) => l.description.length > 0 && l.quantity > 0);
 
     if (validLines.length === 0) {
       setErrorMessage("Please add at least one material with a quantity greater than 0.");
       return;
+    }
+
+    const challanLinesTotalPaise = validLines.reduce((sum, l) => sum + (l.lineTotal || 0), 0);
+    const manualTotalPaise = challanManualTotal ? Math.round(parseFloat(challanManualTotal) * 100) : 0;
+    const effectiveChallanTotalPaise = challanLinesTotalPaise > 0 ? challanLinesTotalPaise : manualTotalPaise;
+
+    let paymentPayload: any = undefined;
+    if (billPaymentStatus === "PAID") {
+      const paidPaise = Math.round(parseFloat(billPaidAmount || "0") * 100);
+      if (isNaN(paidPaise) || paidPaise <= 0) {
+        setErrorMessage("Please enter an amount paying greater than ₹0.");
+        return;
+      }
+      if (effectiveChallanTotalPaise > 0 && paidPaise > effectiveChallanTotalPaise) {
+        setErrorMessage(`Amount paying (₹${(paidPaise / 100).toFixed(2)}) cannot exceed the total challan amount (₹${(effectiveChallanTotalPaise / 100).toFixed(2)}).`);
+        return;
+      }
+      const effectivePayingAccount = billPayingAccount === "CUSTOM" ? billCustomPayingAccount.trim() : billPayingAccount.trim();
+      if (!effectivePayingAccount) {
+        setErrorMessage("Please select or specify the account you are paying from.");
+        return;
+      }
+      paymentPayload = {
+        isPaid: true,
+        paidAmount: paidPaise,
+        payingAccount: effectivePayingAccount,
+        method: billPaymentMethod,
+        referenceNumber: billPaymentReference.trim() || undefined,
+        notes: billPaymentNotes.trim() || undefined,
+      };
     }
 
     setSubmitting(true);
@@ -973,6 +1070,7 @@ export default function FinancePage() {
       .join(" ");
 
     try {
+      const totalAmountToSave = effectiveChallanTotalPaise > 0 ? effectiveChallanTotalPaise : (paymentPayload ? paymentPayload.paidAmount : 0);
       const res = await fetch("/api/finance/bills", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -982,15 +1080,17 @@ export default function FinancePage() {
           billNumber: challanNumber.trim(),
           billDate: new Date(challanDate).toISOString(),
           status: "CHALLAN",
+          totalAmount: totalAmountToSave,
           notes: finalChallanNotes || undefined,
           attachmentFileId: challanFile?.fileId || undefined,
           lines: validLines.map((l) => ({
             description: `${l.description}${l.unit ? ` (${l.unit})` : ""}`,
             materialId: l.materialId,
             quantity: l.quantity,
-            unitRate: 0,
-            lineTotal: 0,
+            unitRate: l.unitRate || 0,
+            lineTotal: l.lineTotal || (validLines.length === 1 ? totalAmountToSave : 0),
           })),
+          payment: paymentPayload,
         }),
       });
 
@@ -998,7 +1098,18 @@ export default function FinancePage() {
       if (!res.ok || !data.success) {
         setErrorMessage(data.error?.message || "Could not save challan. Please check details and try again.");
       } else {
-        setStatusMessage(`Delivery Challan #${challanNumber.trim()} recorded successfully!`);
+        const paidPaise = paymentPayload ? paymentPayload.paidAmount : 0;
+        if (paidPaise > 0) {
+          const paidRupees = (paidPaise / 100).toFixed(2);
+          const pendingRupees = ((totalAmountToSave - paidPaise) / 100).toFixed(2);
+          if (paidPaise >= totalAmountToSave) {
+            setStatusMessage(`Delivery Challan #${challanNumber.trim()} saved and marked fully paid (₹${paidRupees})!`);
+          } else {
+            setStatusMessage(`Delivery Challan #${challanNumber.trim()} saved: ₹${paidRupees} paid, ₹${pendingRupees} pending balance.`);
+          }
+        } else {
+          setStatusMessage(`Delivery Challan #${challanNumber.trim()} recorded successfully!`);
+        }
         setShowBillModal(false);
         setChallanPartyId("");
         setChallanProjectId("");
@@ -1006,7 +1117,12 @@ export default function FinancePage() {
         setChallanDate(istDateKey());
         setChallanNotes("");
         setChallanFile(null);
-        setChallanLines([{ description: "", materialId: "", quantity: "", unit: "BAG" }]);
+        setChallanLines([{ description: "", materialId: "", quantity: "", unit: "BAG", isCustomUnit: false, unitRate: "", lineTotal: "" }]);
+        setBillPaymentStatus("UNPAID");
+        setBillPaidAmount("");
+        setBillPaymentReference("");
+        setBillPaymentNotes("");
+        setChallanManualTotal("");
         loadData();
       }
     } catch {
@@ -1305,18 +1421,18 @@ export default function FinancePage() {
   }, [payments, selectedSiteId, selectedProjectId, projects]);
 
   const totalBilledAll = siteScopedBills
-    .filter((b: any) => b.status !== "CHALLAN")
+    .filter((b: any) => b.status !== "CHALLAN" || (b.totalAmount && b.totalAmount > 0))
     .reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
   const posted = siteScopedPayments.filter((p: any) => p.status === "POSTED");
   // Out of the bank; TDS held back from contractors is counted when it is deposited.
   const totalPaidAll = posted.reduce((sum: number, p: any) => sum + (p.amount || 0) - (p.tdsAmount || 0), 0);
   // Outstanding liability owed on unpaid vendor bills (always non-negative)
   const totalOutstandingAll = siteScopedBills
-    .filter((b: any) => b.status !== "CHALLAN")
+    .filter((b: any) => b.status !== "CHALLAN" || (b.totalAmount && b.totalAmount > 0))
     .reduce((sum: number, b: any) => sum + Math.max(0, b.outstandingAmount || 0), 0);
 
   const partyBills = siteScopedBills.filter(
-    (b) => b.partyId === selectedPartyId && b.status !== "CHALLAN" && b.outstandingAmount > 0
+    (b) => b.partyId === selectedPartyId && (b.status !== "CHALLAN" || (b.totalAmount && b.totalAmount > 0)) && b.outstandingAmount > 0
   );
 
   // Distinct Paying Accounts extracted from existing payments
@@ -1719,9 +1835,11 @@ export default function FinancePage() {
       if (billStatus === "CHALLAN") {
         if (b.status !== "CHALLAN") return false;
       } else if (billStatus === "PAID") {
-        if (b.status === "CHALLAN" || b.outstandingAmount > 0) return false;
+        if (b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0)) return false;
+        if (b.outstandingAmount > 0) return false;
       } else if (billStatus === "PENDING") {
-        if (b.status === "CHALLAN" || b.outstandingAmount === 0) return false;
+        if (b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0)) return false;
+        if (b.outstandingAmount === 0) return false;
       }
 
       // Date range filtering for bills
@@ -1774,7 +1892,7 @@ export default function FinancePage() {
     let outstandingPaise = 0;
     let challanCount = 0;
     filteredBills.forEach((b) => {
-      if (b.status === "CHALLAN") {
+      if (b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0)) {
         challanCount++;
       } else {
         totalPaise += b.totalAmount || 0;
@@ -1904,7 +2022,7 @@ export default function FinancePage() {
       {
         key: "status",
         label: "Status",
-        accessor: (b) => (b.status === "CHALLAN" ? "CHALLAN" : b.outstandingAmount === 0 ? "PAID" : "PENDING"),
+        accessor: (b) => (b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0) ? "CHALLAN" : b.outstandingAmount === 0 ? "PAID" : "PENDING"),
         type: "text",
         align: "center",
       },
@@ -1989,7 +2107,7 @@ export default function FinancePage() {
     let challanCount = 0;
 
     for (const b of excelBills.filteredData) {
-      if (b.status === "CHALLAN") {
+      if (b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0)) {
         challanCount++;
       } else {
         totalPaise += Number(b.totalAmount) || 0;
@@ -3353,26 +3471,26 @@ export default function FinancePage() {
                         </td>
                         <td className="py-3 px-4 text-xs text-slate-600">{formatDate(b.billDate)}</td>
                         <td className="py-3 px-4 text-right font-medium text-slate-900 tabular-nums">
-                          {b.status === "CHALLAN" ? (
+                          {b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0) ? (
                             <span className="text-xs text-slate-400 italic">No rate (Challan)</span>
                           ) : (
                             formatCurrency(b.totalAmount)
                           )}
                         </td>
                         <td className="py-3 px-4 text-right font-medium text-emerald-600 tabular-nums">
-                          {b.status === "CHALLAN" ? "—" : formatCurrency(b.paidAmount)}
+                          {b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0) && (!b.paidAmount || b.paidAmount === 0) ? "—" : formatCurrency(b.paidAmount || 0)}
                         </td>
                         <td className="py-3 px-4 text-right font-black tabular-nums">
-                          {b.status === "CHALLAN" ? (
+                          {b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0) ? (
                             <span className="text-slate-400">—</span>
                           ) : (
                             <span className={b.outstandingAmount > 0 ? "text-amber-600" : "text-slate-400"}>
-                              {formatCurrency(b.outstandingAmount)}
+                              {formatCurrency(b.outstandingAmount || 0)}
                             </span>
                           )}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          {b.status === "CHALLAN" ? (
+                          {b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0) ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
                               CHALLAN
                             </span>
@@ -3388,7 +3506,7 @@ export default function FinancePage() {
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
-                            {(canWriteFinance || canSuperAdminAct) && b.status !== "CHALLAN" && b.outstandingAmount > 0 && (
+                            {(canWriteFinance || canSuperAdminAct) && b.outstandingAmount > 0 && (
                               <button
                                 type="button"
                                 onClick={() => handleOpenPayForBill(b)}
@@ -3396,10 +3514,10 @@ export default function FinancePage() {
                                 title="Pay bill — amount is changeable and remaining balance is updated"
                               >
                                 <CreditCard className="w-3 h-3 text-slate-950" />
-                                <span>Pay Bill</span>
+                                <span>Pay {b.status === "CHALLAN" ? "Challan" : "Bill"}</span>
                               </button>
                             )}
-                            {b.status === "CHALLAN" && canWriteFinance && (
+                            {b.status === "CHALLAN" && canWriteFinance && (!b.totalAmount || b.totalAmount === 0) && (
                               <button
                                 onClick={() => openGenerateBillModal(b)}
                                 className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-2xs cursor-pointer"
@@ -3537,7 +3655,7 @@ export default function FinancePage() {
 
                         {/* Status Badge */}
                         <div className="shrink-0">
-                          {b.status === "CHALLAN" ? (
+                          {b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0) ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
                               CHALLAN
                             </span>
@@ -3554,7 +3672,7 @@ export default function FinancePage() {
                       </div>
 
                       {/* Middle: Delivery Challan materials OR Pending Balance & Total Bill Amount */}
-                      {b.status === "CHALLAN" ? (
+                      {b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0) ? (
                         <div className="mt-3 pt-2.5 border-t border-slate-100 text-xs">
                           <div className="text-[11px] text-indigo-700 font-semibold mb-1">Delivered Materials (Rate Pending):</div>
                           <div className="bg-indigo-50/50 p-2 rounded-lg border border-indigo-100 space-y-1">
@@ -3579,7 +3697,7 @@ export default function FinancePage() {
                           </div>
 
                           <div className="text-right">
-                            <div className="text-[11px] text-slate-400 font-medium">Total Bill</div>
+                            <div className="text-[11px] text-slate-400 font-medium">Total {b.status === "CHALLAN" ? "Challan" : "Bill"}</div>
                             <div className="font-display text-sm font-extrabold text-slate-700 tabular-nums truncate" title={formatCurrency(b.totalAmount)}>
                               {formatCompactINR(b.totalAmount)}
                             </div>
@@ -3590,7 +3708,7 @@ export default function FinancePage() {
                       {/* Footer Actions: Attach Invoices / Challans & Generate Bill */}
                       <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[11px] text-slate-400">
-                          {b.status === "CHALLAN"
+                          {b.status === "CHALLAN" && (!b.totalAmount || b.totalAmount === 0)
                             ? "Delivery Challan"
                             : b.outstandingAmount === 0
                             ? "Paid in Full"
@@ -3598,17 +3716,17 @@ export default function FinancePage() {
                         </span>
 
                         <div className="flex items-center gap-1.5">
-                          {(canWriteFinance || canSuperAdminAct) && b.status !== "CHALLAN" && b.outstandingAmount > 0 && (
+                          {(canWriteFinance || canSuperAdminAct) && b.outstandingAmount > 0 && (
                             <button
                               type="button"
                               onClick={() => handleOpenPayForBill(b)}
                               className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-gradient-brand hover:brightness-105 text-slate-950 transition shadow-xs cursor-pointer"
                             >
                               <CreditCard className="w-3.5 h-3.5 text-slate-950" />
-                              <span>Pay Bill</span>
+                              <span>Pay {b.status === "CHALLAN" ? "Challan" : "Bill"}</span>
                             </button>
                           )}
-                          {b.status === "CHALLAN" && canWriteFinance && (
+                          {b.status === "CHALLAN" && canWriteFinance && (!b.totalAmount || b.totalAmount === 0) && (
                             <button
                               onClick={() => openGenerateBillModal(b)}
                               className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-xs cursor-pointer"
@@ -4527,71 +4645,219 @@ export default function FinancePage() {
                     const rate = billGstRate === "" ? 0 : Number(billGstRate);
                     const lineRate = (l: any) => (billGstRate === "" ? 0 : l.gstRate ? Number(l.gstRate) : rate);
                     const tax = billLines.reduce((sum: number, l: any) => sum + Math.round((parseFloat(l.lineTotal) || 0) * lineRate(l)) / 100, 0);
-                    const mixed = new Set(billLines.map(lineRate)).size > 1;
+                    const billTotal = billRcm ? taxable : taxable + tax;
+                    const payingAmountNum = parseFloat(billPaidAmount || "0") || 0;
+                    const remainingPendingRupees = Math.max(0, billTotal - payingAmountNum);
                     const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
                     return (
-                      <div className="pt-2 border-t border-slate-200 space-y-2 text-xs">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <label className="block">
-                            <span className="block font-semibold text-slate-600 mb-1">GST on this bill</span>
-                            <select
-                              value={billGstRate}
-                              onChange={(e) => setBillGstRate(e.target.value)}
-                              className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                      <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/80 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                              <CreditCard className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Payment Status</span>
+                            </span>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Select whether this bill is paid now (full or partial) or left unpaid.
+                            </p>
+                          </div>
+
+                          {/* Toggle Buttons: UNPAID vs PAID */}
+                          <div className="inline-flex p-1 bg-slate-200/90 rounded-xl gap-1 shrink-0 self-start sm:self-auto">
+                            <button
+                              type="button"
+                              onClick={() => setBillPaymentStatus("UNPAID")}
+                              className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer",
+                                billPaymentStatus === "UNPAID"
+                                  ? "bg-white text-rose-700 shadow-xs"
+                                  : "text-slate-600 hover:text-slate-900"
+                              )}
                             >
-                              <option value="">No GST / composition supplier</option>
-                              {[0, 5, 12, 18, 28].map((r) => (
-                                <option key={r} value={r}>
-                                  {r}% on top of the lines
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          {billGstRate !== "" && (
-                            <label className="block">
-                              <span className="block font-semibold text-slate-600 mb-1">Tax type</span>
-                              <select
-                                value={billTaxType}
-                                onChange={(e) => setBillTaxType(e.target.value as "AUTO" | "LOCAL" | "IGST")}
-                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
-                              >
-                                <option value="AUTO">Detect automatically from GSTIN</option>
-                                <option value="LOCAL">Same state: CGST + SGST</option>
-                                <option value="IGST">Other state: IGST</option>
-                              </select>
-                            </label>
-                          )}
-                          {billGstRate !== "" && (
-                            <div className="space-y-1 sm:pt-4">
-                              <label className="flex items-start gap-2">
-                                <input type="checkbox" checked={billItc} onChange={(e) => setBillItc(e.target.checked)} className="mt-0.5" />
-                                <span className="text-slate-600">
-                                  <span className="font-medium text-slate-700">Claim GST Input Tax Credit (ITC)</span>
-                                  <span className="block text-[10px] text-slate-400">Check if your company can claim GST credit on this purchase.</span>
-                                </span>
-                              </label>
-                              <label className="flex items-start gap-2">
-                                <input type="checkbox" checked={billRcm} onChange={(e) => setBillRcm(e.target.checked)} className="mt-0.5" />
-                                <span className="text-slate-600">
-                                  <span className="font-medium text-slate-700">Reverse Charge (RCM)</span>
-                                  <span className="block text-[10px] text-slate-400">Company pays GST to the government instead of the vendor (e.g. GTA transport).</span>
-                                </span>
-                              </label>
-                            </div>
-                          )}
+                              <Clock className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Unpaid (Pending)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBillPaymentStatus("PAID");
+                                if (!billPaidAmount || parseFloat(billPaidAmount) === 0) {
+                                  setBillPaidAmount(billTotal > 0 ? billTotal.toFixed(2) : "");
+                                }
+                              }}
+                              className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer",
+                                billPaymentStatus === "PAID"
+                                  ? "bg-emerald-600 text-white shadow-xs"
+                                  : "text-slate-600 hover:text-slate-900"
+                              )}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Paid / Partially Paid</span>
+                            </button>
+                          </div>
                         </div>
-                        {billGstRate !== "" && (
-                          <div className="flex items-center justify-between text-slate-600">
-                            <span>
-                              Taxable value ₹{fmt(taxable)} + GST {mixed ? "at line rates" : `${rate}%`} ₹{fmt(tax)}
-                              {billRcm && " (you pay this GST to the government; the supplier is paid the taxable value)"}
+
+                        {billPaymentStatus === "UNPAID" ? (
+                          <div className="flex items-center justify-between p-2.5 bg-amber-50/70 border border-amber-200 rounded-lg text-xs text-amber-900">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>Will be saved as unpaid liability. Full balance due will be pending.</span>
+                            </div>
+                            <span className="font-mono font-bold text-amber-800">
+                              Pending: ₹{fmt(billTotal)}
                             </span>
                           </div>
+                        ) : (
+                          <div className="space-y-3 pt-2 border-t border-slate-200">
+                            <div className="bg-white p-3 rounded-xl border border-emerald-200/90 space-y-2.5 shadow-2xs">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                                    Amount Paying Now (₹) *
+                                  </label>
+                                  <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">₹</span>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      min="0.01"
+                                      required
+                                      placeholder="e.g. 1500"
+                                      value={billPaidAmount}
+                                      onChange={(e) => setBillPaidAmount(e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-2 text-sm font-mono font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                  </div>
+                                  {billTotal > 0 && (
+                                    <div className="flex items-center gap-1.5 mt-1.5">
+                                      <span className="text-[10px] text-slate-400">Quick:</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setBillPaidAmount(billTotal.toFixed(2))}
+                                        className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold transition cursor-pointer"
+                                      >
+                                        Full (₹{fmt(billTotal)})
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setBillPaidAmount((billTotal / 2).toFixed(2))}
+                                        className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold transition cursor-pointer"
+                                      >
+                                        50% (₹{fmt(billTotal / 2)})
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Live Balance Summary */}
+                                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-center">
+                                  <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+                                    <span>Total Bill Amount:</span>
+                                    <span className="font-mono font-bold">₹{fmt(billTotal)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-xs text-emerald-700 mb-1">
+                                    <span>Paying Now:</span>
+                                    <span className="font-mono font-bold">₹{fmt(payingAmountNum)}</span>
+                                  </div>
+                                  <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between text-xs">
+                                    <span className="font-bold text-slate-800">Remaining Pending:</span>
+                                    <span className={cn("font-mono font-black text-sm", remainingPendingRupees > 0 ? "text-amber-600" : "text-emerald-600")}>
+                                      ₹{fmt(remainingPendingRupees)}
+                                      {remainingPendingRupees === 0 && payingAmountNum > 0 && (
+                                        <span className="ml-1 text-[10px] font-normal text-emerald-700">(Fully Paid)</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                                  <Landmark className="w-3.5 h-3.5 text-slate-600" />
+                                  <span>Paid From (Account) *</span>
+                                </label>
+                                <select
+                                  value={billPayingAccount}
+                                  onChange={(e) => setBillPayingAccount(e.target.value)}
+                                  required
+                                  className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium"
+                                >
+                                  <option value="HDFC Bank Operating A/C (A/C: ...4421)">HDFC Bank Operating A/C (A/C: ...4421)</option>
+                                  <option value="ICICI Bank Project Escrow A/C (A/C: ...9012)">ICICI Bank Project Escrow A/C (A/C: ...9012)</option>
+                                  <option value="State Bank of India CMS Current A/C (A/C: ...1109)">State Bank of India CMS Current A/C (A/C: ...1109)</option>
+                                  <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
+                                  <option value="Supervisor Out-of-Pocket">Supervisor Out-of-Pocket / Personal UPI</option>
+                                  <option value="CUSTOM">Other / Custom Account...</option>
+                                </select>
+                                {billPayingAccount === "CUSTOM" && (
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Enter Custom Account Name / Details"
+                                    value={billCustomPayingAccount}
+                                    onChange={(e) => setBillCustomPayingAccount(e.target.value)}
+                                    className="w-full mt-1.5 bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                                  />
+                                )}
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                                  Payment Method *
+                                </label>
+                                <select
+                                  value={billPaymentMethod}
+                                  onChange={(e) => setBillPaymentMethod(e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium"
+                                >
+                                  <option value="UPI">UPI / QR</option>
+                                  <option value="BANK_TRANSFER">Bank Transfer (IMPS / NEFT / RTGS)</option>
+                                  <option value="CASH">Cash</option>
+                                  <option value="CHEQUE">Cheque</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                                  Payment Reference / UTR # (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. UTR-982173 / UPI Ref"
+                                  value={billPaymentReference}
+                                  onChange={(e) => setBillPaymentReference(e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                                  Payment Notes / Purpose (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Advance / On bill payment"
+                                  value={billPaymentNotes}
+                                  onChange={(e) => setBillPaymentNotes(e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                            </div>
+
+                            {payingAmountNum >= 20000 && currentUser?.role !== "SUPER_ADMIN" && currentUser?.role !== "ORG_ADMIN" && (
+                              <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>Note: Payments of ₹20,000 or above require Super Admin / Admin approval.</span>
+                              </div>
+                            )}
+                          </div>
                         )}
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-600">Calculated Bill Total:</span>
-                          <span className="font-black font-mono text-sm text-slate-900">₹{fmt(billRcm ? taxable : taxable + tax)}</span>
-                        </div>
                       </div>
                     );
                   })()}
@@ -4860,10 +5126,292 @@ export default function FinancePage() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Optional Rate & Line Total for Challan Item */}
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                              Unit Rate (₹) (Optional)
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="e.g. 250"
+                              value={line.unitRate || ""}
+                              onChange={(e) => updateChallanLine(idx, "unitRate", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                              Line Total (₹) (Optional)
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="Total"
+                              value={line.lineTotal || ""}
+                              onChange={(e) => updateChallanLine(idx, "lineTotal", e.target.value)}
+                              className="w-full bg-indigo-50/40 border border-indigo-200 rounded-lg p-1.5 text-xs font-mono font-bold text-slate-900"
+                            />
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
+
+                  {(() => {
+                    const challanLinesTotal = challanLines.reduce((sum: number, l: any) => sum + (parseFloat(l.lineTotal || "0") || 0), 0);
+                    const manualTotal = parseFloat(challanManualTotal || "0") || 0;
+                    const effectiveChallanTotal = challanLinesTotal > 0 ? challanLinesTotal : manualTotal;
+                    const payingAmountNum = parseFloat(billPaidAmount || "0") || 0;
+                    const remainingPendingRupees = Math.max(0, effectiveChallanTotal - payingAmountNum);
+                    const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                    return (
+                      <div className="pt-2 border-t border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <span className="font-semibold text-slate-700">Calculated Challan Total:</span>
+                        {challanLinesTotal > 0 ? (
+                          <span className="font-mono font-black text-sm text-slate-900">₹{fmt(challanLinesTotal)}</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-500">₹</span>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="Total Challan Amount (Optional)"
+                              value={challanManualTotal}
+                              onChange={(e) => setChallanManualTotal(e.target.value)}
+                              className="w-48 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-mono font-bold"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
+
+                {/* ── Payment Status for Delivery Challan ── */}
+                {(() => {
+                  const challanLinesTotal = challanLines.reduce((sum: number, l: any) => sum + (parseFloat(l.lineTotal || "0") || 0), 0);
+                  const manualTotal = parseFloat(challanManualTotal || "0") || 0;
+                  const effectiveChallanTotal = challanLinesTotal > 0 ? challanLinesTotal : manualTotal;
+                  const payingAmountNum = parseFloat(billPaidAmount || "0") || 0;
+                  const remainingPendingRupees = Math.max(0, effectiveChallanTotal - payingAmountNum);
+                  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                  return (
+                    <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/80 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                            <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Payment Status</span>
+                          </span>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Select whether this delivery challan is paid immediately, partially paid, or unpaid.
+                          </p>
+                        </div>
+
+                        {/* Toggle Buttons: UNPAID vs PAID */}
+                        <div className="inline-flex p-1 bg-slate-200/90 rounded-xl gap-1 shrink-0 self-start sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => setBillPaymentStatus("UNPAID")}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer",
+                              billPaymentStatus === "UNPAID"
+                                ? "bg-white text-rose-700 shadow-xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            )}
+                          >
+                            <Clock className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Unpaid (Pending)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBillPaymentStatus("PAID");
+                              if (!billPaidAmount || parseFloat(billPaidAmount) === 0) {
+                                setBillPaidAmount(effectiveChallanTotal > 0 ? effectiveChallanTotal.toFixed(2) : "");
+                              }
+                            }}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer",
+                              billPaymentStatus === "PAID"
+                                ? "bg-emerald-600 text-white shadow-xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            )}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Paid / Partially Paid</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {billPaymentStatus === "UNPAID" ? (
+                        <div className="flex items-center justify-between p-2.5 bg-indigo-50/60 border border-indigo-200 rounded-lg text-xs text-indigo-900">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
+                            <span>Will be recorded as delivery challan. Any balance due will be pending.</span>
+                          </div>
+                          {effectiveChallanTotal > 0 && (
+                            <span className="font-mono font-bold text-indigo-800">
+                              Pending: ₹{fmt(effectiveChallanTotal)}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-3 pt-2 border-t border-slate-200">
+                          <div className="bg-white p-3 rounded-xl border border-emerald-200/90 space-y-2.5 shadow-2xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                                  Amount Paying Now (₹) *
+                                </label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">₹</span>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0.01"
+                                    required
+                                    placeholder="e.g. 1500"
+                                    value={billPaidAmount}
+                                    onChange={(e) => setBillPaidAmount(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-3 py-2 text-sm font-mono font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                                  />
+                                </div>
+                                {effectiveChallanTotal > 0 && (
+                                  <div className="flex items-center gap-1.5 mt-1.5">
+                                    <span className="text-[10px] text-slate-400">Quick:</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setBillPaidAmount(effectiveChallanTotal.toFixed(2))}
+                                      className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold transition cursor-pointer"
+                                    >
+                                      Full (₹{fmt(effectiveChallanTotal)})
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setBillPaidAmount((effectiveChallanTotal / 2).toFixed(2))}
+                                      className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold transition cursor-pointer"
+                                    >
+                                      50% (₹{fmt(effectiveChallanTotal / 2)})
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-center">
+                                <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+                                  <span>Challan Total:</span>
+                                  <span className="font-mono font-bold">₹{fmt(effectiveChallanTotal)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs text-emerald-700 mb-1">
+                                  <span>Paying Now:</span>
+                                  <span className="font-mono font-bold">₹{fmt(payingAmountNum)}</span>
+                                </div>
+                                <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between text-xs">
+                                  <span className="font-bold text-slate-800">Remaining Pending:</span>
+                                  <span className={cn("font-mono font-black text-sm", remainingPendingRupees > 0 ? "text-amber-600" : "text-emerald-600")}>
+                                    ₹{fmt(remainingPendingRupees)}
+                                    {remainingPendingRupees === 0 && payingAmountNum > 0 && (
+                                      <span className="ml-1 text-[10px] font-normal text-emerald-700">(Fully Paid)</span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-slate-700 uppercase mb-1 flex items-center gap-1">
+                                <Landmark className="w-3.5 h-3.5 text-slate-600" />
+                                <span>Paid From (Account) *</span>
+                              </label>
+                              <select
+                                value={billPayingAccount}
+                                onChange={(e) => setBillPayingAccount(e.target.value)}
+                                required
+                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium"
+                              >
+                                <option value="HDFC Bank Operating A/C (A/C: ...4421)">HDFC Bank Operating A/C (A/C: ...4421)</option>
+                                <option value="ICICI Bank Project Escrow A/C (A/C: ...9012)">ICICI Bank Project Escrow A/C (A/C: ...9012)</option>
+                                <option value="State Bank of India CMS Current A/C (A/C: ...1109)">State Bank of India CMS Current A/C (A/C: ...1109)</option>
+                                <option value="Site Office Petty Cash Wallet">Site Office Petty Cash Wallet</option>
+                                <option value="Supervisor Out-of-Pocket">Supervisor Out-of-Pocket / Personal UPI</option>
+                                <option value="CUSTOM">Other / Custom Account...</option>
+                              </select>
+                              {billPayingAccount === "CUSTOM" && (
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Enter Custom Account Name / Details"
+                                  value={billCustomPayingAccount}
+                                  onChange={(e) => setBillCustomPayingAccount(e.target.value)}
+                                  className="w-full mt-1.5 bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                                />
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                                Payment Method *
+                              </label>
+                              <select
+                                value={billPaymentMethod}
+                                onChange={(e) => setBillPaymentMethod(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium"
+                              >
+                                <option value="UPI">UPI / QR</option>
+                                <option value="BANK_TRANSFER">Bank Transfer (IMPS / NEFT / RTGS)</option>
+                                <option value="CASH">Cash</option>
+                                <option value="CHEQUE">Cheque</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                                Payment Reference / UTR # (Optional)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. UTR-982173 / UPI Ref"
+                                value={billPaymentReference}
+                                onChange={(e) => setBillPaymentReference(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                                Payment Notes / Purpose (Optional)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Advance on Delivery"
+                                value={billPaymentNotes}
+                                onChange={(e) => setBillPaymentNotes(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {payingAmountNum >= 20000 && currentUser?.role !== "SUPER_ADMIN" && currentUser?.role !== "ORG_ADMIN" && (
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span>Note: Payments of ₹20,000 or above require Super Admin / Admin approval.</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
