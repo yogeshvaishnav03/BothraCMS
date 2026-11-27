@@ -66,9 +66,13 @@ export async function GET(req: NextRequest) {
         approvals: {
           paymentsPendingCount: 0,
           paymentsPendingAmount: 0,
+          pendingPaymentsList: [],
           ordersPendingCount: 0,
           materialRequestsPending: 0,
         },
+        payments: [],
+        bills: [],
+        unpaidBills: [],
         projects: [],
         finance: {
           outstandingPayables: 0,

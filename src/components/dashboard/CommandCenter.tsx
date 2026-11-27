@@ -400,6 +400,15 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
   const [pendingTab, setPendingTab] = useState<"APPROVALS" | "BILLS">("APPROVALS");
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const [taskDueFilter, setTaskDueFilter] = useState<"ALL" | "OVERDUE">("ALL");
+  const [selectedTimelineTask, setSelectedTimelineTask] = useState<{
+    id: string;
+    title: string;
+    status: string;
+    projectId?: string | null;
+  } | null>(null);
+  const isToday = date === todayIst();
 
   const totalPendingPaise = useMemo(() => {
     const pendingApprovals = data?.approvals?.paymentsPendingAmount || 0;
@@ -490,15 +499,6 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
       };
     }
   }, [showPaidModal, showPendingModal, showApprovalsModal, selectedTimelineTask]);
-  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
-  const [taskDueFilter, setTaskDueFilter] = useState<"ALL" | "OVERDUE">("ALL");
-  const [selectedTimelineTask, setSelectedTimelineTask] = useState<{
-    id: string;
-    title: string;
-    status: string;
-    projectId?: string | null;
-  } | null>(null);
-  const isToday = date === todayIst();
 
   const filteredDueTasks = useMemo(() => {
     const list = data?.dueTasks || [];
@@ -1652,7 +1652,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                           <div className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-base">
                             {formatCurrency(p.amount)}
                           </div>
-                          {p.attachments && p.attachments.length > 0 && (
+                          {p.attachments && p.attachments.length > 0 && p.attachments[0]?.fileId && (
                             <a
                               href={`/api/uploads/${p.attachments[0].fileId}`}
                               target="_blank"
@@ -1775,7 +1775,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                     </p>
                   </div>
                 ) : (
-                  data.approvals.pendingPaymentsList.map((p: any) => (
+                  (data?.approvals?.pendingPaymentsList || []).map((p: any) => (
                     <div
                       key={p.id}
                       className="p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-950/20 shadow-xs"
@@ -1849,7 +1849,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                     </p>
                   </div>
                 ) : (
-                  data.unpaidBills.map((b: any) => (
+                  (data?.unpaidBills || []).map((b: any) => (
                     <div
                       key={b.id}
                       className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-xs"

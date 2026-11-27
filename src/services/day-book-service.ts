@@ -85,10 +85,7 @@ export async function fetchDayBookData(
   const paymentWhere: any = {
     organizationId: orgId,
     status: { not: "REVERSED" },
-    OR: [
-      { paymentDate: { gte: broadStart, lte: broadEnd } },
-      { paymentDate: null, createdAt: { gte: startOfDay, lte: endOfDay } },
-    ],
+    paymentDate: { gte: broadStart, lte: broadEnd },
   };
   if (siteId) {
     paymentWhere.project = { siteId };
@@ -98,10 +95,7 @@ export async function fetchDayBookData(
   const billWhere: any = {
     organizationId: orgId,
     isArchived: false,
-    OR: [
-      { billDate: { gte: broadStart, lte: broadEnd } },
-      { billDate: null, createdAt: { gte: startOfDay, lte: endOfDay } },
-    ],
+    billDate: { gte: broadStart, lte: broadEnd },
   };
   if (siteId) {
     billWhere.project = { siteId };
@@ -110,10 +104,7 @@ export async function fetchDayBookData(
   // 3. Stock movements filter - strictly prioritize actual movement date (movementAt)
   const stockWhere: any = {
     organizationId: orgId,
-    OR: [
-      { movementAt: { gte: broadStart, lte: broadEnd } },
-      { movementAt: null, createdAt: { gte: broadStart, lte: broadEnd } },
-    ],
+    movementAt: { gte: broadStart, lte: broadEnd },
   };
   if (siteId) {
     stockWhere.store = { siteId };

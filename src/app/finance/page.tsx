@@ -16,6 +16,7 @@ import {
   CreditCard,
   Calculator,
   RotateCcw,
+  RefreshCw,
   CheckCircle2,
   AlertTriangle,
   ShieldAlert,
@@ -294,6 +295,7 @@ export default function FinancePage() {
   const [amountPreset, setAmountPreset] = useState<"ALL" | "UNDER_50K" | "50K_2L" | "OVER_2L" | "CUSTOM">("ALL");
 
   // Search & Filter state for Vendor Bills
+  const [billSearch, setBillSearch] = useState("");
   const [billStatus, setBillStatus] = useState("ALL");
   const [billFromDate, setBillFromDate] = useState(() => istDateKey());
   const [billToDate, setBillToDate] = useState(() => istDateKey());
@@ -1737,9 +1739,19 @@ export default function FinancePage() {
       if (billFromDate && (!bDateYMD || bDateYMD < billFromDate)) return false;
       if (billToDate && (!bDateYMD || bDateYMD > billToDate)) return false;
 
+      // Bill search filter
+      if (billSearch.trim()) {
+        const q = billSearch.trim().toLowerCase();
+        const matchesParty = b.party?.name?.toLowerCase().includes(q);
+        const matchesBillNum = b.billNumber?.toLowerCase().includes(q);
+        const matchesProject = b.project?.name?.toLowerCase().includes(q);
+        const matchesNotes = b.notes?.toLowerCase().includes(q);
+        if (!matchesParty && !matchesBillNum && !matchesProject && !matchesNotes) return false;
+      }
+
       return true;
     });
-  }, [siteScopedBills, billStatus, billFromDate, billToDate]);
+  }, [siteScopedBills, billStatus, billFromDate, billToDate, billSearch]);
 
   // Feature 18: Filter-based dynamic payment totals
   const filteredPaymentsStats = useMemo(() => {
