@@ -382,10 +382,36 @@ function MiniStat({ label, value, Icon, tone, href }: { label: string; value: st
   );
 }
 
-export default function CommandCenter({ userName, siteId }: { userName?: string; siteId?: string }) {
+export default function CommandCenter({
+  userName,
+  siteId,
+  siteName,
+  selectedDate,
+  onDateChange,
+}: {
+  userName?: string;
+  siteId?: string;
+  siteName?: string;
+  selectedDate?: string;
+  onDateChange?: (date: string) => void;
+}) {
   const { language, t } = useLanguage();
   const hi = language === "hi";
-  const [date, setDate] = useState<string>(todayIst());
+  const [internalDate, setInternalDate] = useState<string>(selectedDate || todayIst());
+
+  useEffect(() => {
+    if (selectedDate && selectedDate !== internalDate) {
+      setInternalDate(selectedDate);
+    }
+  }, [selectedDate, internalDate]);
+
+  const date = selectedDate || internalDate;
+
+  const updateDate = (newDate: string) => {
+    setInternalDate(newDate);
+    onDateChange?.(newDate);
+  };
+
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -626,7 +652,14 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               {userName ? `, ${userName.split(" ")[0]}` : ""}
             </h1>
             <p className="mt-1 text-sm text-slate-400">
-              {hi ? "पूरी कंपनी की आज की डे बुक — " : "The whole company's Day Book for "}
+              {siteId && siteName ? (
+                <>
+                  <span className="text-amber-300 font-semibold">{siteName}</span>
+                  {hi ? " की डे बुक — " : "'s Day Book for "}
+                </>
+              ) : (
+                hi ? "पूरी कंपनी की आज की डे बुक — " : "The whole company's Day Book for "
+              )}
               <span className="text-slate-200 font-medium">{longDate}</span>
             </p>
           </div>
@@ -635,7 +668,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             <div className="flex items-center rounded-xl bg-white/10 ring-1 ring-white/15 p-1">
               <button
                 type="button"
-                onClick={() => setDate(shiftDate(date, -1))}
+                onClick={() => updateDate(shiftDate(date, -1))}
                 className="p-1.5 rounded-lg hover:bg-white/10"
                 aria-label={hi ? "पिछला दिन" : "Previous day"}
               >
@@ -647,14 +680,14 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
                   type="date"
                   value={date}
                   max={todayIst()}
-                  onChange={(e) => e.target.value && setDate(e.target.value)}
+                  onChange={(e) => e.target.value && updateDate(e.target.value)}
                   className="bg-transparent border-0 p-0 text-sm text-white focus:ring-0 focus:shadow-none [color-scheme:dark] w-[8.5rem]"
                   aria-label={hi ? "तारीख चुनें" : "Choose date"}
                 />
               </label>
               <button
                 type="button"
-                onClick={() => setDate(shiftDate(date, 1))}
+                onClick={() => updateDate(shiftDate(date, 1))}
                 disabled={isToday}
                 className="p-1.5 rounded-lg hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
                 aria-label={hi ? "अगला दिन" : "Next day"}
@@ -665,7 +698,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             {!isToday && (
               <button
                 type="button"
-                onClick={() => setDate(todayIst())}
+                onClick={() => updateDate(todayIst())}
                 className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 ring-1 ring-white/15 hover:bg-white/15"
               >
                 {hi ? "आज" : "Today"}
@@ -681,7 +714,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
               <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
             </button>
             <Link
-              href="/day-book"
+              href={`/day-book?from=${date}&to=${date}${siteId ? `&siteId=${siteId}` : ""}`}
               className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-brand shadow-glow hover:brightness-110 transition flex items-center gap-1.5"
             >
               <BookOpenCheck className="w-4 h-4" aria-hidden />
@@ -718,7 +751,7 @@ export default function CommandCenter({ userName, siteId }: { userName?: string;
             sub={`${s?.staffPresentCount || 0} ${hi ? "स्टाफ हाज़िर" : "staff checked in"}`}
             Icon={HardHat}
             tone="bg-amber-500/15 text-amber-300"
-            href="/workforce"
+            href={`/workforce?date=${date}${siteId ? `&siteId=${siteId}` : ""}`}
           />
           <HeroStat
             label={hi ? "मंज़ूरी बाकी" : "Waiting approval"}

@@ -9,7 +9,7 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import SearchableMultiSelect from "@/components/ui/SearchableMultiSelect";
 import { formatCurrency, formatDate, formatCompactINR, formatCompactNumber } from "@/lib/formatters";
 import { compressImageFile } from "@/lib/image-compression";
-import { istDateKey } from "@/lib/ist-date";
+import { istDateKey, shiftDate } from "@/lib/ist-date";
 import {
   TASK_PRIORITY_OPTIONS,
   formatPriorityLabel,
@@ -381,6 +381,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeSiteId, setActiveSiteId] = useState<string>("");
   const [dashboardDate, setDashboardDate] = useState<string>(() => istDateKey());
+  const dashboardDateRef = useRef<string>(dashboardDate);
+  useEffect(() => {
+    dashboardDateRef.current = dashboardDate;
+  }, [dashboardDate]);
   const [dashboardHeadcountRecords, setDashboardHeadcountRecords] = useState<any[]>([]);
   const [headcountViewMode, setHeadcountViewMode] = useState<"CARDS" | "TABLE">("CARDS");
 
@@ -749,6 +753,7 @@ export default function DashboardPage() {
 
   const handleDateChange = (newDate: string) => {
     if (!newDate) return;
+    dashboardDateRef.current = newDate;
     setDashboardDate(newDate);
     loadDashboard(activeSiteId, newDate);
   };
@@ -762,7 +767,7 @@ export default function DashboardPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         setStatusMessage("Headcount record deleted successfully.");
-        loadDashboard(activeSiteId, dashboardDate);
+        loadDashboard(activeSiteId, dashboardDateRef.current);
       } else {
         setErrorMessage(data.error?.message || "Failed to delete headcount record.");
       }
@@ -774,7 +779,7 @@ export default function DashboardPage() {
   const loadDashboard = (siteId?: string, targetDate?: string) => {
     setLoading(true);
     const cb = `_t=${Date.now()}`;
-    const effectiveDate = targetDate || dashboardDate || istDateKey();
+    const effectiveDate = targetDate || dashboardDateRef.current || dashboardDate || istDateKey();
     const kpiUrl = siteId ? `/api/dashboard/kpi?siteId=${siteId}&date=${effectiveDate}&${cb}` : `/api/dashboard/kpi?date=${effectiveDate}&${cb}`;
     const projUrl = siteId ? `/api/projects?siteId=${siteId}&${cb}` : `/api/projects?${cb}`;
     const headcountUrl = siteId ? `/api/workforce/headcount?siteId=${siteId}&date=${effectiveDate}&${cb}` : `/api/workforce/headcount?date=${effectiveDate}&${cb}`;
@@ -873,19 +878,19 @@ export default function DashboardPage() {
   useEffect(() => {
     const savedSite = typeof window !== "undefined" ? localStorage.getItem("buildtrack_active_site") || "" : "";
     setActiveSiteId(savedSite);
-    loadDashboard(savedSite);
+    loadDashboard(savedSite, dashboardDateRef.current);
 
     const onSiteChanged = (e: any) => {
-      const newSiteId = e.detail?.siteId || "";
+      const newSiteId = e.detail?.siteId ?? "";
       setActiveSiteId(newSiteId);
-      loadDashboard(newSiteId);
+      loadDashboard(newSiteId, dashboardDateRef.current);
     };
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === "buildtrack_active_site") {
         const newSiteId = e.newValue || "";
         setActiveSiteId(newSiteId);
-        loadDashboard(newSiteId);
+        loadDashboard(newSiteId, dashboardDateRef.current);
       }
     };
 
@@ -1320,11 +1325,7 @@ export default function DashboardPage() {
                   <div className="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-2xs">
                     <button
                       type="button"
-                      onClick={() => {
-                        const d = new Date(dashboardDate);
-                        d.setDate(d.getDate() - 1);
-                        handleDateChange(d.toISOString().split("T")[0]);
-                      }}
+                      onClick={() => handleDateChange(shiftDate(dashboardDate, -1))}
                       className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition cursor-pointer"
                       title="Previous Day"
                     >
@@ -1338,11 +1339,7 @@ export default function DashboardPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        const d = new Date(dashboardDate);
-                        d.setDate(d.getDate() + 1);
-                        handleDateChange(d.toISOString().split("T")[0]);
-                      }}
+                      onClick={() => handleDateChange(shiftDate(dashboardDate, 1))}
                       className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition cursor-pointer"
                       title="Next Day"
                     >
@@ -2496,7 +2493,13 @@ export default function DashboardPage() {
 
         {/* Admin Command Center: the whole company's Day Book at a glance */}
         {isAdminUser && dashboardMode === "EXECUTIVE" && (
-          <CommandCenter userName={currentUser?.name} siteId={activeSiteId || undefined} />
+          <CommandCenter
+            userName={currentUser?.name}
+            siteId={activeSiteId || undefined}
+            siteName={sites.find((s) => s.id === activeSiteId)?.name}
+            selectedDate={dashboardDate}
+            onDateChange={handleDateChange}
+          />
         )}
 
         {/* Unified Dashboard Command Hub */}
@@ -2555,11 +2558,7 @@ export default function DashboardPage() {
               <div className="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-2xs">
                 <button
                   type="button"
-                  onClick={() => {
-                    const d = new Date(dashboardDate);
-                    d.setDate(d.getDate() - 1);
-                    handleDateChange(d.toISOString().split("T")[0]);
-                  }}
+                  onClick={() => handleDateChange(shiftDate(dashboardDate, -1))}
                   className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition cursor-pointer"
                   title="Previous Day"
                 >
@@ -2577,11 +2576,7 @@ export default function DashboardPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    const d = new Date(dashboardDate);
-                    d.setDate(d.getDate() + 1);
-                    handleDateChange(d.toISOString().split("T")[0]);
-                  }}
+                  onClick={() => handleDateChange(shiftDate(dashboardDate, 1))}
                   className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 transition cursor-pointer"
                   title="Next Day"
                 >

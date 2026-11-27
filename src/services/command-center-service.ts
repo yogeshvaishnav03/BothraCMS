@@ -47,15 +47,43 @@ function istDateKey(d: Date): string {
 
 export class CommandCenterService {
   /** Phase 5 items that need someone's attention today. */
-  static async attention(organizationId: string, date: string) {
+  static async attention(organizationId: string, date: string, siteId?: string) {
     const [openSafety, drawingsWaiting, payrollDraft, dues, equipmentDown] = await Promise.all([
-      prisma.siteIssue.count({ where: { organizationId, status: "OPEN", kind: { in: ["SAFETY_INCIDENT", "NEAR_MISS", "UNSAFE_ACT"] } } }).catch(() => 0),
-      prisma.drawingRevision.count({ where: { status: "FOR_APPROVAL", drawing: { organizationId } } }).catch(() => 0),
+      prisma.siteIssue
+        .count({
+          where: {
+            organizationId,
+            status: "OPEN",
+            kind: { in: ["SAFETY_INCIDENT", "NEAR_MISS", "UNSAFE_ACT"] },
+            ...(siteId ? { project: { siteId } } : {}),
+          },
+        })
+        .catch(() => 0),
+      prisma.drawingRevision
+        .count({
+          where: {
+            status: "FOR_APPROVAL",
+            drawing: {
+              organizationId,
+              ...(siteId ? { project: { siteId } } : {}),
+            },
+          },
+        })
+        .catch(() => 0),
       prisma.payrollRun.count({ where: { organizationId, status: "DRAFT" } }).catch(() => 0),
-      prisma.salesInstallment.findMany({
-        where: { booking: { organizationId, status: "ACTIVE" }, dueDate: { lt: date } },
-        select: { amount: true, receivedAmount: true },
-      }).catch(() => []),
+      prisma.salesInstallment
+        .findMany({
+          where: {
+            booking: {
+              organizationId,
+              status: "ACTIVE",
+              ...(siteId ? { unit: { project: { siteId } } } : {}),
+            },
+            dueDate: { lt: date },
+          },
+          select: { amount: true, receivedAmount: true },
+        })
+        .catch(() => []),
       prisma.equipment.count({ where: { organizationId, status: "UNDER_REPAIR" } }).catch(() => 0),
     ]);
     return {
@@ -132,73 +160,138 @@ export class CommandCenterService {
           recentActivityDates: [],
         };
       }),
-      prisma.payment.findMany({
-        where: { organizationId, status: "PENDING_APPROVAL", isArchived: false },
-        include: {
-          creator: { select: { id: true, name: true, role: true } },
-          project: { select: { id: true, name: true, code: true, site: { select: { id: true, name: true } } } },
-          party: { select: { id: true, name: true, partyType: true } },
-        },
-        orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
-      }).catch(() => []),
-      prisma.payment.findMany({
-        where: { organizationId, status: "REJECTED", isArchived: false },
-        select: { amount: true },
-      }).catch(() => []),
-      prisma.purchaseOrder.count({ where: { organizationId, status: "PENDING_APPROVAL" } }).catch(() => 0),
-      prisma.bill.findMany({
-        where: { organizationId, status: "POSTED", isArchived: false },
-        include: {
-          party: { select: { id: true, name: true, partyType: true } },
-          project: { select: { id: true, name: true, code: true, site: { select: { id: true, name: true } } } },
-          allocations: {
-            where: { reversedAt: null, payment: { status: "POSTED" } },
-            select: { amount: true },
+      prisma.payment
+        .findMany({
+          where: {
+            organizationId,
+            status: "PENDING_APPROVAL",
+            isArchived: false,
+            ...(siteId ? { project: { siteId } } : {}),
           },
-        },
-        orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
-      }).catch(() => []),
-      prisma.payment.findMany({
-        where: {
-          organizationId,
-          status: "POSTED",
-          isArchived: false,
-          paymentDate: { gte: rangeStart, lte: rangeEnd },
-        },
-        select: { amount: true, paymentDate: true },
-      }).catch(() => []),
-      prisma.bill.findMany({
-        where: { organizationId, isArchived: false, billDate: { gte: rangeStart, lte: rangeEnd } },
-        select: { totalAmount: true, billDate: true },
-      }).catch(() => []),
-      prisma.salesReceipt.findMany({
-        where: { organizationId, date: { gte: trendStart, lte: date }, cancelledAt: null, booking: { status: "ACTIVE" } },
-        select: { amount: true, date: true },
-      }).catch(() => []),
-      prisma.auditEvent.findMany({
-        where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
-        include: { actor: { select: { id: true, name: true, role: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 200,
-      }).catch(() => []),
-      prisma.taskStatusHistory.findMany({
-        where: { createdAt: { gte: dayStart, lte: dayEnd }, task: { organizationId } },
-        include: {
-          user: { select: { id: true, name: true, role: true } },
-          task: { select: { id: true, title: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 200,
-      }).catch(() => []),
-      prisma.taskComment.findMany({
-        where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
-        include: {
-          user: { select: { id: true, name: true, role: true } },
-          task: { select: { id: true, title: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 100,
-      }).catch(() => []),
+          include: {
+            creator: { select: { id: true, name: true, role: true } },
+            project: { select: { id: true, name: true, code: true, site: { select: { id: true, name: true } } } },
+            party: { select: { id: true, name: true, partyType: true } },
+          },
+          orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
+        })
+        .catch(() => []),
+      prisma.payment
+        .findMany({
+          where: {
+            organizationId,
+            status: "REJECTED",
+            isArchived: false,
+            ...(siteId ? { project: { siteId } } : {}),
+          },
+          select: { amount: true },
+        })
+        .catch(() => []),
+      prisma.purchaseOrder
+        .count({
+          where: {
+            organizationId,
+            status: "PENDING_APPROVAL",
+            ...(siteId ? { OR: [{ siteId }, { project: { siteId } }] } : {}),
+          },
+        })
+        .catch(() => 0),
+      prisma.bill
+        .findMany({
+          where: {
+            organizationId,
+            status: "POSTED",
+            isArchived: false,
+            ...(siteId ? { project: { siteId } } : {}),
+          },
+          include: {
+            party: { select: { id: true, name: true, partyType: true } },
+            project: { select: { id: true, name: true, code: true, site: { select: { id: true, name: true } } } },
+            allocations: {
+              where: { reversedAt: null, payment: { status: "POSTED" } },
+              select: { amount: true },
+            },
+          },
+          orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
+        })
+        .catch(() => []),
+      prisma.payment
+        .findMany({
+          where: {
+            organizationId,
+            status: "POSTED",
+            isArchived: false,
+            paymentDate: { gte: rangeStart, lte: rangeEnd },
+            ...(siteId ? { project: { siteId } } : {}),
+          },
+          select: { amount: true, paymentDate: true },
+        })
+        .catch(() => []),
+      prisma.bill
+        .findMany({
+          where: {
+            organizationId,
+            isArchived: false,
+            billDate: { gte: rangeStart, lte: rangeEnd },
+            ...(siteId ? { project: { siteId } } : {}),
+          },
+          select: { totalAmount: true, billDate: true },
+        })
+        .catch(() => []),
+      prisma.salesReceipt
+        .findMany({
+          where: {
+            organizationId,
+            date: { gte: trendStart, lte: date },
+            cancelledAt: null,
+            booking: {
+              status: "ACTIVE",
+              ...(siteId ? { unit: { project: { siteId } } } : {}),
+            },
+          },
+          select: { amount: true, date: true },
+        })
+        .catch(() => []),
+      prisma.auditEvent
+        .findMany({
+          where: { organizationId, createdAt: { gte: dayStart, lte: dayEnd } },
+          include: { actor: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+        })
+        .catch(() => []),
+      prisma.taskStatusHistory
+        .findMany({
+          where: {
+            createdAt: { gte: dayStart, lte: dayEnd },
+            task: {
+              organizationId,
+              ...(siteId ? { project: { siteId } } : {}),
+            },
+          },
+          include: {
+            user: { select: { id: true, name: true, role: true } },
+            task: { select: { id: true, title: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+        })
+        .catch(() => []),
+      prisma.taskComment
+        .findMany({
+          where: {
+            organizationId,
+            createdAt: { gte: dayStart, lte: dayEnd },
+            ...(siteId ? { task: { project: { siteId } } } : {}),
+          },
+          include: {
+            user: { select: { id: true, name: true, role: true } },
+            task: { select: { id: true, title: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        })
+        .catch(() => []),
       WorkReportService.dayOverview(organizationId, date).catch(() => ({
         staff: [],
         totals: {
@@ -210,15 +303,25 @@ export class CommandCenterService {
           withBlockers: 0,
         },
       })),
-      ProjectBudgetService.getPortfolio(organizationId).then(async (pf) => ({
-        portfolio: pf || [],
-        progress: await MilestoneService.progressByProject(
-          organizationId,
-          (pf || []).map((p) => p.projectId)
-        ).catch(() => new Map()),
-      })).catch(() => ({ portfolio: [], progress: new Map() })),
-      prisma.materialRequest.count({ where: { organizationId, status: "PENDING" } }).catch(() => 0),
-      CommandCenterService.attention(organizationId, date).catch(() => ({
+      ProjectBudgetService.getPortfolio(organizationId)
+        .then(async (pf) => ({
+          portfolio: pf || [],
+          progress: await MilestoneService.progressByProject(
+            organizationId,
+            (pf || []).map((p) => p.projectId)
+          ).catch(() => new Map()),
+        }))
+        .catch(() => ({ portfolio: [], progress: new Map() })),
+      prisma.materialRequest
+        .count({
+          where: {
+            organizationId,
+            status: "PENDING",
+            ...(siteId ? { project: { siteId } } : {}),
+          },
+        })
+        .catch(() => 0),
+      CommandCenterService.attention(organizationId, date, siteId).catch(() => ({
         openSafety: 0,
         drawingsWaiting: 0,
         payrollDraft: 0,
