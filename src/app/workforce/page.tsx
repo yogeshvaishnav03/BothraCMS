@@ -1946,12 +1946,12 @@ export default function WorkforcePage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto w-full sm:w-auto">
             {canWrite && (
               <button
                 type="button"
                 onClick={openCreateWorkerModal}
-                className="flex items-center gap-1.5 px-3.5 h-9 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer whitespace-nowrap shrink-0"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 h-9 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer whitespace-nowrap shrink-0"
                 title="Register a new skilled worker, artisan, or trade specialist"
               >
                 <UserPlus className="w-4 h-4 text-amber-400 shrink-0" />
@@ -1962,7 +1962,7 @@ export default function WorkforcePage() {
             {canWrite && (
               <button
                 onClick={() => openUploadModal()}
-                className="flex items-center gap-1.5 px-4 h-9 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer whitespace-nowrap shrink-0"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 h-9 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-sm transition transform active:scale-98 cursor-pointer whitespace-nowrap shrink-0"
                 title="Supervisor: Upload daily site worker count"
               >
                 <Plus className="w-4 h-4 shrink-0" />
@@ -1985,7 +1985,7 @@ export default function WorkforcePage() {
             <button
               onClick={loadData}
               disabled={loading}
-              className="w-9 h-9 flex items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition shadow-2xs shrink-0 cursor-pointer"
+              className="h-9 w-9 flex items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition shadow-2xs shrink-0 cursor-pointer"
               title="Refresh worker records"
             >
               <RefreshCw className={`w-4 h-4 shrink-0 ${loading ? "animate-spin text-amber-500" : ""}`} />
@@ -2980,21 +2980,21 @@ export default function WorkforcePage() {
                     </div>
                   )}
 
-                  {/* Quick Select Contractor Pills */}
+                  {/* Quick Select Contractor Pills (Horizontal Scroll) */}
                   {existingContractors.length > 0 && (
                     <div className="mt-2.5 pt-2 border-t border-slate-200/80">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1">
                           <Building2 className="w-3 h-3 text-amber-600" />
-                          <span>Quick Select Contractor ({existingContractors.length}):</span>
+                          <span>Quick Select ({existingContractors.length}):</span>
                         </span>
                         {contractorName && (
-                          <span className="text-[10px] text-slate-600 truncate max-w-[220px]">
+                          <span className="text-[10px] text-slate-600 truncate max-w-[200px]">
                             Selected: <strong className="text-slate-800 font-bold">{contractorName}</strong>
                           </span>
                         )}
                       </div>
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
                         {existingContractors.map((c) => {
                           const isSelected = contractorName.trim().toLowerCase() === c.trim().toLowerCase();
                           return (
@@ -3002,7 +3002,7 @@ export default function WorkforcePage() {
                               key={c}
                               type="button"
                               onClick={() => handleSelectContractor(c)}
-                              className={`px-2.5 py-1 text-xs rounded-lg font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                              className={`px-2.5 py-1 text-xs rounded-lg font-medium transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
                                 isSelected
                                   ? "bg-amber-500 text-slate-950 font-black shadow-xs border border-amber-600 ring-1 ring-amber-400"
                                   : "bg-white hover:bg-amber-50 text-slate-700 border border-slate-200 hover:border-amber-300"
@@ -4045,8 +4045,8 @@ export default function WorkforcePage() {
 
               {/* Modal Footer */}
               <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-                <div className="flex items-center gap-2 text-xs text-slate-600">
-                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                <div className="flex items-center gap-2 text-xs text-slate-600 w-full sm:w-auto">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
                   <div>
                     <span className="font-bold text-slate-900">
                       {editingRecordId
@@ -4061,16 +4061,11 @@ export default function WorkforcePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
-                  {contractorTotalWorkers > 0 && !contractorName.trim() ? (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-bold text-xs border border-rose-300 animate-pulse">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  {contractorTotalWorkers > 0 && !contractorName.trim() && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 font-bold text-xs border border-rose-300 animate-pulse">
                       <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                       <span>Contractor Required</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Ready to save</span>
                     </span>
                   )}
 
@@ -4085,7 +4080,7 @@ export default function WorkforcePage() {
                       setHeadcountPhotoPreviews([]);
                       setPhotoUploadError(null);
                     }}
-                    className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200/70 rounded-xl text-xs font-bold transition cursor-pointer"
+                    className="flex-1 sm:flex-initial px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200/70 rounded-xl text-xs font-bold transition cursor-pointer text-center"
                   >
                     Cancel
                   </button>
@@ -4101,17 +4096,23 @@ export default function WorkforcePage() {
                         ? contractorTotalWorkers === 0 && directTotalWorkers === 0
                         : stagedEntries.length === 0 && contractorTotalWorkers === 0 && directTotalWorkers === 0)
                     }
-                    className="flex items-center gap-1.5 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
                   >
                     {submitting || isUploadingPhotos ? (
                       <>
                         <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
-                        <span>{isUploadingPhotos ? "Uploading Photos..." : editingRecordId ? "Saving Changes..." : "Saving All..."}</span>
+                        <span>{isUploadingPhotos ? "Uploading..." : editingRecordId ? "Saving..." : "Saving..."}</span>
                       </>
                     ) : (
                       <>
                         <Save className="w-4 h-4 text-slate-950" />
-                        <span>{editingRecordId ? "Save Changes" : `Save All Headcounts (${totalEntriesCount || 1})`}</span>
+                        <span>
+                          {editingRecordId
+                            ? "Save Changes"
+                            : totalEntriesCount > 0
+                            ? `Save All Headcounts (${totalEntriesCount})`
+                            : "Save Headcount"}
+                        </span>
                       </>
                     )}
                   </button>

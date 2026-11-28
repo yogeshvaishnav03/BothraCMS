@@ -1479,15 +1479,15 @@ export default function AttendancePage() {
 
         {/* 3-Month Summary Metric Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-              <Calendar className="w-5 h-5" />
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
-                {activeTab === "all" && isPrivileged ? "Total Shifts Logged" : "Days Present (3 Mos)"}
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-slate-500 leading-tight">
+                {activeTab === "all" && isPrivileged ? "Total Shifts" : "Days Present"}
               </div>
-              <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={String(metrics.totalDaysPresent)}>
+              <div className="font-display text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums tracking-tight leading-tight" title={String(metrics.totalDaysPresent)}>
                 {formatCompactNumber(metrics.totalDaysPresent)}{" "}
                 <span className="text-xs font-normal text-slate-400">
                   {activeTab === "all" && isPrivileged ? "shifts" : "days"}
@@ -1496,44 +1496,44 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-slate-500 leading-tight">
                 Completed Shifts
               </div>
-              <div className="font-display text-lg sm:text-xl font-extrabold text-emerald-600 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={String(metrics.completedShifts)}>
+              <div className="font-display text-lg sm:text-xl font-extrabold text-emerald-600 mt-0.5 tabular-nums tracking-tight leading-tight" title={String(metrics.completedShifts)}>
                 {formatCompactNumber(metrics.completedShifts)} <span className="text-xs font-normal text-slate-400">shifts</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5" />
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
-                Total Hours Logged
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-slate-500 leading-tight">
+                Total Hours
               </div>
-              <div className="font-display text-lg sm:text-xl font-extrabold text-blue-600 mt-0.5 tabular-nums tracking-tight leading-tight truncate" title={String(metrics.totalHoursLogged)}>
+              <div className="font-display text-lg sm:text-xl font-extrabold text-blue-600 mt-0.5 tabular-nums tracking-tight leading-tight" title={String(metrics.totalHoursLogged)}>
                 {formatCompactNumber(metrics.totalHoursLogged)} <span className="text-xs font-normal text-slate-400">hrs</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-              {activeTab === "all" && isPrivileged ? <Users className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              {activeTab === "all" && isPrivileged ? <Users className="w-4 h-4 sm:w-5 sm:h-5" /> : <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />}
             </div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
-                {activeTab === "all" && isPrivileged ? "Staff On Site Today" : "Avg Daily Hours"}
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-slate-500 leading-tight">
+                {activeTab === "all" && isPrivileged ? "Active Staff" : "Daily Avg"}
               </div>
               <div
-                className="font-display text-lg sm:text-xl font-extrabold text-purple-600 mt-0.5 tabular-nums tracking-tight leading-tight truncate"
+                className="font-display text-lg sm:text-xl font-extrabold text-purple-600 mt-0.5 tabular-nums tracking-tight leading-tight"
                 title={String(activeTab === "all" && isPrivileged ? metrics.totalStaffOnSiteToday : metrics.averageDailyHours)}
               >
                 {activeTab === "all" && isPrivileged ? (
@@ -1555,34 +1555,33 @@ export default function AttendancePage() {
         {/* Attendance Statement Table Section */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Header & Filter Controls */}
-          <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-amber-500" />
+                <CalendarDays className="w-4 h-4 text-amber-500 shrink-0" />
                 <h2 className="font-black text-sm text-slate-900 tracking-tight">
                   {activeTab === "all" && isPrivileged
-                    ? "Organization-Wide Attendance Ledger"
-                    : "Personal Attendance Statement (Last 90 Days)"}
+                    ? "Organization Attendance Ledger"
+                    : "Personal Attendance Statement"}
                 </h2>
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold">
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold shrink-0">
                   {filteredSessions.length} records
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
                 {activeTab === "all" && isPrivileged
                   ? "Real-time records of all employees, supervisors, and administrators with site and GPS verification."
                   : "Complete shift records with check-in, check-out, working hours, and verified GPS coordinates."}
-
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full md:w-auto md:flex md:items-center">
               {/* Role Filter (when viewing all staff) */}
               {activeTab === "all" && isPrivileged && availableRoles.length > 0 && (
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                  className="w-full md:w-auto bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs truncate"
                 >
                   <option value="ALL">All Roles</option>
                   {availableRoles.map((r) => (
@@ -1602,7 +1601,7 @@ export default function AttendancePage() {
                     setSiteFilter(val);
                     setActiveSiteId(val === "ALL" ? "" : val);
                   }}
-                  className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs max-w-[160px] truncate"
+                  className="w-full md:w-auto bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs md:max-w-[150px] truncate"
                 >
                   <option value="ALL">All Sites</option>
                   {sites.map((s) => (
@@ -1617,10 +1616,10 @@ export default function AttendancePage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                className="w-full md:w-auto bg-white border border-slate-200 rounded-xl px-2 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs truncate"
               >
                 <option value="ALL">All Status</option>
-                <option value="COMPLETED">Shift Completed (Full Day)</option>
+                <option value="COMPLETED">Shift Completed</option>
                 <option value="IN_PROGRESS">In Progress</option>
                 <option value="HALF_DAY">Half Day</option>
                 <option value="ABSENT">Absent</option>

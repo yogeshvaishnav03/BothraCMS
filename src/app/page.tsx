@@ -5153,7 +5153,7 @@ export default function DashboardPage() {
 
                   <div className="space-y-2">
                     {quickMaterialItems.map((it, idx) => {
-                      const isCustom = it.materialId === "OTHER" || !it.materialId;
+                      const isCustom = it.materialId === "OTHER";
                       return (
                         <div
                           key={idx}
