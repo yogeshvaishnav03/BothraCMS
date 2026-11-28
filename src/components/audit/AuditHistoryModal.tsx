@@ -122,14 +122,14 @@ export default function AuditHistoryModal({
         aria-labelledby="audit-modal-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+        <div className="flex items-start justify-between pb-3 border-b border-slate-100 mb-4 shrink-0 gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="p-2 bg-amber-50 text-amber-600 rounded-xl shrink-0 mt-0.5">
               <History className="w-5 h-5" />
             </div>
-            <div>
-              <h3 id="audit-modal-title" className="font-bold text-slate-900 text-base">{title}</h3>
-              <p className="text-xs text-slate-500">
+            <div className="min-w-0">
+              <h3 id="audit-modal-title" className="font-bold text-slate-900 text-sm sm:text-base leading-snug break-words">{title}</h3>
+              <p className="text-xs text-slate-500 mt-0.5 break-words">
                 {targetEntityInfo ? (
                   <span>
                     Permanent history for <strong className="text-slate-800">{targetEntityInfo.name}</strong> ({targetEntityInfo.type})
@@ -144,7 +144,7 @@ export default function AuditHistoryModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition"
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition shrink-0"
             aria-label="Close change history"
           >
             <X className="w-5 h-5" />
@@ -165,8 +165,14 @@ export default function AuditHistoryModal({
               <span>{error}</span>
             </div>
           ) : events.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-xs italic">
-              No edits have been recorded for this item yet.
+            <div className="text-center py-12 px-4 flex flex-col items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50/70 border border-amber-200/60 flex items-center justify-center text-amber-600 mb-3 shadow-2xs">
+                <History className="w-6 h-6 text-amber-500" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">No edits recorded yet</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-xs text-center leading-relaxed">
+                Changes and updates to this item will automatically be preserved in this immutable audit log.
+              </p>
             </div>
           ) : (
             events.map((ev, idx) => {
@@ -231,14 +237,14 @@ export default function AuditHistoryModal({
         </div>
 
         {/* Footer */}
-        <div className="pt-3 border-t border-slate-100 mt-2 flex items-center justify-between text-xs text-slate-500 shrink-0">
-          <span className="flex items-center gap-1 text-[11px] text-slate-400">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+        <div className="pt-3 border-t border-slate-100 mt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 shrink-0">
+          <span className="flex items-center gap-1.5 text-[11px] text-slate-400 order-2 sm:order-1 text-center sm:text-left">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>Permanent history — saved automatically and cannot be deleted</span>
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg cursor-pointer"
+            className="w-full sm:w-auto px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer order-1 sm:order-2 transition text-center"
           >
             Close
           </button>

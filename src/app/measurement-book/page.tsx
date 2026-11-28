@@ -204,15 +204,17 @@ function MeasurementSubgroupEntries({
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/40">
-        <ShowEntriesControl
-          pageSize={pagination.pageSize}
-          onPageSizeChange={pagination.setPageSize}
-        />
-        <span className="text-[11px] text-slate-500">
-          {pagination.filteredCount} {pagination.filteredCount === 1 ? "measurement" : "measurements"}
-        </span>
-      </div>
+      {pagination.totalRecords > 10 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/40">
+          <ShowEntriesControl
+            pageSize={pagination.pageSize}
+            onPageSizeChange={pagination.setPageSize}
+          />
+          <span className="text-[11px] text-slate-500">
+            {pagination.filteredCount} {pagination.filteredCount === 1 ? "measurement" : "measurements"}
+          </span>
+        </div>
+      )}
       <div className="lg:hidden divide-y divide-slate-100">
         {pagination.paginatedData.map((entry) => {
           const photosCount = (entry.attachments || []).filter((a) => !a.isDeleted).length;
@@ -583,6 +585,7 @@ export default function MeasurementBookPage() {
   const [changeRequests, setChangeRequests] = useState<any[]>([]);
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [abstractData, setAbstractData] = useState<any>(null);
+  const [showMbGuide, setShowMbGuide] = useState(false);
 
   // Add Group Form
   const [grpProjectId, setGrpProjectId] = useState("");
@@ -1769,10 +1772,23 @@ export default function MeasurementBookPage() {
             {canManageMeasurements && (
               <button
                 onClick={() => openAddMeasurementModal()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-brand text-slate-950 font-bold text-xs md:text-sm shadow-glow hover:brightness-105 active:scale-98 transition-all"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-brand text-slate-950 font-bold text-xs md:text-sm shadow-glow hover:brightness-105 active:scale-98 transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Add Measurement</span>
+                <span>Add Measurement</span>
+              </button>
+            )}
+
+            {/* Main Group Pre-creation Button */}
+            {canManageMeasurements && (
+              <button
+                type="button"
+                onClick={() => setShowAddGroupModal(true)}
+                className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition"
+                title="Create an empty Main Group folder"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-slate-500" />
+                <span>+ Group</span>
               </button>
             )}
 
@@ -1780,7 +1796,7 @@ export default function MeasurementBookPage() {
             <div className="inline-flex items-center rounded-xl bg-white border border-slate-200 p-0.5 shadow-xs">
               <button
                 onClick={openAbstractModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-700 text-xs font-semibold transition"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-700 text-xs font-semibold transition"
                 title="MB Abstract Summary"
               >
                 <Calculator className="w-3.5 h-3.5 text-amber-600" />
@@ -1789,7 +1805,7 @@ export default function MeasurementBookPage() {
 
               <button
                 onClick={() => openHistoryModal()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-700 text-xs font-semibold transition border-l border-slate-200"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-700 text-xs font-semibold transition border-l border-slate-200"
                 title="Change History"
               >
                 <History className="w-3.5 h-3.5 text-slate-500" />
@@ -1798,7 +1814,7 @@ export default function MeasurementBookPage() {
 
               <button
                 onClick={handleExportCSV}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-700 text-xs font-semibold transition border-l border-slate-200"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-700 text-xs font-semibold transition border-l border-slate-200"
                 title="Export CSV"
               >
                 <Download className="w-3.5 h-3.5 text-slate-500" />
@@ -1814,19 +1830,6 @@ export default function MeasurementBookPage() {
               >
                 <GitPullRequest className="w-4 h-4" />
                 <span>Requests ({kpis.pendingChangeRequestsCount})</span>
-              </button>
-            )}
-
-            {/* Subtle Group Pre-creation (for advanced users) */}
-            {canManageMeasurements && (
-              <button
-                type="button"
-                onClick={() => setShowAddGroupModal(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition"
-                title="Create an empty Main Group folder"
-              >
-                <FolderPlus className="w-3.5 h-3.5 text-slate-500" />
-                <span className="hidden md:inline">+ Group</span>
               </button>
             )}
           </div>
@@ -1857,14 +1860,32 @@ export default function MeasurementBookPage() {
           </div>
         )}
 
-        {/* Beginner 3-Step Guide */}
-        <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span className="font-bold text-slate-800">How Measurement Book works:</span>
-          <span>1. Create a <strong>Main Group</strong> (Project + Vendor/Contractor)</span>
-          <span className="text-slate-300">→</span>
-          <span>2. Add a <strong>Room or Area</strong></span>
-          <span className="text-slate-300">→</span>
-          <span>3. Record <strong>Measurements &amp; Rates</strong> (with optional deductions)</span>
+        {/* Beginner 3-Step Guide (Collapsible on mobile) */}
+        <div className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-slate-800">How Measurement Book works:</span>
+              <span className="hidden sm:inline">1. Create a <strong>Main Group</strong> (Project + Vendor/Contractor)</span>
+              <span className="hidden sm:inline text-slate-300">→</span>
+              <span className="hidden sm:inline">2. Add a <strong>Room or Area</strong></span>
+              <span className="hidden sm:inline text-slate-300">→</span>
+              <span className="hidden sm:inline">3. Record <strong>Measurements &amp; Rates</strong></span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMbGuide((prev) => !prev)}
+              className="text-[11px] font-bold text-amber-700 hover:text-amber-800 sm:hidden shrink-0 ml-auto"
+            >
+              {showMbGuide ? "Hide Steps" : "Show Steps"}
+            </button>
+          </div>
+          {showMbGuide && (
+            <div className="mt-2 pt-2 border-t border-slate-200/60 text-xs text-slate-600 space-y-1 sm:hidden">
+              <div>1. Create a <strong>Main Group</strong> (Project + Vendor/Contractor)</div>
+              <div>2. Add a <strong>Room or Area</strong></div>
+              <div>3. Record <strong>Measurements &amp; Rates</strong> (with optional deductions)</div>
+            </div>
+          )}
         </div>
 
         {/* KPI Summary Cards */}
@@ -2179,67 +2200,71 @@ export default function MeasurementBookPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 flex-wrap justify-between md:justify-end">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 text-xs font-medium">
-                          {grp.subgroupsCount || grp.subgroups.length} Subgroups
-                        </span>
-                        <span className="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 text-xs font-medium">
-                          {grp.entriesCount || 0} Measurements
-                        </span>
-                      </div>
-
-                      {/* Group Unit Quantities */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {Object.entries(grp.quantitiesByUnit || {}).map(([unit, qty]) => (
-                          <span key={unit} className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-bold font-mono">
-                            {formatQuantity(qty)} {unit}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 justify-between sm:justify-end w-full md:w-auto mt-2 md:mt-0 pt-2 sm:pt-0 border-t border-slate-800/60 sm:border-t-0">
+                      <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[11px] font-medium">
+                            {grp.subgroupsCount || grp.subgroups.length} Subgroups
                           </span>
-                        ))}
-                      </div>
+                          <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[11px] font-medium">
+                            {grp.entriesCount || 0} Measurements
+                          </span>
+                        </div>
 
-                      {/* Group Total Amount */}
-                      <div className="text-right shrink-0">
-                        <div className="text-xs text-slate-400 font-semibold uppercase whitespace-nowrap">Group Total</div>
-                        <div
-                          className="text-sm md:text-base font-black text-emerald-400 tabular-nums whitespace-nowrap"
-                          title={formatCurrency(grp.totalAmount || 0)}
-                        >
-                          {formatCompactINR(grp.totalAmount || 0)}
+                        {/* Group Unit Quantities */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {Object.entries(grp.quantitiesByUnit || {}).map(([unit, qty]) => (
+                            <span key={unit} className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-bold font-mono">
+                              {formatQuantity(qty)} {unit}
+                            </span>
+                          ))}
                         </div>
                       </div>
 
-                      {canManageMeasurements && (
-                        <div className="flex flex-wrap items-center gap-1.5 sm:ml-2">
-                          <button
-                            onClick={() => {
-                              setTargetGroupForSubgroup(grp.id);
-                              setSubgrpGroupId(grp.id);
-                              setShowAddSubgroupModal(true);
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg bg-blue-600/90 hover:bg-blue-600 text-white text-xs font-semibold shadow transition"
-                            title="Add Room or Area to this Main Group"
+                      <div className="flex items-center justify-between sm:justify-end gap-3">
+                        {/* Group Total Amount */}
+                        <div className="text-left sm:text-right shrink-0">
+                          <div className="text-[10px] text-slate-400 font-semibold uppercase whitespace-nowrap">Group Total</div>
+                          <div
+                            className="text-sm md:text-base font-black text-emerald-400 tabular-nums whitespace-nowrap"
+                            title={formatCurrency(grp.totalAmount || 0)}
                           >
-                            + Subgroup
-                          </button>
-                          <button
-                            onClick={() => openAddMeasurementModal(grp.id)}
-                            className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow transition"
-                            title="Add measurement to this group"
-                          >
-                            + Measurement
-                          </button>
-                          {canWriteProjects && (
+                            {formatCompactINR(grp.totalAmount || 0)}
+                          </div>
+                        </div>
+
+                        {canManageMeasurements && (
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <button
-                              onClick={() => openDeleteGroupModal(grp)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
-                              title="Delete this Main Group"
+                              onClick={() => {
+                                setTargetGroupForSubgroup(grp.id);
+                                setSubgrpGroupId(grp.id);
+                                setShowAddSubgroupModal(true);
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs transition"
+                              title="Add Room or Area to this Main Group"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              + Subgroup
                             </button>
-                          )}
-                        </div>
-                      )}
+                            <button
+                              onClick={() => openAddMeasurementModal(grp.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-xs transition"
+                              title="Add measurement to this group"
+                            >
+                              + Measurement
+                            </button>
+                            {canWriteProjects && (
+                              <button
+                                onClick={() => openDeleteGroupModal(grp)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+                                title="Delete this Main Group"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 

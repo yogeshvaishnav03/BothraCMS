@@ -1110,7 +1110,7 @@ export default function CommandCenter({
                     <button
                       key={d}
                       type="button"
-                      onClick={() => setDate(d)}
+                      onClick={() => updateDate(d)}
                       className="px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700"
                     >
                       {hi ? "देखें" : "Jump to"} {d}

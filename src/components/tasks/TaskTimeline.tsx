@@ -537,7 +537,7 @@ export function TaskMaterialRequestModal({
 
             <div className="space-y-2">
               {items.map((it, idx) => {
-                const isCustom = it.materialId === "OTHER" || !it.materialId;
+                const isCustom = it.materialId === "OTHER";
                 return (
                   <div
                     key={idx}
