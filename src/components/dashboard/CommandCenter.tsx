@@ -427,7 +427,7 @@ export default function CommandCenter({
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
-  const [taskDueFilter, setTaskDueFilter] = useState<"ALL" | "OVERDUE">("ALL");
+  const [taskDueFilter, setTaskDueFilter] = useState<"ALL" | "OVERDUE">("OVERDUE");
   const [selectedTimelineTask, setSelectedTimelineTask] = useState<{
     id: string;
     title: string;
@@ -799,15 +799,8 @@ export default function CommandCenter({
         </div>
       )}
 
-      {/* ── Secondary stats (Material receipts & issues removed; Due & Overdue tasks added) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
-        <MiniStat
-          label={hi ? "लंबित देय कार्य" : "Due tasks"}
-          value={data ? formatCompactNumber(data.dueTasksCount ?? 0) : "–"}
-          Icon={CheckSquare}
-          tone="bg-amber-50 text-amber-600 ring-amber-100"
-          href="#command-center-due-tasks"
-        />
+      {/* ── Secondary stats (Showing only Overdue tasks, Site reports, Payables) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 stagger">
         <MiniStat
           label={hi ? "समय सीमा समाप्त" : "Overdue tasks"}
           value={data ? formatCompactNumber(data.overdueTasksCount ?? 0) : "–"}
@@ -817,7 +810,7 @@ export default function CommandCenter({
               ? "bg-rose-50 text-rose-600 ring-rose-200"
               : "bg-emerald-50 text-emerald-600 ring-emerald-100"
           }
-          href="/tasks?filter=overdue"
+          href="#command-center-due-tasks"
         />
         <MiniStat
           label={hi ? "साइट रिपोर्ट" : "Site reports filed"}
@@ -842,21 +835,16 @@ export default function CommandCenter({
         </div>
       )}
 
-      {/* ── Due Tasks Awaiting Completion (Dashboard View) ── */}
+      {/* ── Overdue Tasks Awaiting Completion (Dashboard View) ── */}
       <div id="command-center-due-tasks" className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 min-w-0 space-y-4 animate-in fade-in duration-200">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-amber-500/15 text-amber-600">
-              <CheckSquare className="w-5 h-5" />
+            <span className="p-2 rounded-xl bg-rose-500/15 text-rose-600">
+              <AlertTriangle className="w-5 h-5" />
             </span>
             <div>
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 flex-wrap">
-                <span>{hi ? "लंबित एवं देय कार्य" : "Due Tasks Awaiting Completion"}</span>
-                {data && (data.dueTasksCount || 0) > 0 && (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                    {data.dueTasksCount} {hi ? "बाकी" : "pending"}
-                  </span>
-                )}
+                <span>{hi ? "अतिदेय कार्य" : "Overdue Tasks Awaiting Completion"}</span>
                 {data && (data.overdueTasksCount || 0) > 0 && (
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 flex items-center gap-1 animate-pulse">
                     <AlertTriangle className="w-3 h-3" />
@@ -866,8 +854,8 @@ export default function CommandCenter({
               </h2>
               <p className="text-xs text-slate-500">
                 {hi
-                  ? "ये कार्य पूरे होने तक डैशबोर्ड पर दिखते रहेंगे।"
-                  : "Tasks due for completion — remains on the dashboard until marked completed."}
+                  ? "ये अतिदेय कार्य पूरे होने तक डैशबोर्ड पर दिखते रहेंगे।"
+                  : "Tasks past due date — remains on the dashboard until marked completed."}
               </p>
             </div>
           </div>
@@ -875,18 +863,6 @@ export default function CommandCenter({
           <div className="flex items-center gap-2 flex-wrap">
             {data && (data.overdueTasksCount || 0) > 0 && (
               <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs">
-                <button
-                  type="button"
-                  onClick={() => setTaskDueFilter("ALL")}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md font-semibold transition cursor-pointer",
-                    taskDueFilter === "ALL"
-                      ? "bg-white text-slate-900 shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  )}
-                >
-                  {hi ? "सभी देय" : "All Due"} ({data.dueTasksCount || 0})
-                </button>
                 <button
                   type="button"
                   onClick={() => setTaskDueFilter("OVERDUE")}
@@ -899,9 +875,21 @@ export default function CommandCenter({
                 >
                   <AlertTriangle className="w-3 h-3" />
                   <span>{hi ? "अतिदेय" : "Overdue"}</span>
-                  <span className="text-[10px] bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded-full font-bold">
+                  <span className={cn("text-[10px] px-1.5 py-0.2 rounded-full font-bold", taskDueFilter === "OVERDUE" ? "bg-rose-700 text-white" : "bg-rose-100 text-rose-800")}>
                     {data.overdueTasksCount}
                   </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaskDueFilter("ALL")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md font-semibold transition cursor-pointer",
+                    taskDueFilter === "ALL"
+                      ? "bg-white text-slate-900 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  {hi ? "सभी देय" : "All Due"} ({data.dueTasksCount || 0})
                 </button>
               </div>
             )}
