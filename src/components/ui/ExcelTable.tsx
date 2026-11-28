@@ -1873,57 +1873,55 @@ export function ExcelTableMegaDrawer<T = any>({
 
       {/* Card Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Date: From Date */}
+        {/* Paired Date Range: From Date & To Date */}
         {showDateFilter && (
-          <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
-            <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-slate-400" />
-                <span>From Date</span>
-              </span>
-              {effectiveFromDate && (
-                <button
-                  type="button"
-                  onClick={handleClearFromDate}
-                  className="text-[10px] text-rose-600 hover:underline cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </label>
-            <input
-              type="date"
-              value={effectiveFromDate || ""}
-              onChange={(e) => handleFromDateChange(e.target.value || undefined)}
-              className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-            />
-          </div>
-        )}
-
-        {/* Date: To Date */}
-        {showDateFilter && (
-          <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
-            <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-slate-400" />
-                <span>To Date</span>
-              </span>
-              {effectiveToDate && (
-                <button
-                  type="button"
-                  onClick={handleClearToDate}
-                  className="text-[10px] text-rose-600 hover:underline cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </label>
-            <input
-              type="date"
-              value={effectiveToDate || ""}
-              onChange={(e) => handleToDateChange(e.target.value || undefined)}
-              className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-            />
+          <div className="col-span-1 sm:col-span-2 grid grid-cols-2 gap-2.5 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-slate-400" />
+                  <span>From</span>
+                </span>
+                {effectiveFromDate && (
+                  <button
+                    type="button"
+                    onClick={handleClearFromDate}
+                    className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </label>
+              <input
+                type="date"
+                value={effectiveFromDate || ""}
+                onChange={(e) => handleFromDateChange(e.target.value || undefined)}
+                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-slate-400" />
+                  <span>To</span>
+                </span>
+                {effectiveToDate && (
+                  <button
+                    type="button"
+                    onClick={handleClearToDate}
+                    className="text-[10px] text-rose-600 hover:underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </label>
+              <input
+                type="date"
+                value={effectiveToDate || ""}
+                onChange={(e) => handleToDateChange(e.target.value || undefined)}
+                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              />
+            </div>
           </div>
         )}
 
@@ -2396,182 +2394,188 @@ export function ExcelTableToolbar<T = any>({
     <div className="border-b border-slate-200 bg-slate-50/80">
       <div className="p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
         {/* Left: Global Search & Mega Filter toggle & Active Filter Chips */}
-        <div className="flex flex-wrap items-center gap-2 flex-1 w-full md:w-auto">
-          {showSearch && (
-            <div className="relative w-full sm:flex-1 sm:min-w-[180px] sm:max-w-xs">
-              <input
-                type="text"
-                placeholder={`Quick search ${tableName}...`}
-                value={table.globalSearch}
-                onChange={(e) => table.setGlobalSearch(e.target.value)}
-                className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-2xs"
-              />
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 pointer-events-none" />
-              {table.globalSearch && (
-                <button
-                  type="button"
-                  onClick={() => table.setGlobalSearch("")}
-                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Mega Filter Button */}
-          <button
-            type="button"
-            onClick={() => table.setIsMegaFilterOpen(!table.isMegaFilterOpen)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer shrink-0 ${
-              table.isMegaFilterOpen || effectiveActiveCount > 0
-                ? "bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-500/20"
-                : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
-            }`}
-            title={`Show or hide filters for ${tableName}`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-950" />
-            <span>Filter & Sort</span>
-            {effectiveActiveCount > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-slate-950 text-amber-400">
-                {effectiveActiveCount}
-              </span>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 flex-1 w-full md:w-auto">
+          {/* Row 1 on mobile: Search + Filter & Sort button */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {showSearch && (
+              <div className="relative flex-1 min-w-0 sm:w-60 md:w-64 sm:flex-initial">
+                <input
+                  type="text"
+                  placeholder={`Quick search ${tableName}...`}
+                  value={table.globalSearch}
+                  onChange={(e) => table.setGlobalSearch(e.target.value)}
+                  className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-2xs"
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 pointer-events-none" />
+                {table.globalSearch && (
+                  <button
+                    type="button"
+                    onClick={() => table.setGlobalSearch("")}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             )}
-          </button>
 
-          {/* Active Custom Date Filter Chip */}
-          {isCustomDateActive && dateRangeFilter && (
-            <span
-              key="custom-date-range-chip"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs"
+            {/* Mega Filter Button */}
+            <button
+              type="button"
+              onClick={() => table.setIsMegaFilterOpen(!table.isMegaFilterOpen)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer shrink-0 ${
+                table.isMegaFilterOpen || effectiveActiveCount > 0
+                  ? "bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-500/20"
+                  : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+              }`}
+              title={`Show or hide filters for ${tableName}`}
             >
-              <Calendar className="w-3 h-3 text-amber-600" />
-              <span>Date:</span>
-              <strong className="font-bold text-amber-950">
-                {dateRangeFilter.startDate || "Start"} to {dateRangeFilter.endDate || "Present"}
-              </strong>
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+              <span>Filter &amp; Sort</span>
+              {effectiveActiveCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-slate-950 text-amber-400">
+                  {effectiveActiveCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Active Filter Chips & Clear All */}
+          {(hasActiveFilters || isCustomDateActive) && (
+            <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
+              {/* Active Custom Date Filter Chip */}
+              {isCustomDateActive && dateRangeFilter && (
+                <span
+                  key="custom-date-range-chip"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs max-w-full"
+                >
+                  <Calendar className="w-3 h-3 text-amber-600 shrink-0" />
+                  <span>Date:</span>
+                  <strong className="font-bold text-amber-950 truncate max-w-[190px]">
+                    {dateRangeFilter.startDate || "Start"} to {dateRangeFilter.endDate || "Present"}
+                  </strong>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (dateRangeFilter.onReset) dateRangeFilter.onReset();
+                      else {
+                        dateRangeFilter.onStartDateChange("");
+                        dateRangeFilter.onEndDateChange("");
+                      }
+                    }}
+                    className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition shrink-0"
+                    title="Remove date filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {/* Active Checklist Filter Chips */}
+              {activeColFilterKeys.map((colKey) => {
+                const col = columns.find((c) => c.key === colKey);
+                const selected = table.columnFilters[colKey];
+                const totalVals = table.distinctValuesMap[colKey]?.length || 0;
+                if (!col || !selected) return null;
+
+                return (
+                  <span
+                    key={colKey}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs max-w-full"
+                  >
+                    <span>{col.label}:</span>
+                    <strong className="font-bold text-amber-950 truncate max-w-[140px]">
+                      {selected.size === 1
+                        ? Array.from(selected)[0]
+                        : `${selected.size} of ${totalVals} selected`}
+                    </strong>
+                    <button
+                      type="button"
+                      onClick={() => table.clearColumnFilter(colKey)}
+                      className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition shrink-0"
+                      title={`Remove ${col.label} filter`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+
+              {/* Active Range Filter Chips */}
+              {Object.entries(table.rangeFilters).map(([colKey, range]) => {
+                const col = columns.find((c) => c.key === colKey);
+                if (!col) return null;
+                const parts: string[] = [];
+                if (range.min !== undefined && range.max !== undefined) parts.push(`${range.min} to ${range.max}`);
+                else if (range.min !== undefined) parts.push(`≥ ${range.min}`);
+                else if (range.max !== undefined) parts.push(`≤ ${range.max}`);
+                if (range.fromDate && range.toDate) parts.push(`${range.fromDate} to ${range.toDate}`);
+                else if (range.fromDate) parts.push(`from ${range.fromDate}`);
+                else if (range.toDate) parts.push(`to ${range.toDate}`);
+                if (parts.length === 0) return null;
+
+                return (
+                  <span
+                    key={`range-${colKey}`}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs max-w-full"
+                  >
+                    <span>{col.label}:</span>
+                    <strong className="font-bold text-amber-950 truncate max-w-[140px]">{parts.join(", ")}</strong>
+                    <button
+                      type="button"
+                      onClick={() => table.clearRangeFilter(colKey)}
+                      className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition shrink-0"
+                      title={`Remove ${col.label} range filter`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+
+              {/* Active Text Filter Chips */}
+              {activeTextFilterKeys.map((colKey) => {
+                const col = columns.find((c) => c.key === colKey);
+                const val = table.textFilters[colKey];
+                if (!col || !val) return null;
+
+                return (
+                  <span
+                    key={`text-${colKey}`}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs max-w-full"
+                  >
+                    <span>{col.label}:</span>
+                    <strong className="font-bold text-amber-950 truncate max-w-[140px]">&ldquo;{val}&rdquo;</strong>
+                    <button
+                      type="button"
+                      onClick={() => table.clearTextFilter(colKey)}
+                      className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition shrink-0"
+                      title={`Remove ${col.label} text filter`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+
               <button
                 type="button"
                 onClick={() => {
-                  if (dateRangeFilter.onReset) dateRangeFilter.onReset();
-                  else {
-                    dateRangeFilter.onStartDateChange("");
-                    dateRangeFilter.onEndDateChange("");
+                  table.clearAllFilters();
+                  if (dateRangeFilter) {
+                    if (dateRangeFilter.onReset) dateRangeFilter.onReset();
+                    else {
+                      dateRangeFilter.onStartDateChange("");
+                      dateRangeFilter.onEndDateChange("");
+                    }
                   }
                 }}
-                className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition"
-                title="Remove date filter"
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-xs transition shadow-2xs shrink-0 cursor-pointer"
               >
-                <X className="w-3 h-3" />
+                <RotateCcw className="w-3 h-3" />
+                <span>Clear All</span>
               </button>
-            </span>
-          )}
-
-          {/* Active Checklist Filter Chips */}
-          {activeColFilterKeys.map((colKey) => {
-            const col = columns.find((c) => c.key === colKey);
-            const selected = table.columnFilters[colKey];
-            const totalVals = table.distinctValuesMap[colKey]?.length || 0;
-            if (!col || !selected) return null;
-
-            return (
-              <span
-                key={colKey}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs"
-              >
-                <span>{col.label}:</span>
-                <strong className="font-bold text-amber-950">
-                  {selected.size === 1
-                    ? Array.from(selected)[0]
-                    : `${selected.size} of ${totalVals} selected`}
-                </strong>
-                <button
-                  type="button"
-                  onClick={() => table.clearColumnFilter(colKey)}
-                  className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition"
-                  title={`Remove ${col.label} filter`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            );
-          })}
-
-          {/* Active Range Filter Chips */}
-          {Object.entries(table.rangeFilters).map(([colKey, range]) => {
-            const col = columns.find((c) => c.key === colKey);
-            if (!col) return null;
-            const parts: string[] = [];
-            if (range.min !== undefined && range.max !== undefined) parts.push(`${range.min} to ${range.max}`);
-            else if (range.min !== undefined) parts.push(`≥ ${range.min}`);
-            else if (range.max !== undefined) parts.push(`≤ ${range.max}`);
-            if (range.fromDate && range.toDate) parts.push(`${range.fromDate} to ${range.toDate}`);
-            else if (range.fromDate) parts.push(`from ${range.fromDate}`);
-            else if (range.toDate) parts.push(`to ${range.toDate}`);
-            if (parts.length === 0) return null;
-
-            return (
-              <span
-                key={`range-${colKey}`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs"
-              >
-                <span>{col.label}:</span>
-                <strong className="font-bold text-amber-950">{parts.join(", ")}</strong>
-                <button
-                  type="button"
-                  onClick={() => table.clearRangeFilter(colKey)}
-                  className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition"
-                  title={`Remove ${col.label} range filter`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            );
-          })}
-
-          {/* Active Text Filter Chips */}
-          {activeTextFilterKeys.map((colKey) => {
-            const col = columns.find((c) => c.key === colKey);
-            const val = table.textFilters[colKey];
-            if (!col || !val) return null;
-
-            return (
-              <span
-                key={`text-${colKey}`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg font-semibold text-xs shadow-2xs"
-              >
-                <span>{col.label}:</span>
-                <strong className="font-bold text-amber-950">&ldquo;{val}&rdquo;</strong>
-                <button
-                  type="button"
-                  onClick={() => table.clearTextFilter(colKey)}
-                  className="text-amber-700 hover:text-amber-950 p-0.5 rounded-full hover:bg-amber-100 transition"
-                  title={`Remove ${col.label} text filter`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            );
-          })}
-
-          {(hasActiveFilters || isCustomDateActive) && (
-            <button
-              type="button"
-              onClick={() => {
-                table.clearAllFilters();
-                if (dateRangeFilter) {
-                  if (dateRangeFilter.onReset) dateRangeFilter.onReset();
-                  else {
-                    dateRangeFilter.onStartDateChange("");
-                    dateRangeFilter.onEndDateChange("");
-                  }
-                }
-              }}
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-bold text-xs transition shadow-2xs"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Clear All</span>
-            </button>
+            </div>
           )}
         </div>
 

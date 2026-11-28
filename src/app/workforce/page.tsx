@@ -4328,18 +4328,20 @@ export default function WorkforcePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
                   {editingWorker ? (
                     <button
                       type="button"
                       onClick={() => handleDeleteWorker(editingWorker)}
-                      className="px-3 py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      className="px-2.5 sm:px-3 py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer shrink-0 border border-transparent hover:border-rose-200 whitespace-nowrap"
+                      title="Delete this worker"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete Worker</span>
+                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden xs:inline">Delete</span>
+                      <span className="hidden sm:inline">Worker</span>
                     </button>
                   ) : <div />}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -4348,14 +4350,14 @@ export default function WorkforcePage() {
                         setSelectedContractorPartyId("");
                         setDuplicateWarning(null);
                       }}
-                      className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition cursor-pointer"
+                      className="px-3 sm:px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition disabled:opacity-50 cursor-pointer"
+                      className="px-3.5 sm:px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold rounded-xl text-xs transition disabled:opacity-50 cursor-pointer whitespace-nowrap shadow-xs"
                     >
                       {submitting ? "Saving..." : editingWorker ? "Save Changes" : "Register Worker"}
                     </button>

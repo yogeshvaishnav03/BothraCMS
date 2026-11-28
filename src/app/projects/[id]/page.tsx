@@ -662,40 +662,43 @@ export default function ProjectDetailsPage() {
       <div className="space-y-6">
         {/* Header with Breadcrumb */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3 min-w-0">
             <Link
               href="/projects"
-              className="p-2 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 shadow-sm"
+              className="p-2 mt-0.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-slate-900 shadow-sm shrink-0"
+              title="Back to Projects"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                <span className="text-[11px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                   {project.code}
                 </span>
                 <span
                   className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                     project.status === "ACTIVE"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "bg-slate-100 text-slate-700"
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      : "bg-slate-100 text-slate-700 border border-slate-200"
                   }`}
                 >
                   {project.status}
                 </span>
               </div>
-              <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight mt-1 flex items-center gap-2">
+              <h1 className="font-display text-lg sm:text-[26px] font-extrabold text-slate-900 tracking-tight leading-snug">
                 {project.name}
               </h1>
-              <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-                <span className="flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                  {project.site?.name}
-                </span>
+              <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                {project.site?.name && (
+                  <span className="flex items-center gap-1 font-medium text-slate-600">
+                    <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>{project.site.name}</span>
+                  </span>
+                )}
                 {project.manager && (
                   <span className="flex items-center gap-1">
-                    <User className="w-3.5 h-3.5 text-slate-400" />
-                    Manager: {project.manager.name}
+                    <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>Manager: {project.manager.name}</span>
                   </span>
                 )}
               </div>
@@ -754,27 +757,27 @@ export default function ProjectDetailsPage() {
         )}
 
         {/* Financial & Operational KPI Cards */}
-        <div className={`grid grid-cols-2 gap-4 ${canSeeMoney ? "lg:grid-cols-4" : ""}`}>
+        <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${canSeeMoney ? "lg:grid-cols-4" : ""}`}>
           {canSeeMoney && (
             <>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+          <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Project Budget
             </span>
-            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
-              <span title={formatCurrency(budget)}>{formatCompactINR(budget)}</span>
+            <div className="font-display text-base sm:text-xl md:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight">
+              <span title={formatCurrency(budget)}>{formatCompactINR(budget).replace(/\.00$/, "")}</span>
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Approved financial allocation</div>
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">Approved financial allocation</div>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+          <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Total Billed
             </span>
-            <div className="font-display text-xl sm:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight truncate">
-              <span title={formatCurrency(billed)}>{formatCompactINR(billed)}</span>
+            <div className="font-display text-base sm:text-xl md:text-2xl font-extrabold text-amber-600 mt-1 tabular-nums tracking-tight leading-tight">
+              <span title={formatCurrency(billed)}>{formatCompactINR(billed).replace(/\.00$/, "")}</span>
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">
               {project.bills?.length || 0} posted vendor/sub bills
             </div>
           </div>
@@ -782,14 +785,14 @@ export default function ProjectDetailsPage() {
             </>
           )}
 
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+          <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Active Tasks
             </span>
-            <div className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight truncate">
+            <div className="font-display text-base sm:text-xl md:text-2xl font-extrabold text-slate-900 mt-1 tabular-nums tracking-tight leading-tight">
               <span title={String(project.tasks?.length || 0)}>{formatCompactNumber(project.tasks?.length || 0)}</span>
             </div>
-            <div className="text-[11px] text-slate-500 mt-1">Milestones & work orders</div>
+            <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">Milestones & work orders</div>
           </div>
         </div>
 
@@ -1015,16 +1018,16 @@ export default function ProjectDetailsPage() {
                     return (
                       <div
                         key={task.id}
-                        className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition ${
+                        className={`p-3.5 sm:p-4 hover:bg-slate-50/70 transition ${
                           isDone ? "bg-slate-50/40" : ""
                         }`}
                       >
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="flex items-start gap-3">
                           <button
                             type="button"
                             onClick={() => handleUpdateTaskStatus(task.id, isDone ? "TODO" : "COMPLETED")}
                             title={isDone ? "Mark as To Do" : "Mark as Completed"}
-                            className="mt-0.5 shrink-0 focus:outline-none"
+                            className="mt-0.5 shrink-0 focus:outline-none cursor-pointer"
                           >
                             {isDone ? (
                               <CheckCircle2 className="w-5 h-5 text-emerald-600 hover:text-emerald-700 transition" />
@@ -1033,7 +1036,8 @@ export default function ProjectDetailsPage() {
                             )}
                           </button>
 
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            {/* Title & Priority Badge */}
                             <div className="flex flex-wrap items-center gap-2">
                               <span
                                 className={`text-sm font-bold tracking-tight text-slate-900 ${
@@ -1043,7 +1047,7 @@ export default function ProjectDetailsPage() {
                                 {task.title}
                               </span>
                               <span
-                                className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border ${
+                                className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 border shrink-0 ${
                                   normalizePriority(task.priority) === "CRITICAL"
                                     ? "bg-rose-100 text-rose-800 border-rose-300"
                                     : normalizePriority(task.priority) === "GENERAL"
@@ -1064,52 +1068,57 @@ export default function ProjectDetailsPage() {
                               </span>
                             </div>
 
+                            {/* Description */}
                             {task.description && (
-                              <div className="text-xs text-slate-600 mt-1 line-clamp-2">
+                              <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
                                 {task.description}
-                              </div>
+                              </p>
                             )}
 
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-slate-500">
-                              <span className="flex items-center gap-1">
-                                <User className="w-3 h-3 text-slate-400" />
-                                <span>{task.assignee?.name || "Unassigned"}</span>
-                              </span>
-                              {task.dueAt && (
-                                <span
-                                  className={`flex items-center gap-1 font-medium ${
-                                    isOverdue ? "text-rose-600 font-bold" : "text-slate-500"
+                            {/* Bottom Row: Assignee, Due Date & Status Selector */}
+                            <div className="flex items-center justify-between gap-2 pt-1 flex-wrap sm:flex-nowrap">
+                              <div className="flex items-center gap-2 flex-wrap min-w-0 text-[11px] text-slate-500">
+                                <span className="inline-flex items-center gap-1 bg-slate-100/80 px-2 py-0.5 rounded-md font-medium text-slate-700">
+                                  <User className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate max-w-[130px]">{task.assignee?.name || "Unassigned"}</span>
+                                </span>
+                                {task.dueAt && (
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium ${
+                                      isOverdue
+                                        ? "bg-rose-50 text-rose-700 border border-rose-200/70 font-bold"
+                                        : "bg-slate-100/80 text-slate-600"
+                                    }`}
+                                  >
+                                    <Calendar className="w-3 h-3 shrink-0" />
+                                    <span>{isOverdue ? `Overdue (${formatDate(task.dueAt)})` : formatDate(task.dueAt)}</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="shrink-0 ml-auto sm:ml-0">
+                                <select
+                                  value={task.status}
+                                  onChange={(e) => handleUpdateTaskStatus(task.id, e.target.value)}
+                                  className={`text-xs font-bold px-2.5 py-1 rounded-lg border focus:ring-2 focus:ring-amber-500 focus:outline-none transition cursor-pointer shadow-2xs ${
+                                    task.status === "COMPLETED" || task.status === "VERIFIED"
+                                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                      : task.status === "IN_PROGRESS"
+                                      ? "bg-sky-50 text-sky-800 border-sky-200"
+                                      : task.status === "BLOCKED"
+                                      ? "bg-rose-50 text-rose-800 border-rose-200"
+                                      : "bg-slate-100 text-slate-700 border-slate-200"
                                   }`}
                                 >
-                                  <Calendar className="w-3 h-3" />
-                                  <span>{isOverdue ? `⚠️ Overdue (${formatDate(task.dueAt)})` : `Due: ${formatDate(task.dueAt)}`}</span>
-                                </span>
-                              )}
+                                  <option value="TODO">To Do</option>
+                                  <option value="IN_PROGRESS">In Progress</option>
+                                  <option value="BLOCKED">Blocked</option>
+                                  <option value="COMPLETED">Completed</option>
+                                  <option value="VERIFIED">Verified</option>
+                                </select>
+                              </div>
                             </div>
                           </div>
-                        </div>
-
-                        {/* Status selector badge */}
-                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                          <select
-                            value={task.status}
-                            onChange={(e) => handleUpdateTaskStatus(task.id, e.target.value)}
-                            className={`text-xs font-bold px-2.5 py-1 rounded-lg border focus:ring-2 focus:ring-amber-500 focus:outline-none transition ${
-                              task.status === "COMPLETED" || task.status === "VERIFIED"
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                : task.status === "IN_PROGRESS"
-                                ? "bg-sky-50 text-sky-800 border-sky-200"
-                                : task.status === "BLOCKED"
-                                ? "bg-rose-50 text-rose-800 border-rose-200"
-                                : "bg-slate-100 text-slate-700 border-slate-200"
-                            }`}
-                          >
-                            <option value="TODO">To Do</option>
-                            <option value="IN_PROGRESS">In Progress</option>
-                            <option value="BLOCKED">Blocked</option>
-                            <option value="COMPLETED">Completed</option>
-                            <option value="VERIFIED">Verified</option>
-                          </select>
                         </div>
                       </div>
                     );
