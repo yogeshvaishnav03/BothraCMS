@@ -6,6 +6,7 @@ import {
   requireProjectAccess,
   requirePermission,
   isOrgOwnerOrAdmin,
+  requireTaskAccess,
 } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyTaskUpdate, notifyTaskAssigned } from "@/lib/task-notifications";
@@ -60,12 +61,7 @@ export async function GET(
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
     // Verify task visibility: Users should only see tasks assigned to them or created by them
-    if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
-      if (!isOrgOwnerOrAdmin(user)) {
-        return jsonError("Forbidden: You can only view tasks assigned to you or created by you", "FORBIDDEN", 403);
-      }
-      await requireProjectAccess(user, task.projectId, "tasks:read");
-    }
+    await requireTaskAccess(user, task, "view");
 
     return jsonSuccess(task);
   } catch (error) {
@@ -86,13 +82,8 @@ export async function PATCH(
     });
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
-    // Verify project access if user is not assignee or creator
-    if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
-      if (!isOrgOwnerOrAdmin(user)) {
-        return jsonError("Forbidden: You can only edit tasks assigned to you or created by you", "FORBIDDEN", 403);
-      }
-      await requireProjectAccess(user, task.projectId, "tasks:write");
-    }
+    // Verify task modification: Users should only edit tasks assigned to them or created by them
+    await requireTaskAccess(user, task, "edit");
 
     const body = await req.json();
     const data = editTaskSchema.parse(body);

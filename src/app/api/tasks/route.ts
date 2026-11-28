@@ -7,6 +7,7 @@ import {
   requireProjectAccess,
   getUserAccessibleProjectIds,
   isOrgOwnerOrAdmin,
+  requireTaskAccess,
 } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyPeople } from "@/lib/notify";
@@ -53,25 +54,20 @@ export async function GET(req: NextRequest) {
 
     const conditions: any[] = [];
 
-    const accessibleProjectIds = await getUserAccessibleProjectIds(user);
-    if (accessibleProjectIds !== null) {
-      // Scoped users (Project Managers, Supervisors, Field Staff):
-      // Can access tasks in projects they manage or are assigned to, plus any tasks assigned to or created by them.
-      conditions.push({
-        OR: [
-          { projectId: { in: accessibleProjectIds } },
-          { assigneeUserId: user.userId },
-          { createdBy: user.userId },
-        ],
-      });
-      if (projectId) {
-        conditions.push({ projectId });
-      }
-    } else {
-      // Admins (Super Admin, Org Admin): Unrestricted org-wide access
-      if (projectId) {
-        conditions.push({ projectId });
-      }
+    // Strictly enforce visibility:
+    // Based on the user account, a task should only be visible to the person who assigned it
+    // and the people it is assigned to. Anyone who neither assigned the task nor is listed
+    // as an assignee should not be able to see it.
+    conditions.push({
+      OR: [
+        { createdBy: user.userId },
+        { assigneeUserId: user.userId },
+      ],
+    });
+
+    if (projectId) {
+      await requireProjectAccess(user, projectId, "tasks:read");
+      conditions.push({ projectId });
     }
 
     if (conditions.length > 0) {
@@ -313,8 +309,8 @@ export async function DELETE(req: NextRequest) {
       return jsonError("Task not found", "NOT_FOUND", 404);
     }
 
-    // Verify project access
-    await requireProjectAccess(user, task.projectId, "tasks:write");
+    // Strictly enforce task deletion access: only assigner or assignee
+    await requireTaskAccess(user, task, "delete");
 
     // Soft-delete / Archival to preserve historical status and comment history
     await prisma.task.update({

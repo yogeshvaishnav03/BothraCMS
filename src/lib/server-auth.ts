@@ -275,3 +275,47 @@ export async function requireFolderAccess(
 
   return folder;
 }
+
+/**
+ * 10. Check if a user can access a task:
+ * Based on the user account, a task should only be visible to the person who assigned it
+ * (createdBy) and the people it is assigned to (assigneeUserId or sibling task assignee).
+ * Anyone who neither assigned the task nor is listed as an assignee cannot view or access it.
+ */
+export async function canUserAccessTask(
+  user: { userId: string; organizationId: string },
+  task: { id: string; projectId: string; title: string; createdBy: string; assigneeUserId?: string | null }
+): Promise<boolean> {
+  if (task.assigneeUserId === user.userId || task.createdBy === user.userId) {
+    return true;
+  }
+  // Check if user is an assignee of a sibling task created as part of the same assignment
+  const sibling = await prisma.task.findFirst({
+    where: {
+      organizationId: user.organizationId,
+      projectId: task.projectId,
+      title: task.title,
+      createdBy: task.createdBy,
+      assigneeUserId: user.userId,
+      isArchived: false,
+    },
+    select: { id: true },
+  });
+  return Boolean(sibling);
+}
+
+export async function requireTaskAccess(
+  user: { userId: string; organizationId: string },
+  task: { id: string; projectId: string; title: string; createdBy: string; assigneeUserId?: string | null },
+  actionLabel = "view"
+): Promise<void> {
+  const allowed = await canUserAccessTask(user, task);
+  if (!allowed) {
+    throw new AuthorizationError(
+      `Forbidden: You can only ${actionLabel} tasks assigned to you or created by you`,
+      403,
+      "FORBIDDEN"
+    );
+  }
+}
+

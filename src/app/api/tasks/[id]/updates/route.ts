@@ -6,6 +6,7 @@ import {
   requireProjectAccess,
   requirePermission,
   isOrgOwnerOrAdmin,
+  requireTaskAccess,
 } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { TaskTimelineService, sanitizePhotoUrls } from "@/services/task-timeline-service";
@@ -30,12 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     });
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
-    if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
-      if (!isOrgOwnerOrAdmin(user)) {
-        return jsonError("Forbidden: You can only post updates on tasks assigned to you or created by you", "FORBIDDEN", 403);
-      }
-      await requireProjectAccess(user, task.projectId, "tasks:write");
-    }
+    // Strictly enforce visibility: only assigner or assignees
+    await requireTaskAccess(user, task, "post updates on");
 
     const data = updateSchema.parse(await req.json());
     const photoUrls = sanitizePhotoUrls(data.photoUrls);

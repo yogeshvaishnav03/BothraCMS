@@ -1,7 +1,13 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireUserContext, requirePermission, requireProjectAccess, isOrgOwnerOrAdmin } from "@/lib/server-auth";
+import {
+  requireUserContext,
+  requirePermission,
+  requireProjectAccess,
+  isOrgOwnerOrAdmin,
+  requireTaskAccess,
+} from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
 
@@ -28,12 +34,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
-    if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
-      if (!isOrgOwnerOrAdmin(user)) {
-        return jsonError("Forbidden: You can only view tasks assigned to you or created by you", "FORBIDDEN", 403);
-      }
-      await requireProjectAccess(user, task.projectId, "tasks:read");
-    }
+    // Strictly enforce visibility: only assigner or assignees
+    await requireTaskAccess(user, task, "view members of");
 
     // Find all sibling tasks with the same title & project in this organization
     const siblingTasks = await prisma.task.findMany({
@@ -105,12 +107,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
-    if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
-      if (!isOrgOwnerOrAdmin(user)) {
-        return jsonError("Forbidden: You can only manage members of tasks assigned to you or created by you", "FORBIDDEN", 403);
-      }
-      await requireProjectAccess(user, task.projectId, "tasks:write");
-    }
+    // Strictly enforce visibility: only assigner or assignees
+    await requireTaskAccess(user, task, "manage members of");
 
     const body = await req.json();
     const data = addMemberSchema.parse(body);

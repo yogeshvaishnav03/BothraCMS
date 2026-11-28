@@ -37,6 +37,12 @@ export class DashboardService {
       status: { notIn: ["COMPLETED", "VERIFIED", "ARCHIVED"] },
       isArchived: false,
     };
+    if (userContext?.userId) {
+      tasksDueTodayWhere.OR = [
+        { createdBy: userContext.userId },
+        { assigneeUserId: userContext.userId },
+      ];
+    }
     if (siteId) tasksDueTodayWhere.project = { siteId };
     if (accessibleProjectIds !== null) {
       tasksDueTodayWhere.projectId = { in: accessibleProjectIds };
@@ -49,6 +55,12 @@ export class DashboardService {
       status: { notIn: ["COMPLETED", "VERIFIED", "ARCHIVED"] },
       isArchived: false,
     };
+    if (userContext?.userId) {
+      tasksOverdueWhere.OR = [
+        { createdBy: userContext.userId },
+        { assigneeUserId: userContext.userId },
+      ];
+    }
     if (siteId) tasksOverdueWhere.project = { siteId };
     if (accessibleProjectIds !== null) {
       tasksOverdueWhere.projectId = { in: accessibleProjectIds };

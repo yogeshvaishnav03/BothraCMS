@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
         isArchived: false,
         status: { notIn: ["COMPLETED", "VERIFIED", "ARCHIVED"] },
         priority: { in: ["CRITICAL", "HIGH", "DAILY"] },
+        createdBy: user.userId,
       };
       if (siteId) {
         siteWhere.project = { siteId };

@@ -34,10 +34,9 @@ export async function PATCH(
 
     if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
 
-    if (task.assigneeUserId !== user.userId && task.createdBy !== user.userId) {
-      const { requireProjectAccess } = await import("@/lib/server-auth");
-      await requireProjectAccess(user, task.projectId, "tasks:write");
-    }
+    // Strictly enforce visibility: only assigner or assignees
+    const { requireTaskAccess } = await import("@/lib/server-auth");
+    await requireTaskAccess(user, task, "update");
 
     const oldStatus = task.status;
     const updateData: any = { status };

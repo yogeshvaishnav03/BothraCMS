@@ -95,7 +95,7 @@ export class CommandCenterService {
     };
   }
 
-  static async getOverview(organizationId: string, date: string, siteId?: string) {
+  static async getOverview(organizationId: string, date: string, siteId?: string, userId?: string) {
     const trendStart = shiftDate(date, -6);
     const rangeStart = new Date(`${trendStart}T00:00:00.000Z`);
     rangeStart.setTime(rangeStart.getTime() - 6 * 3600 * 1000);
@@ -334,6 +334,7 @@ export class CommandCenterService {
           isArchived: false,
           status: { notIn: ["COMPLETED", "VERIFIED", "ARCHIVED"] },
           ...(siteId ? { project: { siteId } } : {}),
+          ...(userId ? { OR: [{ createdBy: userId }, { assigneeUserId: userId }] } : {}),
         },
         select: {
           id: true,

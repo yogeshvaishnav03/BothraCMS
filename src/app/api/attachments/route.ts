@@ -22,6 +22,7 @@ import {
   isOrgOwnerOrAdmin,
   getUserAccessibleProjectIds,
   AuthorizationError,
+  requireTaskAccess,
 } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -145,12 +146,13 @@ export async function POST(req: NextRequest) {
     if (entityType.toUpperCase() === "TASK" && entityId) {
       const task = await prisma.task.findFirst({
         where: { id: entityId, organizationId: user.organizationId },
-        select: { id: true, projectId: true, assigneeUserId: true, createdBy: true },
+        select: { id: true, projectId: true, title: true, assigneeUserId: true, createdBy: true },
       });
       if (!task) return jsonError("Task not found", "NOT_FOUND", 404);
+      await requireTaskAccess(user, task, "upload photos to");
       taskId = task.id;
       projectId = task.projectId;
-      taskGrantsAccess = task.assigneeUserId === user.userId || task.createdBy === user.userId;
+      taskGrantsAccess = true;
     }
 
     // Validate project access if provided

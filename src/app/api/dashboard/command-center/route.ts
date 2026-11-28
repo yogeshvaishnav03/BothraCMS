@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     await ensurePostgresColumns().catch(() => {});
 
     try {
-      const data = await CommandCenterService.getOverview(user.organizationId, date, siteId);
+      const data = await CommandCenterService.getOverview(user.organizationId, date, siteId, user.userId);
       return jsonSuccess(data);
     } catch (innerError: any) {
       console.error("[COMMAND_CENTER_API] Error generating overview:", innerError);
