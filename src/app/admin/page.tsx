@@ -585,7 +585,7 @@ export default function SuperAdminDashboardPage() {
 
   return (
     <Shell>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-28 sm:pb-12">
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -671,18 +671,20 @@ export default function SuperAdminDashboardPage() {
         {/* 1. ORDER APPROVAL QUERIES PANEL (HIGHLIGHTED SECTION) */}
         <div className="bg-white rounded-2xl border-2 border-amber-400/80 shadow-md overflow-hidden animate-in fade-in">
           <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-white border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center shadow-xs">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center shrink-0 shadow-xs mt-0.5">
                 <ShoppingCart className="w-5 h-5" />
               </div>
-              <div>
-                <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <span>Purchase Orders Waiting for Approval</span>
-                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black">
-                    {pendingOrders.length} Waiting for Approval
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                    Purchase Orders Waiting for Approval
+                  </h2>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 whitespace-nowrap shrink-0 shadow-2xs">
+                    {pendingOrders.length} Pending
                   </span>
-                </h2>
-                <p className="text-xs text-slate-600 mt-0.5">
+                </div>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   Review material purchase orders requested by supervisors and storekeepers. Approving prepares the vendor notification.
                 </p>
               </div>
@@ -691,7 +693,7 @@ export default function SuperAdminDashboardPage() {
             <button
               onClick={loadPendingOrders}
               disabled={ordersLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 rounded-lg text-xs font-bold transition shadow-2xs self-start sm:self-auto"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-900 rounded-xl text-xs font-bold transition shadow-2xs self-start sm:self-auto shrink-0"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${ordersLoading ? "animate-spin" : ""}`} />
               <span>Refresh Orders</span>
@@ -1065,20 +1067,20 @@ export default function SuperAdminDashboardPage() {
         {/* 2. PAYMENT APPROVAL QUERIES & CONFIRMATIONS PANEL */}
         <div className="bg-white rounded-2xl border-2 border-emerald-500/80 shadow-md overflow-hidden animate-in fade-in">
           <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-white border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-xs">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shrink-0 shadow-xs mt-0.5">
                 <Landmark className="w-5 h-5" />
               </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-black text-slate-900">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
                     Payments Waiting for Approval
                   </h2>
-                  <span className="inline-flex items-center text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-bold whitespace-nowrap shrink-0 shadow-2xs leading-normal">
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white whitespace-nowrap shrink-0 shadow-2xs">
                     {pendingPayments.length} Pending
                   </span>
                 </div>
-                <p className="text-xs text-slate-600 mt-0.5">
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                   Approve payments to Vendors, Contractors, and Employees. Check the paying bank account and approve.
                 </p>
               </div>
@@ -1087,7 +1089,7 @@ export default function SuperAdminDashboardPage() {
             <button
               onClick={loadPendingPayments}
               disabled={paymentsLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-900 rounded-lg text-xs font-bold transition shadow-2xs self-start sm:self-auto"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-900 rounded-xl text-xs font-bold transition shadow-2xs self-start sm:self-auto shrink-0"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${paymentsLoading ? "animate-spin" : ""}`} />
               <span>Refresh Payment Requests</span>

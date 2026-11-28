@@ -429,7 +429,7 @@ export default function SettingsPage() {
 
   return (
     <Shell>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-28 sm:pb-12">
         <div>
           <h1 className="font-display text-xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
             <Building2 className="w-6 h-6 text-amber-600" /> {t("settings.title", "Organization Settings")}
@@ -663,12 +663,12 @@ export default function SettingsPage() {
                   className="bg-white rounded-2xl border-2 border-amber-400 p-6 shadow-sm space-y-5 animate-in fade-in"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-black shrink-0 shadow-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-black shrink-0 shadow-xs mt-0.5">
                         <Landmark className="w-5 h-5" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h2 className="text-base font-bold text-slate-800">
                             Company Bank Accounts
                           </h2>
@@ -676,8 +676,8 @@ export default function SettingsPage() {
                             Super Admin Only
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Add multiple company bank accounts with bank name, last 4 digits of the account number, and account holder name. These accounts will be displayed in the payment &amp; bill dropdowns.
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                          Add multiple company bank accounts with bank name, last 4 digits of the account number, and account holder name.
                         </p>
                       </div>
                     </div>
@@ -798,7 +798,7 @@ export default function SettingsPage() {
                   </form>
 
                   {/* Save All Accounts Button */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     <span className="text-xs text-slate-500">
                       Click Save to apply your bank accounts to the platform dropdowns.
                     </span>
@@ -806,7 +806,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={handleSaveBankAccounts}
                       disabled={bankSaving}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20 transition disabled:opacity-50 cursor-pointer"
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20 transition disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Save className="w-4 h-4" />
                       <span>{bankSaving ? "Saving..." : "Save Bank Accounts"}</span>

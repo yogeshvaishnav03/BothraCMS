@@ -2577,7 +2577,7 @@ export function ExcelTableToolbar<T = any>({
 
         {/* Right: Show Entries, Record Counter & Export */}
         <div className="flex flex-wrap items-center justify-between md:justify-end gap-x-3 gap-y-2 w-full md:w-auto md:shrink-0 pt-2 md:pt-0 border-t border-slate-200/70 md:border-t-0">
-          {showEntries && (
+          {showEntries && table.totalRecords > 10 && (
             <div className="order-1">
               <ShowEntriesControl
                 pageSize={table.pageSize}

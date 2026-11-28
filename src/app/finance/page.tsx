@@ -2684,7 +2684,7 @@ export default function FinancePage() {
                     <button
                       type="button"
                       onClick={toggleGrandTotal}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition border cursor-pointer ${
                         showGrandTotal
                           ? "bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-600 shadow-2xs"
                           : "bg-white hover:bg-slate-100 text-slate-600 border-slate-300"
@@ -2692,7 +2692,7 @@ export default function FinancePage() {
                       title="Toggle Grand Total footer row in the table"
                     >
                       <Calculator className="w-3 h-3" />
-                      <span>{showGrandTotal ? "Grand Total Row: ON" : "Grand Total Row: OFF"}</span>
+                      <span>{showGrandTotal ? "Total Row: ON" : "Total Row: OFF"}</span>
                     </button>
                   )}
                 </div>
@@ -3448,9 +3448,9 @@ export default function FinancePage() {
               />
 
               {/* Option of Grand Total Toolbar Bar */}
-              <div className="bg-slate-50 border-b border-slate-200 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2 text-xs">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+              <div className="bg-slate-50 border-b border-slate-200 px-3 sm:px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5 shrink-0">
                     <Calculator className="w-3.5 h-3.5 text-amber-600" />
                     <span>Grand Total:</span>
                   </span>
@@ -3472,16 +3472,16 @@ export default function FinancePage() {
                       {formatCurrency(billsGrandTotal.outstandingPaise)}
                     </span>
                   </div>
-                  <span className="text-[11px] text-slate-500">
-                    ({billsGrandTotal.count} bills)
+                  <span className="text-[11px] text-slate-500 shrink-0">
+                    ({billsGrandTotal.count} {billsGrandTotal.count === 1 ? "bill" : "bills"})
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 ml-auto">
+                <div className="flex items-center justify-end gap-1.5 shrink-0 pt-1 sm:pt-0 border-t border-slate-200/60 sm:border-t-0">
                   <button
                     type="button"
                     onClick={toggleGrandTotal}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition border cursor-pointer ${
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition border cursor-pointer ${
                       showGrandTotal
                         ? "bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-600 shadow-2xs"
                         : "bg-white hover:bg-slate-100 text-slate-600 border-slate-300"
@@ -3489,7 +3489,7 @@ export default function FinancePage() {
                     title="Toggle Grand Total footer row in the table"
                   >
                     <Calculator className="w-3 h-3" />
-                    <span>{showGrandTotal ? "Grand Total Row: ON" : "Grand Total Row: OFF"}</span>
+                    <span>{showGrandTotal ? "Total Row: ON" : "Total Row: OFF"}</span>
                   </button>
                 </div>
               </div>

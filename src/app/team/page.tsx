@@ -582,13 +582,21 @@ export default function TeamPage() {
         ) : (
           <>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-2xs">
-            <ShowEntriesControl
-              pageSize={teamPagination.pageSize}
-              onPageSizeChange={teamPagination.setPageSize}
-            />
-            <span className="text-xs text-slate-500">
-              Showing {teamPagination.startItem} to {teamPagination.endItem} of {teamPagination.filteredCount} team members
-            </span>
+            {teamPagination.totalRecords > 10 ? (
+              <>
+                <ShowEntriesControl
+                  pageSize={teamPagination.pageSize}
+                  onPageSizeChange={teamPagination.setPageSize}
+                />
+                <span className="text-xs text-slate-500">
+                  Showing {teamPagination.startItem} to {teamPagination.endItem} of {teamPagination.filteredCount} team members
+                </span>
+              </>
+            ) : (
+              <span className="text-xs font-bold text-slate-700">
+                {teamPagination.filteredCount} {teamPagination.filteredCount === 1 ? "Team Member" : "Team Members"}
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger">
             {teamPagination.paginatedData.map((m) => {
@@ -614,10 +622,10 @@ export default function TeamPage() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-slate-900 truncate">
+                      <div className="font-bold text-base text-slate-900 leading-tight">
                         {m.name} {isMe && <span className="text-xs font-normal text-slate-400">(you)</span>}
                       </div>
-                      {m.jobTitle && <div className="text-xs text-slate-500 truncate">{m.jobTitle}</div>}
+                      {m.jobTitle && <div className="text-xs text-slate-500 mt-0.5">{m.jobTitle}</div>}
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1", meta.tone)}>{meta.label}</span>
                         {/* Assigned Sites badge */}
@@ -668,21 +676,30 @@ export default function TeamPage() {
                         {inactive && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md ring-1 bg-rose-50 text-rose-700 ring-rose-200">Deactivated</span>}
                       </div>
                     </div>
+                  </div>
+                  <div className="text-[11px] text-slate-500 space-y-0.5">
+                    <div className="truncate">{m.email}</div>
+                    <div>
+                      {m.phone || "No phone added"} · {lastSeen(m.lastLoginAt)}
+                    </div>
+                  </div>
+                  <div className="mt-auto pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <ContactActions phone={m.phone} email={m.email} chatUserId={isMe || inactive ? null : m.id} message={`Namaste ${m.name},`} />
                     {canEditThis && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => openEdit(m)} title="Edit" className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50">
+                      <div className="flex items-center gap-1 shrink-0 ml-auto">
+                        <button onClick={() => openEdit(m)} title="Edit" className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition">
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         {!isMe && (
                           <>
-                            <button onClick={() => openPasswordModal(m)} title="Update / Reset password" className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-amber-700 hover:bg-amber-50">
+                            <button onClick={() => openPasswordModal(m)} title="Update / Reset password" className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition">
                               <KeyRound className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => toggleStatus(m)}
                               title={inactive ? "Reactivate" : "Deactivate"}
                               className={cn(
-                                "p-1.5 rounded-lg ring-1 ring-slate-200",
+                                "p-1.5 rounded-lg ring-1 ring-slate-200 transition",
                                 inactive ? "text-emerald-600 hover:bg-emerald-50" : "text-slate-500 hover:text-rose-600 hover:bg-rose-50"
                               )}
                             >
@@ -691,7 +708,7 @@ export default function TeamPage() {
                             <button
                               onClick={() => setPendingTeamAction({ kind: "delete", member: m })}
                               title="Remove user"
-                              className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:ring-rose-200"
+                              className="p-1.5 rounded-lg ring-1 ring-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:ring-rose-200 transition"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -699,15 +716,6 @@ export default function TeamPage() {
                         )}
                       </div>
                     )}
-                  </div>
-                  <div className="text-[11px] text-slate-500 space-y-0.5">
-                    <div className="truncate">{m.email}</div>
-                    <div>
-                      {m.phone || "No phone added"} · {lastSeen(m.lastLoginAt)}
-                    </div>
-                  </div>
-                  <div className="mt-auto pt-1">
-                    <ContactActions phone={m.phone} email={m.email} chatUserId={isMe || inactive ? null : m.id} message={`Namaste ${m.name},`} />
                   </div>
                 </div>
               );
