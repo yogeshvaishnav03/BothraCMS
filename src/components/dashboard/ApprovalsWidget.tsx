@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Building2,
   User,
+  Users,
   DollarSign,
   Package,
   BookOpen,
@@ -19,7 +20,7 @@ import {
   Send,
   Eye,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, stripAssignedTag } from "@/lib/formatters";
 import ApprovalDetailModal, { ApprovalItem } from "./ApprovalDetailModal";
 
 interface ApprovalsWidgetProps {
@@ -340,10 +341,25 @@ export default function ApprovalsWidget({
                       )}
                     </div>
 
-                    {item.query && (
+                    {Boolean(item.query && stripAssignedTag(item.query)) && (
                       <div className="text-xs bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-2 rounded-lg text-amber-900 dark:text-amber-200 mt-1 flex items-start gap-1.5">
                         <span className="font-semibold shrink-0">Note / Reason:</span>
-                        <span className="truncate">{item.query}</span>
+                        <span className="truncate">{stripAssignedTag(item.query)}</span>
+                      </div>
+                    )}
+
+                    {Array.isArray(item.details?.assignedUsers) && item.details.assignedUsers.length > 0 && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] font-semibold text-slate-500">Assigned:</span>
+                        {item.details.assignedUsers.map((u: any) => (
+                          <span
+                            key={u.id}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-900/60"
+                          >
+                            <Users className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                            <span>{u.name}</span>
+                          </span>
+                        ))}
                       </div>
                     )}
 
@@ -444,7 +460,7 @@ export default function ApprovalsWidget({
                                 setReRequestingId(null);
                               } else {
                                 setReRequestingId(item.id);
-                                setReRequestNote(item.query || "");
+                                setReRequestNote(stripAssignedTag(item.query) || "");
                                 setReRequestAmount(item.amountRupees > 0 ? String(item.amountRupees) : "");
                               }
                             }}

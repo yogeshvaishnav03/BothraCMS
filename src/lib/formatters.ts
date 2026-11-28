@@ -142,3 +142,18 @@ export function formatShortName(
   if (trimmed.length <= maxLength) return trimmed;
   return `${trimmed.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
 }
+
+/** Strip internal [ASSIGNED:id1,id2,...] metadata tags from display notes or reasons. */
+export function stripAssignedTag(text: string | null | undefined): string {
+  if (!text) return "";
+  return text.replace(/\[ASSIGNED:[^\]]*\]\s*/gi, "").trim();
+}
+
+/** Extract assigned user IDs from an internal metadata tag [ASSIGNED:id1,id2,...]. */
+export function extractAssignedUserIds(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const match = text.match(/\[ASSIGNED:([^\]]*)\]/i);
+  if (!match) return [];
+  return match[1].split(",").map((s) => s.trim()).filter(Boolean);
+}
+

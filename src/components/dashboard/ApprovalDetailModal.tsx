@@ -11,6 +11,7 @@ import {
   Clock,
   Building2,
   User,
+  Users,
   CreditCard,
   DollarSign,
   Package,
@@ -34,7 +35,7 @@ import {
   FileSpreadsheet,
   Download,
 } from "lucide-react";
-import { formatCurrency, formatDateTime, formatDate } from "@/lib/formatters";
+import { formatCurrency, formatDateTime, formatDate, stripAssignedTag } from "@/lib/formatters";
 
 export interface ApprovalItemDetails {
   referenceNumber?: string;
@@ -102,6 +103,12 @@ export interface ApprovalItemDetails {
   priority?: string;
   neededBy?: string | null;
   reviewNote?: string | null;
+  assignedUsers?: Array<{
+    id: string;
+    name: string;
+    role?: string;
+  }>;
+  assignedUserIds?: string[];
   items?: Array<{
     id: string;
     description: string;
@@ -179,7 +186,7 @@ export default function ApprovalDetailModal({
       setIsRejecting(false);
       setRejectReason("");
       setIsReRequesting(false);
-      setReRequestNote(item?.query || item?.details?.approvalQuery || "");
+      setReRequestNote(stripAssignedTag(item?.query || item?.details?.approvalQuery || ""));
       setReRequestAmount(item?.amountRupees ? String(item.amountRupees) : "");
       document.body.style.overflow = "hidden";
     }
@@ -201,6 +208,8 @@ export default function ApprovalDetailModal({
   if (!mounted || !isOpen || !item) return null;
 
   const d = item.details;
+  const rawNote = item.query || d?.approvalQuery || d?.notes || "";
+  const cleanNote = stripAssignedTag(rawNote);
   const isPending = item.status === "PENDING" || item.status === "PENDING_APPROVAL";
   const isApproved = item.status === "POSTED" || item.status === "APPROVED";
   const isRejected = item.status === "REJECTED";
@@ -362,14 +371,14 @@ export default function ApprovalDetailModal({
           )}
 
           {/* Justification / Note / Reason Card */}
-          {(item.query || d?.approvalQuery || d?.notes) && (
+          {Boolean(cleanNote) && (
             <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-xs text-amber-800 dark:text-amber-300">
                 <HelpCircle className="w-4 h-4 shrink-0" />
                 <span>Note / Reason / Justification Submitted:</span>
               </div>
               <p className="text-xs sm:text-sm pl-5 whitespace-pre-wrap leading-relaxed">
-                {item.query || d?.approvalQuery || d?.notes}
+                {cleanNote}
               </p>
             </div>
           )}
@@ -453,6 +462,31 @@ export default function ApprovalDetailModal({
                       on {formatDateTime(d.approvedAt || d.reviewedAt)}
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Assigned Approvers / Reviewers */}
+              {((d?.assignedUsers && d.assignedUsers.length > 0) || (d?.assignedUserIds && d.assignedUserIds.length > 0)) && (
+                <div className="col-span-1 sm:col-span-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                  <span className="text-slate-400 block text-[11px] mb-1">Assigned Approver(s):</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {d?.assignedUsers && d.assignedUsers.length > 0 ? (
+                      d.assignedUsers.map((u) => (
+                        <span
+                          key={u.id}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-900/60"
+                        >
+                          <Users className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                          <span>{u.name}</span>
+                          {u.role && <span className="opacity-70 text-[10px]">({u.role.replace(/_/g, " ")})</span>}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-500 italic">
+                        {d?.assignedUserIds?.length} team member(s) assigned
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

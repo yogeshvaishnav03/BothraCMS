@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { GET as getApprovals, POST as postApproval } from "@/app/api/approvals/route";
 import { NextRequest } from "next/server";
 import { createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { stripAssignedTag } from "@/lib/formatters";
 
 describe("Pending Approvals Queue - Full Details & Interactive View Tests", () => {
   const testOrgId = `org-appr-details-${Date.now()}`;
@@ -16,6 +17,7 @@ describe("Pending Approvals Queue - Full Details & Interactive View Tests", () =
   let material: any;
   let payment: any;
   let materialRequest: any;
+  let materialRequestAssignedOnly: any;
   let purchaseOrder: any;
 
   beforeAll(async () => {
@@ -126,7 +128,7 @@ describe("Pending Approvals Queue - Full Details & Interactive View Tests", () =
       },
     });
 
-    // 8. Create Material Request with items
+    // 8. Create Material Request with items and assigned tags
     materialRequest = await prisma.materialRequest.create({
       data: {
         organizationId: testOrgId,
@@ -136,7 +138,7 @@ describe("Pending Approvals Queue - Full Details & Interactive View Tests", () =
         neededBy: new Date(Date.now() + 86400000),
         priority: "URGENT",
         status: "PENDING",
-        notes: "600 feet mungiya need at peva nagar",
+        notes: `[ASSIGNED:${supervisorUser.id},${superAdminUser.id}] 600 feet mungiya need at peva nagar`,
         items: {
           create: [
             {
@@ -144,6 +146,28 @@ describe("Pending Approvals Queue - Full Details & Interactive View Tests", () =
               quantity: 600,
               unitCode: "TON",
               materialId: material.id,
+            },
+          ],
+        },
+      },
+    });
+
+    materialRequestAssignedOnly = await prisma.materialRequest.create({
+      data: {
+        organizationId: testOrgId,
+        requestNumber: `MR-${Date.now().toString().slice(-6)}-2`,
+        projectId: project.id,
+        requestedById: supervisorUser.id,
+        neededBy: new Date(Date.now() + 86400000),
+        priority: "NORMAL",
+        status: "PENDING",
+        notes: `[ASSIGNED:${supervisorUser.id},${superAdminUser.id}]`,
+        items: {
+          create: [
+            {
+              description: "CEMENT 53 GRADE",
+              quantity: 100,
+              unitCode: "BAG",
             },
           ],
         },
@@ -233,7 +257,7 @@ describe("Pending Approvals Queue - Full Details & Interactive View Tests", () =
     expect(paymentItem.details.creatorRole).toBe("SITE_SUPERVISOR");
   });
 
-  it("should return full details for material requests and their line items", async () => {
+  it("should return full details for material requests and their line items, stripping assigned tags from notes", async () => {
     const req = makeAuthRequest("http://localhost:3000/api/approvals", superAdminToken);
     const res = await getApprovals(req);
     const json = await res.json();
@@ -241,13 +265,35 @@ describe("Pending Approvals Queue - Full Details & Interactive View Tests", () =
     const mrItem = json.data.items.find((it: any) => it.id === materialRequest.id);
     expect(mrItem).toBeDefined();
     expect(mrItem.type).toBe("MATERIAL_REQUEST");
+    expect(mrItem.query).toBe("600 feet mungiya need at peva nagar");
+    expect(mrItem.query).not.toContain("[ASSIGNED:");
     expect(mrItem.details).toBeDefined();
     expect(mrItem.details.requestNumber).toBe(materialRequest.requestNumber);
     expect(mrItem.details.priority).toBe("URGENT");
+    expect(mrItem.details.notes).toBe("600 feet mungiya need at peva nagar");
+    expect(mrItem.details.assignedUserIds).toEqual(expect.arrayContaining([supervisorUser.id, superAdminUser.id]));
+    expect(mrItem.details.assignedUsers).toHaveLength(2);
+    expect(mrItem.details.assignedUsers.map((u: any) => u.name)).toContain("Master Super Admin");
     expect(mrItem.details.items).toHaveLength(1);
     expect(mrItem.details.items[0].description).toBe("10MM MUNGIYA");
     expect(mrItem.details.items[0].quantity).toBe(600);
     expect(mrItem.details.items[0].unitCode).toBe("TON");
+
+    // Check request with ONLY assigned tag (no custom note submitted)
+    const mrAssignedOnlyItem = json.data.items.find((it: any) => it.id === materialRequestAssignedOnly.id);
+    expect(mrAssignedOnlyItem).toBeDefined();
+    expect(mrAssignedOnlyItem.query).toBeNull();
+    expect(mrAssignedOnlyItem.details.notes).toBeNull();
+    expect(mrAssignedOnlyItem.details.assignedUserIds).toEqual(expect.arrayContaining([supervisorUser.id, superAdminUser.id]));
+    expect(mrAssignedOnlyItem.details.assignedUsers).toHaveLength(2);
+  });
+
+  it("should strip internal ASSIGNED tags properly in stripAssignedTag utility", () => {
+    expect(stripAssignedTag("[ASSIGNED:usr-fin-1,usr-admin-1]")).toBe("");
+    expect(stripAssignedTag("[ASSIGNED:usr-1] Urgent requirement")).toBe("Urgent requirement");
+    expect(stripAssignedTag("   [ASSIGNED:usr-1,usr-2]   Urgent requirement   ")).toBe("Urgent requirement");
+    expect(stripAssignedTag(null)).toBe("");
+    expect(stripAssignedTag(undefined)).toBe("");
   });
 
   it("should return full details for purchase orders", async () => {

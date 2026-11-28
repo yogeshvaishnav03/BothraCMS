@@ -54,12 +54,19 @@ const requestInclude = {
 
 export function parseAssignedUserIds(notes: string | null | undefined): { assignedUserIds: string[]; cleanNotes: string } {
   if (!notes) return { assignedUserIds: [], cleanNotes: "" };
-  const match = notes.match(/^\[ASSIGNED:([^\]]+)\]\s*([\s\S]*)$/);
+  const trimmed = notes.trim();
+  const match = trimmed.match(/^\[ASSIGNED:([^\]]+)\]\s*([\s\S]*)$/i);
   if (match) {
     const ids = match[1].split(",").map((s) => s.trim()).filter(Boolean);
     return { assignedUserIds: ids, cleanNotes: match[2].trim() };
   }
-  return { assignedUserIds: [], cleanNotes: notes };
+  const anyMatch = trimmed.match(/\[ASSIGNED:([^\]]+)\]/i);
+  if (anyMatch) {
+    const ids = anyMatch[1].split(",").map((s) => s.trim()).filter(Boolean);
+    const cleanNotes = trimmed.replace(/\[ASSIGNED:[^\]]+\]\s*/gi, "").trim();
+    return { assignedUserIds: ids, cleanNotes };
+  }
+  return { assignedUserIds: [], cleanNotes: trimmed };
 }
 
 /** Who can approve requests and turn them into orders. */
@@ -198,7 +205,13 @@ export class MaterialRequestService {
       href: `/material-requests?id=${request!.id}`,
     });
 
-    return request!;
+    const parsed = parseAssignedUserIds(request!.notes);
+    return {
+      ...request!,
+      notes: parsed.cleanNotes || null,
+      rawNotes: request!.notes,
+      assignedUserIds: parsed.assignedUserIds,
+    };
   }
 
   static async list(user: UserContext, filters: { status?: string | null; projectId?: string | null }) {

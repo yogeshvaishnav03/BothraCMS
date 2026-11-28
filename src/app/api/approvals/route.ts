@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireUserContext } from "@/lib/server-auth";
 import { jsonSuccess, jsonError, handleApiError } from "@/lib/api-response";
 import { resolveDeliveryLocation } from "@/lib/order-notifications";
+import { parseAssignedUserIds } from "@/services/material-request-service";
 
 export const dynamic = "force-dynamic";
 
@@ -213,12 +214,33 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Collect all assigned user IDs across material requests
+    const allMrAssignedIds = Array.from(
+      new Set(
+        materialRequests.flatMap((mr) => parseAssignedUserIds(mr.notes).assignedUserIds)
+      )
+    );
+    const mrAssignedUsers = allMrAssignedIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: allMrAssignedIds }, organizationId: user.organizationId },
+          select: { id: true, name: true, role: true },
+        })
+      : [];
+    const mrAssignedUserMap = new Map(mrAssignedUsers.map((u) => [u.id, u]));
+
     const formattedMaterialRequests = materialRequests.map((mr) => {
+      const { assignedUserIds, cleanNotes } = parseAssignedUserIds(mr.notes);
+      const assignedUsers = assignedUserIds
+        .map((id) => mrAssignedUserMap.get(id))
+        .filter(Boolean);
+
       const details = {
         requestNumber: mr.requestNumber,
         priority: mr.priority,
         neededBy: mr.neededBy ? mr.neededBy.toISOString() : null,
-        notes: mr.notes || null,
+        notes: cleanNotes || null,
+        assignedUserIds,
+        assignedUsers,
         status: mr.status,
         createdAt: mr.createdAt.toISOString(),
         projectName: mr.project?.name || "General",
@@ -256,7 +278,7 @@ export async function GET(req: NextRequest) {
         requestedByRole: mr.requestedBy?.role || "SITE_TEAM",
         rejectionReason: mr.reviewNote || null,
         date: mr.createdAt.toISOString(),
-        query: mr.notes || null,
+        query: cleanNotes || null,
         details,
       };
     });
@@ -399,7 +421,7 @@ export async function POST(req: NextRequest) {
       (user.name && user.name.toLowerCase().includes("ranjan"));
 
     if (!isApprover && !isReRequest) {
-      return jsonError("Forbidden: You do not have permission to approve/reject requests", 403);
+      return jsonError("Forbidden: You do not have permission to approve/reject requests", "FORBIDDEN", 403);
     }
 
     if (data.entityType === "PAYMENT" || data.entityType === "EXPENSE") {
@@ -476,7 +498,7 @@ export async function POST(req: NextRequest) {
       const mr = await prisma.materialRequest.findFirst({
         where: { id: data.entityId, organizationId: user.organizationId },
       });
-      if (!mr) return jsonError("Material request not found or outside organization scope", 404);
+      if (!mr) return jsonError("Material request not found or outside organization scope", "NOT_FOUND", 404);
 
       if (isReRequest) {
         const reRequestNote = data.reason?.trim() || "";
@@ -521,7 +543,7 @@ export async function POST(req: NextRequest) {
       const po = await prisma.purchaseOrder.findFirst({
         where: { id: data.entityId, organizationId: user.organizationId },
       });
-      if (!po) return jsonError("Purchase order not found or outside organization scope", 404);
+      if (!po) return jsonError("Purchase order not found or outside organization scope", "NOT_FOUND", 404);
 
       if (isReRequest) {
         const reRequestNote = data.reason?.trim() || "";
@@ -608,7 +630,7 @@ export async function POST(req: NextRequest) {
       const mc = await prisma.measurementChangeRequest.findFirst({
         where: { id: data.entityId, organizationId: user.organizationId },
       });
-      if (!mc) return jsonError("Measurement change request not found or outside organization scope", 404);
+      if (!mc) return jsonError("Measurement change request not found or outside organization scope", "NOT_FOUND", 404);
 
       if (isReRequest) {
         await prisma.measurementChangeRequest.update({
