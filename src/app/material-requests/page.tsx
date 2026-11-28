@@ -18,6 +18,7 @@ import { istDateKey } from "@/lib/ist-date";
 import { uploadClientMedia } from "@/lib/upload-client";
 import { resolveDeliveryLocation } from "@/lib/order-notifications";
 import {
+  ArrowRightLeft,
   Building2,
   CalendarClock,
   Camera,
@@ -955,6 +956,365 @@ function OrderModal({ request, item, vendors, materials, onClose, onDone }: any)
   );
 }
 
+// ── Transfer Material Across Stores Modal ──────────────────────────────────
+
+function TransferMaterialModal({
+  request,
+  item,
+  stores = [],
+  materials = [],
+  onClose,
+  onDone,
+  onSwitchToOrder,
+}: {
+  request: any;
+  item: any;
+  stores?: any[];
+  materials?: any[];
+  onClose: () => void;
+  onDone: (data: { result: any; message: string }) => void;
+  onSwitchToOrder?: () => void;
+}) {
+  const reqQty = item.approvedQty ?? item.quantity;
+  const mat = materials.find((m: any) => m.id === item.materialId);
+
+  // 1. Gather all stores with available stock for this material
+  const stockStoreMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (Array.isArray(item.availableStores)) {
+      for (const st of item.availableStores) {
+        map.set(st.storeId, Number(st.quantityOnHand) || 0);
+      }
+    }
+    if (Array.isArray(mat?.stockBalances)) {
+      for (const sb of mat.stockBalances) {
+        const qty = Number(sb.quantityOnHand) || 0;
+        if (qty > 0) {
+          map.set(sb.storeId, Math.max(map.get(sb.storeId) || 0, qty));
+        }
+      }
+    }
+    return map;
+  }, [item.availableStores, mat?.stockBalances]);
+
+  // 2. Target Store (Destination): Auto-populate based on the request's site
+  const defaultTargetStore = useMemo(() => {
+    const siteId = request.project?.siteId || request.project?.site?.id;
+    const siteStores = stores.filter((s: any) => s.siteId === siteId && !s.isArchived);
+    return siteStores[0] || stores.find((s: any) => s.siteId === siteId) || item.defaultTargetStore || null;
+  }, [request, stores, item.defaultTargetStore]);
+
+  // 3. Source Store (Origin): Auto-populate with the store where stock is available
+  const defaultSourceStore = useMemo(() => {
+    const targetId = defaultTargetStore?.id;
+    // Get all stores that have stock > 0
+    const available = stores
+      .filter((s: any) => (stockStoreMap.get(s.id) || 0) > 0)
+      .sort((a: any, b: any) => (stockStoreMap.get(b.id) || 0) - (stockStoreMap.get(a.id) || 0));
+
+    // Prefer a store with stock that is different from target store
+    const nonTarget = available.find((s: any) => s.id !== targetId);
+    return nonTarget || available[0] || item.bestSourceStore || null;
+  }, [stores, stockStoreMap, defaultTargetStore, item.bestSourceStore]);
+
+  const [sourceStoreId, setSourceStoreId] = useState(
+    defaultSourceStore?.id || defaultSourceStore?.storeId || ""
+  );
+  const [targetStoreId, setTargetStoreId] = useState(defaultTargetStore?.id || "");
+  const [quantity, setQuantity] = useState(String(reqQty));
+  const [referenceDoc, setReferenceDoc] = useState(request.requestNumber || "");
+  const [notes, setNotes] = useState(
+    `Transfer for Material Request ${request.requestNumber} · ${request.project?.name || "Project"} (${request.project?.site?.name || "Site"})`
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  const currentSourceStock = stockStoreMap.get(sourceStoreId) || 0;
+  const currentTargetStore = stores.find((s: any) => s.id === targetStoreId);
+  const currentSourceStore = stores.find((s: any) => s.id === sourceStoreId);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const qtyNum = Number(quantity);
+    if (isNaN(qtyNum) || qtyNum <= 0) {
+      setError("Please enter a valid transfer quantity greater than 0.");
+      return;
+    }
+    if (!sourceStoreId) {
+      setError("Please select the Source Store where stock is available.");
+      return;
+    }
+    if (!targetStoreId) {
+      setError("Please select the Target Store for the request's site.");
+      return;
+    }
+    if (sourceStoreId === targetStoreId) {
+      setError("Source Store and Target Store cannot be the same store. Please select a different source store with stock.");
+      return;
+    }
+    if (currentSourceStock > 0 && qtyNum > currentSourceStock) {
+      setError(
+        `Requested transfer quantity (${qtyNum} ${item.unitCode}) exceeds available stock in ${currentSourceStore?.name || "source store"} (${currentSourceStock} ${item.unitCode}).`
+      );
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/inventory/transfers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceStoreId,
+          targetStoreId,
+          materialId: item.materialId,
+          quantity: qtyNum,
+          referenceDoc: referenceDoc.trim() || undefined,
+          notes: notes.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Could not transfer material between stores. Check source store balance.");
+      }
+
+      onDone({
+        result: data.data,
+        message: `Successfully transferred ${qtyNum} ${item.unitCode} ${item.description} from ${currentSourceStore?.name || "Source Store"} to ${currentTargetStore?.name || "Target Store"}!`,
+      });
+    } catch (e: any) {
+      setError(e.message || "Failed to transfer material across stores.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-3 pb-safe sm:p-4 backdrop-blur-sm overflow-y-auto animate-fade-in"
+      onClick={onClose}
+    >
+      <form
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-xl max-h-[90dvh] overflow-y-auto animate-scale-in border border-slate-200"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200 mb-1">
+              <ArrowRightLeft className="w-3 h-3 text-sky-600" />
+              <span>Internal Stock Transfer</span>
+            </div>
+            <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-900">
+              Transfer Material for Request
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Available in Material &amp; Stock · {request.requestNumber} ({request.project?.name})
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {error && <Alert tone="error">{error}</Alert>}
+
+        {/* Request Context Summary */}
+        <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-slate-500">Requested Material:</span>
+            <span className="font-bold text-slate-900 text-sm">{item.description}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+            <div>
+              <span className="text-slate-400 block text-[11px]">Approved Quantity:</span>
+              <span className="font-bold text-slate-800">
+                {fmtQty(reqQty)} {item.unitCode}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[11px]">Destination Project &amp; Site:</span>
+              <span className="font-bold text-slate-800 truncate block">
+                {request.project?.name} ({request.project?.site?.name || "Site"})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Source and Target Store Selectors */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase">
+                Source Store (From)
+              </label>
+              {currentSourceStock > 0 && (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  {currentSourceStock} {item.unitCode} avail
+                </span>
+              )}
+            </div>
+            <SearchableSelect
+              options={stores.map((s: any) => {
+                const stock = stockStoreMap.get(s.id) || 0;
+                return {
+                  value: s.id,
+                  label: s.name,
+                  subLabel: `${s.site?.name || "Yard"} • Available: ${stock} ${item.unitCode}`,
+                  badge: stock > 0 ? "In Stock" : "0 Stock",
+                };
+              })}
+              value={sourceStoreId}
+              onChange={(val) => setSourceStoreId(val)}
+              placeholder="Select store with stock..."
+              searchPlaceholder="Search source store..."
+              required
+            />
+            <span className="text-[10px] text-slate-400 block mt-1">
+              Auto-filled with store where stock is available.
+            </span>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase">
+                Target Store (To)
+              </label>
+              {currentTargetStore?.site?.name && (
+                <span className="text-[10px] font-semibold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 truncate max-w-[130px]">
+                  {currentTargetStore.site.name}
+                </span>
+              )}
+            </div>
+            <SearchableSelect
+              options={stores.map((s: any) => ({
+                value: s.id,
+                label: s.name,
+                subLabel: s.site?.name || "Site",
+                badge: s.siteId === (request.project?.siteId || request.project?.site?.id) ? "Target Site" : undefined,
+              }))}
+              value={targetStoreId}
+              onChange={(val) => setTargetStoreId(val)}
+              placeholder="Select target store..."
+              searchPlaceholder="Search target store..."
+              required
+            />
+            <span className="text-[10px] text-slate-400 block mt-1">
+              Auto-filled with store for this request&apos;s site.
+            </span>
+          </div>
+        </div>
+
+        {/* Quantity and Reference Doc */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Transfer Quantity ({item.unitCode})
+            </label>
+            <input
+              type="number"
+              step="any"
+              min="0.01"
+              required
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-mono font-bold text-slate-900 focus:bg-white"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+              Gate Pass / Reference #
+            </label>
+            <input
+              type="text"
+              value={referenceDoc}
+              onChange={(e) => setReferenceDoc(e.target.value)}
+              placeholder="e.g. MR-2611-003"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:bg-white"
+            />
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+            Transfer Notes / Purpose
+          </label>
+          <input
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 focus:bg-white"
+          />
+        </div>
+
+        {/* Visual Route Indicator */}
+        <div className="p-3 bg-sky-50/70 border border-sky-100 rounded-xl text-xs flex items-center justify-between gap-2 text-sky-950 font-medium">
+          <div className="truncate">
+            <span className="text-[10px] uppercase text-sky-600 block font-bold">From</span>
+            <span className="font-bold truncate">{currentSourceStore?.name || "Source Store"}</span>
+          </div>
+          <div className="flex flex-col items-center shrink-0 px-2 text-sky-600">
+            <span className="text-[10px] font-bold">{quantity || reqQty} {item.unitCode}</span>
+            <ArrowRightLeft className="w-4 h-4" />
+          </div>
+          <div className="text-right truncate">
+            <span className="text-[10px] uppercase text-sky-600 block font-bold">To</span>
+            <span className="font-bold truncate">{currentTargetStore?.name || "Target Store"}</span>
+          </div>
+        </div>
+
+        {/* Actions & Switch to Order Option */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          {onSwitchToOrder ? (
+            <button
+              type="button"
+              onClick={onSwitchToOrder}
+              className="text-xs text-slate-500 hover:text-amber-700 underline cursor-pointer"
+            >
+              Order from vendor instead
+            </button>
+          ) : (
+            <div />
+          )}
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 px-4 py-2 text-sm font-bold text-white shadow-xs transition disabled:opacity-50 cursor-pointer"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+              <span>{saving ? "Transferring..." : "Confirm & Transfer"}</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ── One Request Card ────────────────────────────────────────────────────────
 
 function RequestCard({
@@ -963,6 +1323,9 @@ function RequestCard({
   highlight,
   onChange,
   onOrder,
+  onTransfer,
+  materials = [],
+  stores = [],
   onReceive,
   onDeleteOrder,
   onApproveOrder,
@@ -973,6 +1336,9 @@ function RequestCard({
   highlight: boolean;
   onChange: (r: any) => void;
   onOrder: (item: any) => void;
+  onTransfer?: (target: { request: any; item: any }) => void;
+  materials?: any[];
+  stores?: any[];
   onReceive: (target: { order: any; item: any; request: any }) => void;
   onDeleteOrder?: (po: any) => void;
   onApproveOrder?: (po: any) => void;
@@ -1147,6 +1513,14 @@ function RequestCard({
           const enough = i.stockAtSite !== null && i.stockAtSite >= i.quantity;
           const po = i.purchaseOrder;
           const isDelivered = po?.status === "DELIVERED";
+          const mat = materials.find((m: any) => m.id === i.materialId);
+          const matStock = Number(mat?.totalStock ?? mat?.totalStockCompany ?? 0);
+          const totalAvailableStock = i.totalStock !== undefined ? Number(i.totalStock) : matStock;
+          const isAvailableInStock =
+            i.isAvailableInStock === true ||
+            totalAvailableStock > 0 ||
+            (Array.isArray(i.availableStores) && i.availableStores.length > 0) ||
+            (Array.isArray(mat?.stockBalances) && mat.stockBalances.some((sb: any) => Number(sb.quantityOnHand) > 0));
 
           return (
             <div key={i.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 space-y-2 text-xs">
@@ -1207,9 +1581,24 @@ function RequestCard({
                 </div>
               ) : (canReview || r.canManage || isAdmin) && ["APPROVED", "PARTLY_ORDERED"].includes(r.status) && (i.approvedQty ?? 0) > 0 ? (
                 <div className="flex justify-end border-t border-slate-200/70 pt-2">
-                  <button onClick={() => onOrder(i)} className="rounded-lg bg-gradient-brand px-3 py-1.5 text-xs font-bold text-slate-950">
-                    Order
-                  </button>
+                  {isAvailableInStock && onTransfer ? (
+                    <button
+                      type="button"
+                      onClick={() => onTransfer({ request: r, item: i })}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 text-xs font-bold shadow-2xs transition"
+                    >
+                      <ArrowRightLeft className="h-3.5 w-3.5" />
+                      <span>Transfer Material</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onOrder(i)}
+                      className="rounded-lg bg-gradient-brand px-3 py-1.5 text-xs font-bold text-slate-950"
+                    >
+                      Order
+                    </button>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -1234,6 +1623,14 @@ function RequestCard({
               const enough = i.stockAtSite !== null && i.stockAtSite >= i.quantity;
               const po = i.purchaseOrder;
               const isDelivered = po?.status === "DELIVERED";
+              const mat = materials.find((m: any) => m.id === i.materialId);
+              const matStock = Number(mat?.totalStock ?? mat?.totalStockCompany ?? 0);
+              const totalAvailableStock = i.totalStock !== undefined ? Number(i.totalStock) : matStock;
+              const isAvailableInStock =
+                i.isAvailableInStock === true ||
+                totalAvailableStock > 0 ||
+                (Array.isArray(i.availableStores) && i.availableStores.length > 0) ||
+                (Array.isArray(mat?.stockBalances) && mat.stockBalances.some((sb: any) => Number(sb.quantityOnHand) > 0));
 
               return (
                 <tr key={i.id}>
@@ -1336,9 +1733,26 @@ function RequestCard({
                         )}
                       </span>
                     ) : (canReview || r.canManage || isAdmin) && ["APPROVED", "PARTLY_ORDERED"].includes(r.status) && (i.approvedQty ?? 0) > 0 ? (
-                      <button onClick={() => onOrder(i)} className="rounded-md bg-gradient-brand px-2.5 py-1 text-[11px] font-bold text-slate-950">
-                        Order
-                      </button>
+                      isAvailableInStock && onTransfer ? (
+                        <button
+                          type="button"
+                          onClick={() => onTransfer({ request: r, item: i })}
+                          className="inline-flex items-center gap-1 rounded-md bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white px-2.5 py-1 text-[11px] font-bold shadow-2xs transition cursor-pointer"
+                          title={`In Stock (${fmtQty(totalAvailableStock)} ${i.unitCode} available in Material & Stock). Click to transfer to site store.`}
+                        >
+                          <ArrowRightLeft className="h-3 w-3" />
+                          <span>Transfer Material</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onOrder(i)}
+                          className="rounded-md bg-gradient-brand px-2.5 py-1 text-[11px] font-bold text-slate-950 hover:opacity-90 transition shadow-2xs cursor-pointer"
+                          title="Out of stock in Material & Stock. Place purchase order with vendor"
+                        >
+                          Order
+                        </button>
+                      )
                     ) : (
                       <span className="text-xs text-slate-300">—</span>
                     )}
@@ -1487,6 +1901,7 @@ export default function MaterialOrderHistoryPage() {
 
   const [showNew, setShowNew] = useState(false);
   const [ordering, setOrdering] = useState<{ request: any; item: any } | null>(null);
+  const [transferring, setTransferring] = useState<{ request: any; item: any } | null>(null);
   const [receivingOrder, setReceivingOrder] = useState<{ order: any; item: any; request?: any } | null>(null);
   const [pendingDeleteOrder, setPendingDeleteOrder] = useState<any | null>(null);
   const [deletingOrder, setDeletingOrder] = useState(false);
@@ -1969,6 +2384,9 @@ export default function MaterialOrderHistoryPage() {
                     highlight={highlight === r.id}
                     onChange={replace}
                     onOrder={(item) => setOrdering({ request: r, item })}
+                    onTransfer={(target) => setTransferring(target)}
+                    materials={materials}
+                    stores={stores}
                     onReceive={(target) => setReceivingOrder(target)}
                     onDeleteOrder={(targetPo) => setPendingDeleteOrder(targetPo)}
                     onApproveOrder={handleApproveOrder}
@@ -2128,6 +2546,29 @@ export default function MaterialOrderHistoryPage() {
                 console.warn("Could not load PO details for notification dispatch", e);
               }
             }
+          }}
+        />
+      )}
+
+      {/* Transfer Material Modal */}
+      {transferring && (
+        <TransferMaterialModal
+          request={transferring.request}
+          item={transferring.item}
+          stores={stores}
+          materials={materials}
+          onClose={() => setTransferring(null)}
+          onDone={({ message }: any) => {
+            setTransferring(null);
+            load();
+            api<any[]>("/api/materials").then(setMaterials).catch(() => {});
+            api<any[]>("/api/stores").then(setStores).catch(() => {});
+            setNotice(message || "Material transferred successfully across stores!");
+          }}
+          onSwitchToOrder={() => {
+            const current = transferring;
+            setTransferring(null);
+            setOrdering(current);
           }}
         />
       )}

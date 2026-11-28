@@ -49,6 +49,52 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
+    // Ensure every active site in the organization has at least one store
+    const activeSites = await prisma.site.findMany({
+      where: { organizationId: user.organizationId, status: "ACTIVE" },
+      select: { id: true, name: true, code: true, address: true },
+    });
+    const sitesWithStores = new Set(stores.map((s) => s.siteId));
+    let missingCreated = false;
+    for (const s of activeSites) {
+      if (!sitesWithStores.has(s.id)) {
+        try {
+          await prisma.store.create({
+            data: {
+              organizationId: user.organizationId,
+              siteId: s.id,
+              name: `${s.name} Site Store`,
+              status: "ACTIVE",
+            },
+          });
+          missingCreated = true;
+        } catch {}
+      }
+    }
+
+    if (missingCreated) {
+      stores = await prisma.store.findMany({
+        where,
+        include: {
+          site: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              address: true,
+            },
+          },
+          _count: {
+            select: {
+              stockBalances: true,
+              stockMovements: true,
+            },
+          },
+        },
+        orderBy: { name: "asc" },
+      });
+    }
+
     if (stores.length === 0) {
       // Find active sites in the organization
       let sites = await prisma.site.findMany({
@@ -97,6 +143,7 @@ export async function GET(req: NextRequest) {
               id: true,
               name: true,
               code: true,
+              address: true,
             },
           },
           _count: {

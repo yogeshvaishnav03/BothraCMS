@@ -23,7 +23,7 @@ export interface RequestItemInput {
 }
 
 const requestInclude = {
-  project: { select: { id: true, name: true, code: true, siteId: true, managerUserId: true, site: { select: { name: true } } } },
+  project: { select: { id: true, name: true, code: true, siteId: true, managerUserId: true, site: { select: { id: true, name: true } } } },
   requestedBy: { select: { id: true, name: true, role: true, phone: true } },
   reviewedBy: { select: { id: true, name: true } },
   items: {
@@ -241,6 +241,110 @@ export class MaterialRequestService {
     const stock = new Map<string, Map<string, number>>();
     for (const [siteId, ids] of Array.from(bySite.entries())) stock.set(siteId, await stockAtSite(siteId, Array.from(ids)));
 
+    // Material & Stock across the organization: find all stores with stock for requested materials
+    const allMaterialIds = Array.from(
+      new Set(
+        requests.flatMap((r) => r.items.map((i) => i.materialId).filter(Boolean) as string[])
+      )
+    );
+
+    const activeBalances = allMaterialIds.length > 0
+      ? await prisma.stockBalance.findMany({
+          where: {
+            materialId: { in: allMaterialIds },
+            store: { organizationId: user.organizationId, isArchived: false, status: "ACTIVE" },
+            quantityOnHand: { gt: 0 },
+          },
+          include: {
+            store: {
+              select: {
+                id: true,
+                name: true,
+                siteId: true,
+                site: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+        })
+      : [];
+
+    const stockByMaterial = new Map<
+      string,
+      {
+        totalStock: number;
+        stores: Array<{
+          storeId: string;
+          storeName: string;
+          siteId: string;
+          siteName: string;
+          quantityOnHand: number;
+        }>;
+      }
+    >();
+
+    for (const b of activeBalances) {
+      const entry = stockByMaterial.get(b.materialId) || { totalStock: 0, stores: [] };
+      entry.totalStock += b.quantityOnHand;
+      entry.stores.push({
+        storeId: b.store.id,
+        storeName: b.store.name,
+        siteId: b.store.siteId,
+        siteName: b.store.site?.name || "General Yard",
+        quantityOnHand: b.quantityOnHand,
+      });
+      stockByMaterial.set(b.materialId, entry);
+    }
+
+    // Collect all site IDs from requests and load their active stores
+    const allSiteIds = Array.from(
+      new Set(requests.map((r) => r.project.siteId).filter(Boolean) as string[])
+    );
+
+    const siteStores = allSiteIds.length > 0
+      ? await prisma.store.findMany({
+          where: {
+            siteId: { in: allSiteIds },
+            organizationId: user.organizationId,
+            isArchived: false,
+            status: "ACTIVE",
+          },
+          select: {
+            id: true,
+            name: true,
+            siteId: true,
+          },
+        })
+      : [];
+
+    const storesBySite = new Map<string, Array<{ id: string; name: string; siteId: string }>>();
+    for (const s of siteStores) {
+      const list = storesBySite.get(s.siteId) || [];
+      list.push(s);
+      storesBySite.set(s.siteId, list);
+    }
+
+    // Ensure every target site has at least one active site store
+    for (const siteId of allSiteIds) {
+      if (!storesBySite.has(siteId) || storesBySite.get(siteId)!.length === 0) {
+        const foundSite = await prisma.site.findUnique({ where: { id: siteId }, select: { id: true, name: true } });
+        if (foundSite) {
+          try {
+            const newStore = await prisma.store.create({
+              data: {
+                organizationId: user.organizationId,
+                siteId: foundSite.id,
+                name: `${foundSite.name} Site Store`,
+                status: "ACTIVE",
+              },
+            });
+            storesBySite.set(siteId, [{ id: newStore.id, name: newStore.name, siteId: newStore.siteId }]);
+          } catch {
+            // Ignore unique or concurrent creation
+          }
+        }
+      }
+    }
+
     const manageable = new Map<string, boolean>();
     for (const r of requests) manageable.set(r.id, await canManageRequest(user, r.projectId, r.notes));
 
@@ -266,7 +370,34 @@ export class MaterialRequestService {
         assignedUserIds: parsed.assignedUserIds,
         assignedUsers: parsed.assignedUserIds.map((id) => assignedUserMap.get(id)).filter(Boolean),
         canManage: manageable.get(r.id) || false,
-        items: r.items.map((i) => ({ ...i, stockAtSite: i.materialId ? stock.get(r.project.siteId)?.get(i.materialId) ?? 0 : null })),
+        items: r.items.map((i) => {
+          const atSite = i.materialId ? stock.get(r.project.siteId)?.get(i.materialId) ?? 0 : null;
+          const stockInfo = i.materialId ? stockByMaterial.get(i.materialId) : null;
+          const totalStock = stockInfo ? stockInfo.totalStock : 0;
+          const availableStores = (stockInfo ? [...stockInfo.stores] : []).sort(
+            (a, b) => b.quantityOnHand - a.quantityOnHand
+          );
+          const isAvailableInStock = totalStock > 0;
+          const targetStores = storesBySite.get(r.project.siteId) || [];
+          const defaultTargetStore = targetStores[0] || null;
+
+          // Best source store: prefer store not at the target site if stock is in another store,
+          // otherwise highest stock store
+          const nonSiteStoresWithStock = availableStores.filter((s) => s.siteId !== r.project.siteId);
+          const bestSourceStore = nonSiteStoresWithStock.length > 0
+            ? nonSiteStoresWithStock[0]
+            : availableStores[0] || null;
+
+          return {
+            ...i,
+            stockAtSite: atSite,
+            totalStock,
+            isAvailableInStock,
+            availableStores,
+            bestSourceStore,
+            defaultTargetStore,
+          };
+        }),
       };
     });
   }
