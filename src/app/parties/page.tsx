@@ -40,6 +40,7 @@ import {
   AlertCircle,
   ChevronDown,
   Percent,
+  Info,
 } from "lucide-react";
 import AuditHistoryModal from "@/components/audit/AuditHistoryModal";
 import { canUser } from "@/lib/permissions";
@@ -73,6 +74,52 @@ export function parsePartyGst(notes: string | null | undefined): { gstRate: stri
   return { gstRate: "18", cgstRate: "9", sgstRate: "9" };
 }
 
+export function parsePartyTax(
+  notes: string | null | undefined,
+  partyType?: string,
+  partyTdsSection?: string | null
+): {
+  gstRate: string;
+  cgstRate: string;
+  sgstRate: string;
+  tdsRate: string;
+  tdsSection: string;
+} {
+  const gst = parsePartyGst(notes);
+  let tdsRate = "1";
+  let tdsSection = partyTdsSection || (partyType === "CONTRACTOR" ? "194C" : "NONE");
+
+  if (notes) {
+    try {
+      const parsed = JSON.parse(notes);
+      if (typeof parsed === "object" && parsed !== null) {
+        if (parsed.tdsRate !== undefined) tdsRate = String(parsed.tdsRate);
+        if (parsed.tdsSection !== undefined) tdsSection = String(parsed.tdsSection);
+      }
+    } catch {
+      const tMatch = notes.match(/TDS:\s*(\d+(?:\.\d+)?)%/i);
+      if (tMatch) tdsRate = tMatch[1];
+    }
+  }
+
+  if (partyTdsSection) {
+    tdsSection = partyTdsSection;
+  }
+
+  if (!tdsRate || tdsRate === "0") {
+    if (tdsSection === "194J_PROF" || tdsSection === "194I_LB") tdsRate = "10";
+    else if (tdsSection === "194J_TECH" || tdsSection === "194I_PM") tdsRate = "2";
+    else if (tdsSection === "194C") tdsRate = "1";
+    else if (tdsSection === "NONE") tdsRate = "0";
+  }
+
+  return {
+    ...gst,
+    tdsRate,
+    tdsSection,
+  };
+}
+
 const EMPTY_FORM = {
   name: "",
   partyType: "VENDOR" as PartyType,
@@ -90,6 +137,8 @@ const EMPTY_FORM = {
   gstRate: "18",
   cgstRate: "9",
   sgstRate: "9",
+  tdsSection: "194C",
+  tdsRate: "1",
   contractValueRupees: "",
   liquidatedDamagesTerms: "",
   liquidatedDamagesPercent: "",
@@ -307,9 +356,55 @@ export default function PartiesPage() {
   const [editingPartyId, setEditingPartyId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [hadAccountOnFile, setHadAccountOnFile] = useState<string | null>(null);
+  const [bothTaxTab, setBothTaxTab] = useState<"GST" | "TDS">("GST");
   const isEditing = Boolean(editingPartyId);
   const setField = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handlePanChange = (panVal: string) => {
+    const panUpper = panVal.toUpperCase();
+    setForm((prev) => {
+      const updated = { ...prev, panNumber: panUpper };
+      // If contractor and section is 194C, auto-suggest appropriate rate based on PAN 4th character
+      if (updated.partyType === "CONTRACTOR" && (!updated.tdsSection || updated.tdsSection === "194C")) {
+        if (panUpper.length >= 4) {
+          const char = panUpper[3];
+          if (char === "C" || char === "F") {
+            updated.tdsRate = "2";
+          } else if (char === "P" || char === "H") {
+            updated.tdsRate = "1";
+          }
+        }
+      }
+      return updated;
+    });
+  };
+
+  const handleTdsRateChange = (rateVal: string) => {
+    setForm((prev) => ({
+      ...prev,
+      tdsRate: rateVal,
+    }));
+  };
+
+  const handleTdsSectionChange = (sectionVal: string) => {
+    let defaultRate = "1";
+    if (sectionVal === "194C") {
+      const panChar = (form.panNumber || "").trim().toUpperCase()[3];
+      defaultRate = (panChar === "C" || panChar === "F") ? "2" : "1";
+    } else if (sectionVal === "194J_TECH" || sectionVal === "194I_PM") {
+      defaultRate = "2";
+    } else if (sectionVal === "194J_PROF" || sectionVal === "194I_LB") {
+      defaultRate = "10";
+    } else if (sectionVal === "NONE") {
+      defaultRate = "0";
+    }
+    setForm((prev) => ({
+      ...prev,
+      tdsSection: sectionVal,
+      tdsRate: defaultRate,
+    }));
+  };
 
   const handleGstRateChange = (rateVal: string) => {
     const num = parseFloat(rateVal) || 0;
@@ -633,7 +728,14 @@ export default function PartiesPage() {
     setNewCategoryText("");
     setIsCategoryDropdownOpen(false);
     setCategorySearch("");
-    setForm({ ...EMPTY_FORM, partyType: typeFilter === "CONTRACTOR" ? "CONTRACTOR" : "VENDOR" });
+    const initialType = typeFilter === "CONTRACTOR" ? "CONTRACTOR" : "VENDOR";
+    setForm({
+      ...EMPTY_FORM,
+      partyType: initialType,
+      tdsSection: initialType === "CONTRACTOR" ? "194C" : "NONE",
+      tdsRate: initialType === "CONTRACTOR" ? "1" : "0",
+    });
+    setBothTaxTab("GST");
     setShowModal(true);
   };
 
@@ -647,6 +749,7 @@ export default function PartiesPage() {
     setNewCategoryText("");
     setIsCategoryDropdownOpen(false);
     setCategorySearch("");
+    const tax = parsePartyTax(p.notes, p.partyType, p.tdsSection);
     setForm({
       ...EMPTY_FORM,
       name: p.name,
@@ -662,9 +765,11 @@ export default function PartiesPage() {
       rating: p.rating ? String(p.rating) : "",
       taxIdentifier: p.taxIdentifier || "",
       panNumber: p.panNumber || "",
-      gstRate: parsePartyGst(p.notes).gstRate,
-      cgstRate: parsePartyGst(p.notes).cgstRate,
-      sgstRate: parsePartyGst(p.notes).sgstRate,
+      gstRate: tax.gstRate,
+      cgstRate: tax.cgstRate,
+      sgstRate: tax.sgstRate,
+      tdsSection: p.tdsSection || tax.tdsSection,
+      tdsRate: tax.tdsRate,
       contractValueRupees: p.contractValue ? paiseToRupees(p.contractValue).toString() : "",
       liquidatedDamagesTerms: p.liquidatedDamagesTerms || "",
       liquidatedDamagesPercent: p.liquidatedDamagesPercent ? String(p.liquidatedDamagesPercent) : "",
@@ -675,6 +780,7 @@ export default function PartiesPage() {
       bankBranch: p.bankBranch || "",
       upiId: p.upiId || "",
     });
+    setBothTaxTab(p.partyType === "CONTRACTOR" ? "TDS" : "GST");
     setShowModal(true);
 
     // Fetch existing documents for this vendor / contractor
@@ -732,10 +838,16 @@ export default function PartiesPage() {
         ? rupeesToPaise(parseFloat(form.contractValueRupees))
         : 0;
 
-    const gstPayload = {
+    const isContractorType = form.partyType === "CONTRACTOR" || form.partyType === "BOTH";
+    const effectiveTdsSection = isContractorType ? (form.tdsSection || "194C") : "NONE";
+    const effectiveTdsRate = isContractorType && form.tdsSection !== "NONE" ? (parseFloat(form.tdsRate) || 0) : 0;
+
+    const taxPayload = {
       gstRate: form.gstRate ? parseFloat(form.gstRate) : 0,
       cgstRate: form.cgstRate ? parseFloat(form.cgstRate) : 0,
       sgstRate: form.sgstRate ? parseFloat(form.sgstRate) : 0,
+      tdsRate: effectiveTdsRate,
+      tdsSection: effectiveTdsSection,
     };
 
     const payload: Record<string, unknown> = {
@@ -755,8 +867,8 @@ export default function PartiesPage() {
       category: form.category,
       rating: form.rating ? Number(form.rating) : null,
       panNumber: form.panNumber,
-      tdsSection: "NONE",
-      notes: JSON.stringify(gstPayload),
+      tdsSection: effectiveTdsSection,
+      notes: JSON.stringify(taxPayload),
       bankAccountName: form.bankAccountName,
       bankIfsc: form.bankIfsc,
       bankName: form.bankName,
@@ -1228,19 +1340,56 @@ export default function PartiesPage() {
                     </div>
                   )}
 
-                  {/* GST & Tax Details */}
+                  {/* Tax Details (TDS for Contractor, GST for Vendor) */}
                   {(() => {
-                    const gst = parsePartyGst(p.notes);
+                    const tax = parsePartyTax(p.notes, p.partyType, p.tdsSection);
+                    const isContractorParty = p.partyType === "CONTRACTOR";
+                    const isBothParty = p.partyType === "BOTH";
+
                     return (
                       <div className="text-[11px] font-mono text-slate-600 flex items-center gap-1.5 flex-wrap">
-                        {p.taxIdentifier && (
-                          <span>
-                            GSTIN: <strong className="text-slate-800">{p.taxIdentifier}</strong>
-                          </span>
+                        {isContractorParty ? (
+                          <>
+                            {p.panNumber && (
+                              <span>
+                                PAN: <strong className="text-slate-800">{p.panNumber}</strong>
+                              </span>
+                            )}
+                            {p.taxIdentifier && (
+                              <span>
+                                GSTIN: <strong className="text-slate-800">{p.taxIdentifier}</strong>
+                              </span>
+                            )}
+                            <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 text-[10px] font-bold">
+                              {tax.tdsSection === "NONE" ? "TDS: Exempt (0%)" : `TDS ${tax.tdsRate}% (Sec ${tax.tdsSection || "194C"})`}
+                            </span>
+                          </>
+                        ) : isBothParty ? (
+                          <>
+                            {p.taxIdentifier && (
+                              <span>
+                                GSTIN: <strong className="text-slate-800">{p.taxIdentifier}</strong>
+                              </span>
+                            )}
+                            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 text-[10px] font-bold">
+                              GST {tax.gstRate}%
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 text-[10px] font-bold">
+                              TDS {tax.tdsRate}% ({tax.tdsSection || "194C"})
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            {p.taxIdentifier && (
+                              <span>
+                                GSTIN: <strong className="text-slate-800">{p.taxIdentifier}</strong>
+                              </span>
+                            )}
+                            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 text-[10px] font-bold">
+                              GST {tax.gstRate}% (CGST: {tax.cgstRate}%, SGST: {tax.sgstRate}%)
+                            </span>
+                          </>
                         )}
-                        <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 text-[10px] font-bold">
-                          GST {gst.gstRate}% (CGST: {gst.cgstRate}%, SGST: {gst.sgstRate}%)
-                        </span>
                       </div>
                     );
                   })()}
@@ -1395,13 +1544,38 @@ export default function PartiesPage() {
                               <div className="font-semibold text-slate-900 group-hover:text-amber-700 transition-colors">{p.name}</div>
                             </Link>
                             {(() => {
-                              const gst = parsePartyGst(p.notes);
+                              const tax = parsePartyTax(p.notes, p.partyType, p.tdsSection);
+                              const isContractorParty = p.partyType === "CONTRACTOR";
+                              const isBothParty = p.partyType === "BOTH";
+
                               return (
                                 <div className="text-[10px] font-mono text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                                  {p.taxIdentifier && <span>GSTIN: {p.taxIdentifier} &bull;</span>}
-                                  <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-900 border border-amber-200 font-bold">
-                                    GST {gst.gstRate}% (C: {gst.cgstRate}%, S: {gst.sgstRate}%)
-                                  </span>
+                                  {isContractorParty ? (
+                                    <>
+                                      {p.panNumber && <span>PAN: {p.panNumber} &bull;</span>}
+                                      {p.taxIdentifier && <span>GSTIN: {p.taxIdentifier} &bull;</span>}
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 font-bold">
+                                        {tax.tdsSection === "NONE" ? "TDS: Exempt" : `TDS ${tax.tdsRate}% (${tax.tdsSection || "194C"})`}
+                                      </span>
+                                    </>
+                                  ) : isBothParty ? (
+                                    <>
+                                      {p.taxIdentifier && <span>GSTIN: {p.taxIdentifier} &bull;</span>}
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 font-bold">
+                                        GST {tax.gstRate}%
+                                      </span>
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 font-bold">
+                                        TDS {tax.tdsRate}%
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      {p.taxIdentifier && <span>GSTIN: {p.taxIdentifier} &bull;</span>}
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 font-bold">
+                                        GST {tax.gstRate}% (C: {tax.cgstRate}%, S: {tax.sgstRate}%)
+                                      </span>
+                                    </>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -1585,7 +1759,34 @@ export default function PartiesPage() {
                     </div>
                     <div>
                       <label className={labelCls}>Type</label>
-                      <select value={form.partyType} onChange={setField("partyType")} className={inputCls}>
+                      <select
+                        value={form.partyType}
+                        onChange={(e) => {
+                          const newType = e.target.value as PartyType;
+                          setForm((prev) => {
+                            const updated = { ...prev, partyType: newType };
+                            if (newType === "CONTRACTOR") {
+                              if (!updated.tdsSection || updated.tdsSection === "NONE") {
+                                updated.tdsSection = "194C";
+                              }
+                              if (!updated.tdsRate || updated.tdsRate === "0") {
+                                const panChar = (updated.panNumber || "").trim().toUpperCase()[3];
+                                updated.tdsRate = (panChar === "C" || panChar === "F") ? "2" : "1";
+                              }
+                            } else if (newType === "VENDOR") {
+                              if (!updated.gstRate) {
+                                updated.gstRate = "18";
+                                updated.cgstRate = "9";
+                                updated.sgstRate = "9";
+                              }
+                            }
+                            return updated;
+                          });
+                          if (newType === "CONTRACTOR") setBothTaxTab("TDS");
+                          else if (newType === "VENDOR") setBothTaxTab("GST");
+                        }}
+                        className={inputCls}
+                      >
                         <option value="VENDOR">Vendor (material supplier)</option>
                         <option value="CONTRACTOR">Contractor (labour / work)</option>
                         <option value="BOTH">Both (material + work)</option>
@@ -1844,102 +2045,264 @@ export default function PartiesPage() {
                       )}
                     </div>
                     <div>
-                      <label className={labelCls}>GSTIN</label>
+                      <label className={labelCls}>
+                        GSTIN {form.partyType === "CONTRACTOR" && <span className="text-slate-400 font-normal text-[11px]">(Optional)</span>}
+                      </label>
                       <input type="text" placeholder="27AAAAA0000A1Z5" value={form.taxIdentifier} onChange={setField("taxIdentifier")} className={cn(inputCls, "font-mono uppercase")} />
                     </div>
                     <div>
-                      <label className={labelCls}>PAN</label>
-                      <input type="text" maxLength={10} placeholder="ABCDE1234F" value={form.panNumber} onChange={setField("panNumber")} className={cn(inputCls, "font-mono uppercase")} />
-                      <p className="mt-1 text-[11px] text-slate-400">10-digit PAN for business & tax compliance verification.</p>
+                      <label className={labelCls}>
+                        PAN {form.partyType === "CONTRACTOR" && <span className="text-purple-600 font-bold text-[11px]">*(For TDS)</span>}
+                      </label>
+                      <input type="text" maxLength={10} placeholder="ABCDE1234F" value={form.panNumber} onChange={(e) => handlePanChange(e.target.value)} className={cn(inputCls, "font-mono uppercase")} />
+                      <p className="mt-1 text-[11px] text-slate-400">10-digit PAN for business &amp; tax compliance verification.</p>
                     </div>
 
-                    {/* GST Rate (%), CGST (%), SGST (%) Section */}
-                    <div className="sm:col-span-2 bg-amber-50/50 rounded-xl p-3 border border-amber-200/90 space-y-2.5">
-                      <div className="flex items-center justify-between flex-wrap gap-1">
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-amber-950">
-                          <Percent className="w-4 h-4 text-amber-600" />
-                          <span>GST Tax Configuration</span>
-                        </div>
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                          Total: {form.gstRate || 0}% (CGST {form.cgstRate || 0}% + SGST {form.sgstRate || 0}%)
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {/* GST Rate (%) */}
-                        <div>
-                          <label className={labelCls}>GST Rate (%)</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              max="100"
-                              placeholder="18"
-                              value={form.gstRate}
-                              onChange={(e) => handleGstRateChange(e.target.value)}
-                              className={cn(inputCls, "font-mono font-bold pr-7")}
-                            />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-                          </div>
-                          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                            {["0", "5", "12", "18", "28"].map((rate) => (
-                              <button
-                                key={rate}
-                                type="button"
-                                onClick={() => handleGstRateChange(rate)}
-                                className={cn(
-                                  "px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer",
-                                  form.gstRate === rate
-                                    ? "bg-amber-500 text-slate-950 shadow-2xs"
-                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                )}
-                              >
-                                {rate}%
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* CGST (%) */}
-                        <div>
-                          <label className={labelCls}>CGST (%)</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.05"
-                              min="0"
-                              max="50"
-                              placeholder="9"
-                              value={form.cgstRate}
-                              onChange={(e) => handleCgstRateChange(e.target.value)}
-                              className={cn(inputCls, "font-mono font-bold pr-7")}
-                            />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-                          </div>
-                          <p className="mt-1 text-[10px] text-slate-500 font-medium">Central Tax (e.g. 9%)</p>
-                        </div>
-
-                        {/* SGST (%) */}
-                        <div>
-                          <label className={labelCls}>SGST (%)</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.05"
-                              min="0"
-                              max="50"
-                              placeholder="9"
-                              value={form.sgstRate}
-                              onChange={(e) => handleSgstRateChange(e.target.value)}
-                              className={cn(inputCls, "font-mono font-bold pr-7")}
-                            />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-                          </div>
-                          <p className="mt-1 text-[10px] text-slate-500 font-medium">State Tax (e.g. 9%)</p>
+                    {/* Tax Regime Selector if BOTH (Material + Work) */}
+                    {form.partyType === "BOTH" && (
+                      <div className="sm:col-span-2 flex items-center justify-between pb-1 border-b border-slate-100">
+                        <span className="text-xs font-bold text-slate-600">Tax Configuration</span>
+                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => setBothTaxTab("GST")}
+                            className={cn(
+                              "px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer",
+                              bothTaxTab === "GST"
+                                ? "bg-amber-500 text-slate-950 shadow-xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            )}
+                          >
+                            GST (Material)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBothTaxTab("TDS")}
+                            className={cn(
+                              "px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer",
+                              bothTaxTab === "TDS"
+                                ? "bg-purple-600 text-white shadow-xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            )}
+                          >
+                            TDS (Contractor)
+                          </button>
                         </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* 1. If CONTRACTOR (or BOTH with TDS tab): Render TDS Tax Configuration */}
+                    {(form.partyType === "CONTRACTOR" || (form.partyType === "BOTH" && bothTaxTab === "TDS")) && (
+                      <div className="sm:col-span-2 bg-purple-50/60 rounded-xl p-3 border border-purple-200/90 space-y-2.5 animate-in fade-in">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                          <div className="flex items-center gap-1.5 font-bold text-xs text-purple-950">
+                            <Percent className="w-4 h-4 text-purple-600" />
+                            <span>TDS Tax Configuration (Withholding Tax)</span>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300">
+                            {form.tdsSection === "NONE"
+                              ? "Exempt (0% TDS)"
+                              : `Total TDS: ${form.tdsRate || 1}% (${form.tdsSection || "194C"})`}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* TDS Section Dropdown */}
+                          <div>
+                            <label className={labelCls}>TDS Section</label>
+                            <select
+                              value={form.tdsSection || "194C"}
+                              onChange={(e) => handleTdsSectionChange(e.target.value)}
+                              className={cn(inputCls, "font-medium text-xs")}
+                            >
+                              <option value="194C">Section 194C - Contractor Work (1% / 2%)</option>
+                              <option value="194J_TECH">Section 194J - Technical Services (2%)</option>
+                              <option value="194J_PROF">Section 194J - Professional Services (10%)</option>
+                              <option value="194I_PM">Section 194I - Plant &amp; Machinery Hire (2%)</option>
+                              <option value="194I_LB">Section 194I - Rent of Land / Building (10%)</option>
+                              <option value="NONE">Exempt / No TDS Deduction (0%)</option>
+                            </select>
+                            <p className="mt-1 text-[10px] text-slate-500 font-medium">
+                              {form.tdsSection === "194C"
+                                ? "Standard for labour, excavation, civil & masonry work"
+                                : form.tdsSection === "NONE"
+                                ? "No tax withheld from contractor payments"
+                                : "Statutory withholding under Income-tax Act"}
+                            </p>
+                          </div>
+
+                          {/* TDS Rate (%) */}
+                          <div>
+                            <label className={labelCls}>TDS Rate (%)</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                placeholder="1"
+                                value={form.tdsRate}
+                                onChange={(e) => handleTdsRateChange(e.target.value)}
+                                className={cn(inputCls, "font-mono font-bold pr-7")}
+                              />
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                              {[
+                                { label: "0% (Exempt)", val: "0" },
+                                { label: "1% (Indiv/HUF)", val: "1" },
+                                { label: "2% (Company)", val: "2" },
+                                { label: "5%", val: "5" },
+                                { label: "10%", val: "10" },
+                              ].map((item) => (
+                                <button
+                                  key={item.val}
+                                  type="button"
+                                  onClick={() => handleTdsRateChange(item.val)}
+                                  className={cn(
+                                    "px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer",
+                                    form.tdsRate === item.val
+                                      ? "bg-purple-600 text-white shadow-2xs"
+                                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                  )}
+                                >
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* PAN Guidance note */}
+                        <div className="pt-1.5 text-[11px] text-slate-500 flex items-start gap-1.5 border-t border-purple-200/50">
+                          <Info className="w-3.5 h-3.5 text-purple-600 mt-0.5 shrink-0" />
+                          <div>
+                            {(() => {
+                              const pan = (form.panNumber || "").trim().toUpperCase();
+                              if (pan.length >= 4) {
+                                const fourth = pan[3];
+                                if (fourth === "P" || fourth === "H") {
+                                  return (
+                                    <span>
+                                      PAN <strong className="text-slate-700">{pan}</strong> belongs to an <strong>Individual / HUF</strong> (4th char &apos;{fourth}&apos;). Standard Sec 194C rate is <strong>1%</strong>.
+                                    </span>
+                                  );
+                                }
+                                if (fourth === "C" || fourth === "F") {
+                                  return (
+                                    <span>
+                                      PAN <strong className="text-slate-700">{pan}</strong> belongs to a <strong>{fourth === "C" ? "Company" : "Partnership Firm / LLP"}</strong>. Standard Sec 194C rate is <strong>2%</strong>.
+                                    </span>
+                                  );
+                                }
+                              }
+                              if (!pan) {
+                                return (
+                                  <span className="text-amber-700 font-medium">
+                                    PAN not entered yet. Ensure valid PAN is provided to avoid 20% penal withholding under Section 206AA.
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span>
+                                  TDS will be auto-deducted at <strong>{form.tdsRate || 1}%</strong> under <strong>{form.tdsSection || "194C"}</strong> on all bills and payments recorded for this contractor.
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. If VENDOR (or BOTH with GST tab): Render GST Tax Configuration */}
+                    {(form.partyType === "VENDOR" || (form.partyType === "BOTH" && bothTaxTab === "GST")) && (
+                      <div className="sm:col-span-2 bg-amber-50/50 rounded-xl p-3 border border-amber-200/90 space-y-2.5 animate-in fade-in">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                          <div className="flex items-center gap-1.5 font-bold text-xs text-amber-950">
+                            <Percent className="w-4 h-4 text-amber-600" />
+                            <span>GST Tax Configuration</span>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                            Total: {form.gstRate || 0}% (CGST {form.cgstRate || 0}% + SGST {form.sgstRate || 0}%)
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {/* GST Rate (%) */}
+                          <div>
+                            <label className={labelCls}>GST Rate (%)</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                placeholder="18"
+                                value={form.gstRate}
+                                onChange={(e) => handleGstRateChange(e.target.value)}
+                                className={cn(inputCls, "font-mono font-bold pr-7")}
+                              />
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                              {["0", "5", "12", "18", "28"].map((rate) => (
+                                <button
+                                  key={rate}
+                                  type="button"
+                                  onClick={() => handleGstRateChange(rate)}
+                                  className={cn(
+                                    "px-1.5 py-0.5 rounded text-[10px] font-bold font-mono transition cursor-pointer",
+                                    form.gstRate === rate
+                                      ? "bg-amber-500 text-slate-950 shadow-2xs"
+                                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                  )}
+                                >
+                                  {rate}%
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* CGST (%) */}
+                          <div>
+                            <label className={labelCls}>CGST (%)</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.05"
+                                min="0"
+                                max="50"
+                                placeholder="9"
+                                value={form.cgstRate}
+                                onChange={(e) => handleCgstRateChange(e.target.value)}
+                                className={cn(inputCls, "font-mono font-bold pr-7")}
+                              />
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                            </div>
+                            <p className="mt-1 text-[10px] text-slate-500 font-medium">Central Tax (e.g. 9%)</p>
+                          </div>
+
+                          {/* SGST (%) */}
+                          <div>
+                            <label className={labelCls}>SGST (%)</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.05"
+                                min="0"
+                                max="50"
+                                placeholder="9"
+                                value={form.sgstRate}
+                                onChange={(e) => handleSgstRateChange(e.target.value)}
+                                className={cn(inputCls, "font-mono font-bold pr-7")}
+                              />
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                            </div>
+                            <p className="mt-1 text-[10px] text-slate-500 font-medium">State Tax (e.g. 9%)</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {form.partyType !== "VENDOR" && (
                       <div className="sm:col-span-2">
